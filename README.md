@@ -115,10 +115,8 @@ alternative earns full credit.
 ## Data provenance and licensing
 
 - The 39 parameters, 40 principles, and the 34-tool catalog are classical TRIZ vocabulary.
-- `matrix.json` was imported from a machine-readable workbook and its `_meta` carries
-  `license_review_required: true`. The underlying table is Altshuller's and widely republished, but
-  the terms of the imported file have not been reviewed. If that matters for your use, regenerate
-  the file from a source you have cleared:
+- `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
+  and widely republished. To regenerate the file from a source of your own choosing:
 
   ```bash
   npx tsx scripts/import-matrix.mjs <url|file.csv|file.json> [--format csv|json]
@@ -128,9 +126,3 @@ alternative earns full credit.
   authors, and pages are recorded per case in `published-case-evals.json`.
 - The code in this repository is MIT licensed (`LICENSE`). That license covers the code and the
   original prose, not third-party data noted above.
-
-## Origin
-
-Extracted from the [FLOP Network](https://github.com/flop-labs/flop-core) repository, where the
-skill and server were developed. Only the domain-neutral core is here: FLOP's own evaluation
-benchmark, contradiction registry, and problem graph are not part of this repo.
