@@ -1,0 +1,233 @@
+{
+  "_meta": {
+    "title": "Published MATRIZ case benchmark",
+    "purpose": "Blind forward evaluation on problems reconstructed from published worked cases.",
+    "separation_rule": "Naturalistic and structured solver prompts contain only pre-solution facts. hidden_reference is for judges and schema tests, is not exposed through triz_evals, and must not be shown to solvers.",
+    "prompt_variants": {
+      "naturalistic_prompt": "Primary benchmark. A sparse user-style brief that asks for TRIZ but does not prescribe the answer structure.",
+      "solver_prompt": "Ceiling-check benchmark. A structured brief that explicitly requests diagnosis, mechanisms, and validation."
+    },
+    "scoring_note": "Do not require reproduction of the historical solution. Award an alternative when its causal mechanism and validation plan are at least as credible.",
+    "license": "Source publications state Creative Commons Attribution (CC BY). Benchmark text is a concise attributed paraphrase."
+  },
+  "cases": [
+    {
+      "id": "matriz-2025-airport-sterile-zone",
+      "domain": "demand-and-engagement",
+      "evidence_maturity": "implemented-with-quantified-outcome",
+      "source": {
+        "title": "TRIZ in airport activities (Russian airports)",
+        "authors": ["Alesya Khristenko"],
+        "publication": "Proceedings of the 20th International Conference TRIZfest-2025",
+        "year": 2025,
+        "pages": "306-314; worked case on 308-309",
+        "url": "https://matriz.org/wp-content/uploads/2026/02/TRIZfest-2025-Proceedings.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to advise an airport whose domestic-departure lounge is crowded near the wide-body gates while shops and waiting space elsewhere receive little traffic. Rebuilding is not practical. How should management improve passenger comfort and non-aviation revenue?",
+      "solver_prompt": "A domestic-departure sterile zone is a narrow rectangle. Gates for wide-body aircraft are concentrated at its left end, so passengers crowd there. Complaints cite too few seats, while food-and-beverage and retail tenants elsewhere in the zone lose potential revenue. The terminal geometry cannot be rebuilt and interventions should be inexpensive. Develop a TRIZ decision record that improves passenger distribution, waiting comfort, and non-aviation revenue without manipulating passengers or obstructing boarding. Distinguish source facts from assumptions; diagnose the mechanism; state the contradiction/IFR; give at least three distinct mechanisms; recommend one; and specify a falsifiable pilot with guardrails.",
+      "hidden_reference": {
+        "diagnosis": "Terminal and gate geometry concentrated passengers away from underused commercial and waiting capacity, especially an open-air Atrium.",
+        "triz_models": [
+          "Attract passengers to the Atrium and do not attract them away from boarding when their presence is required.",
+          "Balanced passenger-flow distribution with zero complaints as an IFR.",
+          "Organizational inventive principles including intermediary, another dimension, and parameter change."
+        ],
+        "reported_mechanisms": [
+          "Create an Atrium waiting area and rearrange or replace seats.",
+          "Improve monitor information so passengers can use remote space without missing boarding.",
+          "Add services and retail activity in the Atrium, including mobile commerce with delivery.",
+          "Use sensory and service cues to make the underused area attractive."
+        ],
+        "reported_outcome": "The paper reports a 24% increase in non-aviation revenue, improved waiting comfort, and passenger gratitude after low-cost measures.",
+        "caveats": "The paper does not report sample size, comparison period, complaint count, or causal attribution. Sensory cues require accessibility and manipulation guardrails."
+      },
+      "rubric_anchors": [
+        "Models location/time-dependent attraction versus proximity to boarding, rather than merely adding seats.",
+        "Uses underused space, information, tenant capability, or service delivery as resources.",
+        "Measures zone occupancy, boarding misses, comfort/complaints, tenant revenue, accessibility, and displacement.",
+        "Tests low-cost mechanisms separately enough to identify which caused the outcome."
+      ]
+    },
+    {
+      "id": "matriz-2025-airport-ground-handling",
+      "domain": "supply-and-partner-management",
+      "evidence_maturity": "implemented-with-quantified-outcome",
+      "source": {
+        "title": "TRIZ in airport activities (Russian airports)",
+        "authors": ["Alesya Khristenko"],
+        "publication": "Proceedings of the 20th International Conference TRIZfest-2025",
+        "year": 2025,
+        "pages": "306-314; worked case on 311",
+        "url": "https://matriz.org/wp-content/uploads/2026/02/TRIZfest-2025-Proceedings.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to help an airport improve the profitability and reliability of ground handling. Another handler is both a competitor and an important capacity partner, so simply ending the relationship is unattractive. What commercial and operating model should the airport pursue?",
+      "solver_prompt": "An airport wants to raise the profitability and resource reliability of its ground-handling services. A second company supplies similar services and is both a competitor and a valued partner; ending the relationship would remove capacity and damage cooperation. Treat the airport, airlines, service capacity, contracts, and partner as one supersystem. Produce a TRIZ decision record that avoids the false choice between taking all work in-house and conceding the market. Include the causal contradiction/IFR, three distinct mechanisms, a recommendation, negotiation constraints, and a falsifiable commercial pilot with service-quality and concentration-risk guardrails.",
+      "hidden_reference": {
+        "diagnosis": "The competitor's capacity was treated only as rivalry even though it was an available supersystem resource.",
+        "triz_models": [
+          "Increase airport ground-handling revenue while maintaining the partnership and obtaining needed service resources.",
+          "The partner itself participates in profit generation and becomes an additional resource.",
+          "Transition to a supersystem, nested-doll/intermediary logic, and a more fluid organizational boundary."
+        ],
+        "reported_mechanisms": [
+          "Incorporate the outsourcing company into the airport service system.",
+          "Jointly provide ground-handling services with guaranteed airport income.",
+          "Use airline contracts at the airport boundary to coordinate demand.",
+          "Establish a five-year cooperation agreement."
+        ],
+        "reported_outcome": "The paper reports an 82% increase in ground-handling profitability while maintaining the supplier partnership.",
+        "caveats": "No baseline margin, contract economics, service-level data, or counterfactual is disclosed. Any replication must address antitrust, lock-in, bargaining power, and airline choice."
+      },
+      "rubric_anchors": [
+        "Reframes competitor capacity as a conditional resource without erasing competitive and legal risks.",
+        "Separates demand ownership, service execution, commercial settlement, and long-term governance.",
+        "Measures contribution margin, service level, capacity, partner economics, airline choice, and concentration risk.",
+        "Includes exit rights, auditability, service failure allocation, and a bounded pilot."
+      ]
+    },
+    {
+      "id": "matriz-2025-tape-reel-seal",
+      "domain": "manufacturing-process",
+      "evidence_maturity": "implemented-with-quantified-outcome",
+      "source": {
+        "title": "Elimination of incomplete seal in tape & reel system using ARIZ",
+        "authors": ["Teong San Yeoh"],
+        "publication": "Proceedings of the 20th International Conference TRIZfest-2025",
+        "year": 2025,
+        "pages": "109-125",
+        "url": "https://matriz.org/wp-content/uploads/2026/02/TRIZfest-2025-Proceedings.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to improve a semiconductor tape-and-reel heat-sealing machine. Package changes require top-plate replacement and take about 80 minutes. Partial seals occur at least monthly and cause roughly 20 hours of downtime. Heater clearance forces technicians to tighten a top-plate Allen screw at an angle, wearing the socket and sometimes leaving the plate loose. The installed fleet makes a low-cost retrofit preferable.",
+      "solver_prompt": "A semiconductor tape-and-reel machine heat-seals cover tape over carrier-tape pockets. Different package sizes require frequent top-plate changes. Each conversion averages 80 minutes. At least monthly, a partial seal opens, placing lots on hold, forcing reel screening, delaying shipments, and taking equipment offline; downtime averages 20 hours per machine. Investigation shows a standard Allen key cannot be held perpendicular to the top-plate screw because the heater housing leaves too little clearance. Slanted tightening wears the socket and can leave the plate loose. A large installed fleet makes low-cost, minimal change essential. Develop a TRIZ decision record targeting zero incomplete seals, at least 30% faster conversion, and 50% less related downtime. Give at least three mechanisms and a qualification plan.",
+      "hidden_reference": {
+        "diagnosis": "Frequent top-plate replacement required a screw-tightening function in an operating zone too short for the Allen-key clearance. Slanted access damaged the socket and produced insufficient tightening.",
+        "triz_models": [
+          "The tool must be long enough to tighten and short enough to fit the operating zone.",
+          "The plate must be removable for width changes and permanently secure during sealing.",
+          "ARIZ resource analysis, separation, trimming, and minimal-change IFR."
+        ],
+        "reported_mechanisms": [
+          "Segment the top plate into two independent pieces so changing width no longer requires removing the holding structure.",
+          "Permanently weld the segmented plate to the base, trimming the screws, Allen key, and tightening operation.",
+          "The paper also considered side access, a short adapter, changed fasteners, a chamfered grip, and a base overhang."
+        ],
+        "reported_outcome": "The implemented segmented-and-welded plate produced a reported 35% conversion-time reduction, zero incomplete seals, and 50% less related equipment downtime.",
+        "caveats": "The paper does not state observation duration, fleet count, weld fatigue results, or maintenance/replacement effects."
+      },
+      "rubric_anchors": [
+        "Localizes the conflict to tool access and the repeated plate-change function.",
+        "Includes a mechanism that trims or relocates the fastening function, not only a better Allen key.",
+        "Uses existing plate/base geometry and permanent versus changeable regions as resources.",
+        "Qualification covers seal integrity, conversion time, downtime, thermal cycling, maintainability, and fleet rollout."
+      ]
+    },
+    {
+      "id": "matriz-2025-refractory-internal-cracks",
+      "domain": "quality-and-production",
+      "evidence_maturity": "implemented-with-experimental-validation",
+      "source": {
+        "title": "Problem solving in the production process of refractory materials using TRIZ tools",
+        "authors": ["Małgorzata Szymaszek", "Sergey Yatsunenko"],
+        "publication": "Proceedings of the 20th International Conference TRIZfest-2025",
+        "year": 2025,
+        "pages": "221-227",
+        "url": "https://matriz.org/wp-content/uploads/2026/02/TRIZfest-2025-Proceedings.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to reduce initially invisible internal cracks in pressed refractory bricks. The cracks are perpendicular to the pressing axis and weaken the finished product. Possible influences include the mix, binder or moisture, pressing profile, venting, die condition, drying, and firing. Recommend how the plant should investigate and correct the problem.",
+      "solver_prompt": "Pressed refractory bricks sometimes contain internal cracks perpendicular to the pressing axis. The cracks are initially invisible, reduce finished strength, and create scrap and complaint costs. The process includes mix preparation, pressing in hydraulic dies, drying, and firing. Plausible causes span particle-size distribution, binder and moisture, pressure and speed, venting, die geometry and wear, ambient conditions, and tool condition. Design a TRIZ-led investigation and corrective-action decision record. It must discriminate causes rather than brainstorm fixes, use production resources where possible, propose at least three mechanisms, and define experiments and monitoring that can demonstrate crack reduction without weakening the product or destabilizing throughput.",
+      "hidden_reference": {
+        "diagnosis": "A high proportion of particles below 70 micrometres reduced mix permeability, blocked venting paths, trapped gas during pressing, and combined with mechanical stress to initiate cracks. Excess moisture also hindered gas removal.",
+        "triz_models": [
+          "Functional analysis and cause-effect chain analysis across material, process, tooling, and operation.",
+          "Diversionary analysis: intentionally reproduce the defect under controlled conditions.",
+          "Flow conflict between compaction and evacuation of trapped air."
+        ],
+        "reported_mechanisms": [
+          "Reduce and control the fine-particle fraction.",
+          "Improve die venting parameters.",
+          "Control moisture and pressing sequence.",
+          "Update control plans and monitor the stabilized process."
+        ],
+        "reported_outcome": "Trials reproduced cracking with fine-dominated and high-moisture mixes, while reduced dust content produced no cracks. Implemented controls reportedly caused a significant defect reduction and stabilized forming.",
+        "caveats": "The final reduction is not quantified; experiment counts, uncertainty, product-strength results, and monitoring duration are not reported."
+      },
+      "rubric_anchors": [
+        "Builds and ranks a causal tree before selecting corrective action.",
+        "Uses deliberate defect reproduction or a designed experiment to distinguish material, venting, and mechanical causes.",
+        "Treats air/gas evacuation during compaction as a flow to preserve.",
+        "Measures internal defects, permeability, density/strength, moisture, cycle time, scrap, and stability over time."
+      ]
+    },
+    {
+      "id": "matriz-2025-crushed-stone-mixture",
+      "domain": "supply-and-material-optimization",
+      "evidence_maturity": "analytical-worked-example",
+      "source": {
+        "title": "Increasing the idealness of systems with implicit structure by resolving contradictions in their requirements using methods of mathematical experiment planning",
+        "authors": ["Nikolay B. Primak", "Dmitriy N. Primak"],
+        "publication": "TRIZ Review, Volume 3",
+        "year": 2025,
+        "pages": "68-74; worked case on 71-73",
+        "url": "https://matriz.org/wp-content/uploads/2025/10/TRIZ-Review-2025.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to choose a lower-cost crushed-stone mix when the strongest aggregate is not reliably available. Three fractions cost 350, 325, and 300 RUB/m³ and are modeled at 50, 35, and 30 MPa. Their nonnegative shares must sum to one. The customer asks for 35–40 MPa. Recommend a composition and how the plant should validate it.",
+      "solver_prompt": "A precast-concrete plant has unreliable access to its highest-quality aggregate. Three fractions cost 350, 325, and 300 RUB/m³ and have modeled strengths of 50, 35, and 30 MPa. A linear first model is R = 50x1 + 35x2 + 30x3 and C = 350x1 + 325x2 + 300x3, with nonnegative shares summing to one. Customer strength must be 35-40 MPa while cost should be minimized. Treat the formula as a hypothesis, not physical truth. Produce a TRIZ decision record for selecting and validating a mix: expose any ambiguity in 'meet the range,' show candidate compositions, state the contradiction/IFR, and design tests robust to supply variability and model error.",
+      "hidden_reference": {
+        "diagnosis": "The mixture is treated as a black-box system with competing strength and cost responses; mathematical experiment planning is used to synthesize a feasible composition.",
+        "triz_models": [
+          "Resolve cost-versus-strength requirements through designed mixture experiments rather than guessing internal structure.",
+          "Improve ideality by meeting the useful strength function with lower material cost."
+        ],
+        "reported_mechanisms": [
+          "Construct a three-factor mixture simplex and identify the feasible response zone.",
+          "Choose x1=0.30, x2=0.05, x3=0.65 as an interior graphical solution."
+        ],
+        "reported_outcome": "The reported composition predicts 35.55 MPa at 316.25 RUB/m³ and is described as about 10% cheaper while meeting strength requirements.",
+        "caveats": "Under the stated linear equations, the reported point is not the strict minimum-cost boundary solution: x1=0.25, x2=0, x3=0.75 predicts 35 MPa at 312.5 RUB/m³. A credible answer should identify whether the interior margin is intentional and require physical validation."
+      },
+      "rubric_anchors": [
+        "Checks the mathematics and distinguishes strict cost minimization from robustness above the lower strength bound.",
+        "Uses mixture design or response-surface experiments to test nonlinearity and interactions.",
+        "Accounts for supply, batch, moisture, grading, and measurement variability.",
+        "Defines acceptance on strength distribution, cost, workability/durability, and supply resilience rather than one predicted point."
+      ]
+    },
+    {
+      "id": "matriz-2025-alumni-engagement",
+      "domain": "engagement-and-public-relations",
+      "evidence_maturity": "diagnosed-and-proposed",
+      "source": {
+        "title": "TRIZ-based approach to enhance alumni relations in a Malaysian public university",
+        "authors": ["Anisah Marais", "Nurfauza Jali", "Yanti Rosmunie Bujang", "Halikul Lenando", "Narayanan Kulathuramaiyer"],
+        "publication": "Proceedings of the 20th International Conference TRIZfest-2025",
+        "year": 2025,
+        "pages": "336-345",
+        "url": "https://matriz.org/wp-content/uploads/2026/02/TRIZfest-2025-Proceedings.pdf"
+      },
+      "naturalistic_prompt": "Use TRIZ to improve sustained engagement with 63,950 university alumni when the alumni office has four staff, two part-time on this work. Participation is low, outreach is reactive and event-based, email broadcasting is limited, programs are mostly designed internally, and alumni often perceive little value. Leadership therefore hesitates to add resources.",
+      "solver_prompt": "A public university has 63,950 alumni but only four alumni-relations staff, two of whom have other portfolios. Participation and response to university programs are low. Outreach is reactive and event-based, relying on social platforms because email broadcast capability is limited. Programs are designed mainly inside the university; there is no structured way to capture alumni needs or feedback. Alumni often see little tangible value, and leadership does not clearly recognize the office's strategic contribution, limiting resources. Produce a human-centered TRIZ decision record that improves meaningful, sustained alumni participation without maximizing message volume or exploiting social pressure. Include diagnosis, contradictions/IFR, three mechanisms, a recommendation, and a staged causal evaluation with privacy, fatigue, inclusion, and trust guardrails.",
+      "hidden_reference": {
+        "diagnosis": "The report identifies three linked causes: no CRM/outreach model, weak strategic recognition of the alumni office, and low perceived value. Functional analysis shows fragmented, one-way interaction and little alumni input into program design.",
+        "triz_models": [
+          "CECA and functional analysis of university, alumni office, program developers, leadership, and alumni.",
+          "Weak interaction repaired with communication, feedback, and value/psychological fields.",
+          "Contradictions: broader strategic outreach does not guarantee participation; co-design improves relevance but still does not guarantee response."
+        ],
+        "reported_mechanisms": [
+          "Segment alumni by relevant needs and context; integrate CRM, event, social, and reminder functions.",
+          "Make alumni contribution and benefits visible and add continuous two-way feedback.",
+          "Co-design programs with alumni and let alumni lead, host, or recruit peers.",
+          "Use alumni ambassadors and flexible formats, schedules, mentoring, and on-demand participation."
+        ],
+        "reported_outcome": "The paper proposes a refined framework but reports no implemented participation outcome.",
+        "caveats": "Su-Field language is metaphorical in this human system. CRM and psychological targeting create privacy, manipulation, representation, and fatigue risks that require explicit consent and evaluation."
+      },
+      "rubric_anchors": [
+        "Separates communication reach, perceived value, program relevance, institutional authority, and staffing capacity.",
+        "Treats alumni as stakeholders and co-designers, not passive substances or a message target.",
+        "Offers distinct mechanisms for feedback/value, segmentation/service design, and institutional/resource structure.",
+        "Measures meaningful participation and alumni outcomes with consent, opt-out, fatigue, inclusion, trust, and staff-load guardrails."
+      ]
+    }
+  ]
+}

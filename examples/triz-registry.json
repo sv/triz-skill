@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "title": "Example contradiction registry",
+    "note": "Optional companion to the problem graph. A node's purpose is verifier-backed when a registry entry it links to (node.refs.registry) carries a `verified_by` record. Point TRIZ_REGISTRY at your own file."
+  },
+  "contradictions": [
+    {
+      "id": "R-001",
+      "title": "Inspection cost vs. coverage",
+      "solution_summary": "Risk-weighted sampling with automatic escalation on drift",
+      "status": "resolved",
+      "expected_benefit": "full effective coverage at partial inspection cost",
+      "actual_benefit": "measured: 38% inspection hours, no change in escape rate over 12 weeks",
+      "verified_by": { "method": "field-measurement", "run": "2026-04-18" }
+    },
+    {
+      "id": "R-002",
+      "title": "Rework capacity vs. lead time",
+      "solution_summary": "Local rework cells fed by a shared parts buffer",
+      "status": "validated_partial",
+      "expected_benefit": "lead time held while rework stays economic",
+      "actual_benefit": "pilot cell only; line-wide effect not measured"
+    }
+  ]
+}

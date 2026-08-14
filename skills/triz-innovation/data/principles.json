@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "title": "TRIZ 40 Inventive Principles",
+    "note": "Canonical numbering with concise English paraphrases. Look up numbers deterministically; translate each principle into a causal mechanism for the problem at hand.",
+    "sources": [
+      "https://wiki.matriz.org/knowledge-base/triz/problem-solving-tools-5890/contradictions/inventive-principles/"
+    ]
+  },
+  "principles": [
+    { "id": 1, "name": "Segmentation", "classic": "Divide an object into independent parts; make it sectional or modular." },
+    { "id": 2, "name": "Taking out / Extraction", "classic": "Separate an interfering part or isolate the only needed part." },
+    { "id": 3, "name": "Local quality", "classic": "Make each part fulfill a different, locally optimal function." },
+    { "id": 4, "name": "Asymmetry", "classic": "Replace symmetric forms with asymmetric ones." },
+    { "id": 5, "name": "Merging / Consolidation", "classic": "Bring identical or adjacent operations together in space or time." },
+    { "id": 6, "name": "Universality", "classic": "Make an object perform multiple functions and eliminate other parts." },
+    { "id": 7, "name": "Nested doll / Nesting", "classic": "Place one object inside another; use layered containment." },
+    { "id": 8, "name": "Anti-weight / Counterweight", "classic": "Compensate an object's weight by coupling it to a lifting force." },
+    { "id": 9, "name": "Preliminary anti-action", "classic": "Preload an opposing action before a harmful one occurs." },
+    { "id": 10, "name": "Preliminary action / Prior action", "classic": "Perform a required change fully or partly in advance." },
+    { "id": 11, "name": "Beforehand cushioning", "classic": "Prepare emergency means beforehand to offset low reliability." },
+    { "id": 12, "name": "Equipotentiality", "classic": "Remove the need to raise or lower in a potential field." },
+    { "id": 13, "name": "The other way round / Inversion", "classic": "Invert the action; make movable parts fixed and fixed parts movable." },
+    { "id": 14, "name": "Spheroidality / Curvature", "classic": "Use curves or rollers instead of straight lines or planes." },
+    { "id": 15, "name": "Dynamics", "classic": "Allow characteristics to change so they are optimal at each stage." },
+    { "id": 16, "name": "Partial or excessive action", "classic": "If the full action is difficult, do slightly less or slightly more." },
+    { "id": 17, "name": "Another dimension", "classic": "Move into another dimension, tilt the object, or use multi-level arrangements." },
+    { "id": 18, "name": "Mechanical vibration / Oscillation", "classic": "Oscillate or increase the frequency of an action." },
+    { "id": 19, "name": "Periodic action", "classic": "Replace continuous action with periodic or pulsed action." },
+    { "id": 20, "name": "Continuity of useful action", "classic": "Work continuously and remove idle intervals." },
+    { "id": 21, "name": "Skipping / Rushing through", "classic": "Conduct a harmful or hazardous operation at very high speed." },
+    { "id": 22, "name": "Blessing in disguise / Turn harm into benefit", "classic": "Use a harmful factor to achieve a positive effect." },
+    { "id": 23, "name": "Feedback", "classic": "Introduce feedback, or change the magnitude and influence of existing feedback." },
+    { "id": 24, "name": "Intermediary / Mediator", "classic": "Use an intermediary carrier or process, temporarily or permanently." },
+    { "id": 25, "name": "Self-service", "classic": "Make an object serve or repair itself and use waste resources." },
+    { "id": 26, "name": "Copying", "classic": "Use inexpensive copies instead of an unavailable, expensive, or fragile original." },
+    { "id": 27, "name": "Cheap short-living objects", "classic": "Replace an expensive durable object with inexpensive short-lived ones." },
+    { "id": 28, "name": "Mechanics substitution", "classic": "Replace a mechanical means with a field, sensory, or other interaction." },
+    { "id": 29, "name": "Pneumatics and hydraulics", "classic": "Use gas or liquid parts instead of solid parts." },
+    { "id": 30, "name": "Flexible shells and thin films", "classic": "Use flexible shells, thin films, or isolating membranes." },
+    { "id": 31, "name": "Porous materials", "classic": "Make an object porous or add porous elements." },
+    { "id": 32, "name": "Color changes", "classic": "Change the color or transparency of an object or its environment." },
+    { "id": 33, "name": "Homogeneity", "classic": "Make interacting objects of the same material or compatible behavior." },
+    { "id": 34, "name": "Discarding and recovering", "classic": "Discard or modify used parts and restore consumables during operation." },
+    { "id": 35, "name": "Parameter changes", "classic": "Change physical state, concentration, flexibility, temperature, or another parameter." },
+    { "id": 36, "name": "Phase transitions", "classic": "Use phenomena accompanying phase transitions." },
+    { "id": 37, "name": "Thermal expansion", "classic": "Use thermal expansion or contraction of materials." },
+    { "id": 38, "name": "Strong oxidants / Boosted interactions", "classic": "Replace a normal medium with an enriched or activated one to intensify interaction." },
+    { "id": 39, "name": "Inert atmosphere", "classic": "Replace a normal environment with an inert one." },
+    { "id": 40, "name": "Composite materials", "classic": "Replace homogeneous materials with composite or multi-property ones." }
+  ]
+}

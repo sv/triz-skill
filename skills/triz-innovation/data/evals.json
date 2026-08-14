@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "title": "Domain-neutral TRIZ regression and reasoning evaluations",
+    "note": "lookup_evals are hard assertions run by tests/lookup.test.ts. reasoning_evals are public synthetic rubric cases. Blinded cases reconstructed from published MATRIZ work are stored separately in published-case-evals.json and are not returned by triz_evals."
+  },
+  "lookup_evals": [
+    {
+      "name": "canonical cell 9-14",
+      "tool": "triz_matrix",
+      "input": { "improving": 9, "worsening": 14 },
+      "expect": { "covered": true, "principles": [8, 3, 26, 14], "source": "altshuller" }
+    },
+    {
+      "name": "matrix direction is asymmetric",
+      "tool": "triz_matrix",
+      "input": { "improving": 14, "worsening": 9 },
+      "expect": { "covered": true, "principles": [8, 13, 26, 14], "source": "altshuller" }
+    },
+    {
+      "name": "blank source cell fails closed",
+      "tool": "triz_matrix",
+      "input": { "improving": 10, "worsening": 16 },
+      "expect": { "covered": false, "principles": [] }
+    },
+    {
+      "name": "diagonal cell fails closed",
+      "tool": "triz_matrix",
+      "input": { "improving": 1, "worsening": 1 },
+      "expect": { "covered": false, "principles": [] }
+    },
+    {
+      "name": "principle 16 retains canonical meaning",
+      "tool": "triz_principle",
+      "input": { "id": 16 },
+      "expect": { "name": "Partial or excessive action", "classic_includes": "slightly" }
+    },
+    {
+      "name": "parameter 28 is canonical",
+      "tool": "triz_parameter",
+      "input": { "id": 28 },
+      "expect": { "name": "Measurement accuracy" }
+    },
+    {
+      "name": "resolve expands canonical matrix cell",
+      "tool": "triz_resolve",
+      "input": { "improving": 28, "worsening": 31 },
+      "expect": { "covered": true, "principle_ids": [3, 33, 39, 10], "expands_to_names": true }
+    },
+    {
+      "name": "analysis router includes causal and flow tools",
+      "tool": "triz_route",
+      "input": { "stage": "analysis", "signals": ["undesirable effect", "bottleneck"] },
+      "expect": { "tool_ids_include": [16, 20], "all_match_stage": true }
+    }
+  ],
+  "reasoning_evals": [
+    {
+      "name": "demand quality versus conversion",
+      "domain": "demand",
+      "problem": "Reducing signup friction raises conversion but also admits poorly matched customers who churn and overload support.",
+      "rubric": {
+        "must_model": "high friction for qualification and low friction for qualified prospects",
+        "separation_candidates": ["condition", "time"],
+        "tools_include": ["Key stakeholder requirements", "Flow analysis", "Cause-effect chain analysis"],
+        "validation_metrics_include": ["qualified conversion", "retention", "support cost", "complaints"]
+      }
+    },
+    {
+      "name": "supply utilization versus resilience",
+      "domain": "supply",
+      "problem": "Consolidating orders improves utilization and price, but longer batches reduce responsiveness and increase stockout risk.",
+      "rubric": {
+        "must_model": "large batches for efficiency and small batches for responsiveness",
+        "separation_candidates": ["condition", "time"],
+        "tools_include": ["Flow analysis", "Resource analysis", "Operating zone and time"],
+        "validation_metrics_include": ["fill rate", "lead time", "working capital", "quality"]
+      }
+    },
+    {
+      "name": "engagement value versus fatigue",
+      "domain": "engagement",
+      "problem": "More reminders increase short-term returns but create fatigue, opt-outs, and lower long-term trust.",
+      "rubric": {
+        "must_model": "prompt when it helps the user's job and remain silent when it does not",
+        "separation_candidates": ["condition", "time"],
+        "tools_include": ["Key stakeholder requirements", "Cause-effect chain analysis", "Separation principles"],
+        "validation_metrics_include": ["retained useful action", "task success", "opt-outs", "complaints"]
+      }
+    },
+    {
+      "name": "public-relations speed versus accuracy",
+      "domain": "public relations",
+      "problem": "A rapid incident response reduces the information vacuum, but incomplete facts can force corrections and damage trust.",
+      "rubric": {
+        "must_model": "respond immediately and withhold unverified claims",
+        "separation_candidates": ["time", "system level"],
+        "tools_include": ["Key stakeholder requirements", "Operating zone and time", "System operator"],
+        "validation_metrics_include": ["response time", "accuracy", "correction rate", "trust"]
+      }
+    }
+  ]
+}

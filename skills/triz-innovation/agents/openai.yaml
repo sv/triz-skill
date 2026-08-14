@@ -1,0 +1,7 @@
+interface:
+  display_name: "TRIZ Innovation"
+  short_description: "Solve and validate contradictions across artificial systems"
+  default_prompt: "Use $triz-innovation to diagnose this system, model its key contradiction, generate distinct mechanisms, and define a falsifying validation plan."
+
+policy:
+  allow_implicit_invocation: true
