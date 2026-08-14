@@ -5,8 +5,7 @@
     "note": "Canonical cells imported from a machine-readable workbook; project-specific overlays are intentionally excluded. Regenerate with scripts/import-matrix.mjs.",
     "full_matrix_reference": "https://wiki.matriz.org/knowledge-base/triz/problem-solving-tools-5890/contradictions/engineering-contradiction-5995/contradiction-matrix-6026/",
     "key_format": "\"<improving_id>-<worsening_id>\" (matrix is asymmetric: A-B differs from B-A)",
-    "imported_cells": 1248,
-    "license_review_required": true
+    "imported_cells": 1248
   },
   "cells": {
     "1-3": {
