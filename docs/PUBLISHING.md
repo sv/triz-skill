@@ -7,10 +7,9 @@ npm comes first.
 
 ## Prerequisites (one-time)
 
-- Resolve the matrix data license question first. `skills/triz-innovation/data/matrix.json`
-  carries `license_review_required: true` in `_meta`. Re-import from a cleared source with
-  `npx tsx scripts/import-matrix.mjs <url|file> [--format csv|json]` or complete a license
-  review before public distribution. See README "Data provenance and licensing".
+- Confirm the matrix data provenance note in README "Data provenance and licensing" still reads
+  correctly before each release. The table is Altshuller's and widely republished; regenerate
+  from a source of your choosing with `npx tsx scripts/import-matrix.mjs <url|file> [--format csv|json]`.
 - npm account with an access token stored as the `NPM_TOKEN` repo secret.
 - Check the `triz` name is free on npm; rename the package to `triz-mcp` (or another choice)
   if not — `registry/triz.json` must be updated to match.

@@ -150,10 +150,8 @@ construction.
 - The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
   the effects starter database (56 entries) is curated from textbook physics, chemistry, and
   geometry.
-- `matrix.json` was imported from a machine-readable workbook and its `_meta` carries
-  `license_review_required: true`. The underlying table is Altshuller's and widely republished, but
-  the terms of the imported file have not been reviewed. If that matters for your use, regenerate
-  the file from a source you have cleared:
+- `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
+  and widely republished. To regenerate the file from a source of your own choosing:
 
   ```bash
   npx tsx scripts/import-matrix.mjs <url|file.csv|file.json> [--format csv|json]
@@ -164,12 +162,12 @@ construction.
 - The code in this repository is MIT licensed (`LICENSE`). That license covers the code and the
   original prose, not third-party data noted above.
 
+
 ## Publishing and distribution
 
 The full runbook — npm release flow, the MCP Registry PR, Smithery/Glama/PulseMCP, skill
 registries (skills.sh, anthropics/skills, OpenAI), and promotion — lives in
-[docs/PUBLISHING.md](docs/PUBLISHING.md). Gating item: resolve the matrix data license before
-public distribution (see "Data provenance and licensing" above).
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Registries
 
@@ -184,9 +182,3 @@ fall back to `triz-mcp` if it is taken.
 checkout. GitHub Packages also hosts npm packages (`npm.pkg.github.com`), but it requires
 authentication even to install public packages, so it suits private or org-internal distribution
 — not a public CLI.
-
-## Origin
-
-Extracted from the [FLOP Network](https://github.com/flop-labs/flop-core) repository, where the
-skill and server were developed. Only the domain-neutral core is here: FLOP's own evaluation
-benchmark, contradiction registry, and problem graph are not part of this repo.

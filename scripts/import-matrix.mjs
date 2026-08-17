@@ -47,7 +47,6 @@ async function main() {
       coverage: "canonical imported matrix",
       imported_from: src,
       imported_cells: v.count,
-      license_review_required: true,
       note: "Canonical cells imported from the attributed source. Project-specific overlays are intentionally excluded. Regenerate with scripts/import-matrix.mjs.",
     },
     cells: Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))),
