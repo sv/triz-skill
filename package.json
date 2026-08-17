@@ -1,18 +1,53 @@
 {
   "name": "triz-mcp",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.2.0",
   "description": "The triz-innovation agent skill plus a deterministic, read-only MCP server for TRIZ parameters, principles, the contradiction matrix, and stage routing.",
   "type": "module",
   "bin": {
-    "triz-mcp": "src/server.ts"
+    "triz-mcp": "dist/server.js"
   },
   "scripts": {
     "start": "tsx src/server.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/fix-shebang.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "smoke:mcp": "node scripts/smoke-mcp.mjs",
+    "evals": "node --import tsx scripts/run-evals.mjs",
+    "evals:dry": "node --import tsx scripts/run-evals.mjs --suite no-recall --limit 5 --dry-run",
+    "prepublishOnly": "pnpm build && pnpm typecheck && pnpm test && node scripts/smoke-mcp.mjs dist/server.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sv/triz-skill.git"
+  },
+  "homepage": "https://github.com/sv/triz-skill#readme",
+  "bugs": {
+    "url": "https://github.com/sv/triz-skill/issues"
+  },
+  "keywords": [
+    "triz",
+    "mcp",
+    "model-context-protocol",
+    "innovation",
+    "invention",
+    "contradiction-matrix",
+    "inventive-principles",
+    "ariz",
+    "agent-skills",
+    "llm"
+  ],
+  "files": [
+    "dist",
+    "skills",
+    "docs",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "zod": "^4.4.3"

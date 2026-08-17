@@ -29,4 +29,15 @@ jobs:
 
       - run: pnpm typecheck
 
+      - run: pnpm build
+
+      - name: MCP handshake smoke test (dist)
+        run: node scripts/smoke-mcp.mjs dist/server.js
+
       - run: pnpm test
+
+      - name: Eval runner dry-run (offline, keyless)
+        run: |
+          node --import tsx scripts/run-evals.mjs --suite no-recall --limit 3 --dry-run
+          node --import tsx scripts/run-evals.mjs --suite reasoning --dry-run
+          node --import tsx scripts/run-evals.mjs --suite published --dry-run

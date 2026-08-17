@@ -16,12 +16,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import * as triz from "./data.js";
 import * as graph from "./graph.js";
+import { version } from "./version.js";
 
 function text(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
 }
 
-const server = new McpServer({ name: "triz-mcp", version: "0.2.0" });
+const server = new McpServer({ name: "triz-mcp", version });
 
 // deterministic tool: server.tool(name, desc, zodShape, handler)
 server.tool(

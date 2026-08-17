@@ -1,0 +1,16 @@
+# Smithery build manifest for the triz MCP server.
+# Verify against https://smithery.ai/docs before first submission; the format
+# evolves. The server is read-only stdio and needs no runtime configuration.
+startCommand:
+  type: stdio
+  configSchema:
+    # TRIZ_DATA_DIR/TRIZ_GRAPH/TRIZ_REGISTRY are optional conveniences, not
+    # required configuration; the packaged data layout resolves by itself.
+    type: object
+    properties: {}
+  commandFunction:
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['node_modules/triz-mcp/dist/server.js']
+    })

@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import * as triz from "../src/data.js";
+import { version } from "../src/version.js";
 
 const suite = triz.evals();
 
@@ -117,6 +118,11 @@ test("published benchmark has sourced, judge-only ground truth", () => {
     assert.ok(ev.hidden_reference.caveats);
     assert.ok(ev.rubric_anchors.length >= 4);
   }
+});
+
+test("server version tracks package.json (no drift)", () => {
+  const pkg = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  assert.equal(version, pkg.version);
 });
 
 test("published benchmark spans implementation maturity and nontechnical domains", () => {

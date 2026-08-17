@@ -1,0 +1,5 @@
+# pnpm >= 10.14 reads settings here (package.json "pnpm" field is ignored by pnpm 11).
+# esbuild's install script is required by tsx; without this allowance
+# `pnpm install` fails under the default build-script policy.
+allowBuilds:
+  esbuild: true
