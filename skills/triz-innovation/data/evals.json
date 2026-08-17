@@ -51,6 +51,18 @@
       "tool": "triz_route",
       "input": { "stage": "analysis", "signals": ["undesirable effect", "bottleneck"] },
       "expect": { "tool_ids_include": [16, 20], "all_match_stage": true }
+    },
+    {
+      "name": "effects search answers function queries",
+      "tool": "triz_effects",
+      "input": { "query": "convert temperature difference into voltage" },
+      "expect": { "matched_min": 1, "top_name_includes": "Seebeck" }
+    },
+    {
+      "name": "effects filter by category is exhaustive",
+      "tool": "triz_effects",
+      "input": { "category": "geometric" },
+      "expect": { "matched_min": 8, "all_category": "geometric" }
     }
   ],
   "reasoning_evals": [
@@ -96,6 +108,17 @@
         "separation_candidates": ["time", "system level"],
         "tools_include": ["Key stakeholder requirements", "Operating zone and time", "System operator"],
         "validation_metrics_include": ["response time", "accuracy", "correction rate", "trust"]
+      }
+    },
+    {
+      "name": "software latency versus consistency",
+      "domain": "software",
+      "problem": "Caching every query result gives users fast responses but serves stale data that occasionally breaks workflows; always reading the primary store keeps data correct but slows every interaction.",
+      "rubric": {
+        "must_model": "responses must be immediate and must reflect the latest committed state",
+        "separation_candidates": ["time", "system level", "condition"],
+        "tools_include": ["Flow analysis", "Resource analysis", "Separation principles"],
+        "validation_metrics_include": ["latency", "staleness", "consistency violations", "error rate"]
       }
     }
   ]

@@ -71,10 +71,13 @@ Read only what the task needs:
 
 - demand, supply, engagement, public relations, service, process, or organization:
   [domain-guides.md](references/domain-guides.md);
-- tool routing, the 34-tool catalog, and deterministic MCP lookup:
+- tool routing, the routed tool catalog, and deterministic MCP lookup:
   [tool-selection.md](references/tool-selection.md);
-- exact artifacts, concept templates, evaluation, and repair:
+- exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
+- ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
+- S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);
+- design-around moves and their cautions: [patent-circumvention.md](references/patent-circumvention.md);
 - methodology and research provenance: [sources.md](references/sources.md).
 
 ## Anti-patterns

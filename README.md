@@ -82,7 +82,8 @@ missing.
 | `triz_principle` | Get one of the 40 inventive principles; omit `id` to list all |
 | `triz_matrix` | Retrieve a canonical contradiction-matrix cell; blank cells fail closed |
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
-| `triz_tool_catalog` | List the 34 routed TRIZ tools, optionally by stage |
+| `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage |
+| `triz_effects` | Search the curated effects database by required function or category |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -146,7 +147,9 @@ construction.
 
 ## Data provenance and licensing
 
-- The 39 parameters, 40 principles, and the 34-tool catalog are classical TRIZ vocabulary.
+- The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
+  the effects starter database (56 entries) is curated from textbook physics, chemistry, and
+  geometry.
 - `matrix.json` was imported from a machine-readable workbook and its `_meta` carries
   `license_review_required: true`. The underlying table is Altshuller's and widely republished, but
   the terms of the imported file have not been reviewed. If that matters for your use, regenerate

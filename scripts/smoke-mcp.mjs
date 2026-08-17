@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_route", "triz_evals"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -44,6 +44,10 @@ if (blank.covered !== false || !blank.hint) fail("blank cell did not fail closed
 const route = await json("triz_route", { stage: "analysis", signals: ["bottleneck"] });
 console.log(`triz_route analysis/bottleneck -> ${route.tools.length} tools`);
 if (!route.tools.every((t) => t.stages.includes("analysis"))) fail("router returned non-analysis tools");
+
+const eff = await json("triz_effects", { query: "convert temperature difference into voltage" });
+console.log(`triz_effects temperature->voltage -> ${eff.effects.slice(0, 3).map((e) => e.name).join(", ")}`);
+if (!eff.effects.slice(0, 5).some((e) => e.name === "Seebeck effect")) fail("effects search missed Seebeck effect");
 
 await client.close();
 console.log("SMOKE OK");

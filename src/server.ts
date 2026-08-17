@@ -67,6 +67,17 @@ server.tool(
 );
 
 server.tool(
+  "triz_effects",
+  "Search the curated effects database by required function (e.g. 'convert temperature difference into voltage', 'store heat', 'sense strain') or list by category: physical, chemical, geometric. Effects are classical textbook phenomena; selecting and substantiating one remains a synthesis step, never a lookup verdict.",
+  {
+    query: z.string().optional().describe("Function keywords to search for, e.g. 'store heat' or 'sense magnetic field'"),
+    category: z.enum(["physical", "chemical", "geometric"]).optional().describe("Restrict results to one category"),
+  },
+  async ({ query, category }: { query?: string; category?: "physical" | "chemical" | "geometric" }) =>
+    text(triz.effects(query, category)),
+);
+
+server.tool(
   "triz_route",
   "Route a problem stage and optional observable signals to candidate TRIZ tools. Routing is deterministic and returns only tools registered for that stage.",
   {

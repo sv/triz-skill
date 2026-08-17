@@ -65,6 +65,28 @@ through deception. Treat trust as an outcome, not a message property.
 - Evidence: combine outcome, cost, time, quality, resilience, and harm metrics. Use a pilot or
   quasi-experiment where causal attribution matters.
 
+## Software
+
+- System: services and their clients, data stores, queues, caches, external dependencies, and the
+  deployment platform.
+- Flows: requests, data, control signals, cost, latency budget, and failure signals.
+- Typical contradictions: latency versus consistency; caching speed versus staleness; throughput
+  versus isolation; observability versus overhead; release speed versus stability; automation
+  versus control; security versus usability; batching efficiency versus tail latency.
+- Useful tools: functional and flow analysis, cause-effect chain on incidents, resource analysis
+  (compute, budget, attention), separation in time/space/condition/system level (the usual
+  resolution of cache staleness and consistency conflicts), trimming of steps and components,
+  trends (increasing controllability, transition to microlevel), size-time-cost to break scale
+  fixation.
+- Evidence: p50/p95/p99 latency, error and timeout rates, staleness window, consistency-violation
+  rate, throughput, cost per request, MTTR, alert precision, rollback frequency, guardrails on
+  blast radius.
+
+Software systems are engineering systems: the 39 parameters map naturally here (speed, capacity,
+reliability, complexity of measurement). Still model the causal contradiction in domain terms
+first, and treat a microservice boundary as a system boundary — the mapping guardrail below
+applies to organizational layers, not to technical properties.
+
 ## Mapping guardrail
 
 The 39-parameter contradiction matrix was built for engineering systems. Outside that context:

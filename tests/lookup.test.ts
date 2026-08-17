@@ -62,13 +62,41 @@ for (const ev of suite.lookup_evals) {
       return;
     }
 
+    if (tool === "triz_effects") {
+      const r = triz.effects(input.query, input.category);
+      if (expect.matched_min) assert.ok(r.matched >= expect.matched_min, `matched ${r.matched} >= ${expect.matched_min}`);
+      if (expect.top_name_includes) {
+        assert.ok(
+          r.effects.slice(0, 5).some((e: any) => e.name.toLowerCase().includes(expect.top_name_includes.toLowerCase())),
+          `top results include ${expect.top_name_includes}`,
+        );
+      }
+      if (expect.all_category) assert.ok(r.effects.every((e: any) => e.category === expect.all_category));
+      return;
+    }
+
     assert.fail(`unknown eval tool: ${tool}`);
   });
 }
 
 test("all 39 parameters present", () => assert.equal(triz.parameters().length, 39));
 test("all 40 principles present", () => assert.equal(triz.principles().length, 40));
-test("all 34 routed tools present", () => assert.equal(triz.toolCatalog().length, 34));
+test("all 37 routed tools present", () => assert.equal(triz.toolCatalog().length, 37));
+test("effects database ships 56 curated entries with full metadata", () => {
+  const { effects } = triz.effects();
+  assert.equal(effects.length, 56);
+  assert.ok(effects.length >= 50, "starter set is substantive");
+  for (const e of effects) {
+    assert.ok(e.name && e.function && e.statement, `effect ${e.id} has name/function/statement`);
+    assert.ok(["physical", "chemical", "geometric"].includes(e.category), `effect ${e.id} category valid`);
+    assert.ok(Array.isArray(e.hints) && e.hints.length > 0, `effect ${e.id} has hints`);
+  }
+});
+test("effects search ranks Seebeck for temperature-to-voltage", () => {
+  const r = triz.effects("convert temperature difference into voltage");
+  assert.ok(r.matched >= 1);
+  assert.ok(r.effects.slice(0, 5).some((e: any) => e.name === "Seebeck effect"), "Seebeck effect in top 5");
+});
 test("matrix is canonical-only", () => {
   const cells = Object.values(triz.matrix().cells);
   assert.equal(cells.length, 1248);

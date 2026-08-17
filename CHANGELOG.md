@@ -18,13 +18,19 @@ All notable changes to this project are documented here. The format follows
 - `smithery.yaml` build manifest; `registry/triz.json` MCP Registry entry (version-synced).
 - SKILL.md frontmatter now carries `license` and `metadata` for skill registries, and a
   Deterministic lookup section references the `triz` MCP server.
-- `docs/PUBLISHING.md` (npm → MCP Registry → directories → skill registries runbook) and
-  `docs/modern-triz-survey.md` (coverage vs. modern practice; prioritized gaps).
+- `docs/PUBLISHING.md` (npm → MCP Registry → directories → skill registries runbook).
 - `scripts/run-evals.mjs`: key-gated LLM eval runner for the `no-recall`, `reasoning`, and
   `published` suites, with an offline `--dry-run` mode. Refuses to run without
   `TRIZ_EVAL_API_KEY`/`OPENAI_API_KEY`; endpoint and model via `TRIZ_EVAL_BASE_URL` /
   `TRIZ_EVAL_MODEL`. Writes JSON + markdown reports to gitignored `evals/results/`. CI runs it
   in `--dry-run` mode only (`pnpm evals` / `pnpm evals:dry`).
+
+- Modern-practice gap closures: effects starter database (56 curated textbook entries) with a
+  `triz_effects` MCP tool and lookup evals; Main parameters of value (MPV) analysis workflow
+  section and routed tool; ARIZ-85C entry criteria and part-ladder reference; S-curve stages and
+  evolution-lines reference; anticipatory failure determination (AFD) workflow section and routed
+  tool; patent design-around reference and routed tool; software domain guide and a software
+  reasoning eval. Tool catalog grows from 34 to 37 routed tools.
 
 ### Fixed
 

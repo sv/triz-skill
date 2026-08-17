@@ -16,6 +16,7 @@ recalling principle numbers or matrix cells.
 | `triz_matrix(improving, worsening)` | Retrieve a canonical contradiction-matrix cell |
 | `triz_resolve(improving, worsening)` | Expand a matrix cell into principle records |
 | `triz_tool_catalog(stage?)` | List the broader toolset, optionally by stage |
+| `triz_effects(query?, category?)` | Search the curated effects database by required function |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
 
@@ -46,8 +47,11 @@ recommendation.
 | System is near a structural limit | Trends of evolution; limits analysis; system operator |
 | Team is trapped by scale or timing assumptions | Size-time-cost; inversion; creative-imagination tools |
 | Many linked contradictions compete for attention | Cause-effect network; rank by causal reach, severity, controllability, and strategic relevance |
+| It is unclear what customers actually pay for | Main parameters of value analysis; key stakeholder requirements; trends of evolution |
+| Failures must be predicted before launch | Anticipatory failure determination; inversion analysis; diagnostic analysis |
+| A patent claim blocks a needed function | Patent circumvention moves; trimming; effects database (see references/patent-circumvention.md) |
 
-## Catalog of the 34 referenced tools
+## Catalog of the referenced tools
 
 | # | Tool | Main stages | Purpose |
 |---:|---|---|---|
@@ -85,5 +89,8 @@ recommendation.
 | 32 | Functional-oriented search | Synthesis | Search other fields for mechanisms that perform the needed function |
 | 33 | Physical contradiction | Analysis, modeling | Express opposing requirements on one property |
 | 34 | Function-cost analysis | Analysis, modeling | Compare functional contribution with cost or harm |
+| 35 | Main parameters of value analysis | Analysis | Identify and rank the parameters customers pay for; link value to trends and limiting parameters |
+| 36 | Anticipatory failure determination | Analysis, synthesis | Invert the problem: invent credible failures of the concept before they occur |
+| 37 | Patent circumvention (design-around) | Analysis, synthesis | Map claim elements and design around them functionally; methodology only, not legal advice |
 
 The machine-readable version is `../data/tool-router.json`.
