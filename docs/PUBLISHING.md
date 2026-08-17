@@ -7,9 +7,6 @@ npm comes first.
 
 ## Prerequisites (one-time)
 
-- Confirm the matrix data provenance note in README "Data provenance and licensing" still reads
-  correctly before each release. The table is Altshuller's and widely republished; regenerate
-  from a source of your choosing with `npx tsx scripts/import-matrix.mjs <url|file> [--format csv|json]`.
 - npm account with an access token stored as the `NPM_TOKEN` repo secret.
 - Check the `triz` name is free on npm; rename the package to `triz-mcp` (or another choice)
   if not — `registry/triz.json` must be updated to match.
@@ -92,5 +89,5 @@ skill and server reinforce each other).
 
 ## Order of operations
 
-1. matrix license resolved → 2. npm publish → 3. MCP Registry PR → 4. Smithery / Glama /
-PulseMCP → 5. skills.sh + anthropics/skills + OpenAI → 6. benchmark numbers + demo.
+1. npm publish → 2. MCP Registry PR → 3. Smithery / Glama / PulseMCP → 4. skills.sh +
+anthropics/skills + OpenAI → 5. benchmark numbers + demo.

@@ -96,6 +96,5 @@ interpretation; replace its provenance note if the original source is identified
 
 `data/matrix.json` was imported from the matrix workbook linked in its metadata. Its parameter and
 principle numbering is canonical; the English descriptions in this repository are concise
-paraphrases. Before public redistribution, verify the source workbook's license and preserve its
-attribution. The TRIZfest 2025 CC BY statement applies to that proceedings volume, not automatically
-to other MATRIZ materials or the matrix workbook.
+paraphrases. The underlying table is Altshuller's and widely republished; regenerate the file from
+a source of your own choosing with the importer if needed.
