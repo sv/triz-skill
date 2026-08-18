@@ -1,41 +1,20 @@
 /**
- * TRIZ knowledge-core loader + pure lookup functions.
+ * fs-backed TRIZ knowledge loader (repo checkout / npm package layout).
  *
- * Single source of truth is the JSON under `skills/triz-innovation/data/`
- * (shared with the triz-innovation skill). Resolution uses an environment override
- * first, then repo-relative candidates. Fails closed with a
- * clear message if the data dir is absent — no silent fallback.
+ * Installs the filesystem provider into the pure core (./core.js) and
+ * re-exports the full lookup API. Resolution uses an environment override
+ * first, then repo-relative candidates. Fails closed with a clear message if
+ * the data dir is absent — no silent fallback.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { useProvider } from "./core.js";
+
+export * from "./core.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-export interface Parameter { id: number; name: string; }
-export interface Principle { id: number; name: string; classic: string; }
-export interface MatrixCell {
-  improving_id: number; worsening_id: number;
-  improving_label: string; worsening_label: string;
-  principles: number[]; source: string; status?: string; note?: string;
-}
-export type ToolStage = "analysis" | "modeling" | "synthesis";
-export interface TrizTool {
-  id: number;
-  source_code: string;
-  name: string;
-  stages: ToolStage[];
-  signals: string[];
-}
-export interface TrizEffect {
-  id: number;
-  name: string;
-  category: "physical" | "chemical" | "geometric";
-  function: string;
-  statement: string;
-  hints: string[];
-}
 
 function candidateDataDirs(): string[] {
   return [
@@ -55,119 +34,4 @@ export function resolveDataDir(): string {
   );
 }
 
-function load<T>(file: string): T {
-  return JSON.parse(fs.readFileSync(path.join(resolveDataDir(), file), "utf8")) as T;
-}
-
-let _params: Parameter[] | null = null;
-let _principles: Principle[] | null = null;
-let _matrix: { cells: Record<string, MatrixCell>; _meta: any } | null = null;
-let _evals: any | null = null;
-let _tools: TrizTool[] | null = null;
-
-export function parameters(): Parameter[] {
-  return (_params ??= load<{ parameters: Parameter[] }>("parameters.json").parameters);
-}
-export function principles(): Principle[] {
-  return (_principles ??= load<{ principles: Principle[] }>("principles.json").principles);
-}
-export function matrix() {
-  return (_matrix ??= load<{ cells: Record<string, MatrixCell>; _meta: any }>("matrix.json"));
-}
-export function evals(): any {
-  return (_evals ??= load<any>("evals.json"));
-}
-let _effects: TrizEffect[] | null = null;
-export function effects(query?: string, category?: TrizEffect["category"]) {
-  const all = (_effects ??= load<{ effects: TrizEffect[] }>("effects.json").effects);
-  let list = category ? all.filter((e) => e.category === category) : all;
-  if (query) {
-    const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
-    list = list
-      .map((e) => ({
-        e,
-        score: tokens.reduce(
-          (s, t) =>
-            s +
-            (`${e.name} ${e.function} ${e.statement} ${e.hints.join(" ")}`.toLowerCase().includes(t) ? 1 : 0),
-          0,
-        ),
-      }))
-      .filter((x) => x.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .map((x) => x.e);
-  }
-  return { total: all.length, matched: list.length, query: query ?? null, category: category ?? null, effects: list };
-}
-export function toolCatalog(stage?: ToolStage): TrizTool[] {
-  const all = (_tools ??= load<{ tools: TrizTool[] }>("tool-router.json").tools);
-  return stage ? all.filter((tool) => tool.stages.includes(stage)) : all;
-}
-
-export function routeTools(stage: ToolStage, signals: string[] = []) {
-  const candidates = toolCatalog(stage);
-  const normalized = signals.map((signal) => signal.trim().toLowerCase()).filter(Boolean);
-  const tools = normalized.length === 0
-    ? candidates
-    : candidates.filter((tool) =>
-        tool.signals.some((raw) => {
-          const toolSignal = raw.trim().toLowerCase();
-          return normalized.some(
-            (signal) => toolSignal.includes(signal) || signal.includes(toolSignal),
-          );
-        }),
-      );
-  return { stage, signals, tools };
-}
-
-export function getParameter(id: number): Parameter | undefined {
-  return parameters().find((p) => p.id === id);
-}
-export function getPrinciple(id: number): Principle | undefined {
-  return principles().find((p) => p.id === id);
-}
-
-export interface MatrixResult {
-  covered: boolean;
-  improving: number;
-  worsening: number;
-  principles: number[];
-  source?: string;
-  status?: string;
-  note?: string;
-  hint?: string;
-}
-
-/** Fail-closed matrix lookup: uncovered cell → covered:false + pointer, never a guess. */
-export function matrixLookup(improving: number, worsening: number): MatrixResult {
-  const cell = matrix().cells[`${improving}-${worsening}`];
-  if (!cell) {
-    return {
-      covered: false,
-      improving,
-      worsening,
-      principles: [],
-      hint: `No recommendation is recorded for (${improving},${worsening}). Do not guess: verify the parameter mapping, model a physical contradiction, or use another routed tool. Reference: ${matrix()._meta.full_matrix_reference}`,
-    };
-  }
-  return {
-    covered: true,
-    improving,
-    worsening,
-    principles: cell.principles,
-    source: cell.source,
-    status: cell.status,
-    note: cell.note,
-  };
-}
-
-/** Matrix lookup + expansion of each canonical principle. */
-export function resolve(improving: number, worsening: number) {
-  const base = matrixLookup(improving, worsening);
-  return {
-    ...base,
-    improving_parameter: getParameter(improving) ?? null,
-    worsening_parameter: getParameter(worsening) ?? null,
-    principles_detail: base.principles.map((id) => getPrinciple(id)).filter(Boolean),
-  };
-}
+useProvider((file) => JSON.parse(fs.readFileSync(path.join(resolveDataDir(), file), "utf8")));

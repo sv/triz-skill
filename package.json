@@ -54,7 +54,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
     "@types/node": "^26.1.2",
+    "agents": "^0.20.1",
     "tsx": "^4.23.9",
     "typescript": "^7.0.2"
   }

@@ -1,0 +1,14 @@
+{
+  // Cloudflare Workers deployment of the hosted (streamable HTTP) triz MCP server.
+  // Stateless and read-only: the knowledge base is bundled into the script.
+  "name": "triz-mcp",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-08-01",
+  // agents/mcp/server (stateless MCP handler) uses node:async_hooks.
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  }
+  // Deploy: npx wrangler deploy
+  // Endpoint: https://triz-mcp.<account-subdomain>.workers.dev/mcp
+}
