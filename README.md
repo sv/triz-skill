@@ -81,6 +81,7 @@ missing.
 | `triz_parameter` | Get one of the 39 engineering parameters; omit `id` to list all |
 | `triz_principle` | Get one of the 40 inventive principles; omit `id` to list all |
 | `triz_matrix` | Retrieve a canonical contradiction-matrix cell; blank cells fail closed |
+| `triz_matrix_multi` | Every (improving × worsening) cell for multi-parameter conflicts, aggregated by recommendation frequency |
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
 | `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage |
 | `triz_effects` | Search the curated effects database by required function or category |

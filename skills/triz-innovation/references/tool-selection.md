@@ -14,6 +14,7 @@ recalling principle numbers or matrix cells.
 | `triz_parameter(id?)` | List or retrieve the 39 engineering parameters |
 | `triz_principle(id?)` | List or retrieve the 40 inventive principles |
 | `triz_matrix(improving, worsening)` | Retrieve a canonical contradiction-matrix cell |
+| `triz_matrix_multi(improving[], worsening[])` | All cells for multi-parameter conflicts, frequency-aggregated |
 | `triz_resolve(improving, worsening)` | Expand a matrix cell into principle records |
 | `triz_tool_catalog(stage?)` | List the broader toolset, optionally by stage |
 | `triz_effects(query?, category?)` | Search the curated effects database by required function |

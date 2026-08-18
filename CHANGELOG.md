@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `triz_matrix_multi`: multi-parameter contradiction lookup — every (improving × worsening)
+  cell with principles aggregated by recommendation frequency (ties broken by mean position,
+  per-cell detail always returned, fail-closed when all cells blank). Follows TRIZ-software
+  occurrence-counting practice; deliberately no positional scoring (sources.md documents why).
+- MPV analysis upgraded with the satisfaction × awareness classification (MPV / latent MPV /
+  PV / latent PV), evidence-honesty requirements, and literature anchors (Litvin 2011/2013,
+  Kano 1984, TRIZfest-2025 top-5 business tool and weighted-ideality formalization).
+- SKILL.md "When NOT to use TRIZ here" section: decline conditions (no opposing states,
+  cheaper measurement, standard pattern, plain selection, people-conflicts).
+- Evals: two deterministic `triz_matrix_multi` lookup evals plus a cross-check property test
+  (multi aggregation == manual fold of single lookups); reasoning evals for MPV classification
+  and for correctly declining TRIZ on a non-contradiction.
+
+### Documented (not adopted)
+
+- Matrix 2003 / Business Matrix 3.0 / Souchkov business matrix: provenance, licensing, and
+  the TRIZfest-2025 finding that practitioners often prefer the classical matrix — recorded in
+  sources.md with the importer named as the sanctioned future path.
+
 ## [0.2.0] - 2026-08-18
 
 ### Changed

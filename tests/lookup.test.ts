@@ -62,6 +62,26 @@ for (const ev of suite.lookup_evals) {
       return;
     }
 
+    if (tool === "triz_matrix_multi") {
+      const r = triz.matrixLookupMulti(input.improving, input.worsening);
+      assert.equal(r.covered, expect.covered, "covered flag");
+      if (expect.total_cells) assert.equal(r.total_cells, expect.total_cells, "total cells");
+      if (expect.covered_cells !== undefined) assert.equal(r.covered_cells, expect.covered_cells, "covered cells");
+      if (expect.top_principles) {
+        const topCount = r.aggregated[0]?.cell_count;
+        const top = r.aggregated.filter((a: any) => a.cell_count === topCount).map((a: any) => a.principle);
+        assert.deepEqual(top.sort((a: number, b: number) => a - b), expect.top_principles.sort((a: number, b: number) => a - b), "top principles by cell count");
+      }
+      if (expect.top_cell_count) {
+        assert.equal(r.aggregated[0]?.cell_count, expect.top_cell_count, "top cell count");
+      }
+      if (expect.principles_sorted) {
+        assert.deepEqual(r.principles, expect.principles_sorted, "full frequency ordering");
+      }
+      if (expect.has_hint) assert.ok(r.hint, "fail-closed hint present");
+      return;
+    }
+
     if (tool === "triz_effects") {
       const r = triz.effects(input.query, input.category);
       if (expect.matched_min) assert.ok(r.matched >= expect.matched_min, `matched ${r.matched} >= ${expect.matched_min}`);
@@ -92,6 +112,22 @@ test("effects database ships 56 curated entries with full metadata", () => {
     assert.ok(Array.isArray(e.hints) && e.hints.length > 0, `effect ${e.id} has hints`);
   }
 });
+test("matrix_multi aggregation equals a manual fold of single lookups", () => {
+  const imp = [5, 9, 28], wor = [12, 35];
+  const multi = triz.matrixLookupMulti(imp, wor);
+  const manual = new Map<number, number>();
+  for (const i of imp) for (const w of wor) {
+    const single = triz.matrixLookup(i, w);
+    if (single.covered) for (const p of single.principles) manual.set(p, (manual.get(p) ?? 0) + 1);
+  }
+  const manualCount = [...manual.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  const multiCount = multi.aggregated.map((a: any) => [a.principle, a.cell_count] as [number, number]);
+  assert.equal(multi.total_cells, imp.length * wor.length);
+  assert.equal(multi.covered_cells, manualCount.length > 0 ? multi.cells.filter((c: any) => c.covered).length : 0);
+  for (const [pid, count] of multiCount) assert.equal(manual.get(pid), count, `principle ${pid} count matches single lookups`);
+  assert.equal(manual.size, multi.aggregated.length, "same principle set");
+});
+
 test("effects search ranks Seebeck for temperature-to-voltage", () => {
   const r = triz.effects("convert temperature difference into voltage");
   assert.ok(r.matched >= 1);

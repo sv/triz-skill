@@ -140,6 +140,72 @@ export function matrixLookup(improving: number, worsening: number): MatrixResult
   };
 }
 
+/**
+ * Multi-parameter contradiction lookup: every (improving × worsening) cell,
+ * aggregated by how many cells recommend each principle (ties broken by mean
+ * position). Frequency aggregation follows standard TRIZ-software practice;
+ * positions within a cell are NOT treated as documented ranks, so no positional
+ * scoring is invented. Per-cell detail is always returned — nothing hidden.
+ * Fails closed only when every cell is blank or diagonal.
+ */
+export interface MultiCellResult extends MatrixResult {
+  improving_params: number[];
+  worsening_params: number[];
+  cells: { improving: number; worsening: number; covered: boolean; principles: number[] }[];
+  aggregated: { principle: number; name: string; cell_count: number; mean_position: number; cells: string[] }[];
+  covered_cells: number;
+  total_cells: number;
+}
+
+export function matrixLookupMulti(improving: number[], worsening: number[]): MultiCellResult {
+  const cells: MultiCellResult["cells"] = [];
+  const freq = new Map<number, { count: number; positions: number[]; cells: string[] }>();
+
+  for (const i of improving) {
+    for (const w of worsening) {
+      const cell = matrix().cells[i + "-" + w];
+      const covered = Boolean(cell);
+      cells.push({ improving: i, worsening: w, covered, principles: cell ? cell.principles : [] });
+      if (cell) {
+        cell.principles.forEach((pid, idx) => {
+          const e = freq.get(pid) ?? { count: 0, positions: [], cells: [] };
+          e.count += 1;
+          e.positions.push(idx + 1);
+          e.cells.push(i + "-" + w);
+          freq.set(pid, e);
+        });
+      }
+    }
+  }
+
+  const coveredCells = cells.filter((c2) => c2.covered).length;
+  const aggregated = [...freq.entries()]
+    .map(([principle, e]) => ({
+      principle,
+      name: getPrinciple(principle)?.name ?? "",
+      cell_count: e.count,
+      mean_position: Math.round((e.positions.reduce((a, b) => a + b, 0) / e.positions.length) * 100) / 100,
+      cells: e.cells,
+    }))
+    .sort((a, b) => b.cell_count - a.cell_count || a.mean_position - b.mean_position);
+
+  return {
+    covered: coveredCells > 0,
+    improving: improving[0],
+    worsening: worsening[0],
+    improving_params: improving,
+    worsening_params: worsening,
+    principles: aggregated.map((a) => a.principle),
+    cells,
+    aggregated,
+    covered_cells: coveredCells,
+    total_cells: cells.length,
+    hint: coveredCells > 0
+      ? undefined
+      : "No recommendation is recorded for any (improving, worsening) combination. Do not guess: verify the parameter mapping, model a physical contradiction, or use another routed tool. Reference: " + matrix()._meta.full_matrix_reference,
+  };
+}
+
 /** Matrix lookup + expansion of each canonical principle. */
 export function resolve(improving: number, worsening: number) {
   const base = matrixLookup(improving, worsening);

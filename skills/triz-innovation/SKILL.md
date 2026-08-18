@@ -26,6 +26,23 @@ The references split problem solving into modeling and synthesis only to route t
 5. Keep fact, inference, and hypothesis visibly separate.
 6. A concept is not a resolution until a domain-relevant test supports it.
 
+## When NOT to use TRIZ here
+
+Decline or stop the workflow — and say so — when any of these hold:
+
+- **No opposing states.** The situation is ordinary prioritization or resource allocation, not
+  one property needing contradictory values. Choose directly; do not manufacture a contradiction.
+- **A cheap measurement decides it.** If one experiment or data pull reveals which side matters,
+  measure instead of modeling.
+- **A standard pattern already resolves it.** Caching, versioning, queues, feature flags,
+  staged rollout: apply the known pattern; TRIZ adds nothing.
+- **One option is simply better under stated constraints.** Trade-off analysis suffices.
+- **The conflict is between people, not parameters.** Authority, incentives, or negotiation
+  work; forcing stakeholders into engineering parameters distorts the problem.
+
+A forced contradiction poisons everything downstream — the matrix will happily return
+principles for a conflict that does not exist.
+
 ## Deterministic lookup
 
 If the `triz` MCP server is available (published as `npx -y triz-mcp`, or run from a checkout

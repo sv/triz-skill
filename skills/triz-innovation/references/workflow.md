@@ -33,21 +33,36 @@ Do not select a key problem merely because it is easy to solve.
 
 ## Main parameters of value
 
-Before modeling a contradiction, know which parameters carry value. Run the identification
+Before modeling a contradiction, know which parameters carry value. MPV analysis (Litvin's
+Main Parameters of Value, a top-5 tool in current business TRIZ practice) is the identification
 pipeline:
 
-1. list the parameters customers and stakeholders actually judge and pay for — the main
-   parameters of value (MPVs);
-2. rank them: which are decisive at the decision moment, which are hygiene, which are
-   table stakes;
-3. for each decisive MPV, find the trend it rides
+1. list the parameters customers and stakeholders actually judge and pay for — the parameters
+   of value;
+2. classify each on two axes — **satisfaction** (met / unmet) and **awareness** (customers can
+   articulate it / they cannot yet):
+
+   | | **Unmet need** | **Met need** |
+   |---|---|---|
+   | **Known to customers** | **MPV** — improvement directly drives purchase; model its contradiction first | **PV** — maintain; do not over-invest |
+   | **Not yet articulated** | **Latent MPV** — the competitor-blind opportunity; needs discovery work (observation, interviews) before it is modelable | **Latent PV** — unclaimed delighter or irrelevant; verify before investing |
+
+3. for each MPV (known first, latent after discovery), find the trend it rides
    ([evolution-trends.md](evolution-trends.md)) and the system parameter that limits it today;
 4. the limiting parameter of the highest-ranked MPV is where the next contradiction is worth
    modeling.
 
+Classification honesty: "unmet" and "not articulated" are empirical claims — record the
+evidence (survey, interview, observation, churn reason) per cell, and mark inferred
+classifications as hypotheses, consistent with keeping fact and inference separate. The
+awareness axis descends from Kano's expressed/unspoken distinction; the value framing is
+Litvin's.
+
 Improving a parameter nobody pays for is cost without value; ignoring the trend leaves the
 decisive MPV open to a competitor's jump. The MPV chain — value driver → trend → limiting
-parameter → contradiction — is the backbone of problem identification.
+parameter → contradiction — is the backbone of problem identification. When comparing concept
+variants, ideality can be computed over the MPV set with explicit weights and normalization
+per parameter (functional over cost parameters, in the formalization of current TRIZfest work).
 
 ## Model
 

@@ -56,6 +56,42 @@ work is labeled separately from implemented or experimentally validated cases. T
 does not require copying the published solution: a causally stronger, testable alternative can earn
 full credit.
 
+## MPV analysis — literature anchors
+
+- S. Litvin (2011), *Main Parameters of Value: TRIZ-based tool connecting business and
+  engineering*; Litvin & Rutten (2013), *MPV — Voice of the Product* (white paper). Origin of
+  the value-parameter identification pipeline used in the workflow reference.
+- TRIZfest-2025 financial-sector business-TRIZ paper: MPV analysis ranks in the top-5 tools for
+  business projects; also formalizes ideality over weighted MPV sets (functional vs cost
+  parameters with per-parameter normalization). Our classification matrix (satisfaction ×
+  awareness) is the practitioner operationalization; the awareness axis descends from Kano et
+  al. (1984), *Attractive quality and must-be quality* (Journal of the Japanese Society for
+  Quality Control) — expressed vs unspoken needs.
+
+## Multi-parameter matrix lookups
+
+When a conflict involves several parameters per side, TRIZ practice looks up every
+(improving × worsening) cell and treats principles recommended by more cells as stronger
+candidates — the aggregation used by classical TRIZ software (CREAX/Goldfire-style occurrence
+counting). This repo's `triz_matrix_multi` follows that practice: occurrence count, ties broken
+by mean position, full per-cell detail, fail-closed when every cell is blank. Positional scoring
+schemes (e.g. 100/90/80 points by in-cell position) exist in some prompt tools but the classical
+sources do not document in-cell ordering as a preference rank, so none is used here.
+
+## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
+
+Darrell Mann's Matrix 2003 (48 parameters, rebuilt from post-Altshuller patent analysis;
+*Hands-On Systematic Innovation*, CREAX Press / IFR Press) and the later Business Matrix 3.0
+(IFR Press, 2018) extend the classical matrix toward business and software conflicts. Valeri
+Souchkov's business-oriented matrix adaptation serves the same goal. This repository ships only
+the classical Altshuller matrix because: (a) the variant tables are recent creative compilations
+whose redistribution terms have not been cleared; (b) TRIZfest-2025 business practitioners
+report the classical matrix is often *easier* to interpret than the adapted ones, with
+adaptations needed mainly for non-technical staff; and (c) the fail-closed discipline matters
+more than table coverage. When a license-clean machine-readable variant source exists, the
+importer (`scripts/import-matrix.mjs`) remains the sanctioned ingestion path — note it would
+need its parameter dimension (48, not 39) widened first.
+
 ## Supporting AI-TRIZ research
 
 These are useful engineering references, not official MATRIZ methodology:

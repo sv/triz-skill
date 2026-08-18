@@ -63,6 +63,25 @@
       "tool": "triz_effects",
       "input": { "category": "geometric" },
       "expect": { "matched_min": 8, "all_category": "geometric" }
+    },
+    {
+      "name": "multi-parameter lookup aggregates cells deterministically",
+      "tool": "triz_matrix_multi",
+      "input": { "improving": [9, 14], "worsening": [14, 26] },
+      "expect": {
+        "covered": true,
+        "total_cells": 4,
+        "covered_cells": 3,
+        "top_principles": [10, 29],
+        "top_cell_count": 2,
+        "principles_sorted": [10, 29, 8, 3, 19, 26, 27, 14, 38]
+      }
+    },
+    {
+      "name": "multi-parameter lookup fails closed when every cell is blank",
+      "tool": "triz_matrix_multi",
+      "input": { "improving": [10, 16], "worsening": [16, 10] },
+      "expect": { "covered": false, "covered_cells": 0, "total_cells": 4, "has_hint": true }
     }
   ],
   "reasoning_evals": [
@@ -119,6 +138,30 @@
         "separation_candidates": ["time", "system level", "condition"],
         "tools_include": ["Flow analysis", "Resource analysis", "Separation principles"],
         "validation_metrics_include": ["latency", "staleness", "consistency violations", "error rate"]
+      }
+    },
+    {
+      "name": "mpv classification drives which contradiction to model",
+      "domain": "product strategy",
+      "problem": "A power-tool maker plans its next model. Exit interviews show buyers complain openly about battery recharge time (surveyed, unmet) and about weight (surveyed, unmet). Teardowns and field observation suggest DIY users never mention that current tools are hard to use one-handed in tight spots, but abandon tasks when the tool does not fit — an unarticulated frustration. Charging speed already matches the market leader (met, known). Specify which parameters deserve TRIZ contradiction modeling first and how you know.",
+      "rubric": {
+        "must_classify": "recharge time and one-handed fit as unmet; one-handed fit as latent MPV requiring discovery evidence; charging speed as met PV not worth modeling",
+        "must_model": "the limiting parameter behind a known unmet MPV first, and the latent MPV only after discovery confirms it",
+        "separation_candidates": ["condition", "system level"],
+        "tools_include": ["Main parameters of value analysis", "Key stakeholder requirements", "Cause-effect chain analysis"],
+        "validation_metrics_include": ["recharge time", "one-handed task completion", "abandonment", "purchase intent"]
+      }
+    },
+    {
+      "name": "declining TRIZ when no contradiction exists",
+      "domain": "prioritization",
+      "problem": "A team must pick between two analytics vendors. Vendor A is cheaper and already integrates with their stack; vendor B costs 40 percent more and offers features nobody on the team can name a use for. A stakeholder asks for a TRIZ analysis to decide. What is the right response?",
+      "rubric": {
+        "must_recognize": "no opposing states of one parameter — this is ordinary selection under constraints, not a contradiction",
+        "must_decline_matrix": "explicitly declines contradiction-matrix use and says why",
+        "must_recommend": "choose directly on stated criteria or run a cheap measurement/pilot where data is missing",
+        "tools_include": [],
+        "validation_metrics_include": []
       }
     }
   ]

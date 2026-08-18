@@ -49,6 +49,16 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       handler: async ({ improving, worsening }: { improving: number; worsening: number }) => text(triz.matrixLookup(improving, worsening)),
     },
     {
+      name: "triz_matrix_multi",
+      description: "Multi-parameter contradiction lookup: every (improving x worsening) matrix cell with the principles aggregated by how many cells recommend each (ties broken by mean position). Use when a conflict involves several parameters on either side; per-cell detail is returned so nothing is hidden. All-blank or diagonal-only results fail closed like triz_matrix.",
+      shape: {
+        improving: z.array(z.number().int().min(1).max(39)).min(1).describe("Parameters to improve (1-39), e.g. [9, 14]"),
+        worsening: z.array(z.number().int().min(1).max(39)).min(1).describe("Parameters that worsen (1-39), e.g. [25, 33]"),
+      },
+      handler: async ({ improving, worsening }: { improving: number[]; worsening: number[] }) =>
+        text(triz.matrixLookupMulti(improving, worsening)),
+    },
+    {
       name: "triz_resolve",
       description: "Look up a contradiction-matrix cell and expand its recommended principles and both engineering parameters. Fails closed on blank cells.",
       shape: {

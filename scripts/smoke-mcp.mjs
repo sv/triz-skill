@@ -41,6 +41,12 @@ const blank = await json("triz_matrix", { improving: 10, worsening: 16 });
 console.log(`triz_matrix 10-16 covered=${blank.covered}`);
 if (blank.covered !== false || !blank.hint) fail("blank cell did not fail closed");
 
+const multi = await json("triz_matrix_multi", { improving: [9, 14], worsening: [14, 26] });
+console.log(`triz_matrix_multi [9,14]x[14,26] -> top: ${multi.aggregated.slice(0, 2).map((a) => a.principle + "(x" + a.cell_count + ")").join(", ")} of ${multi.covered_cells}/${multi.total_cells} cells`);
+if (multi.covered_cells !== 3 || multi.total_cells !== 4) fail("multi lookup cell accounting wrong");
+const multiBlank = await json("triz_matrix_multi", { improving: [10, 16], worsening: [16, 10] });
+if (multiBlank.covered !== false) fail("all-blank multi lookup did not fail closed");
+
 const route = await json("triz_route", { stage: "analysis", signals: ["bottleneck"] });
 console.log(`triz_route analysis/bottleneck -> ${route.tools.length} tools`);
 if (!route.tools.every((t) => t.stages.includes("analysis"))) fail("router returned non-analysis tools");
