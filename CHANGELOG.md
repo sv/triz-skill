@@ -6,26 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-18
+
 ### Added
 
-- `triz_matrix_multi`: multi-parameter contradiction lookup — every (improving × worsening)
-  cell with principles aggregated by recommendation frequency (ties broken by mean position,
-  per-cell detail always returned, fail-closed when all cells blank). Follows TRIZ-software
-  occurrence-counting practice; deliberately no positional scoring (sources.md documents why).
-- MPV analysis upgraded with the satisfaction × awareness classification (MPV / latent MPV /
-  PV / latent PV), evidence-honesty requirements, and literature anchors (Litvin 2011/2013,
-  Kano 1984, TRIZfest-2025 top-5 business tool and weighted-ideality formalization).
-- SKILL.md "When NOT to use TRIZ here" section: decline conditions (no opposing states,
-  cheaper measurement, standard pattern, plain selection, people-conflicts).
-- Evals: two deterministic `triz_matrix_multi` lookup evals plus a cross-check property test
-  (multi aggregation == manual fold of single lookups); reasoning evals for MPV classification
-  and for correctly declining TRIZ on a non-contradiction.
+- `triz_matrix_multi` — multi-parameter contradiction lookup: every (improving × worsening)
+  cell, principles aggregated by recommendation frequency, fail-closed when all cells blank.
+- Hosted streamable-HTTP MCP entry (`src/worker.ts`: stateless Cloudflare Worker over
+  MCP SDK v2, bundled knowledge base, CORS + `/health`); transport-neutral tool specs shared
+  by stdio and hosted entries.
+- MPV satisfaction × awareness classification (MPV / latent MPV / PV / latent PV) with
+  literature anchors (Litvin 2011/2013, Kano 1984, TRIZfest-2025).
+- "When NOT to use TRIZ here" decline conditions in SKILL.md.
+- Evals: matrix-multi deterministic cases and an aggregation property test; MPV-classification
+  and decline-TRIZ reasoning cases (38 tests total).
 
 ### Documented (not adopted)
 
-- Matrix 2003 / Business Matrix 3.0 / Souchkov business matrix: provenance, licensing, and
-  the TRIZfest-2025 finding that practitioners often prefer the classical matrix — recorded in
-  sources.md with the importer named as the sanctioned future path.
+- Matrix 2003 / business matrix variants: licensing unclear and practitioners often prefer the
+  classical matrix (TRIZfest-2025); importer remains the future path.
 
 ## [0.2.0] - 2026-08-18
 
@@ -95,6 +94,7 @@ All notable changes to this project are documented here. The format follows
 - FLOP-specific agent-demand benchmark, contradiction registry, problem graph, and the registry
   reconciler CLI, none of which are part of the domain-neutral core.
 
-[Unreleased]: https://github.com/sv/triz-skill/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/sv/triz-skill/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sv/triz-skill/releases/tag/v0.3.0
 [0.2.0]: https://github.com/sv/triz-skill/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sv/triz-skill/releases/tag/v0.1.0
