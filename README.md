@@ -171,12 +171,13 @@ registries (skills.sh, anthropics/skills, OpenAI), and promotion — lives in
 
 ## Registries
 
-**MCP Registry.** [`registry/triz.json`](registry/triz.json) holds a prepared entry for the
-official [modelcontextprotocol/registry](https://github.com/modelcontextprotocol/registry). To
-list the server there, publish the npm package first, then open a PR adding the file under
-`data/servers/` with the package `version` set to the released one — the registry's CI validates
-the JSON against its server schema. Check the `triz` name for availability when you open the PR;
-fall back to `triz-mcp` if it is taken.
+**MCP Registry.** [`server.json`](server.json) holds the prepared entry (name
+`io.github.sv/triz`) for the official registry at
+[registry.modelcontextprotocol.io](https://registry.modelcontextprotocol.io). Listing goes
+through the official `mcp-publisher` CLI — not a PR: publish the npm package first (the registry
+verifies the `mcpName` field inside the published package.json), then
+`mcp-publisher login github` (device flow) and `mcp-publisher publish`. Full steps in
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 **npm.** Publish to the public npm registry (`npm publish`) so `npx -y triz-mcp` works without a
 checkout. GitHub Packages also hosts npm packages (`npm.pkg.github.com`), but it requires

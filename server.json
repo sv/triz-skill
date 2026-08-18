@@ -1,0 +1,40 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.sv/triz",
+  "title": "TRIZ",
+  "description": "Deterministic, read-only TRIZ knowledge: the 39 engineering parameters, 40 inventive principles, and the Altshuller contradiction matrix with fail-closed blank cells — plus stage-based tool routing, an effects database, and blinded MATRIZ case evals. Agents cite looked-up principles, never recalled ones.",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/sv/triz-skill.git",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/sv/triz-skill#readme",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "triz-mcp",
+      "version": "0.2.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TRIZ_DATA_DIR",
+          "description": "Directory containing the TRIZ JSON data files; only needed when running outside the packaged layout.",
+          "isRequired": false
+        },
+        {
+          "name": "TRIZ_GRAPH",
+          "description": "Optional path to a project OTSM Network of Problems JSON for the triz_graph tool.",
+          "isRequired": false
+        },
+        {
+          "name": "TRIZ_REGISTRY",
+          "description": "Optional path to a project contradiction registry JSON for purpose verification.",
+          "isRequired": false
+        }
+      ]
+    }
+  ]
+}

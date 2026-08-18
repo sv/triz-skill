@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- MCP Registry submission moved to the official `mcp-publisher` CLI flow: `server.json`
+  (current reverse-DNS schema, `io.github.sv/triz`) replaces `registry/triz.json`;
+  `package.json` carries the `mcpName` ownership marker the registry verifies in the
+  published package; PUBLISHING.md and README updated to match.
+
 ### Added
 
 - Publish-ready npm package: `build` script (`tsconfig.build.json` → `dist` with a fixed
