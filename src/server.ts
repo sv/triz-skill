@@ -16,12 +16,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import * as triz from "./data.js";
 import * as graph from "./graph.js";
+import { version } from "./version.js";
 
 function text(payload: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
 }
 
-const server = new McpServer({ name: "triz-mcp", version: "0.2.0" });
+const server = new McpServer({ name: "triz-mcp", version });
 
 // deterministic tool: server.tool(name, desc, zodShape, handler)
 server.tool(
@@ -63,6 +64,17 @@ server.tool(
   "List the domain-neutral TRIZ tool catalog, optionally restricted to problem analysis, task modeling, or solution synthesis.",
   { stage: z.enum(["analysis", "modeling", "synthesis"]).optional().describe("Optional workflow stage") },
   async ({ stage }: { stage?: triz.ToolStage }) => text(triz.toolCatalog(stage)),
+);
+
+server.tool(
+  "triz_effects",
+  "Search the curated effects database by required function (e.g. 'convert temperature difference into voltage', 'store heat', 'sense strain') or list by category: physical, chemical, geometric. Effects are classical textbook phenomena; selecting and substantiating one remains a synthesis step, never a lookup verdict.",
+  {
+    query: z.string().optional().describe("Function keywords to search for, e.g. 'store heat' or 'sense magnetic field'"),
+    category: z.enum(["physical", "chemical", "geometric"]).optional().describe("Restrict results to one category"),
+  },
+  async ({ query, category }: { query?: string; category?: "physical" | "chemical" | "geometric" }) =>
+    text(triz.effects(query, category)),
 );
 
 server.tool(

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/schema/server.schema.json",
+  "name": "triz",
+  "description": "Deterministic, read-only TRIZ knowledge: the 39 engineering parameters, 40 inventive principles, and the Altshuller contradiction matrix with fail-closed blank cells — plus stage-based tool routing and blinded MATRIZ case evals. Agents cite looked-up principles, never recalled ones.",
+  "version": "0.2.0",
+  "remotes": [],
+  "packages": [
+    {
+      "registry_type": "npm",
+      "identifier": "triz-mcp",
+      "version": "0.2.0",
+      "transport_type": "stdio",
+      "environment_variables": [
+        {
+          "name": "TRIZ_DATA_DIR",
+          "description": "Directory containing the TRIZ JSON data files; only needed when running outside the packaged layout.",
+          "required": false
+        },
+        {
+          "name": "TRIZ_GRAPH",
+          "description": "Optional path to a project OTSM Network of Problems JSON for the triz_graph tool.",
+          "required": false
+        },
+        {
+          "name": "TRIZ_REGISTRY",
+          "description": "Optional path to a project contradiction registry JSON for purpose verification.",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "tools": [
+    { "name": "triz_parameter", "description": "Get a canonical TRIZ engineering parameter (1-39); omit id to list all." },
+    { "name": "triz_principle", "description": "Get a canonical inventive principle (1-40); omit id to list all." },
+    { "name": "triz_matrix", "description": "Look up a contradiction-matrix cell; blank and diagonal cells fail closed." },
+    { "name": "triz_resolve", "description": "Look up a cell and expand its parameters and principles." },
+    { "name": "triz_tool_catalog", "description": "List the routed TRIZ tool catalog, optionally by stage." },
+    { "name": "triz_effects", "description": "Search the curated effects database by required function or list by category (physical, chemical, geometric)." },
+    { "name": "triz_route", "description": "Select candidate TRIZ tools by stage and observed problem signals." },
+    { "name": "triz_evals", "description": "Return the neutral lookup and reasoning evaluation suites." },
+    { "name": "triz_graph", "description": "Optional: analyse a project OTSM Network of Problems graph." },
+    { "name": "triz_purpose", "description": "Optional: inspect the invariant and purpose gate of one graph node." }
+  ],
+  "repository": {
+    "url": "https://github.com/sv/triz-skill",
+    "source": "github",
+    "id": "sv/triz-skill"
+  },
+  "website": "https://github.com/sv/triz-skill",
+  "license": "MIT"
+}

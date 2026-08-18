@@ -31,6 +31,24 @@ Start with the smallest useful set:
 
 Do not select a key problem merely because it is easy to solve.
 
+## Main parameters of value
+
+Before modeling a contradiction, know which parameters carry value. Run the identification
+pipeline:
+
+1. list the parameters customers and stakeholders actually judge and pay for — the main
+   parameters of value (MPVs);
+2. rank them: which are decisive at the decision moment, which are hygiene, which are
+   table stakes;
+3. for each decisive MPV, find the trend it rides
+   ([evolution-trends.md](evolution-trends.md)) and the system parameter that limits it today;
+4. the limiting parameter of the highest-ranked MPV is where the next contradiction is worth
+   modeling.
+
+Improving a parameter nobody pays for is cost without value; ignoring the trend leaves the
+decisive MPV open to a competitor's jump. The MPV chain — value driver → trend → limiting
+parameter → contradiction — is the backbone of problem identification.
+
 ## Model
 
 ```text
@@ -81,6 +99,21 @@ Fastest falsifying test:
 ```
 
 A principle name is not a solution. Translate it into a causal mechanism in the target system.
+
+## Predict failure before it happens (AFD)
+
+Anticipatory failure determination inverts the problem: instead of explaining an observed
+failure, assume the failure has happened and invent how the system could produce it.
+
+1. name the failure to invent (the harm or loss event);
+2. work backwards: what chain of causes, in this system as built, would deliver it;
+3. use inversion deliberately — treat safety and interlock functions as absent, reversed, or
+   defeated, and ask what then becomes possible;
+4. each credible invented chain is a design contradiction to close, not an observation to
+   file.
+
+Run AFD on every recommended concept during justification, not only on the baseline: a new
+mechanism is a new set of possible failures.
 
 ## Substantiate and repair
 

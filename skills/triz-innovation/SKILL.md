@@ -1,6 +1,10 @@
 ---
 name: triz-innovation
 description: "Apply TRIZ to identify, model, solve, and validate contradictions in artificial systems. Use for product, service, process, organizational, demand, supply, engagement, public-relations, and technical problems where improving one outcome worsens another, a harmful effect persists, or incremental optimization has stalled."
+license: MIT
+metadata:
+  version: 0.2.0
+  source: https://github.com/sv/triz-skill
 ---
 
 # TRIZ Innovation
@@ -21,6 +25,14 @@ The references split problem solving into modeling and synthesis only to route t
    Never force people, trust, or market behavior into a physical analogy.
 5. Keep fact, inference, and hypothesis visibly separate.
 6. A concept is not a resolution until a domain-relevant test supports it.
+
+## Deterministic lookup
+
+If the `triz` MCP server is available (published as `npx -y triz-mcp`, or run from a checkout
+with `tsx src/server.ts`), cite only parameters, principles, and matrix cells you retrieved
+from it — never numbers recalled from memory; a blank or diagonal cell is a fail-closed answer,
+not a gap to fill. The skill remains usable without the server, but the recall rule stands.
+See [tool-selection.md](references/tool-selection.md).
 
 ## Workflow
 
@@ -59,10 +71,13 @@ Read only what the task needs:
 
 - demand, supply, engagement, public relations, service, process, or organization:
   [domain-guides.md](references/domain-guides.md);
-- tool routing, the 34-tool catalog, and deterministic MCP lookup:
+- tool routing, the routed tool catalog, and deterministic MCP lookup:
   [tool-selection.md](references/tool-selection.md);
-- exact artifacts, concept templates, evaluation, and repair:
+- exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
+- ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
+- S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);
+- design-around moves and their cautions: [patent-circumvention.md](references/patent-circumvention.md);
 - methodology and research provenance: [sources.md](references/sources.md).
 
 ## Anti-patterns

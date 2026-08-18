@@ -1,4 +1,9 @@
 node_modules/
 /data/
+dist/
+.pnpm-store/
 *.log
 .DS_Store
+
+# eval runner output (scripts/run-evals.mjs)
+/evals/results/

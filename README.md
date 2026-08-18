@@ -26,16 +26,27 @@ parameters.
 ## Install the skill
 
 Copy or symlink `skills/triz-innovation/` into wherever your agent loads skills from — e.g.
-`.claude/skills/`, `.agents/skills/`, or a `$SKILLS_DIR` your harness reads:
+`.claude/skills/`, `.agents/skills/`, `.codex/skills/`, or a `$SKILLS_DIR` your harness reads:
 
 ```bash
 git clone https://github.com/sv/triz-skill.git
 ln -s "$PWD/triz-skill/skills/triz-innovation" ~/.claude/skills/triz-innovation
 ```
 
+Once the repo is listed on [skills.sh](https://skills.sh) the shorthand becomes
+`npx skills add sv/triz-skill`.
+
 The skill works standalone. The MCP server is what removes recall from the loop.
 
 ## Run the MCP server
+
+Published package (preferred once released):
+
+```bash
+npx -y triz-mcp     # stdio server, no checkout needed
+```
+
+From a checkout:
 
 ```bash
 pnpm install
@@ -71,7 +82,8 @@ missing.
 | `triz_principle` | Get one of the 40 inventive principles; omit `id` to list all |
 | `triz_matrix` | Retrieve a canonical contradiction-matrix cell; blank cells fail closed |
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
-| `triz_tool_catalog` | List the 34 routed TRIZ tools, optionally by stage |
+| `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage |
+| `triz_effects` | Search the curated effects database by required function or category |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -112,9 +124,32 @@ and `data/triz-registry.json`.
 Scoring does not require reproducing the published solution — a causally stronger, testable
 alternative earns full credit.
 
+### Running the suites (bring your own key)
+
+The suites ship as data; nothing calls an LLM by default. `scripts/run-evals.mjs` runs them
+against any OpenAI-compatible endpoint and is **fail-closed on a key** — without
+`TRIZ_EVAL_API_KEY` (or `OPENAI_API_KEY`) it exits before any network call. CI exercises it in
+`--dry-run` mode only, which is offline and keyless. Results land in `evals/results/` (gitignored)
+as JSON plus a markdown report:
+
+```bash
+pnpm evals -- --suite no-recall --limit 40        # matrix-recall citation benchmark
+pnpm evals -- --suite reasoning                   # synthetic cross-domain cases, LLM judge
+pnpm evals -- --suite published --variant solver  # blinded MATRIZ cases, structured variant
+pnpm evals -- --dry-run --suite published         # plan a run: no key, no network
+```
+
+`TRIZ_EVAL_BASE_URL` and `TRIZ_EVAL_MODEL` select the endpoint and model (any
+OpenAI-compatible API). `no-recall` is the benchmark that justifies the server: a model asked
+for matrix cells from memory is scored against the canonical table, and fabricated citations are
+counted. With the server in the loop, the same citations are lookups — fabrication is zero by
+construction.
+
 ## Data provenance and licensing
 
-- The 39 parameters, 40 principles, and the 34-tool catalog are classical TRIZ vocabulary.
+- The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
+  the effects starter database (56 entries) is curated from textbook physics, chemistry, and
+  geometry.
 - `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
   and widely republished. To regenerate the file from a source of your own choosing:
 
@@ -126,3 +161,24 @@ alternative earns full credit.
   authors, and pages are recorded per case in `published-case-evals.json`.
 - The code in this repository is MIT licensed (`LICENSE`). That license covers the code and the
   original prose, not third-party data noted above.
+
+
+## Publishing and distribution
+
+The full runbook — npm release flow, the MCP Registry PR, Smithery/Glama/PulseMCP, skill
+registries (skills.sh, anthropics/skills, OpenAI), and promotion — lives in
+[docs/PUBLISHING.md](docs/PUBLISHING.md).
+
+## Registries
+
+**MCP Registry.** [`registry/triz.json`](registry/triz.json) holds a prepared entry for the
+official [modelcontextprotocol/registry](https://github.com/modelcontextprotocol/registry). To
+list the server there, publish the npm package first, then open a PR adding the file under
+`data/servers/` with the package `version` set to the released one — the registry's CI validates
+the JSON against its server schema. Check the `triz` name for availability when you open the PR;
+fall back to `triz-mcp` if it is taken.
+
+**npm.** Publish to the public npm registry (`npm publish`) so `npx -y triz-mcp` works without a
+checkout. GitHub Packages also hosts npm packages (`npm.pkg.github.com`), but it requires
+authentication even to install public packages, so it suits private or org-internal distribution
+— not a public CLI.

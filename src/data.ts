@@ -28,6 +28,14 @@ export interface TrizTool {
   stages: ToolStage[];
   signals: string[];
 }
+export interface TrizEffect {
+  id: number;
+  name: string;
+  category: "physical" | "chemical" | "geometric";
+  function: string;
+  statement: string;
+  hints: string[];
+}
 
 function candidateDataDirs(): string[] {
   return [
@@ -68,6 +76,28 @@ export function matrix() {
 }
 export function evals(): any {
   return (_evals ??= load<any>("evals.json"));
+}
+let _effects: TrizEffect[] | null = null;
+export function effects(query?: string, category?: TrizEffect["category"]) {
+  const all = (_effects ??= load<{ effects: TrizEffect[] }>("effects.json").effects);
+  let list = category ? all.filter((e) => e.category === category) : all;
+  if (query) {
+    const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    list = list
+      .map((e) => ({
+        e,
+        score: tokens.reduce(
+          (s, t) =>
+            s +
+            (`${e.name} ${e.function} ${e.statement} ${e.hints.join(" ")}`.toLowerCase().includes(t) ? 1 : 0),
+          0,
+        ),
+      }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.e);
+  }
+  return { total: all.length, matched: list.length, query: query ?? null, category: category ?? null, effects: list };
 }
 export function toolCatalog(stage?: ToolStage): TrizTool[] {
   const all = (_tools ??= load<{ tools: TrizTool[] }>("tool-router.json").tools);
