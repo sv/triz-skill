@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sv/triz",
   "title": "TRIZ",
-  "description": "Deterministic, read-only TRIZ knowledge: the 39 engineering parameters, 40 inventive principles, and the Altshuller contradiction matrix with fail-closed blank cells — plus stage-based tool routing, an effects database, and blinded MATRIZ case evals. Agents cite looked-up principles, never recalled ones.",
+  "description": "Deterministic, read-only TRIZ knowledge: parameters, principles, matrix, tool routing, effects.",
   "version": "0.2.0",
   "repository": {
     "url": "https://github.com/sv/triz-skill.git",
