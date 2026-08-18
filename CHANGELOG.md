@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-18
+
 ### Changed
 
 - MCP Registry submission moved to the official `mcp-publisher` CLI flow: `server.json`
@@ -45,8 +47,6 @@ All notable changes to this project are documented here. The format follows
   allows esbuild's install script (the `package.json` `pnpm` field is ignored by pnpm 11, which
   broke local `pnpm test` and CI).
 
-### Added
-
 ## [0.1.0] - 2026-08-14
 
 ### Added
@@ -74,5 +74,6 @@ All notable changes to this project are documented here. The format follows
 - FLOP-specific agent-demand benchmark, contradiction registry, problem graph, and the registry
   reconciler CLI, none of which are part of the domain-neutral core.
 
-[Unreleased]: https://github.com/sv/triz-skill/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/sv/triz-skill/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/sv/triz-skill/releases/tag/v0.2.0
 [0.1.0]: https://github.com/sv/triz-skill/releases/tag/v0.1.0
