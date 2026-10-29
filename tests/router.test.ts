@@ -30,6 +30,7 @@ test("router → tool mapping is pinned", () => {
     TRIM_PRODUCT: ["triz_trim", "triz_transform"],
     PC: ["triz_separate"],
     TESE: ["triz_rule_apply"],
+    MPV: ["triz_function_model", "triz_weakness"],
   });
   for (const code of ["FA_PROCESS", "TRIM_PROCESS", "FCA"]) {
     assert.equal(triz.toolCatalog().find((t) => t.source_code === code)!.mcp_tools, undefined, code);

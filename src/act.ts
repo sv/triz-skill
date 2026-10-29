@@ -13,7 +13,8 @@
  *                        with one witness cycle per such function. Useful-only feedback is not a harm.
  *  - idealityProfile   — function counts and costs per resource dimension; dimensions are never
  *                        summed, and a scalar ratio exists only under explicit weights.
- *  - compareIdeality   — baseline vs concept as a componentwise (Pareto) comparison.
+ *  - compareIdeality   — baseline vs concept as a componentwise (Pareto) comparison; with MPV
+ *                        weights, also over the main parameters of value only (mpvComparison).
  *  - trimCandidates    — TRIZ trimming rules A/B/C screened by carrier type (necessary, not sufficient).
  *  - separationCheck   — physical contradiction as a gluing problem over a finite
  *                        space × time × condition × direction × level base.
@@ -40,12 +41,19 @@ export const Axis = z.enum(["space", "time", "condition", "direction", "level"])
 export type Polarity = z.infer<typeof Polarity>;
 export type Axis = z.infer<typeof Axis>;
 
+export const CarrierLevel = z.strictObject({
+  value: Id.describe("A declared value of the carrier"),
+  from: z.number().nonnegative().describe("Least amount that reads as this value, in the units of the feasibility rows on this carrier"),
+}).meta({ id: "CarrierLevel" });
+
 export const Carrier = z.strictObject({
   id: Id,
   layer: Layer,
   dimension: z.string().min(1).describe("Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"),
   values: z.array(Id).min(1).optional()
     .describe("Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior"),
+  levels: z.array(CarrierLevel).min(1).optional()
+    .describe("Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]"),
 }).meta({ id: "Carrier" });
 
 export const Port = z.strictObject({
@@ -252,6 +260,26 @@ function feasibilityErrors(b: Box): string[] {
   return errors;
 }
 
+/**
+ * Typing of a carrier's levels: they need declared values, name each declared value at most once,
+ * start at 0 (every amount is non-negative, so every amount reads as some value), and strictly
+ * increase. That makes the reading of amounts as values monotone and a Galois connection
+ * (level_monotone, level_gc).
+ */
+function levelErrors(c: FunctionModel["carriers"][number]): string[] {
+  if (!c.levels) return [];
+  if (!c.values) return [`carrier '${c.id}' declares levels without values`];
+  const errors: string[] = [];
+  for (const l of c.levels) if (!c.values.includes(l.value)) errors.push(`carrier '${c.id}': level value '${l.value}' is not declared in values`);
+  for (const v of duplicates(c.levels.map((l) => l.value))) errors.push(`carrier '${c.id}': level value '${v}' is listed twice`);
+  if (c.levels[0].from !== 0) errors.push(`carrier '${c.id}': the first level ('${c.levels[0].value}') must start at 0, so that every amount reads as a value; it starts at ${c.levels[0].from}`);
+  c.levels.forEach((l, i) => {
+    const prev = c.levels![i - 1];
+    if (i && l.from <= prev.from) errors.push(`carrier '${c.id}': levels must increase: '${l.value}' from ${l.from} does not exceed '${prev.value}' from ${prev.from}`);
+  });
+  return errors;
+}
+
 export interface CheckResult { ok: boolean; errors: string[]; }
 
 /** Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail closed. */
@@ -263,6 +291,7 @@ export function checkModel(model: FunctionModel): CheckResult {
   for (const id of duplicates(model.boxes.map((b) => b.id))) errors.push(`duplicate box id '${id}'`);
   for (const id of duplicates(model.wires.map((w) => w.id))) errors.push(`duplicate wire id '${id}'`);
   for (const c of model.carriers) for (const v of duplicates(c.values ?? [])) errors.push(`carrier '${c.id}': duplicate value '${v}'`);
+  for (const c of model.carriers) errors.push(...levelErrors(c));
   for (const b of model.boxes) {
     for (const id of duplicates([...inputs(b), ...outputs(b)].map((p) => p.id))) errors.push(`box '${b.id}': duplicate port id '${id}'`);
     for (const p of [...inputs(b), ...outputs(b)]) {
@@ -434,7 +463,7 @@ export type Verdict = "concept-dominates" | "baseline-dominates" | "equal" | "tr
  * deliverables (no function acting on a product box) gives nothing to lose, so the verdict is
  * indeterminate rather than letting an empty concept win on cost.
  */
-export function compareIdeality(baseline: FunctionModel, concept: FunctionModel) {
+export function compareIdeality(baseline: FunctionModel, concept: FunctionModel, opts: { mpvWeights?: Record<string, number> } = {}) {
   const a = idealityProfile(baseline), b = idealityProfile(concept);
   const after = new Set(b.deliverables.map((d) => d.key)), before = new Set(a.deliverables.map((d) => d.key));
   const lostDeliverables = [...before].filter((k) => !after.has(k));
@@ -454,7 +483,49 @@ export function compareIdeality(baseline: FunctionModel, concept: FunctionModel)
   const reason = !before.size
     ? "baseline has no deliverables: mark the box the main function acts on as role 'product'"
     : undefined;
-  return { verdict, ...(reason ? { reason } : {}), better, worse, lostDeliverables, gainedDeliverables, baseline: a, concept: b };
+  const mpv = opts.mpvWeights ? mpvComparison(a, b, opts.mpvWeights, { verdict, better, worse }) : undefined;
+  return { verdict, ...(reason ? { reason } : {}), better, worse, lostDeliverables, gainedDeliverables, baseline: a, concept: b, ...(mpv ? { mpv } : {}) };
+}
+
+/**
+ * The comparison restricted to the main parameters of value (workflow.md). `weights` names the MPV
+ * axes, cost dimensions or 'harmful', each with the user's explicit weight; nothing else is an MPV,
+ * and no weight is ever filled in. Each MPV axis is compared componentwise (`pareto`), and the
+ * weighted sum Σ weight·value over the MPV axes alone, lower being better, ranks the two models
+ * (`verdict`). Axes outside the MPV set that differ are listed (`ignored`), so nothing the MPV view
+ * leaves out is hidden. A lost deliverable, or a baseline without deliverables, decides the verdict
+ * as in compareIdeality. These weights never make the scalar ideality ratio computable: that still
+ * needs `weights` on the model.
+ */
+export function mpvComparison(a: IdealityProfile, b: IdealityProfile, weights: Record<string, number>, full: { verdict: Verdict; better: string[]; worse: string[] }) {
+  const dims = new Set([...Object.keys(a.costs), ...Object.keys(b.costs)]);
+  const names = Object.keys(weights).sort();
+  const errors = [
+    ...(names.length ? [] : ["mpv_weights names no dimension: give each main parameter of value its explicit weight"]),
+    ...names.filter((d) => d !== "harmful" && !dims.has(d)).map((d) => `mpv_weights: '${d}' is not a cost dimension of either model, nor 'harmful'`),
+    ...names.filter((d) => !(own(weights, d)! > 0)).map((d) => `mpv_weights: the weight of '${d}' must be positive`),
+  ];
+  if (errors.length) return { ok: false as const, errors };
+  const axisName = (d: string) => (d === "harmful" ? "harmful" : `cost:${d}`);
+  const value = (p: IdealityProfile, d: string) => (d === "harmful" ? p.functions.harmful : own(p.costs, d) ?? 0);
+  const axes = names.map(axisName);
+  const better = full.better.filter((x) => axes.includes(x)), worse = full.worse.filter((x) => axes.includes(x));
+  const ignored = [...full.better, ...full.worse].filter((x) => !axes.includes(x)).sort();
+  const weighted = (p: IdealityProfile) => names.reduce((s, d) => s + own(weights, d)! * value(p, d), 0);
+  const [x, y] = [weighted(a), weighted(b)];
+  const pareto = !worse.length && !better.length ? "equal" as const : !worse.length ? "concept-dominates" as const : !better.length ? "baseline-dominates" as const : "trade-off" as const;
+  const decided = full.verdict === "indeterminate" || full.verdict === "concept-loses-functions";
+  const verdict = decided ? full.verdict : y < x ? "concept-better" as const : y > x ? "baseline-better" as const : "equal" as const;
+  return {
+    ok: true as const, weights, axes, better, worse, pareto, ignored,
+    weighted: { baseline: x, concept: y, formula: "Σ weight·value over the MPV axes (cost per dimension, or the harmful-function count); lower is better" },
+    verdict,
+    ...(pareto === "trade-off" ? { basis: ["pareto_incomparable"] as const } : {}),
+    note: (decided
+      ? `The MPV view does not override the comparison: ${full.verdict === "indeterminate" ? "the baseline has no deliverables" : "the concept loses deliverables"}.`
+      : `Ranked by the explicit MPV weights over ${axes.join(", ")} only.`)
+      + (ignored.length ? ` Outside the MPV set, the models also differ on ${ignored.join(", ")}; the MPV view ignores those axes by choice, not because they are equal.` : ""),
+  };
 }
 
 export type TrimRule = "A" | "B" | "C";
@@ -635,7 +706,7 @@ export function dynamize(pc: PhysicalContradiction, axis: Axis = "time") {
 }
 
 /** One call for an agent: typing, harm loops, ideality profile, embedded contradictions, optional comparison. */
-export function analyseModel(model: FunctionModel, compareTo?: FunctionModel) {
+export function analyseModel(model: FunctionModel, compareTo?: FunctionModel, opts: { mpvWeights?: Record<string, number> } = {}) {
   const check = checkModel(model);
   if (!check.ok) return { ok: false as const, errors: check.errors };
   if (compareTo) {
@@ -656,7 +727,7 @@ export function analyseModel(model: FunctionModel, compareTo?: FunctionModel) {
     harmLoops: harmLoops(model),
     ideality: idealityProfile(model),
     separation,
-    comparison: compareTo ? compareIdeality(compareTo, model) : undefined,
+    comparison: compareTo ? compareIdeality(compareTo, model, opts) : undefined,
     note: "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.",
   };
 }
