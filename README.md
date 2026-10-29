@@ -83,15 +83,18 @@ missing.
 | `triz_matrix` | Retrieve a canonical contradiction-matrix cell; blank cells fail closed |
 | `triz_matrix_multi` | Every (improving × worsening) cell for multi-parameter conflicts, aggregated by recommendation frequency |
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
-| `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage |
+| `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage; entries name the MCP tools (`mcp_tools`) that carry out their method |
 | `triz_effects` | Search the curated effects database by required function or category |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
-| `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison |
+| `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
-| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level |
+| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
+| `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
+| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
+| `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
-| `triz_purpose` | Optional: inspect the invariant and purpose gate of one graph node |
+| `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
 ## Function models as typed data
 
@@ -103,19 +106,44 @@ model written as an open wiring diagram, defined by
 - wires are functions rated useful, insufficient, excessive, or harmful;
 - carriers name what flows and in what unit.
 
-Any dangling, mis-directed, or mistyped wire fails closed. The checks cover harm loops, trimming
-by rules A/B/C, ideality compared per dimension and never summed, and physical-contradiction
-separation as a gluing problem. Every loop and absorber they return is a hypothesis to
-substantiate. [categorical-model.md](skills/triz-innovation/references/categorical-model.md)
-states exactly what is and is not claimed. `examples/function-models/` holds a physical,
-software, and business model.
+Any dangling, mis-directed, or mistyped wire fails closed. The checks cover:
+
+- harm loops;
+- trimming by rules A/B/C;
+- ideality compared per dimension and never summed;
+- physical-contradiction separation as a gluing problem.
+
+Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
+typed moves. Each returns a model that type-checks, or fails closed:
+
+- Segmentation, Taking out, and Intermediary, each matched to its principle text;
+- an applied trim;
+- a raw rewrite.
+
+`triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
+as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
+models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
+on; a test checks that every cited name is a theorem there. The structured verdicts of the
+checks are label-blind: renaming ids or
+changing the domain does not change them. Property tests check this, with the exclusions listed
+in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
+transfer between domains.
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
+what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
+software models. One software model has the physical model's wiring shape.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
 
 - gluing iff every cell is satisfiable;
 - an edge in a strongly connected region lies on a cycle;
-- the componentwise order is not total.
+- the componentwise order is not total;
+- typing survives relabelling, deletion under the no-dangling condition, gluing, and
+  re-attachment to a same-carrier port;
+- restriction composes.
+
+`theory/Witnesses.lean` checks that none of the typing lemmas is vacuous. For each, a concrete
+diagram meets all its hypotheses, and a counterexample shows each hypothesis is needed.
 
 It also states trimming as a left Kan extension, which the kernel does not decide.
 
@@ -132,6 +160,13 @@ data. The graph is an OTSM Network of Problems with a DIKWP purpose layer:
 - nodes are open contradictions; edges are `couples`, `blocks`, or `dissolves`;
 - the **core conflict** is the node with the most outgoing `dissolves` edges — resolving it removes
   the most others (the Theory-of-Constraints step);
+- a node may carry a `contradiction` in the function-model schema's PhysicalContradiction form.
+  `triz_graph` checks it and reports `irreducible`, `separable`, `no-contradiction`, or
+  `invalid`; an invalid one fails closed for that node only, with its errors.
+  - Ties on `dissolves` go first to irreducible nodes, then to unmodelled or invalid nodes, then
+    to separable nodes, and last to nodes that are not contradictions.
+  - `dissolves` stays the primary key. A node that already separates keeps its place but is
+    flagged, because separation already gives it a resolution route;
 - each node's `purpose` names the invariant it serves, and counts as **secured** only when a
   `verified_by` record exists on the node or on a linked registry entry. No verifier, no gate — it
   fails closed.

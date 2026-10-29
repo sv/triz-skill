@@ -1,0 +1,14 @@
+digraph function_model {
+  graph [rankdir=LR, label="Batch workers sharing a database connection pool (same wiring shape as bearing-heat; costs illustrative)", labelloc=t];
+  node [shape=record, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+  "scheduler" [label="{Job scheduler\n«tool»|{<o0> dispatch (jobs)}}"];
+  "worker" [label="{{<i0> jobs-in (jobs)|<i1> session-in (sessions)|<i2> wait-in (wait)}|Batch worker\n«product»|{<o0> retry (retries)}}", penwidth=2];
+  "pool" [label="{{<i0> retry-in (retries)}|Connection pool\n«mediator»|{<o0> lease (sessions)|<o1> contention (wait)}}"];
+  "database" [label="{Database (direct connections)\n«mediator»|{<o0> connect (sessions)}}"];
+  "tracing" [label="{{<i0> spans (wait)}|Tracing backend\n«environment»}", style="dashed", color="gray40"];
+  "scheduler":o0:e -> "worker":i0:w [label="dispatch jobs to", color="black"];
+  "pool":o0:e -> "worker":i1:w [label="lease sessions to", color="black"];
+  "pool":o1:e -> "worker":i2:w [label="block [harmful]", color="red3", fontcolor="red3"];
+  "worker":o0:e -> "pool":i0:w [label="retry against [harmful]", color="red3", fontcolor="red3"];
+}

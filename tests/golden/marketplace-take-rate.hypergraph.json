@@ -1,0 +1,210 @@
+{
+  "format": "triz-open-hypergraph/1",
+  "domain": "business",
+  "system": "Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)",
+  "carriers": [
+    {
+      "id": "orders",
+      "layer": "information",
+      "dimension": "matched orders/month"
+    },
+    {
+      "id": "fee",
+      "layer": "financial",
+      "dimension": "USD take-rate fees/month"
+    },
+    {
+      "id": "price",
+      "layer": "financial",
+      "dimension": "USD price markup per order"
+    },
+    {
+      "id": "listings",
+      "layer": "information",
+      "dimension": "active listings"
+    },
+    {
+      "id": "gmv",
+      "layer": "financial",
+      "dimension": "USD gross merchandise value/month"
+    }
+  ],
+  "vertices": [
+    {
+      "box": "platform",
+      "port": "revenue",
+      "side": "in",
+      "carrier": "gmv"
+    },
+    {
+      "box": "platform",
+      "port": "match",
+      "side": "out",
+      "carrier": "orders"
+    },
+    {
+      "box": "platform",
+      "port": "charge",
+      "side": "out",
+      "carrier": "fee"
+    },
+    {
+      "box": "merchants",
+      "port": "orders-in",
+      "side": "in",
+      "carrier": "orders"
+    },
+    {
+      "box": "merchants",
+      "port": "fee-in",
+      "side": "in",
+      "carrier": "fee"
+    },
+    {
+      "box": "merchants",
+      "port": "list",
+      "side": "out",
+      "carrier": "listings"
+    },
+    {
+      "box": "merchants",
+      "port": "markup",
+      "side": "out",
+      "carrier": "price"
+    },
+    {
+      "box": "consumers",
+      "port": "browse",
+      "side": "in",
+      "carrier": "listings"
+    },
+    {
+      "box": "consumers",
+      "port": "pay",
+      "side": "in",
+      "carrier": "price"
+    },
+    {
+      "box": "consumers",
+      "port": "spend",
+      "side": "out",
+      "carrier": "gmv"
+    }
+  ],
+  "hyperedges": [
+    {
+      "kind": "box",
+      "id": "platform",
+      "name": "Marketplace platform",
+      "role": "tool",
+      "action": "match",
+      "cost": {
+        "usd_month": 50000
+      },
+      "sources": [
+        0
+      ],
+      "targets": [
+        1,
+        2
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "merchants",
+      "name": "Merchants (supply side)",
+      "role": "mediator",
+      "action": "supply",
+      "sources": [
+        3,
+        4
+      ],
+      "targets": [
+        5,
+        6
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "consumers",
+      "name": "Consumers (demand side)",
+      "role": "product",
+      "sources": [
+        7,
+        8
+      ],
+      "targets": [
+        9
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-match",
+      "carrier": "orders",
+      "polarity": "useful",
+      "verb": "send orders to",
+      "sources": [
+        1
+      ],
+      "targets": [
+        3
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-fee",
+      "carrier": "fee",
+      "polarity": "excessive",
+      "verb": "charge",
+      "sources": [
+        2
+      ],
+      "targets": [
+        4
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-list",
+      "carrier": "listings",
+      "polarity": "useful",
+      "verb": "offer listings to",
+      "sources": [
+        5
+      ],
+      "targets": [
+        7
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-markup",
+      "carrier": "price",
+      "polarity": "harmful",
+      "verb": "pass fees on to",
+      "sources": [
+        6
+      ],
+      "targets": [
+        8
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-spend",
+      "carrier": "gmv",
+      "polarity": "insufficient",
+      "verb": "spend through",
+      "sources": [
+        9
+      ],
+      "targets": [
+        0
+      ]
+    }
+  ],
+  "interface": {
+    "inputs": [],
+    "outputs": []
+  }
+}

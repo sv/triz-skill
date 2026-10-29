@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz"]
+defaultTargets = ["CategoricalTriz", "Witnesses"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -10,3 +10,7 @@ rev = "v4.32.2"
 
 [[lean_lib]]
 name = "CategoricalTriz"
+
+# Non-vacuity witnesses for the lemmas above; a default target, so `lake build --wfail` and CI check them.
+[[lean_lib]]
+name = "Witnesses"

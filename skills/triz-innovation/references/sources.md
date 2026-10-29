@@ -82,8 +82,8 @@ sources do not document in-cell ordering as a preference rank, so none is used h
 
 ### TRIZ grounding
 
-The kernel behind `triz_function_model`, `triz_trim`, and `triz_separate` follows the MATRIZ
-knowledge base. Pages were checked on 2026-10-29.
+The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, and `triz_transform`
+follows the MATRIZ knowledge base. Pages were checked on 2026-10-29.
 
 - [Trimming rules](https://wiki.matriz.org/docs/triz/problem-solving-tools-5807/trimming-6398/trimming-rules-6730/)
   define three rules:
@@ -142,6 +142,18 @@ it supports here.
 - **Myers**, *Categorical Systems Theory*, book draft last updated 2023-09-03,
   [davidjaz.com](https://www.davidjaz.com/Papers/DynamicalBook.pdf).
   Open dynamical systems.
+- **Bonchi, Gadducci, Kissinger, Sobociński & Zanasi (2022)**, *String diagram rewrite theory I:
+  Rewriting with Frobenius structure*, Journal of the ACM 69(2), doi:10.1145/3502719,
+  [arXiv:2012.01847](https://arxiv.org/abs/2012.01847). Checked on 2026-10-29: Def. 3.1
+  (hypergraphs with ordered source and target lists), Def. 3.16 (the no-dangling and
+  no-identification conditions), and Prop. 3.17 (a pushout complement exists iff both hold).
+  Two uses here:
+  - `triz_export`'s open-hypergraph form: hyperedges with ordered sources and targets, plus an
+    interface;
+  - the no-dangling check in `triz_transform`, where occurrences named by id make the
+    no-identification condition trivial.
+
+  Neither use makes the kernel a DPO rewriting system.
 
 Considered and not adopted:
 
@@ -152,12 +164,17 @@ Considered and not adopted:
 - **Grothendieck & Raynaud**, SGA 1, Springer LNM 224 (1971), Exposé VI.
   **Spivak (2009)**, *Simplicial databases*, [arXiv:0904.2012](https://arxiv.org/abs/0904.2012).
   9 windows as a fibration.
+  - Adopted: the level axis as typed restriction and collapse (`triz_nine_windows`).
+  - Not adopted: the fibration itself, and any computed transition between times.
 - **Ehrig, Ehrig, Prange & Taentzer (2006)**, *Fundamentals of Algebraic Graph
   Transformation*, Springer.
   **Corradini, Montanari, Rossi, Ehrig, Heckel & Löwe (1997)**, *Algebraic approaches to graph
   transformation, Part I*, in *Handbook of Graph Grammars and Computing by Graph
   Transformation*, Vol. 1, World Scientific.
-  Evolution trends as double-pushout rewriting.
+  Evolution trends as double-pushout rewriting systems.
+  - Adopted: trimming as a single rewrite at a named occurrence (`triz_transform` `trim`). It is
+    checked by the no-dangling condition, cited from Bonchi et al. (2022) above.
+  - Not adopted: rules as reusable patterns, occurrence search, and the other evolution lines.
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 

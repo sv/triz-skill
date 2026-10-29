@@ -1,139 +1,83 @@
 # Changelog
 
-All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
 ### Added
 
-- Categorical systems kernel (`src/act.ts`): TRIZ function models as typed open wiring
-  diagrams. It is pure and shared by the stdio and hosted entries. Three new tools:
-  - `triz_function_model`: wiring type-check, harm loops, ideality profile, separation, and
-    baseline comparison.
-    - The type-check fails closed on dangling, mis-directed, or mistyped wires.
-    - Harm loops come from strongly connected components, with one witness cycle per harmful
-      or excessive function. Useful-only feedback is not reported.
-    - The ideality profile keeps each cost dimension separate. It gives a scalar ratio only
-      under explicit weights.
-    - The baseline-vs-concept comparison is componentwise, and a lost deliverable is never
-      counted as a trade-off.
-  - `triz_trim`: screens a trimming by MATRIZ rules A/B/C on carrier type and returns one
-    trimming problem per absorber. Orphaned functions block the trim.
-  - `triz_separate`: treats a physical contradiction as gluing over a finite space × time ×
-    condition × direction × level base. It returns the separating axes per pair of demands
-    and the conflict cells.
-- `function-model.schema.json` (JSON Schema 2020-12), generated from the zod model by
-  `pnpm schema`, with a drift test.
-- Physical, software, and business example models in `examples/function-models/`.
-- `theory/`: a Lean 4 / Mathlib (v4.32.2) package that proves the statements behind the
-  checks, with no `sorry`. It also states trimming as a left Kan extension, which the kernel
-  does not decide. A path-filtered `Lean` CI workflow builds it.
-- `references/categorical-model.md`: the modelling protocol, the domain working translations,
-  and what is not claimed. `sources.md` gains MATRIZ grounding for trimming rules, function
-  rating, and the five separation types, plus verified applied-category-theory references.
-- 21 kernel tests; the MCP smoke test now exercises nested-model tool input over stdio.
+- `triz_function_model`: type-check a function model written as typed data; report harm loops, ideality per cost dimension, separation, and a baseline comparison that includes an isomorphism check and an optional `box_map`.
+- `triz_trim`: screen a trim by the MATRIZ trimming rules A/B/C.
+- `triz_separate`: decide whether a physical contradiction separates over space, time, condition, direction, or system level; `along` indexes the parameter by one axis.
+- `triz_transform`: typed model moves (segment, take out, interpose, apply a trim, rewrite); every result type-checks or fails closed.
+- `triz_nine_windows`: subsystem, system, and supersystem views for each time snapshot.
+- `triz_export`: export a model as Graphviz DOT or an open hypergraph.
+- Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
+- `theory/Witnesses.lean`: each typing lemma's hypotheses hold on a concrete diagram, and dropping any one breaks it.
+- Router entries name the MCP tools that carry out their method (`mcp_tools`).
+- Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.
+- Function-model JSON Schema and four example models: bearing, cached API, marketplace, connection pool.
+- `categorical-model.md`: modelling protocol, and what is and is not claimed.
+- CI and Lean workflows can be started by hand (`workflow_dispatch`).
 
 ### Changed
 
-- `workflow.md` lists all five MATRIZ separation types, adding direction.
-
-### Documented (not adopted)
-
-- 9 windows as Grothendieck fibrations, evolution trends as double-pushout rewriting, and the
-  40 principles as diagram transformations. These are recorded as analogies with sources; none
-  is implemented.
+- `workflow.md` lists all five MATRIZ separation types.
+- Releases publish to npm and the MCP Registry through OIDC, with no stored tokens; pnpm is pinned via `packageManager`.
+- Dependencies: zod 4.6.6, @modelcontextprotocol/sdk 1.32.0, @modelcontextprotocol/server 2.3.0.
 
 ## [0.3.0] - 2026-08-18
 
 ### Added
 
-- `triz_matrix_multi` — multi-parameter contradiction lookup: every (improving × worsening)
-  cell, principles aggregated by recommendation frequency, fail-closed when all cells blank.
-- Hosted streamable-HTTP MCP entry (`src/worker.ts`: stateless Cloudflare Worker over
-  MCP SDK v2, bundled knowledge base, CORS + `/health`); transport-neutral tool specs shared
-  by stdio and hosted entries.
-- MPV satisfaction × awareness classification (MPV / latent MPV / PV / latent PV) with
-  literature anchors (Litvin 2011/2013, Kano 1984, TRIZfest-2025).
-- "When NOT to use TRIZ here" decline conditions in SKILL.md.
-- Evals: matrix-multi deterministic cases and an aggregation property test; MPV-classification
-  and decline-TRIZ reasoning cases (38 tests total).
-
-### Documented (not adopted)
-
-- Matrix 2003 / business matrix variants: licensing unclear and practitioners often prefer the
-  classical matrix (TRIZfest-2025); importer remains the future path.
+- `triz_matrix_multi`: contradiction lookup over several parameters, with principles ranked by how many cells recommend them.
+- Hosted MCP endpoint (Cloudflare Worker, streamable HTTP) with the same tools as the stdio server.
+- MPV classification by satisfaction and awareness.
+- "When not to use TRIZ" decline conditions in `SKILL.md`.
+- Evals for multi-parameter lookup, MPV classification, and declining TRIZ.
+- `sources.md` explains why Matrix 2003 and the business matrices are not shipped.
 
 ## [0.2.0] - 2026-08-18
 
-### Changed
-
-- MCP Registry submission moved to the official `mcp-publisher` CLI flow: `server.json`
-  (current reverse-DNS schema, `io.github.sv/triz`) replaces `registry/triz.json`;
-  `package.json` carries the `mcpName` ownership marker the registry verifies in the
-  published package; PUBLISHING.md and README updated to match.
-
 ### Added
 
-- Publish-ready npm package: `build` script (`tsconfig.build.json` → `dist` with a fixed
-  `#!/usr/bin/env node` shebang), `bin` now targets `dist/server.js`, `files` whitelist,
-  repository/keywords/engines metadata; version bumped to 0.2.0 and the server now reports the
-  package version (`src/version.ts`) with a drift regression test.
-- `scripts/smoke-mcp.mjs`: real MCP client handshake against the built server; runs in CI and
-  gates `prepublishOnly` and the Release workflow (`npm publish --provenance` on `v*` tags,
-  version-tag match check, GitHub release).
-- `smithery.yaml` build manifest; `registry/triz.json` MCP Registry entry (version-synced).
-- SKILL.md frontmatter now carries `license` and `metadata` for skill registries, and a
-  Deterministic lookup section references the `triz` MCP server.
-- `docs/PUBLISHING.md` (npm → MCP Registry → directories → skill registries runbook).
-- `scripts/run-evals.mjs`: key-gated LLM eval runner for the `no-recall`, `reasoning`, and
-  `published` suites, with an offline `--dry-run` mode. Refuses to run without
-  `TRIZ_EVAL_API_KEY`/`OPENAI_API_KEY`; endpoint and model via `TRIZ_EVAL_BASE_URL` /
-  `TRIZ_EVAL_MODEL`. Writes JSON + markdown reports to gitignored `evals/results/`. CI runs it
-  in `--dry-run` mode only (`pnpm evals` / `pnpm evals:dry`).
+- Publish-ready npm package `triz-mcp`; the server reports its package version.
+- MCP handshake smoke test, run in CI and before every release.
+- Release workflow: npm publish with provenance and a GitHub release on `v*` tags.
+- Smithery manifest, and registry metadata in `SKILL.md` frontmatter.
+- `docs/PUBLISHING.md` release runbook.
+- Key-gated LLM eval runner (`pnpm evals`) with an offline dry-run mode.
+- `triz_effects` and a 56-entry effects database.
+- MPV, ARIZ-85C, evolution-trend, AFD, design-around, and software references; the router grows from 34 to 37 tools.
 
-- Modern-practice gap closures: effects starter database (56 curated textbook entries) with a
-  `triz_effects` MCP tool and lookup evals; Main parameters of value (MPV) analysis workflow
-  section and routed tool; ARIZ-85C entry criteria and part-ladder reference; S-curve stages and
-  evolution-lines reference; anticipatory failure determination (AFD) workflow section and routed
-  tool; patent design-around reference and routed tool; software domain guide and a software
-  reasoning eval. Tool catalog grows from 34 to 37 routed tools.
+### Changed
+
+- MCP Registry submission uses the official `mcp-publisher` flow and `server.json`.
 
 ### Fixed
 
-- `pnpm install` under pnpm ≥ 10.14 default build-script policy: `pnpm-workspace.yaml` now
-  allows esbuild's install script (the `package.json` `pnpm` field is ignored by pnpm 11, which
-  broke local `pnpm test` and CI).
+- `pnpm install` under the pnpm ≥ 10.14 build-script policy.
 
 ## [0.1.0] - 2026-08-14
 
 ### Added
 
-- `triz-innovation` skill: `SKILL.md`, workflow / tool-selection / domain-guides / weakness /
-  sources references, and the canonical knowledge base (39 parameters, 40 principles, imported
-  contradiction matrix, 34-tool router).
-- `triz` MCP server with `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_resolve`,
-  `triz_tool_catalog`, `triz_route`, and `triz_evals`. Blank and diagonal matrix cells fail closed.
-- Optional `triz_graph` / `triz_purpose` tools over a project-supplied OTSM Network of Problems with
-  a DIKWP purpose layer, plus `scripts/graph-report.mjs` and synthetic `examples/`.
-- Contradiction-matrix importer (`scripts/import-matrix.mjs`) for regenerating `matrix.json` from a
-  licensed CSV or JSON source.
-- Evaluation suites: deterministic lookup regressions, synthetic reasoning cases, and six blinded
-  cases reconstructed from CC BY MATRIZ publications.
+- `triz-innovation` skill with its knowledge base: 39 parameters, 40 principles, the contradiction matrix, and a 34-tool router.
+- `triz` MCP server for parameters, principles, the matrix, tool routing, and evals; blank and diagonal matrix cells fail closed.
+- Optional `triz_graph` / `triz_purpose` over a project's network of problems.
+- Contradiction-matrix importer and evaluation suites.
 
 ### Changed
 
-- Extracted from `flop-labs/flop-core`. Data-directory resolution, the graph loader, and the
-  registry loader now use neutral paths and the `TRIZ_DATA_DIR`, `TRIZ_GRAPH`, and `TRIZ_REGISTRY`
-  environment variables; the legacy `FLOP_*` overrides are gone.
+- Extracted from `flop-labs/flop-core`, with neutral data paths and `TRIZ_*` environment variables.
 
 ### Removed
 
-- FLOP-specific agent-demand benchmark, contradiction registry, problem graph, and the registry
-  reconciler CLI, none of which are part of the domain-neutral core.
+- FLOP-specific benchmark, registry, problem graph, and reconciler CLI.
 
-[Unreleased]: https://github.com/sv/triz-skill/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/sv/triz-skill/releases/tag/v0.3.0
+[unreleased]: https://github.com/sv/triz-skill/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/sv/triz-skill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sv/triz-skill/releases/tag/v0.2.0
-[0.1.0]: https://github.com/sv/triz-skill/releases/tag/v0.1.0

@@ -1,0 +1,324 @@
+{
+  "format": "triz-open-hypergraph/1",
+  "domain": "software",
+  "system": "Read path of an API behind a Redis cache",
+  "carriers": [
+    {
+      "id": "request",
+      "layer": "information",
+      "dimension": "HTTP request"
+    },
+    {
+      "id": "response",
+      "layer": "information",
+      "dimension": "HTTP response"
+    },
+    {
+      "id": "query",
+      "layer": "information",
+      "dimension": "cache/SQL lookup"
+    },
+    {
+      "id": "cached",
+      "layer": "information",
+      "dimension": "cached result bytes"
+    },
+    {
+      "id": "rows",
+      "layer": "information",
+      "dimension": "SQL result rows"
+    }
+  ],
+  "vertices": [
+    {
+      "box": "client",
+      "port": "in",
+      "side": "in",
+      "carrier": "response"
+    },
+    {
+      "box": "client",
+      "port": "out",
+      "side": "out",
+      "carrier": "request"
+    },
+    {
+      "box": "gateway",
+      "port": "in",
+      "side": "in",
+      "carrier": "request"
+    },
+    {
+      "box": "gateway",
+      "port": "fwd",
+      "side": "out",
+      "carrier": "request"
+    },
+    {
+      "box": "gateway",
+      "port": "edge-cache",
+      "side": "out",
+      "carrier": "cached"
+    },
+    {
+      "box": "app",
+      "port": "req",
+      "side": "in",
+      "carrier": "request"
+    },
+    {
+      "box": "app",
+      "port": "cache-in",
+      "side": "in",
+      "carrier": "cached"
+    },
+    {
+      "box": "app",
+      "port": "rows-in",
+      "side": "in",
+      "carrier": "rows"
+    },
+    {
+      "box": "app",
+      "port": "resp",
+      "side": "out",
+      "carrier": "response"
+    },
+    {
+      "box": "app",
+      "port": "lookup",
+      "side": "out",
+      "carrier": "query"
+    },
+    {
+      "box": "app",
+      "port": "memo",
+      "side": "out",
+      "carrier": "cached"
+    },
+    {
+      "box": "redis",
+      "port": "get",
+      "side": "in",
+      "carrier": "query"
+    },
+    {
+      "box": "redis",
+      "port": "hit",
+      "side": "out",
+      "carrier": "cached"
+    },
+    {
+      "box": "postgres",
+      "port": "sql",
+      "side": "in",
+      "carrier": "query"
+    },
+    {
+      "box": "postgres",
+      "port": "result",
+      "side": "out",
+      "carrier": "rows"
+    }
+  ],
+  "hyperedges": [
+    {
+      "kind": "box",
+      "id": "client",
+      "name": "API client",
+      "role": "product",
+      "sources": [
+        0
+      ],
+      "targets": [
+        1
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "gateway",
+      "name": "API gateway",
+      "role": "mediator",
+      "action": "route",
+      "cost": {
+        "usd_month": 150
+      },
+      "sources": [
+        2
+      ],
+      "targets": [
+        3,
+        4
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "app",
+      "name": "API service",
+      "role": "tool",
+      "action": "serve",
+      "cost": {
+        "usd_month": 900
+      },
+      "sources": [
+        5,
+        6,
+        7
+      ],
+      "targets": [
+        8,
+        9,
+        10
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "redis",
+      "name": "Redis cluster",
+      "role": "mediator",
+      "action": "cache",
+      "cost": {
+        "usd_month": 400,
+        "p99_ms": 2.5
+      },
+      "sources": [
+        11
+      ],
+      "targets": [
+        12
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "postgres",
+      "name": "Postgres",
+      "role": "mediator",
+      "action": "persist",
+      "cost": {
+        "usd_month": 1200,
+        "p99_ms": 9
+      },
+      "sources": [
+        13
+      ],
+      "targets": [
+        14
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-call",
+      "carrier": "request",
+      "polarity": "useful",
+      "verb": "call",
+      "sources": [
+        1
+      ],
+      "targets": [
+        2
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-route",
+      "carrier": "request",
+      "polarity": "useful",
+      "verb": "route",
+      "sources": [
+        3
+      ],
+      "targets": [
+        5
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-serve",
+      "carrier": "response",
+      "polarity": "useful",
+      "verb": "serve",
+      "sources": [
+        8
+      ],
+      "targets": [
+        0
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-lookup",
+      "carrier": "query",
+      "polarity": "useful",
+      "verb": "query",
+      "sources": [
+        9
+      ],
+      "targets": [
+        11
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-cache",
+      "carrier": "cached",
+      "polarity": "useful",
+      "verb": "cache results for",
+      "sources": [
+        12
+      ],
+      "targets": [
+        6
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-stale",
+      "carrier": "cached",
+      "polarity": "harmful",
+      "verb": "serve stale results to",
+      "sources": [
+        12
+      ],
+      "targets": [
+        6
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-sql",
+      "carrier": "query",
+      "polarity": "useful",
+      "verb": "query",
+      "sources": [
+        9
+      ],
+      "targets": [
+        13
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-rows",
+      "carrier": "rows",
+      "polarity": "useful",
+      "verb": "return rows to",
+      "sources": [
+        14
+      ],
+      "targets": [
+        7
+      ]
+    }
+  ],
+  "interface": {
+    "inputs": [],
+    "outputs": [
+      4,
+      10
+    ]
+  },
+  "budget": {
+    "usd_month": 2500,
+    "p99_ms": 15
+  }
+}

@@ -4,6 +4,10 @@
  * Pure graph reasoning over the open-contradiction network:
  *  - coreConflict  — the TOC core conflict = node with the most outgoing
  *    `dissolves` edges (resolving it removes the most other contradictions).
+ *    Ties go to the node whose physical contradiction is irreducible, ahead of one
+ *    that already separates; every entry carries that status.
+ *  - nodeSeparation — a node may carry a PhysicalContradiction (src/act.ts); it is
+ *    checked by separationCheck, and an invalid one fails closed for that node only.
  *  - clusters      — connected components over `couples` edges.
  *  - purposeVerified — DIKWP reverse-regulation: a node's purpose (the invariant
  *    it serves) is "verified" when a linked registry entry carries a verified_by
@@ -19,6 +23,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { PhysicalContradiction, separationCheck } from "./act.js";
+import { separationBasis } from "./act-basis.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export type EdgeType = "couples" | "blocks" | "dissolves";
@@ -28,6 +34,8 @@ export interface Node {
   id: string; section: string; title: string; pc: string;
   separation_axis: string; sub_problems: string[]; status: string;
   purpose: Purpose; refs: { registry: string[]; specs: string[] };
+  /** Optional PhysicalContradiction (src/act.ts schema); validated when used, never trusted. */
+  contradiction?: unknown;
 }
 export interface Graph { nodes: Node[]; edges: Edge[]; _meta?: unknown; }
 
@@ -67,16 +75,54 @@ export function loadRegistryById(): Record<string, any> {
   return {};
 }
 
-/** Rank nodes by how many contradictions their resolution dissolves (TOC core conflict first). */
-export function coreConflict(nodes: Node[], edges: Edge[]): Array<{ id: string; title: string; dissolves: string[]; couples: number }> {
+export type SeparationStatus = "irreducible" | "unmodelled" | "invalid" | "separable" | "no-contradiction";
+
+/**
+ * A node's contradiction, checked: `irreducible` (some cell admits no value), `separable` (a
+ * piecewise assignment exists), `no-contradiction` (one value meets every demand), `invalid`
+ * (fails the schema or separationCheck; the reason is returned and nothing else is concluded),
+ * or `unmodelled` (the node carries none).
+ */
+export function nodeSeparation(node: Node) {
+  if (node.contradiction === undefined) return { status: "unmodelled" as const };
+  const parsed = PhysicalContradiction.safeParse(node.contradiction);
+  if (!parsed.success) {
+    return { status: "invalid" as const, reason: "contradiction does not match the PhysicalContradiction schema", errors: parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`) };
+  }
+  const r = separationBasis(separationCheck(parsed.data));
+  if (!r.ok) return { status: "invalid" as const, reason: "separationCheck rejected the contradiction", errors: r.errors };
+  const status: SeparationStatus = !r.contradiction ? "no-contradiction" : r.gluable ? "separable" : "irreducible";
+  return { status, check: r };
+}
+
+/** Tie-break order: unresolved cores first, nodes that already separate or are no contradiction last. */
+const SEPARATION_RANK: Record<SeparationStatus, number> = { irreducible: 0, unmodelled: 1, invalid: 1, separable: 2, "no-contradiction": 3 };
+
+/**
+ * Rank nodes by how many contradictions their resolution dissolves (TOC core conflict first).
+ * Ties go to the node whose contradiction is irreducible, then to unmodelled or invalid ones,
+ * then to nodes that already separate, then to nodes that are not contradictions; then more
+ * `couples`, then id. A node ranked on `dissolves` alone keeps its place even when it already
+ * separates, but it is flagged, since separation already gives it a resolution route.
+ */
+export function coreConflict(nodes: Node[], edges: Edge[]): Array<{ id: string; title: string; dissolves: string[]; couples: number; separation: SeparationStatus; flag?: string }> {
   return nodes
-    .map((n) => ({
-      id: n.id,
-      title: n.title,
-      dissolves: edges.filter((e) => e.type === "dissolves" && e.from === n.id).map((e) => e.to),
-      couples: edges.filter((e) => e.type === "couples" && (e.from === n.id || e.to === n.id)).length,
-    }))
-    .sort((a, b) => b.dissolves.length - a.dissolves.length || b.couples - a.couples || a.id.localeCompare(b.id));
+    .map((n) => {
+      const separation = nodeSeparation(n).status;
+      return {
+        id: n.id,
+        title: n.title,
+        dissolves: edges.filter((e) => e.type === "dissolves" && e.from === n.id).map((e) => e.to),
+        couples: edges.filter((e) => e.type === "couples" && (e.from === n.id || e.to === n.id)).length,
+        separation,
+        ...(separation === "separable" ? { flag: "its contradiction already separates: assign the parameter piecewise before treating it as the core" }
+          : separation === "no-contradiction" ? { flag: "one value meets every demand: not a physical contradiction" }
+          : separation === "invalid" ? { flag: "its contradiction is invalid: fix it before ranking on it" } : {}),
+      };
+    })
+    .sort((a, b) => b.dissolves.length - a.dissolves.length
+      || SEPARATION_RANK[a.separation] - SEPARATION_RANK[b.separation]
+      || b.couples - a.couples || a.id.localeCompare(b.id));
 }
 
 /** Connected components over `couples` edges (the coupled clusters). */
@@ -125,6 +171,7 @@ export function analyse() {
       purpose: n.purpose.statement, invariant: n.purpose.invariant, spec: n.purpose.spec,
       purpose_secured: purposeGate(n, reg).satisfied,
       purpose_reason: purposeGate(n, reg).reason,
+      separation: nodeSeparation(n),
     })),
     edges,
   };

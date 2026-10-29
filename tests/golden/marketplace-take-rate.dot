@@ -1,0 +1,13 @@
+digraph function_model {
+  graph [rankdir=LR, label="Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)", labelloc=t];
+  node [shape=record, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+  "platform" [label="{{<i0> revenue (gmv)}|Marketplace platform\n«tool»|{<o0> match (orders)|<o1> charge (fee)}}"];
+  "merchants" [label="{{<i0> orders-in (orders)|<i1> fee-in (fee)}|Merchants (supply side)\n«mediator»|{<o0> list (listings)|<o1> markup (price)}}"];
+  "consumers" [label="{{<i0> browse (listings)|<i1> pay (price)}|Consumers (demand side)\n«product»|{<o0> spend (gmv)}}", penwidth=2];
+  "platform":o0:e -> "merchants":i0:w [label="send orders to", color="black"];
+  "platform":o1:e -> "merchants":i1:w [label="charge [excessive]", color="black", penwidth=2.5];
+  "merchants":o0:e -> "consumers":i0:w [label="offer listings to", color="black"];
+  "merchants":o1:e -> "consumers":i1:w [label="pass fees on to [harmful]", color="red3", fontcolor="red3"];
+  "consumers":o0:e -> "platform":i0:w [label="spend through [insufficient]", color="black", style="dashed"];
+}

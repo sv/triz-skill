@@ -7,7 +7,8 @@
       "blocks": "target cannot be resolved until source is",
       "dissolves": "resolving source removes the target contradiction outright"
     },
-    "purpose_layer": "Each node's `purpose` is the invariant it serves. `purpose.spec` binds it to a machine-checkable specification; a purpose counts as secured only when a `verified_by` record exists on the node or on a linked registry entry (see examples/triz-registry.json)."
+    "purpose_layer": "Each node's `purpose` is the invariant it serves. `purpose.spec` binds it to a machine-checkable specification; a purpose counts as secured only when a `verified_by` record exists on the node or on a linked registry entry (see examples/triz-registry.json).",
+    "contradiction": "Optional. A node may carry a `contradiction` in the PhysicalContradiction form of the function-model schema (skills/triz-innovation/schemas/function-model.schema.json). `triz_graph` checks it with separationCheck and reports irreducible, separable, no-contradiction, or invalid; an invalid one fails closed for that node only. P1 carries one that separates in time."
   },
   "nodes": [
     {
@@ -16,6 +17,15 @@
       "title": "Throughput vs. defect escape",
       "pc": "The line must run fast to meet demand and slow to let inspection catch defects.",
       "separation_axis": "time",
+      "contradiction": {
+        "id": "line-speed",
+        "parameter": "line speed",
+        "axes": { "time": ["production-run", "inspection-window"] },
+        "demands": [
+          { "id": "meet-demand", "values": ["fast"], "because": "daily output meets demand", "time": ["production-run"] },
+          { "id": "catch-defects", "values": ["slow"], "because": "inspection dwell long enough to catch defects", "time": ["inspection-window"] }
+        ]
+      },
       "sub_problems": ["inspection dwell time", "batch size"],
       "status": "open",
       "purpose": {

@@ -7,6 +7,8 @@ on:
   pull_request:
     branches: [main]
     paths: ["theory/**", ".github/workflows/lean.yml"]
+  # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}

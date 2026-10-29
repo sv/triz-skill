@@ -1,0 +1,18 @@
+digraph function_model {
+  graph [rankdir=LR, label="Read path of an API behind a Redis cache", labelloc=t];
+  node [shape=record, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9];
+  "client" [label="{{<i0> in (response)}|API client\n«product»|{<o0> out (request)}}", penwidth=2];
+  "gateway" [label="{{<i0> in (request)}|API gateway\n«mediator»|{<o0> fwd (request)|<o1> edge-cache (cached)}}"];
+  "app" [label="{{<i0> req (request)|<i1> cache-in (cached)|<i2> rows-in (rows)}|API service\n«tool»|{<o0> resp (response)|<o1> lookup (query)|<o2> memo (cached)}}"];
+  "redis" [label="{{<i0> get (query)}|Redis cluster\n«mediator»|{<o0> hit (cached)}}"];
+  "postgres" [label="{{<i0> sql (query)}|Postgres\n«mediator»|{<o0> result (rows)}}"];
+  "client":o0:e -> "gateway":i0:w [label="call", color="black"];
+  "gateway":o0:e -> "app":i0:w [label="route", color="black"];
+  "app":o0:e -> "client":i0:w [label="serve", color="black"];
+  "app":o1:e -> "redis":i0:w [label="query", color="black"];
+  "redis":o0:e -> "app":i1:w [label="cache results for", color="black"];
+  "redis":o0:e -> "app":i1:w [label="serve stale results to [harmful]", color="red3", fontcolor="red3"];
+  "app":o1:e -> "postgres":i0:w [label="query", color="black"];
+  "postgres":o0:e -> "app":i2:w [label="return rows to", color="black"];
+}
