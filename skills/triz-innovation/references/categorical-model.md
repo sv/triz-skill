@@ -21,7 +21,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
-| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
 | What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
@@ -185,7 +185,11 @@ Most are semantic sanity lemmas: they pin the semantics down on the tests' own e
 (`relation_comp_mono` and `relTrace_mono`, since a trim does not widen one relation;
 `separation_on_condition`, a Boolean split the condition axis does not use).
 `restrict_restrict` and `restrict_of_subset` are the presheaf's functor laws, used to build
-`supportedOn`; no view zooms inside a zoom, so no verdict uses them. `relation_comp_iSup_left`,
+`supportedOn`; no view zooms inside a zoom, so no verdict uses them. The theorems of
+`theory/Semantics.lean` define the semantics `triz_behavior` computes and prove it compositional
+(see [Compositional semantics](#compositional-semantics)). No verdict cites them: a verdict is
+about one model, and the evaluator is checked against that semantics by a brute-force cross-check,
+not derived from it. `relation_comp_iSup_left`,
 `relation_comp_iSup_right`, and `relTrace_iSup` say why a context built from composition and the
 trace preserves unions, the hypothesis of the residual lemmas; that the kernel's join is such a
 context is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
@@ -266,7 +270,10 @@ Every row is type-checked, and an undeclared port or value fails closed.
 - **Upstream only.** Only the boxes that can reach a deliverable are composed, and each of them
   must declare behaviour. Every other box is assumed to accept whatever it receives. The output
   lists downstream boxes whose declared relation is partial (`partialDownstream`): in the full
-  relational composite they would rule out steady states.
+  relational composite they would rule out steady states. Total downstream boxes can rule them
+  out too, through a loop among them or a downstream port fed by several wires that disagree, and
+  are not listed. An empty `partialDownstream` does not mean the whole model has the same
+  relation.
 - **Steady states.** A steady state is a valuation of the composed ports that every relation
   and every wire admits. The external relation is the set of steady states projected onto the
   inputs and the deliverables. A feedback loop composes by the relational trace: an input and an
@@ -321,6 +328,63 @@ inputs where both models have steady states. If one model has steady states at a
 the other has none, the verdict is `changed`, and the counterexample says which side is empty.
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
+
+### Compositional semantics
+
+`theory/Semantics.lean` defines the semantics above for an open diagram over values `V`. Ports
+range over their carriers' declared values, a box admits a set of port valuations, a wire
+equates its two ports, and the interface names input and output ports. `steadyStates` is the set
+of valuations that every value set, box, and wire admits. `external` is its projection onto the
+inputs and the outputs. A kernel box is `ofRows`: it admits a valuation iff its own ports read one
+of its rows. Lean proves, with no `sorry`:
+
+- **Series** (`external_glueAlong`). Glue two diagrams by cross wires. If the cross wires join
+  exactly the matching interface ports, the glued external relation is Mathlib's `Relation.Comp`
+  of the parts': each wire joins the first part's output j to the second's input j, and every j
+  is joined. That is the hypothesis that the interface is fully exposed. A cross wire at a port
+  that one part's relation hides breaks the equation, and so does an interface port left unjoined.
+  `seq` glues along the interface, so `external_seq` holds with no hypothesis.
+- **Parallel** (`external_par`). A disjoint union relates a pair of valuations iff each part
+  relates its own components: the product relation.
+- **Feedback** (`external_feedbackAlong`, `external_feedback`). Wire each loop output back to its
+  loop input, and the external relation is `relTrace` of the open relation. That relation runs
+  from (input, loop value) to (output, loop value). The hypothesis is the same as for series: the
+  loop wires join exactly the loop ports.
+- **Monotonicity** (`external_mono`). Widening any box's relation widens the external relation.
+- **Functor** (`semantics`). Objects are interfaces. Morphisms are open diagrams, two of them
+  identified when their external relations agree. Composition is `seq`, and the identity is a
+  diagram of bare interface ports. This is a category, and `semantics` is a faithful functor from
+  it to Mathlib's `RelCat`. Its laws are `external_seq` and `external_id`. Faithfulness holds by
+  construction, since the morphisms are diagrams up to their relations. Diagrams side by side map
+  to the product of relations (`semantics_tensorHom`). That is the tensor on objects and
+  morphisms only: no monoidal category is built, and associators, unitors, and coherence are not
+  stated.
+
+None of these restricts the diagram. Fan-in, fan-out, loops, and partial or several-valued
+relations are covered, since a wire is an equality and a box is a set of valuations.
+`theory/SemanticsWitnesses.lean` gives each theorem a concrete diagram with a non-empty
+relation, and a counterexample for each hypothesis.
+
+The evaluator is not extracted from these definitions. `tests/act-semantics.test.ts` transcribes
+`steadyStates` and `external` into a brute-force reference, which enumerates every port valuation
+and filters it. The test then checks that `externalBehavior` agrees with the reference:
+
+- **What agrees.** The composed boxes, the deliverables, and the inputs. Every input valuation,
+  with the same outputs and the same number of steady states. Each listed steady state, and the
+  inputs with no steady state.
+- **Which diagram.** The reference evaluates the upstream part. The test re-derives that part
+  from the wires, independently of the evaluator.
+- **Seeded models.** 400 random models: loops, fan-out, fan-in, partial and several-valued
+  relations, inputs with no steady state, and boxes without behaviour, which must read
+  undecided. The test asserts that each of these cases occurs.
+- **Repository examples.** Every example. The bearing with declared behaviour has a decided
+  relation, as given and trimmed. The others must read undecided, naming the same boxes.
+
+The test also checks the whole model against the upstream part. Every steady state of the whole
+model restricts to one of the upstream part, so the whole model relates no more on the upstream
+inputs. The two are equal when every box is upstream. A downstream negation loop and a downstream
+fan-in show that the whole model can relate strictly less while `partialDownstream` is empty.
+Lean does not state this restriction.
 
 ## Behaviour through the constructions
 
@@ -919,8 +983,12 @@ example cohort churn against fee changes. Name it only from that evidence.
   - It needed the trimmed model to include into the original. A trim that re-attaches a
     function (rules B and C) adds a wire the original lacks, so there is no inclusion. A trim
     by rule A alone is a restriction; there the statement would be well typed.
-  - No functor from a function model to a category of systems was ever defined, so it
-    constrained nothing the kernel computes.
+  - It needed a functor from function models, along trims, to a category of systems, and none
+    was defined, so it constrained nothing the kernel computes. The functor that
+    `theory/Semantics.lean` now defines (`semantics`) does not supply one. It goes from open
+    diagrams, up to their steady-state relations, to relations. Its morphisms compose by gluing
+    in series, and a trim is not one of them, so the statement stays removed. A trim still
+    depends on its absorber, and rules B and C are still not inclusions.
 - Nothing computes a Grothendieck fibration. The one optic computed is a lens with a residual
   read as a Mealy machine: its bounded runs ([Declared dynamics](#declared-dynamics)), and
   nothing else about optics.
@@ -936,11 +1004,22 @@ example cohort churn against fee changes. Name it only from that evidence.
 - For models that declare behaviour, `triz_behavior` decides a finite relational question:
   whether a concept's input→deliverable relation, a trimmed model's or any other's, equals the
   baseline's. Series composition is Mathlib's `Relation.Comp`, and its associativity is
-  Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
-  that the trace is monotone, that the trace of a swap is the identity, that every value is a
-  steady state of an identity loop, and that a negation loop has none. These are semantic sanity
-  lemmas; no verdict cites them. The evaluator is checked by tests, not extracted from these
-  statements, and its verdicts are not certified per instance.
+  Mathlib's `Relation.comp_assoc`. `theory/CategoricalTriz.lean` proves sanity lemmas: that
+  composition and the trace are monotone, that the trace of a swap is the identity, that every
+  value is a steady state of an identity loop, and that a negation loop has none.
+  `theory/Semantics.lean` defines the steady-state semantics of an open diagram and proves it
+  compositional ([Compositional semantics](#compositional-semantics)):
+  - series gluing with the interface fully exposed is `Relation.Comp`;
+  - a disjoint union is the product;
+  - feedback is `relTrace`;
+  - widening a box widens the relation;
+  - diagrams up to their relations form a category with a faithful functor to `RelCat`.
+
+  No verdict cites these theorems. The evaluator is not extracted from them. A brute-force
+  transcription of the Lean definition agrees with it on 400 seeded random models and on the
+  examples. That agreement is evidence on those models, not a proof about the evaluator. The
+  agreement is with the semantics of the upstream part the evaluator composes; Lean does not
+  relate that part to the whole model. The verdicts are not certified per instance.
 - The weakest specification is decided for one box without behaviour only. With several, the
   safe relations are not a product of per-box residuals, so none is computed.
   - It is the residual of the declared context. It says what the box must do for the concept's
@@ -979,7 +1058,8 @@ example cohort churn against fee changes. Name it only from that evidence.
 - A `preserved` verdict holds for the relations as declared. Whether they are true, the
   absorber's above all, is outside the kernel, and so are the absorber's new harms. Its added
   cost is `triz_feasibility`'s question. Downstream boxes are not composed; see
-  `partialDownstream`.
+  `partialDownstream`, which lists only the partial ones. A total downstream box in a loop, or
+  a downstream port fed by several wires, can also rule out steady states of the whole model.
 - `compare_to` compares the baseline's deliverables only. A concept that gains a deliverable
   can read `preserved`; `gainedDeliverables` lists them. `box_map` renames boxes; it does not
   say that the parts are the box, physically or economically.
