@@ -1,0 +1,261 @@
+{
+  "format": "triz-open-hypergraph/1",
+  "domain": "software",
+  "system": "Batch workers sharing a database connection pool (same wiring shape as bearing-heat; costs illustrative)",
+  "carriers": [
+    {
+      "id": "jobs",
+      "layer": "information",
+      "dimension": "jobs dispatched/s"
+    },
+    {
+      "id": "sessions",
+      "layer": "information",
+      "dimension": "DB sessions leased"
+    },
+    {
+      "id": "wait",
+      "layer": "temporal",
+      "dimension": "ms lock wait"
+    },
+    {
+      "id": "retries",
+      "layer": "information",
+      "dimension": "retried queries/s"
+    }
+  ],
+  "vertices": [
+    {
+      "box": "scheduler",
+      "port": "dispatch",
+      "side": "out",
+      "carrier": "jobs"
+    },
+    {
+      "box": "worker",
+      "port": "jobs-in",
+      "side": "in",
+      "carrier": "jobs"
+    },
+    {
+      "box": "worker",
+      "port": "session-in",
+      "side": "in",
+      "carrier": "sessions"
+    },
+    {
+      "box": "worker",
+      "port": "wait-in",
+      "side": "in",
+      "carrier": "wait"
+    },
+    {
+      "box": "worker",
+      "port": "retry",
+      "side": "out",
+      "carrier": "retries"
+    },
+    {
+      "box": "pool",
+      "port": "retry-in",
+      "side": "in",
+      "carrier": "retries"
+    },
+    {
+      "box": "pool",
+      "port": "lease",
+      "side": "out",
+      "carrier": "sessions"
+    },
+    {
+      "box": "pool",
+      "port": "contention",
+      "side": "out",
+      "carrier": "wait"
+    },
+    {
+      "box": "database",
+      "port": "connect",
+      "side": "out",
+      "carrier": "sessions"
+    },
+    {
+      "box": "tracing",
+      "port": "spans",
+      "side": "in",
+      "carrier": "wait"
+    }
+  ],
+  "hyperedges": [
+    {
+      "kind": "box",
+      "id": "scheduler",
+      "name": "Job scheduler",
+      "role": "tool",
+      "action": "dispatch",
+      "cost": {
+        "usd_month": 120
+      },
+      "sources": [],
+      "targets": [
+        0
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "worker",
+      "name": "Batch worker",
+      "role": "product",
+      "sources": [
+        1,
+        2,
+        3
+      ],
+      "targets": [
+        4
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "pool",
+      "name": "Connection pool",
+      "role": "mediator",
+      "action": "lease",
+      "cost": {
+        "usd_month": 18,
+        "oncall_h_month": 2
+      },
+      "sources": [
+        5
+      ],
+      "targets": [
+        6,
+        7
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "database",
+      "name": "Database (direct connections)",
+      "role": "mediator",
+      "action": "accept connections",
+      "cost": {
+        "usd_month": 40
+      },
+      "sources": [],
+      "targets": [
+        8
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "tracing",
+      "name": "Tracing backend",
+      "role": "environment",
+      "sources": [
+        9
+      ],
+      "targets": []
+    },
+    {
+      "kind": "function",
+      "id": "w-dispatch",
+      "carrier": "jobs",
+      "polarity": "useful",
+      "verb": "dispatch jobs to",
+      "sources": [
+        0
+      ],
+      "targets": [
+        1
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-lease",
+      "carrier": "sessions",
+      "polarity": "useful",
+      "verb": "lease sessions to",
+      "sources": [
+        6
+      ],
+      "targets": [
+        2
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-wait",
+      "carrier": "wait",
+      "polarity": "harmful",
+      "verb": "block",
+      "sources": [
+        7
+      ],
+      "targets": [
+        3
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-retry",
+      "carrier": "retries",
+      "polarity": "harmful",
+      "verb": "retry against",
+      "sources": [
+        4
+      ],
+      "targets": [
+        5
+      ]
+    }
+  ],
+  "interface": {
+    "inputs": [
+      9
+    ],
+    "outputs": [
+      8
+    ]
+  },
+  "budget": {
+    "usd_month": 200,
+    "oncall_h_month": 4
+  },
+  "contradictions": [
+    {
+      "id": "pool-size",
+      "parameter": "connection pool size",
+      "axes": {
+        "time": [
+          "cold-start",
+          "warm-up",
+          "steady"
+        ]
+      },
+      "demands": [
+        {
+          "id": "throughput",
+          "values": [
+            "large"
+          ],
+          "because": "steady-state job throughput",
+          "time": [
+            "steady"
+          ]
+        },
+        {
+          "id": "no-stampede",
+          "values": [
+            "small"
+          ],
+          "because": "opening many connections at once overloads the database",
+          "time": [
+            "cold-start",
+            "warm-up"
+          ]
+        }
+      ]
+    }
+  ]
+}

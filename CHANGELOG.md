@@ -33,17 +33,54 @@ All notable changes to this project are documented here. The format follows
 - `references/categorical-model.md`: the modelling protocol, the domain working translations,
   and what is not claimed. `sources.md` gains MATRIZ grounding for trimming rules, function
   rating, and the five separation types, plus verified applied-category-theory references.
-- 21 kernel tests; the MCP smoke test now exercises nested-model tool input over stdio.
+- Exports: `triz_export` writes a model that type-checks as Graphviz DOT or as an open
+  hypergraph. In the DOT, boxes are record nodes and functions are edges styled by rating. In the
+  hypergraph, ports are carrier-typed vertices, boxes and functions are hyperedges, and the
+  unwired ports are the interface. Both formats fail closed on a mistyped model. A decoder
+  provides a lossless round trip.
+- Label blindness: the structured verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
+  `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize` are equivariant under
+  renaming ids and changing labels (domain, names, layers, dimensions). Free text and id-order
+  tie-breaks are excluded, as listed in `categorical-model.md`. Property tests check this with a seeded, dependency-free
+  generator over 200 models with every array permuted. `triz_isomorphic` decides whether two
+  models share a wiring shape. It uses a polynomial verifier and a bounded search, and reports
+  `decided: false` rather than guessing.
+- New example `connection-pool.json`: a software model with the bearing's wiring shape, which
+  gets the same verdicts.
+- Typed constructions via `triz_transform`. Each result type-checks, or the call fails closed.
+  - The rewrite engine enforces the no-dangling condition and requires fresh ids.
+  - Constructions are matched to their looked-up principle texts:
+    - `segment` (Principle 1);
+    - `take_out`, with interfering and needed readings (Principle 2);
+    - `interpose` (Principle 24).
+  - `trim` performs a typed-feasible trim. It re-attaches each kept function to an absorber.
+- `triz_separate` gains `along`: the parameter as a function of one axis. With `time`, this is
+  the checkable part of Principle 15 (Dynamics). It is reported only when the value must change.
+- `triz_nine_windows`: system-operator views for each time snapshot.
+  - Subsystem: restriction, with crossing functions as the boundary.
+  - System: the model itself.
+  - Supersystem: a collapse into one box that lists the harms it hides.
+- Lean (`theory/`), all with no `sorry`:
+  - typing is label-blind (`typed_rename`), and so are harm cycles (`transGen_equiv`);
+  - deletion under the no-dangling condition, gluing, and re-attachment to a same-carrier
+    port all keep typing;
+  - restriction composes.
+- 44 kernel tests, including golden DOT and hypergraph outputs for every example. The MCP smoke
+  test calls `triz_export` and `triz_transform`, including their fail-closed paths.
 
 ### Changed
 
 - `workflow.md` lists all five MATRIZ separation types, adding direction.
+- `compareIdeality` matches deliverables by the (box, carrier) pair. The display key `box:carrier`
+  could collide when ids contain `:`.
 
 ### Documented (not adopted)
 
-- 9 windows as Grothendieck fibrations, evolution trends as double-pushout rewriting, and the
-  40 principles as diagram transformations. These are recorded as analogies with sources; none
-  is implemented.
+- These remain analogies with sources:
+  - 9 windows as a Grothendieck fibration, including any computed transition between times;
+  - double-pushout rewriting systems (rules as patterns, occurrence search) and evolution lines
+    other than trimming;
+  - principles other than 1, 2, 15, and 24 as transformations.
 
 ## [0.3.0] - 2026-08-18
 

@@ -4,13 +4,14 @@ import Mathlib.CategoryTheory.Functor.KanExtension.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Set.Prod
+import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
 
 /-!
 # Categorical TRIZ: the statements behind the kernel's checks
 
-Each section states, over Mathlib, the fact that one check in `src/act.ts` relies on. This is
+Each section states, over Mathlib, the fact that one check in `src/act*.ts` relies on. This is
 not a formal model of TRIZ: it pins down what the deterministic checks decide and why they are
 sound, and names the one statement (trimming as a Kan extension) the kernel does *not* decide.
 See `skills/triz-innovation/references/categorical-model.md`.
@@ -105,6 +106,150 @@ theorem edge_on_cycle {u v : β} (huv : r u v) (hvu : Relation.ReflTransGen r v 
   Relation.TransGen.head' huv hvu
 
 end Loops
+
+/-! ## Label blindness
+
+The kernel's verdicts read only the wiring shape. For harm loops this is the fact that a closed
+loop survives transport along any relabelling of the boxes. The tests check every verdict of the
+TypeScript kernel under random relabellings; this states the abstract fact behind the loop one. -/
+
+section Relabel
+
+theorem transGen_equiv {β γ : Type*} (e : β ≃ γ) {r : β → β → Prop} {u v : β} :
+    Relation.TransGen r u v ↔ Relation.TransGen (fun a b => r (e.symm a) (e.symm b)) (e u) (e v) := by
+  constructor
+  · intro h
+    induction h with
+    | single hab => exact .single (by simpa using hab)
+    | tail _ hbc ih => exact ih.tail (by simpa using hbc)
+  · have back : ∀ x y, Relation.TransGen (fun a b => r (e.symm a) (e.symm b)) x y →
+        Relation.TransGen r (e.symm x) (e.symm y) := by
+      intro x y hxy
+      induction hxy with
+      | single hab => exact .single hab
+      | tail _ hbc ih => exact ih.tail hbc
+    simpa using back (e u) (e v)
+
+end Relabel
+
+/-! ## Wiring typing and rewriting (`checkModel`, `rewrite`, `restrict`)
+
+A wiring diagram: boxes and wires drawn from types `B` and `W`. Each wire has a source and a
+target `(box, port)`, and a carrier. `out b p = some c` says box `b` has an output port `p` of
+carrier `c`; `inp` does the same for input ports. `Typed` is `checkModel`'s condition. The
+statements below say that typing does not depend on labels, and that the rewrite steps the
+constructions are built from keep it. The TypeScript is checked against them by tests, not by
+extraction. -/
+
+structure Wiring (B P W C : Type*) where
+  boxes : Set B
+  wires : Set W
+  src : W → B × P
+  tgt : W → B × P
+  carrier : W → C
+  out : B → P → Option C
+  inp : B → P → Option C
+
+namespace Wiring
+
+variable {B P W C : Type*} (d : Wiring B P W C)
+
+/-- Every wire runs from an output port to an input port of present boxes, and both ports carry
+the wire's carrier. -/
+def Typed : Prop :=
+  ∀ w ∈ d.wires, (d.src w).1 ∈ d.boxes ∧ (d.tgt w).1 ∈ d.boxes ∧
+    d.out (d.src w).1 (d.src w).2 = some (d.carrier w) ∧
+    d.inp (d.tgt w).1 (d.tgt w).2 = some (d.carrier w)
+
+/-- Relabel boxes, ports (per box), wires, and carriers along bijections. -/
+def rename {B' P' W' C' : Type*} (eB : B ≃ B') (eP : B → P ≃ P') (eW : W ≃ W') (eC : C ≃ C') :
+    Wiring B' P' W' C' where
+  boxes := eB.symm ⁻¹' d.boxes
+  wires := eW.symm ⁻¹' d.wires
+  src w := (eB (d.src (eW.symm w)).1, eP (d.src (eW.symm w)).1 (d.src (eW.symm w)).2)
+  tgt w := (eB (d.tgt (eW.symm w)).1, eP (d.tgt (eW.symm w)).1 (d.tgt (eW.symm w)).2)
+  carrier w := eC (d.carrier (eW.symm w))
+  out b p := (d.out (eB.symm b) ((eP (eB.symm b)).symm p)).map eC
+  inp b p := (d.inp (eB.symm b) ((eP (eB.symm b)).symm p)).map eC
+
+/-- Typing is label-blind: it holds after relabelling exactly when it held before. -/
+theorem typed_rename {B' P' W' C' : Type*} (eB : B ≃ B') (eP : B → P ≃ P') (eW : W ≃ W')
+    (eC : C ≃ C') : (d.rename eB eP eW eC).Typed ↔ d.Typed := by
+  have key : ∀ (o : Option C) (c : C), o.map eC = some (eC c) ↔ o = some c := fun o c => by
+    rw [← Option.map_some, (Option.map_injective eC.injective).eq_iff]
+  constructor
+  · intro h w hw
+    have := h (eW w) (by simpa [rename] using hw)
+    simpa [rename, key] using this
+  · intro h w hw
+    have := h (eW.symm w) hw
+    simpa [rename, key] using this
+
+/-- The deletion half of a rewrite: remove boxes `D` and wires `E`. -/
+def delete (D : Set B) (E : Set W) : Wiring B P W C :=
+  { d with boxes := d.boxes \ D, wires := d.wires \ E }
+
+/-- Under the no-dangling condition (no remaining wire touches a deleted box), deletion keeps a
+typed diagram typed. -/
+theorem typed_delete {D : Set B} {E : Set W} (h : d.Typed)
+    (hd : ∀ w ∈ d.wires, w ∉ E → (d.src w).1 ∉ D ∧ (d.tgt w).1 ∉ D) : (d.delete D E).Typed := by
+  rintro w ⟨hw, hwE⟩
+  obtain ⟨hs, ht, ho, hi⟩ := h w hw
+  obtain ⟨hsD, htD⟩ := hd w hw hwE
+  exact ⟨⟨hs, hsD⟩, ⟨ht, htD⟩, ho, hi⟩
+
+/-- The gluing half: add boxes `N` and wires `F`. -/
+def glue (N : Set B) (F : Set W) : Wiring B P W C :=
+  { d with boxes := d.boxes ∪ N, wires := d.wires ∪ F }
+
+/-- Gluing keeps typing when each added wire is typed in the result. -/
+theorem typed_glue {N : Set B} {F : Set W} (h : d.Typed)
+    (hF : ∀ w ∈ F, (d.src w).1 ∈ d.boxes ∪ N ∧ (d.tgt w).1 ∈ d.boxes ∪ N ∧
+      d.out (d.src w).1 (d.src w).2 = some (d.carrier w) ∧
+      d.inp (d.tgt w).1 (d.tgt w).2 = some (d.carrier w)) : (d.glue N F).Typed := by
+  rintro w (hw | hw)
+  · obtain ⟨hs, ht, ho, hi⟩ := h w hw
+    exact ⟨Or.inl hs, Or.inl ht, ho, hi⟩
+  · exact hF w hw
+
+/-- Re-attach wire `w₀` to output port `q` of box `a` (an applied trim's absorber). -/
+def reroute [DecidableEq W] (w₀ : W) (a : B) (q : P) : Wiring B P W C :=
+  { d with src := Function.update d.src w₀ (a, q) }
+
+/-- Typing survives the re-attachment when the absorber is present and its port carries the
+wire's carrier: the carrier screen of `triz_trim` is exactly what this needs. -/
+theorem typed_reroute [DecidableEq W] {w₀ : W} {a : B} {q : P} (h : d.Typed) (ha : a ∈ d.boxes)
+    (hq : d.out a q = some (d.carrier w₀)) : (d.reroute w₀ a q).Typed := by
+  intro w hw
+  obtain ⟨hs, ht, ho, hi⟩ := h w hw
+  by_cases hw₀ : w = w₀
+  · subst hw₀
+    simp only [reroute, Function.update_self]
+    exact ⟨ha, ht, hq, hi⟩
+  · simp only [reroute, Function.update_of_ne hw₀]
+    exact ⟨hs, ht, ho, hi⟩
+
+/-- The subsystem view on boxes `A`: wires with both ends in `A`. -/
+def restrict (A : Set B) : Wiring B P W C :=
+  { d with boxes := d.boxes ∩ A, wires := {w | w ∈ d.wires ∧ (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A} }
+
+theorem typed_restrict (h : d.Typed) (A : Set B) : (d.restrict A).Typed := by
+  rintro w ⟨hw, hsA, htA⟩
+  obtain ⟨hs, ht, ho, hi⟩ := h w hw
+  exact ⟨⟨hs, hsA⟩, ⟨ht, htA⟩, ho, hi⟩
+
+/-- Restriction composes. -/
+theorem restrict_restrict (A A' : Set B) : (d.restrict A).restrict A' = d.restrict (A ∩ A') := by
+  simp only [restrict, mk.injEq, Set.inter_assoc, true_and, and_true]
+  ext w
+  simp only [Set.mem_setOf_eq, Set.mem_inter_iff]
+  tauto
+
+/-- Zooming into `A'` inside `A` is zooming into `A'` directly (the property the tests check). -/
+theorem restrict_of_subset {A A' : Set B} (hA : A' ⊆ A) : (d.restrict A).restrict A' = d.restrict A' := by
+  rw [restrict_restrict, Set.inter_eq_right.mpr hA]
+
+end Wiring
 
 /-! ## Ideality as a componentwise comparison (`idealityProfile`, `compareIdeality`)
 

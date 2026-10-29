@@ -17,6 +17,7 @@
  *  - trimCandidates    — TRIZ trimming rules A/B/C screened by carrier type (necessary, not sufficient).
  *  - separationCheck   — physical contradiction as a gluing problem over a finite
  *                        space × time × condition × direction × level base.
+ *  - dynamize          — the parameter as a function of one axis alone (Principle 15 along time).
  *
  * Pure functions (data in, verdict out) so the stdio and hosted entries share them.
  */
@@ -305,9 +306,11 @@ export type Verdict = "concept-dominates" | "baseline-dominates" | "equal" | "tr
  */
 export function compareIdeality(baseline: FunctionModel, concept: FunctionModel) {
   const a = idealityProfile(baseline), b = idealityProfile(concept);
-  const after = new Set(b.deliverables.map((d) => d.key)), before = new Set(a.deliverables.map((d) => d.key));
-  const lostDeliverables = [...before].filter((k) => !after.has(k));
-  const gainedDeliverables = [...after].filter((k) => !before.has(k));
+  // Keyed by the (box, carrier) pair itself: the display key `box:carrier` is ambiguous when ids contain ':'.
+  const pairs = (p: IdealityProfile) => new Map(p.deliverables.map((d) => [JSON.stringify([d.box, d.carrier]), d.key]));
+  const before = pairs(a), after = pairs(b);
+  const lostDeliverables = [...before].filter(([k]) => !after.has(k)).map(([, key]) => key);
+  const gainedDeliverables = [...after].filter(([k]) => !before.has(k)).map(([, key]) => key);
   const better: string[] = [], worse: string[] = [];
   const axis = (name: string, x: number, y: number) => { if (y < x) better.push(name); else if (y > x) worse.push(name); };
   axis("harmful", a.functions.harmful, b.functions.harmful);
@@ -402,7 +405,8 @@ const MAX_CELLS = 10_000;
  * common value, the axes on which their regions are disjoint are the separation principles that
  * apply; a pair overlapping on every axis is irreducible at this resolution.
  */
-export function separationCheck(pc: PhysicalContradiction) {
+/** The finite base of a contradiction: declared (or named) cells per axis. Fails closed on undeclared cells. */
+function baseOf(pc: PhysicalContradiction) {
   const errors: string[] = [];
   for (const id of duplicates(pc.demands.map((d) => d.id))) errors.push(`duplicate demand id '${id}'`);
   const universe = {} as Record<Axis, string[]>;
@@ -414,9 +418,14 @@ export function separationCheck(pc: PhysicalContradiction) {
   }
   const cellCount = AXES.reduce((n, a) => n * Math.max(1, universe[a].length), 1);
   if (cellCount > MAX_CELLS) errors.push(`base has ${cellCount} cells; limit is ${MAX_CELLS}`);
+  const region = (d: (typeof pc.demands)[number], axis: Axis) => d[axis] ?? universe[axis];
+  return { errors, universe, region };
+}
+
+export function separationCheck(pc: PhysicalContradiction) {
+  const { errors, universe, region } = baseOf(pc);
   if (errors.length) return { ok: false as const, errors };
 
-  const region = (d: (typeof pc.demands)[number], axis: Axis) => d[axis] ?? universe[axis];
   const pairs = [];
   for (let i = 0; i < pc.demands.length; i++) for (let j = i + 1; j < pc.demands.length; j++) {
     const [p, q] = [pc.demands[i], pc.demands[j]];
@@ -451,6 +460,48 @@ export function separationCheck(pc: PhysicalContradiction) {
       : !conflictCells.length
         ? "Demands are already separated: assign the parameter piecewise along the separating axes."
         : "Irreducible on the conflict cells at this resolution: refine an axis (finer zones, intervals, conditions), try separation between system levels, or escalate to ARIZ.",
+  };
+}
+
+/**
+ * The parameter as a function of one axis alone. A section that varies only along `axis` must,
+ * at each cell t of that axis, take a value every demand applying at t admits (a demand applies at
+ * t when its region on `axis` contains t; its other regions are non-empty, so it is active at some
+ * cell over t). Verdicts: `dynamizable` (an admissible value at every cell, and no single value
+ * works for all of them, so the parameter must change along the axis), `constant-suffices` (one
+ * value meets every cell: no change is needed), `not-dynamizable` (some cell admits no value; the
+ * conflict is not along this axis alone). With axis 'time' this is the checkable part of
+ * Principle 15's "change so they are optimal at each stage": values are admissible, not optimised.
+ */
+export function dynamize(pc: PhysicalContradiction, axis: Axis = "time") {
+  const { errors, universe, region } = baseOf(pc);
+  if (!errors.length && !universe[axis].length) errors.push(`axis '${axis}' has no cells: declare them in axes.${axis} or name them in a demand`);
+  if (errors.length) return { ok: false as const, errors };
+  const schedule = universe[axis].map((cell) => {
+    const applying = pc.demands.filter((d) => region(d, axis).includes(cell));
+    const values = applying.reduce<string[] | null>((acc, d) => (acc === null ? [...new Set(d.values)].sort() : acc.filter((v) => d.values.includes(v))), null);
+    return { cell, demands: applying.map((d) => d.id), values };
+  });
+  const blocked = schedule.filter((s) => s.values !== null && !s.values.length).map((s) => s.cell);
+  const constrained = schedule.filter((s) => s.values !== null).map((s) => s.values!);
+  const constant = constrained.reduce<string[] | null>((acc, v) => (acc === null ? v : acc.filter((x) => v.includes(x))), null);
+  const verdict = blocked.length ? "not-dynamizable" as const
+    : constant === null || constant.length ? "constant-suffices" as const
+    : "dynamizable" as const;
+  return {
+    ok: true as const,
+    parameter: pc.parameter,
+    axis,
+    verdict,
+    schedule,
+    blocked,
+    ...(verdict === "dynamizable" ? { witness: Object.fromEntries(schedule.filter((s) => s.values).map((s) => [s.cell, s.values![0]])) } : {}),
+    ...(verdict === "constant-suffices" ? { constant: constant ?? [] } : {}),
+    note: verdict === "dynamizable"
+      ? `Assign the parameter per ${axis} cell from the schedule; the witness is one admissible choice, not an optimised one.`
+      : verdict === "constant-suffices"
+        ? "One value meets every cell: no change along this axis is needed."
+        : `No admissible value at ${blocked.map((c) => `'${c}'`).join(", ")}: the demands conflict within a cell of this axis. Try another axis with triz_separate, refine the cells, or escalate to ARIZ.`,
   };
 }
 

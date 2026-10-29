@@ -9,10 +9,60 @@
 import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
+import { exportModel } from "./act-export.js";
+import { findIsomorphism } from "./act-iso.js";
+import { segment, takeOut, interpose, applyTrim, rewrite } from "./act-rewrite.js";
+import { nineWindows } from "./act-windows.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
 type GraphModule = typeof import("./graph.js");
+
+const Id = z.string().min(1);
+const Transformation = z.discriminatedUnion("op", [
+  z.strictObject({
+    op: z.literal("segment"),
+    box: Id,
+    parts: z.array(z.strictObject({ id: Id, name: z.string().optional(), role: act.Role.optional(), ports: z.array(Id).min(1) })).min(2),
+    cost_to: z.record(z.string(), Id).optional().describe("Cost dimension → part id; default: every dimension to the first part"),
+  }).describe("Principle 1 (Segmentation): divide a box into parts whose ports partition its ports"),
+  z.strictObject({
+    op: z.literal("take_out"),
+    box: Id,
+    ports: z.array(Id).min(1).describe("Ports to separate into the new box"),
+    part: z.strictObject({ id: Id, name: z.string().optional(), role: act.Role.optional() }),
+    reading: z.enum(["interfering", "needed"]).optional().describe("'interfering' (default): the ports touch a harmful or excessive function; 'needed': they carry every useful function of the box"),
+    cost_to: z.record(z.string(), Id).optional(),
+  }).describe("Principle 2 (Taking out): separate an interfering part, or isolate the only needed part"),
+  z.strictObject({
+    op: z.literal("interpose"),
+    wire: Id,
+    mediator: z.strictObject({ id: Id, name: z.string().min(1), role: act.Role.optional(), action: z.string().optional(), cost: z.record(z.string(), z.number().nonnegative()).optional() }),
+    polarity: z.strictObject({ in: act.Polarity.optional(), out: act.Polarity.optional() }).optional().describe("Ratings of the two legs; default: the original rating"),
+    ids: z.strictObject({ in: Id.optional(), out: Id.optional() }).optional(),
+  }).describe("Principle 24 (Intermediary): route a function through a new mediator box"),
+  z.strictObject({
+    op: z.literal("trim"),
+    trim: z.array(Id).min(1),
+    absorb: z.record(z.string(), act.Endpoint).optional().describe("Function wire id → absorber output port; default: the first absorber triz_trim lists"),
+  }).describe("Apply a typed-feasible trim: delete the boxes and re-attach each kept function to an absorber"),
+  z.strictObject({
+    op: z.literal("rewrite"),
+    delete: z.strictObject({ boxes: z.array(Id).optional(), wires: z.array(Id).optional() }).optional(),
+    add: z.strictObject({ boxes: z.array(act.Box).optional(), wires: z.array(act.Wire).optional() }).optional(),
+  }).describe("General rewrite at an occurrence named by id: no-dangling condition, fresh ids, typed result"),
+]);
+type Transformation = z.infer<typeof Transformation>;
+
+function transform(model: act.FunctionModel, t: Transformation) {
+  switch (t.op) {
+    case "segment": return segment(model, { box: t.box, parts: t.parts, costTo: t.cost_to });
+    case "take_out": return takeOut(model, { box: t.box, ports: t.ports, part: t.part, reading: t.reading, costTo: t.cost_to });
+    case "interpose": return interpose(model, { wire: t.wire, mediator: t.mediator, polarity: t.polarity, ids: t.ids });
+    case "trim": return applyTrim(model, { trim: t.trim, absorb: t.absorb });
+    case "rewrite": return rewrite(model, { delete: t.delete, add: t.add });
+  }
+}
 
 export interface ToolSpec {
   name: string;
@@ -113,9 +163,49 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_separate",
-      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand.",
-      shape: { contradiction: act.PhysicalContradiction },
-      handler: async ({ contradiction }: { contradiction: act.PhysicalContradiction }) => text(act.separationCheck(contradiction)),
+      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand. With `along`, also returns the parameter as a function of that axis alone: the admissible values per cell and whether it must change along the axis (with 'time', the checkable part of Principle 15, Dynamics).",
+      shape: {
+        contradiction: act.PhysicalContradiction,
+        along: act.Axis.optional().describe("Axis to index the parameter by, e.g. 'time' for stages"),
+      },
+      handler: async ({ contradiction, along }: { contradiction: act.PhysicalContradiction; along?: act.Axis }) => {
+        const result = act.separationCheck(contradiction);
+        return text(along && result.ok ? { ...result, along: act.dynamize(contradiction, along) } : result);
+      },
+    },
+    {
+      name: "triz_export",
+      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (boxes as record nodes with input and output port fields, functions as edges; harmful red, insufficient dashed, excessive bold), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface). A model that fails the type-check is not exported (ok:false with the errors).",
+      shape: {
+        model: act.FunctionModel,
+        format: z.enum(["dot", "hypergraph"]),
+      },
+      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" }) => text(exportModel(model, format)),
+    },
+    {
+      name: "triz_isomorphic",
+      description: "Decide whether two function models have the same wiring shape, ignoring every id and label (names, verbs, domain, carrier layer and dimension): a bijection preserving box roles, port sides, shared carriers, wiring, polarities, and cost values per dimension. Returns the mapping when found. Isomorphic models get the same kernel verdicts; that says the kernel reads only shape, not that a TRIZ solution transfers between domains. Answers decided:false if the bounded search runs out.",
+      shape: { a: act.FunctionModel, b: act.FunctionModel },
+      handler: async ({ a, b }: { a: act.FunctionModel; b: act.FunctionModel }) => text(findIsomorphism(a, b)),
+    },
+    {
+      name: "triz_transform",
+      description: "Apply one typed model transformation and return the new model: segment (Principle 1: divide a box into parts whose ports partition its ports), take_out (Principle 2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), interpose (Principle 24: route a function through a new mediator box), trim (perform a typed-feasible trim, re-attaching each kept function to an absorber), or rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to.",
+      shape: { model: act.FunctionModel, transformation: Transformation },
+      handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
+    },
+    {
+      name: "triz_nine_windows",
+      description: "System operator (9 windows) over function models: for each snapshot you supply (present required; past and future optional, with stable box ids), the subsystem view (restriction to the boxes you name, with crossing functions as its boundary), the system view, and the supersystem view (the tool and mediator boxes, or the boxes you list, collapsed into one black box; hidden harmful functions are listed). Each view reports its boxes, function counts, and harm loops. No transition between times is computed; missing windows are reported as prompts.",
+      shape: {
+        present: act.FunctionModel,
+        past: act.FunctionModel.optional(),
+        future: act.FunctionModel.optional(),
+        subsystem: z.array(Id).min(1).describe("Box ids to zoom into for the subsystem row"),
+        system: z.strictObject({ id: Id.optional(), name: z.string().optional(), boxes: z.array(Id).optional() }).optional()
+          .describe("The collapsed system box for the supersystem row; default boxes: every tool and mediator"),
+      },
+      handler: async (args: Parameters<typeof nineWindows>[0]) => text(nineWindows(args)),
     },
     {
       name: "triz_evals",

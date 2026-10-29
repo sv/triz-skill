@@ -89,7 +89,11 @@ missing.
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
-| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level |
+| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
+| `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
+| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
+| `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
+| `triz_isomorphic` | Decide whether two models share a wiring shape, ignoring ids and labels |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant and purpose gate of one graph node |
 
@@ -103,19 +107,38 @@ model written as an open wiring diagram, defined by
 - wires are functions rated useful, insufficient, excessive, or harmful;
 - carriers name what flows and in what unit.
 
-Any dangling, mis-directed, or mistyped wire fails closed. The checks cover harm loops, trimming
-by rules A/B/C, ideality compared per dimension and never summed, and physical-contradiction
-separation as a gluing problem. Every loop and absorber they return is a hypothesis to
-substantiate. [categorical-model.md](skills/triz-innovation/references/categorical-model.md)
-states exactly what is and is not claimed. `examples/function-models/` holds a physical,
-software, and business model.
+Any dangling, mis-directed, or mistyped wire fails closed. The checks cover:
+
+- harm loops;
+- trimming by rules A/B/C;
+- ideality compared per dimension and never summed;
+- physical-contradiction separation as a gluing problem.
+
+Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
+typed moves. Each returns a model that type-checks, or fails closed:
+
+- Segmentation, Taking out, and Intermediary, each matched to its principle text;
+- an applied trim;
+- a raw rewrite.
+
+`triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
+as an open hypergraph. The structured verdicts of the checks are label-blind: renaming ids or
+changing the domain does not change them. Property tests check this, with the exclusions listed
+in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
+transfer between domains.
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
+what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
+software models. One software model has the physical model's wiring shape.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
 
 - gluing iff every cell is satisfiable;
 - an edge in a strongly connected region lies on a cycle;
-- the componentwise order is not total.
+- the componentwise order is not total;
+- typing survives relabelling, deletion under the no-dangling condition, gluing, and
+  re-attachment to a same-carrier port;
+- restriction composes.
 
 It also states trimming as a left Kan extension, which the kernel does not decide.
 

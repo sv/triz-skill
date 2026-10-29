@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_isomorphic", "triz_transform", "triz_nine_windows"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -73,6 +73,21 @@ console.log(`triz_trim bearing -> ${trim.verdict} via ${trim.functions?.[0]?.abs
 if (trim.verdict !== "typed-feasible" || trim.functions[0].absorbers[0].box !== "housing") fail("trim screen wrong");
 const mistyped = await json("triz_function_model", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] } });
 if (mistyped.ok !== false) fail("mistyped wire did not fail closed");
+
+const dot = await json("triz_export", { model, format: "dot" });
+console.log(`triz_export dot -> ${dot.content?.split("\n").length} lines`);
+if (!dot.ok || !dot.content.startsWith("digraph function_model {")) fail("DOT export wrong");
+const hyper = await json("triz_export", { model, format: "hypergraph" });
+console.log(`triz_export hypergraph -> ${hyper.content?.vertices.length} vertices, ${hyper.content?.hyperedges.length} hyperedges`);
+if (!hyper.ok || hyper.content.vertices.length !== 5 || hyper.content.hyperedges.length !== 5) fail("hypergraph export wrong");
+const badExport = await json("triz_export", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] }, format: "dot" });
+if (badExport.ok !== false) fail("mistyped export did not fail closed");
+
+const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
+console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);
+if (!trimmed.ok || trimmed.chosen[0].box !== "housing") fail("applied trim wrong");
+const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
+if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
 
 await client.close();
 console.log("SMOKE OK");
