@@ -1870,7 +1870,9 @@ synchronous step goes from a configuration (global state, valuation) every box a
 next states its picked rows name; the input→deliverable relation is the steady states projected
 onto the inputs a concept reads and its deliverables. The certificate then states the verdict
 with `reachWithin` and `reach_of_trace`, `reachIn` and `unreachable_of_invariant` (the invariant a
-table of global states, `holding`), `AtLeastAsWeak` and `card_lt_of_strictly_weaker`, or an
+table of global states, `holding`, which for a target naming a port also rules out a run that blocks
+in the target's state conditions, `unreachable_of_holding`), `AtLeastAsWeak` and
+`card_lt_of_strictly_weaker`, or an
 equality of two relations, and Lean decides it on the tables. -/
 
 section RowTables
@@ -1978,6 +1980,37 @@ theorem disjoint_holding_target {inv : Iv → Mc → St} {st : Mc → St → Boo
   rw [Set.disjoint_left]
   rintro ⟨_, v⟩ ⟨i, rfl⟩
   exact h i v
+
+/-- No run from a start reaches a global state that blocks in the target's state conditions: one
+at which no valuation is admitted, while every machine's state is one `st` allows. It suffices that
+the listed states hold every start, are closed under `Step`, and that each admits a valuation or
+fails `st`. -/
+theorem unblocked_of_holding {init : Mc → St → Bool} {inv : Iv → Mc → St} {st : Mc → St → Bool}
+    (hs : t.starts init ⊆ t.holding inv) (hc : Closed t.Step (t.holding inv))
+    (h : ∀ i, (∃ v, t.Consistent (inv i, v)) ∨ ¬ ∀ m, st m (inv i m) = true) :
+    ∀ n, ∀ a ∈ t.starts init, ∀ b, reachIn t.Step n a b →
+      (∃ v, t.Consistent (b.1, v)) ∨ ¬ ∀ m, st m (b.1 m) = true := by
+  intro n a ha b hb
+  obtain ⟨i, hi⟩ := closed_reachIn hc (hs ha) n hb
+  rw [← hi]
+  exact h i
+
+/-- An unreachable escalation, as the kernel decides it for a target that names a port: no run
+from a start reaches an admitted configuration in the target, and none blocks in the target's
+state conditions. Both follow from one table of listed states that holds every start, is closed
+under `Step`, misses the target, and admits a valuation or fails `st` at each listed state. -/
+theorem unreachable_of_holding {init : Mc → St → Bool} {inv : Iv → Mc → St} {st : Mc → St → Bool}
+    {vl : Vr → Val → Bool} (hs : ∀ s : Mc → St, (∀ m, init m (s m) = true) → ∃ i, inv i = s)
+    (hc : ∀ i (v : Vr → Val), t.Consistent (inv i, v) → ∀ s : Mc → St, t.Step (inv i, v) (s, v) →
+      ∃ j, inv j = s)
+    (hd : ∀ i (v : Vr → Val), (inv i, v) ∉ t.target st vl)
+    (hb : ∀ i, (∃ v, t.Consistent (inv i, v)) ∨ ¬ ∀ m, st m (inv i m) = true) :
+    (∀ n, ∀ a ∈ t.starts init, ∀ b ∈ t.target st vl, ¬ reachIn t.Step n a b) ∧
+      ∀ n, ∀ a ∈ t.starts init, ∀ b, reachIn t.Step n a b →
+        (∃ v, t.Consistent (b.1, v)) ∨ ¬ ∀ m, st m (b.1 m) = true :=
+  ⟨unreachable_of_invariant (t.starts_subset_holding hs) (t.closed_holding hc)
+      (t.disjoint_holding_target hd),
+    t.unblocked_of_holding (t.starts_subset_holding hs) (t.closed_holding hc) hb⟩
 
 variable [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Mc] [Fintype Wr]
   [DecidableEq Bx] [DecidableEq Mc] [DecidableEq St] [DecidableEq Val]

@@ -1547,8 +1547,9 @@ The implemented guarantees are separated from future work in
     time, and loop classes are not certified, and runs under an input sequence are not encoded;
   - a port-target unreachable certificate's target, like an escalation's, is the admitted
     configurations in the unsafe set (`Sync.target`). A run that blocks has no admitted
-    configuration there, so the certificate does not restate the kernel's further check that no
-    run blocks in a state meeting the unsafe set's state conditions;
+    configuration there, so the certificate also states the kernel's further check: every reached
+    state admits a valuation or fails the unsafe set's state conditions, so no run blocks in them
+    (`unreachable_of_holding`);
   - of `triz_weakness`, every pair: strict inclusions with the larger count, equality, and
     incomparability by a witness admitted by one concept and rejected by the other, each way
     (`incomparable_of_witnesses`), decided over every situation and valuation within the cap on

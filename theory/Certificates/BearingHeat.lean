@@ -16,7 +16,7 @@ namespace BearingHeat
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"BearingHeat\",\"source\":\"8c775711ea5c4bef306adb6fbcc2bff82f6315e3552df8763c88350019408030\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"02a61da2844b471f273ecb81c928d3188075fe990080753da3e511360cdc5d08\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"structural\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"BearingHeat\",\"source\":\"8c775711ea5c4bef306adb6fbcc2bff82f6315e3552df8763c88350019408030\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"structural\"}"
 
 /-! ## The model as finite data -/
 

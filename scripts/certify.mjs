@@ -27,7 +27,9 @@
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
  * must fail; with the unsafe set emptied, `escalation` must fail; with the unsafe set filled,
- * `unreachable` must fail; with no deliverable value acceptable, strict-inclusion and opposed
+ * `unreachable` must fail; with every row given to the first box and the unsafe set's state
+ * conditions filled, so that every state blocks in them, a port target's `unreachable` must fail
+ * on its blocked-state conjunct; with no deliverable value acceptable, strict-inclusion and opposed
  * membership witnesses must fail; with no situation allowed, `nonempty` must fail; with the
  * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
  * must fail under it. Errors outside a theorem (a parse error, say) do not count.
@@ -208,7 +210,7 @@ function statementOk(name, s) {
   if (name === "invariantSafe") return s === "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true";
   if (name === "unreachable") return [
     "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)",
-    "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
+    "(∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b) ∧ ∀ n, ∀ a ∈ system.starts initial, ∀ b, reachIn system.Step n a b → (∃ v, system.Consistent (b.1, v)) ∨ ¬ ∀ m, unsafeState m (b.1 m) = true",
   ].includes(s);
   if (name === "safetyInvariant") return s === "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ∀ m, safeState m (b.1 m) = true";
   if (name === "escalation") return /^∃ a ∈ system\.starts initial, ∃ b ∈ system\.target unsafeState unsafeValue, reachWithin system\.Step \d+ a b$/.test(s);
@@ -531,10 +533,14 @@ export async function checkAll({ certificates = [], tampered = [] }, { mode } = 
 
 /**
  * Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied
- * or filled; nothing acceptable; no situation allowed. A data tamper is kept only where some
- * verdict must fail under it: emptying the unsafe set leaves an unreachable verdict true. Filling
- * it assumes some listed state admits a valuation; when every reached state blocks, the target
- * stays empty and the filled copy still checks.
+ * or filled; every state blocked in the unsafe states; nothing acceptable; no situation allowed. A
+ * data tamper is kept only where some verdict must fail under it: emptying the unsafe set leaves
+ * an unreachable verdict true. Filling it puts every listed state in the unsafe set's state
+ * conditions, so a port target's unreachable verdict fails at a listed state that admits a
+ * valuation, which is then in the target, or at one that blocks. Giving every row to the first box
+ * leaves every other box without one, so every state blocks and the target is empty; with the
+ * unsafe set's state conditions filled, only the blocked-state conjunct of a port target's
+ * unreachable verdict can fail, and it must.
  */
 export function tamperVariants(content) {
   const variants = [{
@@ -562,6 +568,11 @@ export function tamperVariants(content) {
     return names.has(disjoint) ? disjoint : name;
   });
   data("the unsafe set filled", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, true), unsafeProofs);
+  const rowBox = /^def rowBox : Row → Box := !\[(.*)\]$/m.exec(content);
+  if (rowBox && /[1-9]/.test(rowBox[1]) && /^def invariant : Fin \d+ → Machine → State := /m.test(content)) {
+    const blocked = set(/^def unsafeState : .*$/m, true).replace(rowBox[0], `def rowBox : Row → Box := ![${rowBox[1].split(", ").map(() => "0").join(", ")}]`);
+    data("every state blocked in the unsafe states", blocked, verdicts(/^unreachable$/));
+  }
   data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/));
   data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
   data("invariant emptied", content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m, "def invariantStates : List (Machine → State) := []"), verdicts(/^invariantInitial$/));

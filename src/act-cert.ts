@@ -6,7 +6,8 @@
  * checks normalized correspondence with a separate direct encoder and detects stale output;
  * neither check establishes encoder correctness. State-only safety invariants include every
  * valuation of each selected state, since Sync.Step leaves successor valuations unrestricted.
- * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target).
+ * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target), and
+ * runs that block in the unsafe set's state conditions, as the kernel's blocked check does.
  * Time inputs and negative claims unsupported by an invariant fail closed. Ids remain escaped
  * string literals. This module is pure and works in the hosted Worker.
  */
@@ -24,7 +25,7 @@ export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
 /** Exact source pins; refresh deliberately when the theory or model schema changes. */
-export const CERTIFICATE_THEORY_SOURCE = "02a61da2844b471f273ecb81c928d3188075fe990080753da3e511360cdc5d08";
+export const CERTIFICATE_THEORY_SOURCE = "8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be";
 export const CERTIFICATE_SCHEMA_SOURCE = "c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
@@ -364,6 +365,13 @@ export function separationCertificate(pc: PhysicalContradiction, opts: { namespa
   return certified({ kind: "separation", contradiction: pc }, ns, assemble("one physical contradiction", ns, [s]), certifies);
 }
 
+/**
+ * A port target's unreachable verdict: no admitted configuration in the unsafe set is reached, and
+ * no reached state blocks (admits no valuation) while meeting the unsafe set's state conditions,
+ * which is the kernel's blocked check (boundedDynamics: atBlocked).
+ */
+const UNREACHABLE_PORTS = "(∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b) ∧ ∀ n, ∀ a ∈ system.starts initial, ∀ b, reachIn system.Step n a b → (∃ v, system.Consistent (b.1, v)) ∨ ¬ ∀ m, unsafeState m (b.1 m) = true";
+
 /** Cap on the work of deciding a dynamics, weakness, or behaviour certificate; see `rowWork`. An invariant near the cap takes Lean about six seconds. */
 export const MAX_CERT_ROWS = 2_000_000;
 
@@ -493,7 +501,8 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     return fail([issue("cap-exceeded", "$.max_states", "reconstructing the invariant exceeds the reached-state exploration cap", "Raise max_states within its limit, or certify a smaller model; invariant reconstruction also counts blocked global states.")]);
   }
   const globals = states ** machines.length;
-  const work = rowWork(esc.verdict === "reachable" ? esc.trace.length + 2 : reached!.length * values ** ports.length * (globals + 2) + globals, rows.length, ports.length, wires.length);
+  // The invariant's scans: each listed state at every valuation, against every global state (closure), the target, and admission.
+  const work = rowWork(esc.verdict === "reachable" ? esc.trace.length + 2 : reached!.length * values ** ports.length * (globals + 3) + globals, rows.length, ports.length, wires.length);
   if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
     return fail([issue("cap-exceeded", "$.model", `deciding the ${reached ? "invariant" : "trace"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
       reached
@@ -544,11 +553,11 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
       "",
       "/-! ## Verdicts -/",
       "",
-      ...theorem("`boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon. The reached states hold every start, every step from them names one of them, and none meets the unsafe set (`unreachable_of_invariant`).",
-        "unreachable", "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
-        "unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))"),
+      ...theorem("`boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon, and none blocks in a state that meets the unsafe set's state conditions. The reached states hold every start, every step from them names one of them, none meets the unsafe set, and each admits a valuation or fails its state conditions (`unreachable_of_holding`).",
+        "unreachable", UNREACHABLE_PORTS,
+        "system.unreachable_of_holding (inv := invariant) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)"),
     );
-    const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, at any horizon" }];
+    const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, and none blocks in the unsafe set's state conditions, at any horizon" }];
     return certified({ kind: "dynamics", model, spec }, ns, assemble("one unreachable escalation", ns, [lines]), certifies);
   }
   const config = (step: { state: string[]; values?: string[] }) =>

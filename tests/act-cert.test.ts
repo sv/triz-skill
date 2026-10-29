@@ -52,6 +52,8 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
   SupportWeakness: (n) => weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE, { namespace: n }),
   BearingDamped: (n) => dynamicsCertificate(damped(), { unsafe: HOT }, { namespace: n }),
   BearingTrim: (n) => trimCertificate(example("bearing-heat-behavior"), BEARING_TRIM, { namespace: n }),
+  // A port target whose runs block once the shaft is hot, outside the unsafe set's state conditions.
+  BearingBlocked: (n) => dynamicsCertificate(stuck(), { unsafe: COLD_FRICTION }, { namespace: n }),
 };
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
@@ -668,7 +670,10 @@ test("an unreachable certificate states a closed invariant and distinguishes sta
   // An admitted port target uses the saturated reached-state table and Consistent target.
   const admitted = dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] });
   assert.ok(admitted.ok);
-  assert.match(admitted.content, /^theorem unreachable : ∀ n, ∀ a ∈ system\.starts initial, ∀ b ∈ system\.target unsafeState unsafeValue, ¬ reachIn system\.Step n a b :=$/m);
+  // Both conjuncts: no admitted unsafe configuration is reached, and no run blocks in the unsafe set's state conditions.
+  assert.match(admitted.content, /^theorem unreachable : \(∀ n, ∀ a ∈ system\.starts initial, ∀ b ∈ system\.target unsafeState unsafeValue, ¬ reachIn system\.Step n a b\) ∧ ∀ n, ∀ a ∈ system\.starts initial, ∀ b, reachIn system\.Step n a b → \(∃ v, system\.Consistent \(b\.1, v\)\) ∨ ¬ ∀ m, unsafeState m \(b\.1 m\) = true :=$/m);
+  assert.match(admitted.content, /^ {2}system\.unreachable_of_holding \(inv := invariant\)/m);
+  assert.deepEqual(admitted.certifies, [{ theorem: "TrizCertificate.unreachable", verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, and none blocks in the unsafe set's state conditions, at any horizon" }]);
   assert.match(admitted.content, /^def invariant : Fin 2 → Machine → State := !\[!\[0\], !\[1\]\]$/m);
   assert.deepEqual(lint(admitted.content), []);
   // PR39 also permits a safe-state query beside this unsafe port target; only escalation is certified.
@@ -803,7 +808,12 @@ test("triz_dynamics and triz_behavior return unreachable and preserved certifica
 
 test("the tamper variants of an unreachable certificate fill the unsafe set instead of emptying it", () => {
   const d = content(dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "BearingDamped" }));
-  assert.deepEqual(tamperVariants(d).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["BearingDamped.unreachable"]], ["the unsafe set filled", ["BearingDamped.unreachable"]]]);
+  assert.deepEqual(tamperVariants(d).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["BearingDamped.unreachable"]], ["the unsafe set filled", ["BearingDamped.unreachable"]], ["every state blocked in the unsafe states", ["BearingDamped.unreachable"]]]);
+  // Every row on the first box, so every other box has none, and the unsafe states filled; the port conditions stay.
+  const blocked = tamperVariants(d)[2].content;
+  assert.match(blocked, /^def rowBox : Row → Box := !\[0(?:, 0)*\]$/m);
+  assert.match(blocked, /^def unsafeState : Machine → State → Bool := !\[!\[true, true, true\]\]$/m);
+  assert.equal(blocked.match(/^def unsafeValue : .*$/m)![0], d.match(/^def unsafeValue : .*$/m)![0]);
   assert.match(tamperVariants(d)[1].content, /^def unsafeState : Machine → State → Bool := !\[!\[true, true, true\]\]$/m);
   const e = fs.readFileSync(fixturePath("BearingEscalation"), "utf8");
   assert.deepEqual(tamperVariants(e).map((v) => v.name), ["every verdict negated", "the unsafe set emptied"]);
@@ -818,7 +828,8 @@ test("the checker's grammar pins the unreachable and preserved verdicts", () => 
   const t = fs.readFileSync(fixturePath("BearingTrim"), "utf8");
   assert.deepEqual([lint(d), lint(t)], [[], []]);
   const tampers: Record<string, string> = {
-    "unreachable at one horizon": d.replace(/¬ reachIn system\.Step n a b :=$/m, "¬ reachIn system.Step 3 a b :="),
+    "unreachable at one horizon": d.replace(/¬ reachIn system\.Step n a b\) ∧/m, "¬ reachIn system.Step 3 a b) ∧"),
+    "unreachable without its blocked-state conjunct": d.replace(/^(theorem unreachable : )\((.*)\) ∧ .* :=$/m, "$1$2 :="),
     "an invariant of another type": d.replace(/^def invariant : Fin 2 → Machine → State/m, "def invariant : Fin 2 → Machine → Bool"),
     "preserved one way": t.replace(/^(theorem preserved : .*) = (Concept\.rows.*)$/m, "$1 ≤ $2"),
     "nonempty of the concept": t.replace(/^theorem nonempty : ∃ u y, Baseline\./m, "theorem nonempty : ∃ u y, Concept."),
@@ -871,6 +882,22 @@ leanTest("Lean accepts unreachable and preserved certificates of blocked runs, s
   assert.ok(r.ok, r.problems.join("\n"));
   assert.equal(r.certified.length, theorems(combined).length);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
+});
+
+leanTest("the blocked-state conjunct rejects runs that block in the unsafe states, which the admitted target alone accepts", async () => {
+  // The shaft blocks once hot, outside the unsafe set's state conditions (cold): the certificate checks.
+  const d = content(dynamicsCertificate(stuck(), { unsafe: COLD_FRICTION }, { namespace: "Blocked" }));
+  const v = tamperVariants(d).find((x) => x.name === "every state blocked in the unsafe states")!;
+  assert.deepEqual(v.mustFail, ["Blocked.unreachable"]);
+  // The same tampered tables with only the first conjunct: every state blocks, so the target is empty and it still holds.
+  const firstOnly = v.content
+    .replace(/^(theorem unreachable : )\((.*)\) ∧ .* :=$/m, "$1$2 :=")
+    .replace(/^ {2}system\.unreachable_of_holding .*$/m, "  unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))");
+  assert.notEqual(firstOnly, v.content);
+  const [both, first] = runLocalBatch([{ content: v.content, audit: false }, { content: firstOnly, audit: false }]);
+  const errors = (r: typeof both) => r.messages.filter((m) => m.severity === "error");
+  assert.ok(errors(both).length, "the blocked-state conjunct fails on the tampered tables");
+  assert.deepEqual(errors(first), [], "without the conjunct, the tampered tables still check");
 });
 
 /** A bit through one box into a product, each output per input as `output` says (as in tests/act-cert-assurance.test.ts). */
