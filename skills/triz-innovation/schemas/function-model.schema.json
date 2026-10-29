@@ -35,6 +35,13 @@
         "$ref": "#/$defs/Wire"
       }
     },
+    "flows": {
+      "description": "Flow paths: which boxes a carrier passes through, in order. Read by triz_flow and by merge's adjacent reading; the other checks ignore them",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Flow"
+      }
+    },
     "budget": {
       "description": "Resource limit per cost dimension",
       "type": "object",
@@ -422,6 +429,44 @@
         "port"
       ],
       "additionalProperties": false
+    },
+    "Flow": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier id: what moves along the flow, e.g. water, a request, cash"
+        },
+        "path": {
+          "minItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Box ids in the order the flow passes through them, in series. A box listed again later closes a loop; a box may not follow itself"
+        },
+        "medium": {
+          "description": "The box that stands for what flows, when the boxes on the path act on it rather than pass it on, e.g. a 'water' or 'request' product box",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "carrier",
+        "path"
+      ],
+      "additionalProperties": false,
+      "description": "A flow path: the boxes a carrier passes through in series, in order. It records order along the flow, which functions do not: two boxes in series need not act on each other"
     },
     "PhysicalContradiction": {
       "type": "object",

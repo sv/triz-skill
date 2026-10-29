@@ -291,7 +291,7 @@ construction.
 ## Data provenance and licensing
 
 - The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
-  the effects starter database (56 entries) is curated from textbook physics, chemistry, and
+  the effects starter database (60 entries) is curated from textbook physics, chemistry, and
   geometry.
 - `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
   and widely republished. To regenerate the file from a source of your own choosing:

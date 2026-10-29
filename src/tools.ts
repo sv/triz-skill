@@ -15,7 +15,8 @@ import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
-import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
+import { Rule, RuleIds, RuleMatch, TREND_DETECTORS, TREND_RULES, applyRule, laggingSubsystem, matchRule } from "./act-rule.js";
+import { flowAnalysis } from "./act-flow.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES } from "./act-behavior.js";
 import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_HORIZON } from "./act-dynamics.js";
@@ -65,8 +66,8 @@ const Transformation = z.discriminatedUnion("op", [
     boxes: z.array(Id).min(2),
     into: z.strictObject({ id: Id, name: Name, role: act.Role.optional(), action: z.string().optional() })
       .describe("The merged box; role defaults to the boxes' shared role"),
-    reading: z.enum(["adjacent", "identical"]).optional().describe("'adjacent' (default): functions inside the group join every box; 'identical': same role and the same carriers on each side"),
-  }).describe("Principle 5 (Merging): collapse adjacent or identical boxes into one; functions inside are hidden and listed, and harms the merge closes into a loop are listed"),
+    reading: z.enum(["adjacent", "identical"]).optional().describe("'adjacent' (default): functions inside the group, or consecutive positions on a declared flow, join every box; 'identical': same role and the same carriers on each side"),
+  }).describe("Principle 5 (Merging): collapse adjacent or identical boxes into one; functions inside are hidden and listed, harms the merge closes into a loop are listed, and each flow through the group passes the merged box instead"),
   z.strictObject({
     op: z.literal("rerate"),
     wire: Id,
@@ -103,9 +104,9 @@ const Transformation = z.discriminatedUnion("op", [
   }).describe("Principles 26 (Copying) and 27 (Cheap short-living objects): replace a box by a copy with the same ports and a lower cost"),
   z.strictObject({
     op: z.literal("rewrite"),
-    delete: z.strictObject({ boxes: z.array(Id).optional(), wires: z.array(Id).optional() }).optional(),
-    add: z.strictObject({ boxes: z.array(act.Box).optional(), wires: z.array(act.Wire).optional() }).optional(),
-  }).describe("General rewrite at an occurrence named by id: no-dangling condition, fresh ids, typed result"),
+    delete: z.strictObject({ boxes: z.array(Id).optional(), wires: z.array(Id).optional(), flows: z.array(Id).optional() }).optional(),
+    add: z.strictObject({ boxes: z.array(act.Box).optional(), wires: z.array(act.Wire).optional(), flows: z.array(act.Flow).optional() }).optional(),
+  }).describe("General rewrite at an occurrence named by id: no-dangling condition (a flow may pass a deleted box only if a box with that id is added back), fresh ids, typed result"),
 ]);
 type Transformation = z.infer<typeof Transformation>;
 
@@ -177,8 +178,14 @@ function ruleApply(args: {
     ...(!args.match && (args.carriers || args.ids) ? ["'carriers' and 'ids' are used only when applying, with 'match'"] : []),
   ];
   if (errors.length) return { ok: false as const, errors };
+  if (TREND_DETECTORS.some((d) => d.id === args.rule_id)) {
+    const extra = (["at", "match", "carriers", "ids", "limit", "max_steps"] as const).filter((k) => args[k] !== undefined);
+    return extra.length
+      ? { ok: false as const, errors: [`'${args.rule_id}' is a detector, not a rewrite: it takes only the model, not ${extra.map((k) => `'${k}'`).join(", ")}`] }
+      : laggingSubsystem(args.model);
+  }
   const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id);
-  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}`] };
+  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}; detectors: ${TREND_DETECTORS.map((d) => d.id).join(", ")}`] };
   return args.match
     ? applyRule(args.model, rule, args.match, { carriers: args.carriers, ids: args.ids })
     : matchRule(args.model, rule, { at: args.at, limit: args.limit, maxSteps: args.max_steps });
@@ -276,6 +283,12 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         text(functionModel(model, compare_to, box_map)),
     },
     {
+      name: "triz_flow",
+      description: "Flow analysis (router entry 16) over the model's declared `flows`: each an ordered path of the boxes a carrier passes through, in series, which functions do not record (two valves in series both act on the water, not on each other). Per flow: its steps (consecutive boxes, with the functions of the flow's carrier between them; declaredOnly counts the steps no function joins); bottleneck candidates (the performer of an insufficient, excessive, or harmful function that carries the flow's carrier and touches the path: a resistance-like output on the flow, at its position); accumulation candidates (a box where the steps of every flow of the carrier converge, with at least two predecessors and fewer successors, or a last box inside the engineered system, role tool or mediator, that no flow of the carrier continues from); leak candidates (a function on the carrier from a box on the path to an environment or supersystem box off it); loops (a box that recurs on the path, with the cycle between occurrences); and the harm loops that meet the path. Every item is a structural candidate to substantiate, not a finding. Boxes consecutive on a flow are adjacent for triz_transform merge. A model that fails the type-check, flows included, fails closed.",
+      shape: { model: act.FunctionModel.describe("A model that declares flows") },
+      handler: async ({ model }: { model: act.FunctionModel }) => text(flowAnalysis(model)),
+    },
+    {
       name: "triz_trim",
       description: "Screen a trimming of one or more boxes by the TRIZ trimming rules: A (object trimmed too, function no longer needed), B (the object performs the function itself), C (another remaining box or supersystem resource has an output of the same carrier). Returns per-function absorbers, orphaned functions that block the trim, harms and costs removed, and one trimming problem per absorber. A carrier match is a necessary condition only; every absorber is a hypothesis to solve and substantiate.",
       shape: {
@@ -315,16 +328,16 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_transform",
-      description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. When the segmented box declares behaviour, segment (and take_out) reports behaviourallyIndependent: whether the box's relation is the product of its projections onto the parts; if so each part gets its projection, else no part gets behaviour and each coupled part is named with a witness: two rows whose mix is not a row. interpose's mediator may declare behavior (rows, or 'identity'). A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, or with triz_behavior compare_to when behaviour is declared, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
+      description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one; boxes consecutive on a declared flow are adjacent), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. When the segmented box declares behaviour, segment (and take_out) reports behaviourallyIndependent: whether the box's relation is the product of its projections onto the parts; if so each part gets its projection, else no part gets behaviour and each coupled part is named with a witness: two rows whose mix is not a row. interpose's mediator may declare behavior (rows, or 'identity'). A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, or with triz_behavior compare_to when behaviour is declared, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
     },
     {
       name: "triz_rule_apply",
-      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly) or 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`). Each built-in rule cites the evolution-trends.md line it encodes. Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match, both conditions, and that a kept box keeps the ports its declared rows name (every port for behavior and transition; the named ports for feasibility), then deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
+      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly), 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`), or 'working-field' (changing the working field: the matched function re-made on another carrier; bind 'd' with `carriers` to a carrier other than the matched one; the result's fieldChanges records both carriers' layer and dimension). Each built-in rule cites the evolution-trends.md line it encodes. `rule_id` 'uneven-development' is a detector, not a rewrite, and takes only the model: the lagging subsystem, a box of the largest harm-loop region that is also on a binding feasibility dimension or limits a deliverable (feasibility finds it unprovidable, or it performs an insufficient function on a product); verdict lagging, none, or undecided (no harm loop, or feasibility undecided). Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold (a deleted box may not lie on a declared flow) and the rule's `distinct` carrier variables bind different carriers; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match, these conditions, and that a kept box keeps the ports its declared rows name (every port for behavior and transition; the named ports for feasibility), then deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed; deliverableKeysChanged says a deliverable moved to another port or carrier. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
       shape: {
         model: act.FunctionModel,
-        rule_id: z.enum(TREND_RULES.map((r) => r.id) as [string, ...string[]]).optional().describe("A built-in evolution-line rule"),
+        rule_id: z.enum([...TREND_RULES.map((r) => r.id), ...TREND_DETECTORS.map((d) => d.id)] as [string, ...string[]]).optional().describe("A built-in evolution-line rule, or the 'uneven-development' detector"),
         rule: Rule.optional().describe("An inline rule; give this or rule_id"),
         at: RuleMatch.partial().optional().describe("Partial match that seeds the search, e.g. { wires: { f: 'w-drive' } }"),
         match: RuleMatch.optional().describe("The match to apply at; omit to list matches"),

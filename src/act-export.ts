@@ -11,6 +11,8 @@
  *                     unwired ports. Ports, not wires, are the vertices because a port may carry
  *                     several functions (fan-out, or a useful and a harmful wire on the same pair).
  *                     Declared box behaviour rides on the box hyperedge; carrier values on the carriers.
+ *                     Flows ride along at the top level, like the budget; DOT draws each step of a
+ *                     flow as a dotted edge between boxes.
  *  - fromHypergraph — the inverse decoder, so the encoding is tested to be lossless.
  *
  * Pure: no filesystem, so the hosted Worker entry can bundle it.
@@ -75,6 +77,11 @@ export function toDot(model: FunctionModel): string {
     const text = [w.verb ?? w.id, ...(w.polarity === "useful" ? [] : [`[${w.polarity}]`])].join(" ");
     lines.push(`  ${from} -> ${to} [label=${label(text)}, ${EDGE_STYLE[w.polarity]}];`);
   }
+  for (const f of model.flows ?? []) {
+    f.path.slice(1).forEach((to, i) => {
+      lines.push(`  ${quoted(f.path[i])} -> ${quoted(to)} [label=${label(`${f.name ?? f.id} (${f.carrier})`)}, style="dotted", color="blue3", fontcolor="blue3", constraint=false];`);
+    });
+  }
   lines.push("}");
   return lines.join("\n") + "\n";
 }
@@ -91,6 +98,7 @@ export interface OpenHypergraph {
   vertices: HyperVertex[];
   hyperedges: HyperEdge[];
   interface: { inputs: number[]; outputs: number[] };
+  flows?: FunctionModel["flows"];
   budget?: FunctionModel["budget"];
   weights?: FunctionModel["weights"];
   contradictions?: FunctionModel["contradictions"];
@@ -140,6 +148,7 @@ export function toHypergraph(model: FunctionModel): OpenHypergraph {
     vertices,
     hyperedges,
     interface: { inputs: open("in"), outputs: open("out") },
+    ...(model.flows !== undefined ? { flows: model.flows } : {}),
     ...(model.budget !== undefined ? { budget: model.budget } : {}),
     ...(model.weights !== undefined ? { weights: model.weights } : {}),
     ...(model.contradictions !== undefined ? { contradictions: model.contradictions } : {}),
@@ -215,6 +224,7 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
     carriers: h.carriers,
     boxes,
     wires,
+    ...(h.flows !== undefined ? { flows: h.flows } : {}),
     ...(h.budget !== undefined ? { budget: h.budget } : {}),
     ...(h.weights !== undefined ? { weights: h.weights } : {}),
     ...(h.contradictions !== undefined ? { contradictions: h.contradictions } : {}),

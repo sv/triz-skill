@@ -64,7 +64,7 @@ const unplug: Rule = Rule.parse({
 });
 
 test("built-in rules are valid and quote their line of evolution-trends.md verbatim", () => {
-  assert.deepEqual(TREND_RULES.map((r) => r.id), ["mono-bi", "feedback"]);
+  assert.deepEqual(TREND_RULES.map((r) => r.id), ["mono-bi", "feedback", "working-field"]);
   for (const r of TREND_RULES) {
     assert.ok(validateRule(r).ok, `${r.id}: ${validateRule(r).errors.join("; ")}`);
     const lines = fs.readFileSync(path.resolve(here, "..", r.source!.file), "utf8").split("\n");
@@ -270,6 +270,78 @@ test("trend rule feedback: one useful function back to the tool, on a carrier th
   assert.deepEqual(negative(r.model), negative(m), "the useful feedback loop adds no harm");
 });
 
+test("trend rule working-field: the same function on another carrier, with the field change recorded", () => {
+  const m = example("bearing-heat");
+  m.carriers.push({ id: "magnetic", layer: "energy", dimension: "T magnetic coupling" });
+  const rule = trend("working-field");
+  assert.deepEqual(rule.source, { file: "skills/triz-innovation/references/evolution-trends.md", line: 30, quote: "mechanical → thermal → chemical → electric → magnetic → electromagnetic" });
+  const listed = only(matchRule(m, rule, { at: { wires: { f: "w-drive" } } }));
+  assert.deepEqual(listed.bindCarriers, ["d"]);
+  const { match } = listed.matches[0];
+  assert.match(errors(applyRule(m, rule, match, { carriers: { d: "torque" } })), /^distinct: carrier variables 'c' and 'd' both bind carrier 'torque'/);
+  const r = only(applyRule(m, rule, match, { carriers: { d: "magnetic" } }));
+  assert.ok(checkModel(r.model).ok);
+  assert.deepEqual(r.deleted, { boxes: [], ports: [{ box: "motor", port: "shaft-out" }, { box: "shaft", port: "drive" }], wires: ["w-drive"] });
+  assert.deepEqual(r.model.wires.find((w) => w.id === "w-drive-2"), { id: "w-drive-2", from: { box: "motor", port: "field" }, to: { box: "shaft", port: "field" }, carrier: "magnetic", polarity: "useful", verb: "rotate" });
+  assert.deepEqual(r.fieldChanges, [{
+    wire: "w-drive-2", replaces: "w-drive",
+    from: { carrier: "torque", layer: "energy", dimension: "N·m" },
+    to: { carrier: "magnetic", layer: "energy", dimension: "T magnetic coupling" },
+  }]);
+  assert.equal(r.deliverableKeysChanged, true, "the shaft is a product, and its deliverable moved to a new port and carrier");
+  assert.match(r.note, /lost and regained/);
+  assert.equal(r.model.boxes.length, m.boxes.length);
+  // A port that carries another function cannot go: the match is not applicable (dangling).
+  const cache = example("software-cache");
+  cache.carriers.push({ id: "push", layer: "information", dimension: "pushed result" });
+  const shared = only(matchRule(cache, rule, { at: { wires: { f: "w-cache" } } })).matches[0];
+  assert.equal(shared.applicable, false);
+  assert.match(shared.violations.join(), /dangling: wire 'w-stale' touches deleted port 'redis.hit'/);
+  // mono-bi keeps every deliverable key and records no field change.
+  const bi = only(applyRule(m, trend("mono-bi"), only(matchRule(m, trend("mono-bi"), { at: { wires: { f: "w-drive" } } })).matches[0].match));
+  assert.equal(bi.deliverableKeysChanged, false);
+  assert.equal(bi.fieldChanges, undefined);
+});
+
+test("rule `distinct` must name two carrier variables of the rule", () => {
+  const rule = trend("working-field");
+  assert.match(validateRule({ ...rule, distinct: [["c", "e"]] }).errors.join(), /distinct: 'e' is not a carrier variable of the rule/);
+  assert.match(validateRule({ ...rule, distinct: [["c", "c"]] }).errors.join(), /distinct: 'c' is paired with itself/);
+});
+
+test("detector uneven-development: the lagging box of the largest harm-loop region", async () => {
+  const feasible = example("bearing-heat-feasibility");
+  const detect = async (model: FunctionModel) => call({ model, rule_id: "uneven-development" });
+  // Within budget, and no insufficient deliverable: no subsystem lags.
+  const none = await detect(feasible);
+  assert.equal(none.verdict, "none");
+  assert.deepEqual(none.regions, [{ boxes: ["bearing", "shaft"], negative: ["w-heat", "w-preload"], basis: ["edge_on_cycle"] }]);
+  assert.deepEqual(none.detector.source, { file: "skills/triz-innovation/references/evolution-trends.md", line: 25, quote: "one subsystem lags and becomes the limiter" });
+  // Over budget on usd_unit: the bearing, in the loop and costing usd_unit, lags; the shaft costs nothing.
+  const over = await detect({ ...feasible, budget: { usd_unit: 150, service_h_year: 4 } });
+  assert.equal(over.verdict, "lagging");
+  assert.deepEqual(over.lagging.map((x: { box: string; reasons: Array<{ kind: string; dimensions?: string[] }> }) => [x.box, x.reasons.map((y) => [y.kind, y.dimensions])]), [["bearing", [["binding", ["usd_unit"]]]]]);
+  assert.deepEqual(over.feasibility, { verdict: "infeasible", reason: "over-budget", binding: ["usd_unit"] });
+  // A bearing whose row cannot carry the shaft's load limits the deliverable whatever the budget.
+  const weak = structuredClone(feasible);
+  weak.boxes.find((b) => b.id === "bearing")!.feasibility = [{ provides: { race: 2000 } }];
+  const unprovidable = await detect(weak);
+  assert.deepEqual(unprovidable.lagging.map((x: { box: string; reasons: Array<{ kind: string }> }) => [x.box, x.reasons.map((y) => y.kind)]), [["bearing", ["unprovidable"]]]);
+  // Without feasibility rows, an insufficient function on the product still limits a deliverable.
+  const plain = example("bearing-heat");
+  assert.equal((await detect(plain)).verdict, "undecided");
+  assert.equal((await detect(plain)).reason, "missing-feasibility");
+  plain.wires.find((w) => w.id === "w-support")!.polarity = "insufficient";
+  const limited = await detect(plain);
+  assert.equal(limited.verdict, "lagging");
+  assert.deepEqual(limited.lagging, [{ box: "bearing", region: ["bearing", "shaft"], reasons: [{ kind: "insufficient-deliverable", wires: ["w-support"] }] }]);
+  // No harm loop: nothing to lag in.
+  const cache = example("software-cache");
+  const calm = await detect({ ...cache, wires: cache.wires.filter((w) => w.id !== "w-stale") });
+  assert.deepEqual([calm.verdict, calm.reason], ["undecided", "no-harm-loop"]);
+  assert.match((await call({ model: feasible, rule_id: "uneven-development", at: { boxes: {} } })).errors[0], /is a detector, not a rewrite/);
+});
+
 test("a kept box that declares behaviour keeps its ports; a copy does not inherit behaviour", () => {
   const m = example("bearing-heat-behavior");
   assert.ok(checkModel(m).ok);
@@ -371,14 +443,17 @@ test("property (typed_dpo): every applicable match gives a typed model; others f
       const listed = only(matchRule(m, rule, { limit: 200 }));
       assert.ok(listed.complete, `seed ${seed} ${rule.id}`);
       for (const { match, applicable } of listed.matches) {
-        const r = applyRule(m, rule, match, rule.id === "feedback" ? { carriers: { s: signal } } : {});
-        if (applicable) {
+        // working-field needs 'd' on a carrier other than the matched one; with none, the application is refused (distinct).
+        const other = m.carriers.find((c) => c.id !== match.carriers.c)?.id ?? match.carriers.c;
+        const carriers: Record<string, string> | undefined = rule.id === "feedback" ? { s: signal } : rule.id === "working-field" ? { d: other } : undefined;
+        const r = applyRule(m, rule, match, carriers ? { carriers } : {});
+        if (applicable && !(rule.id === "working-field" && other === match.carriers.c)) {
           assert.ok(r.ok, `seed ${seed} ${rule.id}: ${errors(r)}`);
           assert.ok(checkModel(r.model).ok);
           applied++;
           if (annotated) annotatedApplied++;
         } else {
-          assert.match(errors(r), /^(dangling|identification|behaviour|feasibility): /, `seed ${seed} ${rule.id}`);
+          assert.match(errors(r), /^(dangling|identification|behaviour|feasibility|distinct): /, `seed ${seed} ${rule.id}`);
           refused++;
           if (/^feasibility: /.test(errors(r))) feasibilityRefused++;
         }

@@ -20,7 +20,7 @@
     { "id": 13, "source_code": "FT", "name": "Feature transfer", "stages": ["modeling", "synthesis"], "signals": ["transfer property", "alternative system", "missing capability"] },
     { "id": 14, "source_code": "OZOT", "name": "Operating zone and time", "stages": ["analysis", "modeling"], "signals": ["where conflict occurs", "when conflict occurs", "condition"] },
     { "id": 15, "source_code": "RFOS", "name": "Reverse functional-oriented search", "stages": ["synthesis"], "signals": ["available mechanism", "resource-led search", "new use"] },
-    { "id": 16, "source_code": "FLOW", "name": "Flow analysis", "stages": ["analysis"], "signals": ["bottleneck", "leakage", "accumulation", "delay"] },
+    { "id": 16, "source_code": "FLOW", "name": "Flow analysis", "stages": ["analysis"], "signals": ["bottleneck", "leakage", "accumulation", "delay"], "mcp_tools": ["triz_flow"] },
     { "id": 17, "source_code": "LIMITS", "name": "Limits analysis", "stages": ["analysis"], "signals": ["constraint", "development ceiling", "saturation"] },
     { "id": 18, "source_code": "PRINCIPLES", "name": "40 inventive principles", "stages": ["synthesis"], "signals": ["technical contradiction", "matrix recommendation"], "mcp_tools": ["triz_principle"] },
     { "id": 19, "source_code": "SEPARATION", "name": "Separation principles", "stages": ["synthesis"], "signals": ["physical contradiction", "opposing property"], "mcp_tools": ["triz_separate"] },

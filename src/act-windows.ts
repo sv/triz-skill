@@ -22,6 +22,7 @@
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { rewrite, type RewriteStep } from "./act-rewrite.js";
+import { flowsThrough, mapFlows, restrictFlows } from "./act-flow.js";
 import type { Theorem } from "./act-basis.js";
 
 /** A restriction keeps typing. Each view zooms once, so restriction's composition laws are not cited. */
@@ -46,21 +47,30 @@ function knownSet(model: FunctionModel, ids: string[], what: string): string[] {
   ];
 }
 
-/** Sub-model on `boxes`; crossing wires become the boundary. Budget and contradictions are dropped (they describe the whole). */
+/**
+ * Sub-model on `boxes`; crossing wires become the boundary. Budget and contradictions are dropped
+ * (they describe the whole). Each flow keeps its runs of consecutive boxes inside (restrictFlows);
+ * flows that cross the boundary are listed in it.
+ */
 export function restrict(model: FunctionModel, boxes: string[]) {
   const check = checkModel(model);
   const errors = check.ok ? knownSet(model, boxes, "restrict") : check.errors;
   if (errors.length) return { ok: false as const, errors };
   const keep = new Set(boxes);
   const inside = (w: Wire) => keep.has(w.from.box) && keep.has(w.to.box);
-  const { budget: _budget, contradictions: _contradictions, ...rest } = model;
-  const sub: FunctionModel = { ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter(inside) };
+  const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
+  const cut = restrictFlows(model.flows, keep);
+  const sub: FunctionModel = {
+    ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter(inside),
+    ...(model.flows ? { flows: cut.flows } : {}),
+  };
   return {
     ok: true as const,
     model: sub,
     boundary: {
       entering: model.wires.filter((w) => !keep.has(w.from.box) && keep.has(w.to.box)).map((w) => w.id),
       leaving: model.wires.filter((w) => keep.has(w.from.box) && !keep.has(w.to.box)).map((w) => w.id),
+      ...(cut.crossing.length ? { flows: cut.crossing } : {}),
     },
     basis: RESTRICT,
   };
@@ -68,7 +78,9 @@ export function restrict(model: FunctionModel, boxes: string[]) {
 
 /**
  * Replace `group` by one black box. Each kept port is renamed `<box>.<port>`; a collision between
- * such names fails closed. The box's cost is the per-dimension sum over the group.
+ * such names fails closed. The box's cost is the per-dimension sum over the group. Each flow
+ * through the group passes the black box instead, once per visit (mapFlows); a flow wholly inside
+ * the group is hidden and listed.
  */
 export function collapse(model: FunctionModel, group: string[], box: { id: string; name: string; role: Box["role"]; action?: string }) {
   const check = checkModel(model);
@@ -102,9 +114,11 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     ...(Object.keys(cost).length ? { cost } : {}),
   };
   const redirect = (e: Wire["from"]) => (members.has(e.box) ? { box: box.id, port: name(e.box, e.port) } : e);
+  const through = flowsThrough(model.flows, members);
+  const quotient = mapFlows(through, (id) => (members.has(id) ? box.id : id));
   const r = rewrite(model, {
-    delete: { boxes: group, wires: touching.map((w) => w.id) },
-    add: { boxes: [black], wires: crossing.map((w) => ({ ...w, from: redirect(w.from), to: redirect(w.to) })) },
+    delete: { boxes: group, wires: touching.map((w) => w.id), flows: through.map((f) => f.id) },
+    add: { boxes: [black], wires: crossing.map((w) => ({ ...w, from: redirect(w.from), to: redirect(w.to) })), flows: quotient.flows },
   });
   if (!r.ok) return r;
   return {
@@ -112,6 +126,7 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     model: r.model,
     hidden: hidden.map((w) => w.id),
     hiddenHarms: hidden.filter((w) => w.polarity === "harmful" || w.polarity === "excessive").map((w) => w.id),
+    ...(through.length ? { flows: { through: through.map((f) => f.id), hidden: quotient.gone } } : {}),
     basis: r.basis,
   };
 }

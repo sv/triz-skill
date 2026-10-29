@@ -8,7 +8,8 @@
  * necessary condition of — see references/categorical-model.md for exactly what
  * is and is not claimed, and theory/ for the Lean statements behind the checks.
  *
- *  - checkModel        — wiring typing: endpoints exist, out→in, carriers agree. Fails closed.
+ *  - checkModel        — wiring typing: endpoints exist, out→in, carriers agree; flows name a
+ *                        known carrier and known boxes. Fails closed.
  *  - harmLoops         — strongly connected regions that contain a harmful/excessive function,
  *                        with one witness cycle per such function. Useful-only feedback is not a harm.
  *  - idealityProfile   — function counts and costs per resource dimension; dimensions are never
@@ -106,6 +107,14 @@ export const Wire = z.strictObject({
   verb: z.string().optional().describe("Function verb in base form, e.g. 'heat', 'cache', 'charge'"),
 }).meta({ id: "Wire", description: "A TRIZ function: a typed wire from an output port of the performing box to an input port of the box acted on" });
 
+export const Flow = z.strictObject({
+  id: Id,
+  carrier: Id.describe("Carrier id: what moves along the flow, e.g. water, a request, cash"),
+  path: z.array(Id).min(2).describe("Box ids in the order the flow passes through them, in series. A box listed again later closes a loop; a box may not follow itself"),
+  medium: Id.optional().describe("The box that stands for what flows, when the boxes on the path act on it rather than pass it on, e.g. a 'water' or 'request' product box"),
+  name: z.string().optional(),
+}).meta({ id: "Flow", description: "A flow path: the boxes a carrier passes through in series, in order. It records order along the flow, which functions do not: two boxes in series need not act on each other" });
+
 const AxisCells = z.array(Id).min(1);
 export const Demand = z.strictObject({
   id: Id,
@@ -137,6 +146,8 @@ export const FunctionModel = z.strictObject({
   carriers: z.array(Carrier),
   boxes: z.array(Box),
   wires: z.array(Wire),
+  flows: z.array(Flow).optional()
+    .describe("Flow paths: which boxes a carrier passes through, in order. Read by triz_flow and by merge's adjacent reading; the other checks ignore them"),
   budget: z.record(Dim, z.number().nonnegative()).optional()
     .describe("Resource limit per cost dimension"),
   weights: z.record(Dim, z.number().positive()).optional()
@@ -147,6 +158,7 @@ export const FunctionModel = z.strictObject({
 export type FunctionModel = z.infer<typeof FunctionModel>;
 export type PhysicalContradiction = z.infer<typeof PhysicalContradiction>;
 export type FeasibilityRow = z.infer<typeof FeasibilityRow>;
+export type Flow = z.infer<typeof Flow>;
 type Box = z.infer<typeof Box>;
 type Wire = z.infer<typeof Wire>;
 
@@ -289,7 +301,21 @@ export function checkModel(model: FunctionModel): CheckResult {
       }
     }
   }
+  errors.push(...flowErrors(model, carriers, boxes));
   return { ok: errors.length === 0, errors };
+}
+
+/** Typing of flows: unique ids, a known carrier, known boxes, and no box directly after itself. */
+function flowErrors(model: FunctionModel, carriers: Set<string>, boxes: Map<string, Box>): string[] {
+  const flows = model.flows ?? [];
+  const errors = duplicates(flows.map((f) => f.id)).map((id) => `duplicate flow id '${id}'`);
+  for (const f of flows) {
+    if (!carriers.has(f.carrier)) errors.push(`flow '${f.id}': unknown carrier '${f.carrier}'`);
+    for (const id of new Set(f.path)) if (!boxes.has(id)) errors.push(`flow '${f.id}': unknown box '${id}'`);
+    if (f.medium !== undefined && !boxes.has(f.medium)) errors.push(`flow '${f.id}': unknown medium box '${f.medium}'`);
+    f.path.forEach((id, i) => { if (i > 0 && f.path[i - 1] === id) errors.push(`flow '${f.id}': box '${id}' follows itself at position ${i}`); });
+  }
+  return errors;
 }
 
 /** Tarjan's strongly connected components; deterministic over sorted ids. */

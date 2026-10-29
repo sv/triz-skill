@@ -63,9 +63,12 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
   collect(await call("triz_feasibility", { model: example("bearing-heat-feasibility"), trim: ["bearing"] }));
+  collect(await call("triz_rule_apply", { model: { ...example("bearing-heat-feasibility"), budget: { usd_unit: 150, service_h_year: 4 } }, rule_id: "uneven-development" }));
+  collect(await call("triz_flow", { model: { ...example("bearing-heat"), flows: [{ id: "load", carrier: "radial-load", path: ["housing", "bearing", "shaft", "bearing"] }] } }));
   const bearing = example("bearing-heat"), cache = example("software-cache");
   for (const [model, transformation] of [
     [bearing, { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } }],
+    [{ ...bearing, flows: [{ id: "load", carrier: "radial-load", path: ["housing", "bearing", "shaft"] }] }, { op: "merge", boxes: ["housing", "bearing"], into: { id: "seat", name: "Seat" } }],
     [cache, { op: "rerate", wire: "w-rows", polarity: "excessive" }],
     [cache, { op: "feedback", wire: { id: "w-back", from: { box: "app", port: "lookup" }, to: { box: "postgres", port: "sql" }, carrier: "query", polarity: "useful" } }],
     [bearing, { op: "retarget", wire: "w-heat", to: { box: "air", port: "sink" } }],
@@ -107,7 +110,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
   collect(ranked);
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
-  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
     "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });

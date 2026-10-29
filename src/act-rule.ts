@@ -26,18 +26,26 @@
  *                   homomorphism, then the no-identification and no-dangling conditions (Def. 3.16;
  *                   Prop. 3.17 shows they are exactly what the pushout complement needs), deletes
  *                   the image of L \ K, glues R \ K under fresh ids, and type-checks the result.
- *                   A kept box that declares behaviour must keep its ports. Every failure
- *                   fails closed with an error naming the condition.
+ *                   A kept box that declares behaviour must keep its ports. A flow is a
+ *                   hyperedge on boxes that no pattern names, so no-dangling also refuses
+ *                   deleting a box a flow passes. A rule's `distinct` pairs of carrier variables
+ *                   must bind different carriers. Every failure fails closed with an error naming
+ *                   the condition. A created wire `like` a deleted wire of another carrier is
+ *                   recorded in `fieldChanges`.
  *  - TREND_RULES  — the evolution lines whose text in evolution-trends.md describes a structural
  *                   move, each citing its line. Trimming is `triz_transform` `trim`.
+ *  - TREND_DETECTORS, laggingSubsystem — the uneven-development line, whose text names a
+ *                   diagnosis: the lagging subsystem, found and changed nothing.
  *
  * The result is typed by `typed_dpo` in theory/CategoricalTriz.lean. Its hypotheses map to checks
  * here: the model type-checks; R type-checks (validateRule); no surviving wire touches a deleted
  * box (dangling); R gives no port a carrier the model does not (checkMatch, and fresh ids for
- * created boxes and ports). No-identification makes the result a pushout but is not needed for typing.
+ * created boxes and ports). No-identification makes the result a pushout but is not needed for
+ * typing. `distinct` only refuses applications, so it needs nothing of the theorem.
  */
 import { z } from "zod";
-import { Box, Endpoint, Polarity, Role, checkModel, type FunctionModel } from "./act.js";
+import { Box, Endpoint, Polarity, Role, checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
+import { feasibility } from "./act-feasibility.js";
 import { Budget } from "./act-iso.js";
 import type { Theorem } from "./act-basis.js";
 
@@ -81,6 +89,8 @@ export const Rule = z.strictObject({
   left: Pattern.describe("L: what must be present; L \\ K is deleted"),
   interface: Pattern.describe("K: what is kept; every element appears with the same id and constraints in left and right"),
   right: Pattern.describe("R: what is there afterwards; R \\ K is created under fresh ids"),
+  distinct: z.array(z.tuple([Id, Id])).optional()
+    .describe("Pairs of carrier variables that must bind to different carriers: an application condition, checked with the gluing conditions"),
   source: z.strictObject({
     file: z.string().min(1),
     line: z.number().int().positive(),
@@ -112,6 +122,9 @@ type MBox = FunctionModel["boxes"][number];
 type MWire = FunctionModel["wires"][number];
 type Side = "in" | "out";
 type Failure = { ok: false; errors: string[] };
+type Field = { carrier: string; layer: FunctionModel["carriers"][number]["layer"]; dimension: string };
+/** A function the rule re-made on another carrier: the created wire, the deleted wire it is `like`, and both carriers. */
+export type FieldChange = { wire: string; replaces: string; from: Field; to: Field };
 
 /** JSON Schema export; the committed schema file is regenerated from this (scripts/gen-schema.mjs). */
 export function ruleJsonSchema() {
@@ -167,6 +180,10 @@ export function validateRule(rule: Rule): { ok: boolean; errors: string[] } {
   }
   const { L, K, R, leftVars, rightOnlyVars } = index(rule);
   for (const v of vars) if (!leftVars.has(v) && !rightOnlyVars.includes(v)) errors.push(`carrier variable '${v}' is used nowhere`);
+  for (const [a, b] of rule.distinct ?? []) {
+    for (const v of [a, b]) if (!vars.includes(v)) errors.push(`distinct: '${v}' is not a carrier variable of the rule`);
+    if (a === b) errors.push(`distinct: '${a}' is paired with itself`);
+  }
   for (const [side, X] of [["left", L], ["right", R]] as const) {
     for (const [id, k] of K.boxes) {
       const x = X.boxes.get(id);
@@ -300,7 +317,21 @@ export function gluingConditions(model: FunctionModel, rule: Rule, match: RuleMa
       else if (gone.ports.has(key(e.box, e.port))) dangling.push(`dangling: wire '${w.id}' touches deleted port '${e.box}.${e.port}'`);
     }
   }
+  // A flow is a hyperedge on boxes that no pattern names, so a rule may not delete a box it passes.
+  for (const f of model.flows ?? []) {
+    for (const id of new Set(f.path)) if (gone.boxes.has(id)) dangling.push(`dangling: flow '${f.id}' passes deleted box '${id}'`);
+    if (f.medium !== undefined && gone.boxes.has(f.medium)) dangling.push(`dangling: flow '${f.id}' names deleted box '${f.medium}' as its medium`);
+  }
   return { identification, dangling, ok: !identification.length && !dangling.length };
+}
+
+/** The `distinct` application condition on bound carrier variables; a variable not yet bound is skipped. */
+function distinctViolations(rule: Rule, bound: Record<string, string> | Map<string, string>): string[] {
+  const at = (v: string) => (bound instanceof Map ? bound.get(v) : get(bound, v));
+  return (rule.distinct ?? []).flatMap(([a, b]) => {
+    const x = at(a), y = at(b);
+    return x !== undefined && x === y ? [`distinct: carrier variables '${a}' and '${b}' both bind carrier '${x}'; the rule needs them different`] : [];
+  });
 }
 
 /**
@@ -435,7 +466,7 @@ export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial
     const verified = checkMatch(model, rule, match);
     if (verified.length) throw new Error(`internal: search returned an unverified match: ${verified.join("; ")}`);
     const g = gluingConditions(model, rule, match);
-    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : [])];
+    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : []), ...distinctViolations(rule, match.carriers)];
     return { match, applicable: !violations.length, violations };
   });
   return {
@@ -467,7 +498,7 @@ const freshId = (base: string, taken: Set<string>) => {
  * are the rule's, not the original's.
  */
 export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, opts: { carriers?: Record<string, string>; ids?: RuleIds } = {}):
-  | { ok: true; model: FunctionModel; rule: string; created: { boxes: Record<string, string>; ports: Record<string, Record<string, string>>; wires: Record<string, string> }; deleted: { boxes: string[]; ports: Array<{ box: string; port: string }>; wires: string[] }; basis: Theorem[]; note: string }
+  | { ok: true; model: FunctionModel; rule: string; created: { boxes: Record<string, string>; ports: Record<string, Record<string, string>>; wires: Record<string, string> }; deleted: { boxes: string[]; ports: Array<{ box: string; port: string }>; wires: string[] }; fieldChanges?: FieldChange[]; deliverableKeysChanged: boolean; basis: Theorem[]; note: string }
   | Failure {
   const pre = [...checkModel(model).errors.map((e) => `model: ${e}`), ...validateRule(rule).errors.map((e) => `rule '${rule.id}': ${e}`)];
   if (pre.length) return { ok: false, errors: pre };
@@ -487,6 +518,8 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   if (!glue.ok) return { ok: false, errors: [...glue.identification, ...glue.dangling] };
   const declared = declaredRowConditions(model, rule, match);
   if (declared.length) return { ok: false, errors: declared };
+  const apart = distinctViolations(rule, bound);
+  if (apart.length) return { ok: false, errors: apart };
 
   const gone = deletedBy(rule, match);
   const sigma = (v: string) => bound.get(v)!;
@@ -594,6 +627,17 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   const result: FunctionModel = { ...model, boxes: [...kept, ...created], wires: [...model.wires.filter((w) => !gone.wires.has(w.id)), ...glued] };
   const after = checkModel(result);
   if (!after.ok) return { ok: false, errors: after.errors.map((e) => `result: ${e}`) };
+  // A created wire `like` a deleted one on another carrier is the same function in another field: record both carriers.
+  const carrier = new Map(model.carriers.map((c) => [c.id, c]));
+  const field = (id: string) => ({ carrier: id, layer: carrier.get(id)!.layer, dimension: carrier.get(id)!.dimension });
+  const fieldChanges: FieldChange[] = [...createdWires].flatMap(([rw, id]) => {
+    const like = R.wires.get(rw)!.like;
+    const was = like !== undefined && gone.wires.has(get(match.wires, like)!) ? gWire.get(get(match.wires, like)!)! : undefined;
+    const now = glued.find((w) => w.id === id)!;
+    return was && was.carrier !== now.carrier ? [{ wire: id, replaces: was.id, from: field(was.carrier), to: field(now.carrier) }] : [];
+  });
+  const keys = (m: FunctionModel) => idealityProfile(m).deliverables.map((d) => d.key);
+  const deliverableKeysChanged = keys(model).some((k) => !keys(result).includes(k));
   return {
     ok: true,
     model: result,
@@ -608,8 +652,11 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
       ports: [...gone.ports].map((k) => JSON.parse(k) as [string, string]).filter(([b]) => !gone.boxes.has(b)).map(([box, port]) => ({ box, port })),
       wires: [...gone.wires],
     },
+    ...(fieldChanges.length ? { fieldChanges } : {}),
+    deliverableKeysChanged,
     basis: ["typed_dpo"],
-    note: "A rule application is a structural move, not evidence that it helps: compare the result with the baseline via triz_function_model compare_to. Created elements copy what the rule says; their real cost and any new harms are modelled only if you add them.",
+    note: "A rule application is a structural move, not evidence that it helps: compare the result with the baseline via triz_function_model compare_to. Created elements copy what the rule says; their real cost and any new harms are modelled only if you add them."
+      + (deliverableKeysChanged ? " A deliverable is now on another port or carrier, so compare_to reads it as lost and regained: compare the deliverables by hand." : ""),
   };
 }
 
@@ -660,4 +707,104 @@ export const TREND_RULES: Rule[] = [
     source: { file: TRENDS, line: 27, quote: "fixed → adjustable → self-adjusting with feedback" },
     note: "Adds one useful function from the object back to the tool, on a carrier you bind as 's', plus the two ports it needs. No sensor or controller box is added; the line's text names none. A loop of useful functions is not a harm loop. The earlier steps, fixed and adjustable, are not encoded.",
   },
+  {
+    id: "working-field",
+    name: "Changing the working field: the same function on another field",
+    carriers: ["c", "d"],
+    distinct: [["c", "d"]],
+    left: functionPattern,
+    interface: { boxes: [{ id: "tool" }, { id: "object" }] },
+    right: {
+      boxes: [
+        { id: "tool", outputs: [{ id: "field", carrier: "d" }] },
+        { id: "object", inputs: [{ id: "field", carrier: "d" }] },
+      ],
+      wires: [{ id: "f-field", like: "f", from: { box: "tool", port: "field" }, to: { box: "object", port: "field" }, carrier: "d" }],
+    },
+    source: { file: TRENDS, line: 30, quote: "mechanical → thermal → chemical → electric → magnetic → electromagnetic" },
+    note: "Re-makes the matched function on a carrier you bind as 'd', which must differ from the matched one: the function and its two ports go, a port of 'd' on each box and a function of 'd' between them come, and the function keeps its rating and verb. The result records both carriers' layer and dimension in fieldChanges. The kernel neither orders fields nor checks that 'd' is a field: which field is cheapest, and whether it still delivers the function, are what to substantiate. A port that carries other functions too cannot go, so that match is not applicable (dangling). A product's deliverable moves to the new port and carrier, so compare_to reads it as lost and regained (deliverableKeysChanged).",
+  },
 ].map((r) => Rule.parse(r));
+
+/**
+ * Evolution lines read as detectors: a line whose text names a diagnosis, not a move. A detector
+ * reports where the line points in the model and changes nothing.
+ */
+export const TREND_DETECTORS = [
+  {
+    id: "uneven-development",
+    name: "Uneven development of subsystems: the lagging subsystem",
+    source: { file: TRENDS, line: 25, quote: "one subsystem lags and becomes the limiter" },
+    note: "Reports the lagging subsystem: a box of the largest harm-loop region that is also on a binding feasibility dimension or limits a deliverable. A diagnosis, not a move: it names where the next contradiction is worth modelling.",
+  },
+] as const;
+
+type Reason =
+  | { kind: "binding"; dimensions: string[]; basis: readonly Theorem[] }
+  | { kind: "unprovidable"; basis: readonly Theorem[] }
+  | { kind: "insufficient-deliverable"; wires: string[] };
+
+/**
+ * Uneven development of subsystems, as a detector. The lagging subsystem is a box that
+ *  - lies in a largest harm-loop region: a strongly connected region of harmLoops with the most
+ *    boxes (every region of that size is searched, in harmLoops order); and
+ *  - is on a binding dimension or limits a deliverable. On a binding dimension: triz_feasibility
+ *    finds the model infeasible over budget, and the box's fixed cost, or its row's operating cost
+ *    in some minimal resource vector, is above 0 on a dimension every minimal vector exceeds.
+ *    Limits a deliverable: it is the box feasibility finds unprovidable, or it performs an
+ *    insufficient function on a product box.
+ * Verdicts: `lagging` with the candidates and their reasons; `none` when feasibility is decided and
+ * no box of the region qualifies; `undecided` when there is no harm loop (reason no-harm-loop) or,
+ * with no box found, feasibility is undecided (its reason). Fails closed on a model or feasibility
+ * rows that do not type-check, and past feasibility's caps.
+ */
+export function laggingSubsystem(model: FunctionModel) {
+  const check = checkModel(model);
+  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const [d] = TREND_DETECTORS;
+  const detector = { id: d.id, name: d.name, source: d.source };
+  const loops = harmLoops(model);
+  if (!loops.length) {
+    return { ok: true as const, detector, verdict: "undecided" as const, reason: "no-harm-loop" as const, lagging: [], note: "The model has no harm loop, so there is no region for a subsystem to lag in. Model the harmful and excessive functions first (triz_function_model)." };
+  }
+  const size = Math.max(...loops.map((l) => l.boxes.length));
+  const regions = loops.filter((l) => l.boxes.length === size);
+  const f = feasibility(model);
+  if (!f.ok) return f;
+  const minimal = "minimal" in f ? f.minimal : [];
+  const binding = f.verdict === "infeasible" && "binding" in f ? f.binding : [];
+  const unprovidable = f.verdict === "infeasible" && "unprovidable" in f ? f.unprovidable.box : undefined;
+  const basis = "basis" in f ? f.basis : [];
+  const products = new Set(model.boxes.filter((b) => b.role === "product").map((b) => b.id));
+  const byId = new Map(model.boxes.map((b) => [b.id, b]));
+  const lagging = regions.flatMap((region) => region.boxes.flatMap((id) => {
+    const b = byId.get(id)!;
+    const operating = (dim: string) => minimal.some((v) => {
+      const k = v.rows.find((r) => r.box === id)?.row;
+      return k !== undefined && (get(b.feasibility![k].cost, dim) ?? 0) > 0;
+    });
+    const dims = binding.filter((dim) => (get(b.cost, dim) ?? 0) > 0 || operating(dim));
+    const limits = model.wires.filter((w) => w.from.box === id && products.has(w.to.box) && w.polarity === "insufficient").map((w) => w.id).sort();
+    const reasons: Reason[] = [
+      ...(dims.length ? [{ kind: "binding" as const, dimensions: dims, basis }] : []),
+      ...(unprovidable === id ? [{ kind: "unprovidable" as const, basis }] : []),
+      ...(limits.length ? [{ kind: "insufficient-deliverable" as const, wires: limits }] : []),
+    ];
+    return reasons.length ? [{ box: id, region: region.boxes, reasons }] : [];
+  }));
+  const verdict = lagging.length ? "lagging" as const : f.verdict !== "undecided" ? "none" as const : "undecided" as const;
+  return {
+    ok: true as const,
+    detector,
+    verdict,
+    ...(verdict === "undecided" && "reason" in f ? { reason: f.reason } : {}),
+    lagging,
+    regions: regions.map((l) => ({ boxes: l.boxes, negative: l.negative, basis: ["edge_on_cycle"] as Theorem[] })),
+    feasibility: { verdict: f.verdict, ...("reason" in f ? { reason: f.reason } : {}), ...(binding.length ? { binding } : {}), ...(unprovidable ? { unprovidable } : {}) },
+    note: verdict === "lagging"
+      ? "Each candidate lags by the structural reading of the line, not by measurement: substantiate that it limits the system, then model its contradiction."
+      : verdict === "none"
+        ? "No box of the largest harm-loop region is on a binding dimension or limits a deliverable: by this reading no subsystem lags."
+        : "No box of the largest harm-loop region limits a deliverable, and feasibility is undecided: declare feasibility rows and a budget to decide whether one is on a binding dimension.",
+  };
+}

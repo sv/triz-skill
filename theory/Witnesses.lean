@@ -8,7 +8,7 @@ import Mathlib.Data.Fintype.Order
 # Non-vacuity witnesses
 
 A lemma whose hypotheses can never hold together proves nothing. For each `Wiring` lemma in
-`CategoricalTriz`, and for the behaviour, co-design, and dynamics lemmas with hypotheses, this
+`CategoricalTriz`, and for the behaviour, co-design, dynamics, and flow lemmas with hypotheses, this
 module gives:
 
 - a concrete diagram, relation, or step relation on which all its hypotheses hold while
@@ -319,6 +319,82 @@ example : ¬ Relation.ReflTransGen (fun _ _ : Fin 3 => False) (id 0) (id 2) := b
   intro h
   have := (Relation.reflTransGen_iff_eq (fun _ h => h)).mp h
   exact absurd this (by decide)
+
+/-! ### `flow_merge_typed`, `flow_merge_reach`
+
+The flow 0 → 1 → 2 → 3. Merging boxes 1 and 2, adjacent on it, into 1 keeps 0 →* 3, and the
+merged flow is 0 → 1 → 3, with no loop. Each hypothesis is needed: box 2 is merged and no longer
+reaches 3, nothing reaches it any more, and a flow through a box the model lacks names a box the
+merged model lacks. Merging 1 and 3, with box 2 between them, closes the loop 1 → 2 → 1, which the
+flow did not have: why `merge` refuses it under the adjacent reading. -/
+
+/-- The flow 0 → 1 → 2 → 3. -/
+abbrev flow4 : List (Fin 4) := [0, 1, 2, 3]
+
+theorem flow4_step_lt {a b : Fin 4} (h : flowStep flow4 a b) : a < b := by
+  obtain ⟨i, ha, hb⟩ := h
+  rcases i with _ | _ | _ | _ | i <;> simp at ha hb <;> subst ha <;> subst hb <;> decide
+
+/-- A step relation that only goes up has no cycle. -/
+theorem acyclic_of_lt {r : Fin 4 → Fin 4 → Prop} (h : ∀ a b, r a b → a < b) (x : Fin 4) :
+    ¬ Relation.TransGen r x x := by
+  have up : ∀ a b, Relation.TransGen r a b → a < b := by
+    intro a b hab
+    induction hab with
+    | single hab => exact h _ _ hab
+    | tail _ hbc ih => exact ih.trans (h _ _ hbc)
+  exact fun hx => lt_irrefl x (up x x hx)
+
+theorem flow4_0_3 : Relation.ReflTransGen (flowStep flow4) 0 3 :=
+  ((Relation.ReflTransGen.single ⟨0, rfl, rfl⟩).tail ⟨1, rfl, rfl⟩).tail ⟨2, rfl, rfl⟩
+
+/-- Boxes 1 and 2, adjacent on the flow. -/
+abbrev g12 : Set (Fin 4) := {b | b = 1 ∨ b = 2}
+
+/-- Boxes 1 and 3, with box 2 between them. -/
+abbrev g13 : Set (Fin 4) := {b | b = 1 ∨ b = 3}
+
+example : Relation.ReflTransGen (mergedStep (mergeInto g12 1) (flowStep flow4)) 0 3 :=
+  flow_merge_reach g12 1 (by decide) (by decide) flow4_0_3
+
+example : (flow4.map (mergeInto g12 1)).destutter (· ≠ ·) = [0, 1, 3] := by decide
+
+example (x : Fin 4) : ¬ Relation.TransGen (mergedStep (mergeInto g12 1) (flowStep flow4)) x x := by
+  refine acyclic_of_lt (fun x y => ?_) x
+  rintro ⟨a, b, hab, rfl, rfl, hne⟩
+  have := flow4_step_lt hab
+  fin_cases a <;> fin_cases b <;> revert hne this <;> decide
+
+/-- Nothing maps to box 2 when 1 and 2 merge into 1. -/
+theorem not_image_2 (a : Fin 4) : mergeInto g12 1 a ≠ 2 := by
+  fin_cases a <;> decide
+
+example : ¬ Relation.ReflTransGen (mergedStep (mergeInto g12 1) (flowStep flow4)) 2 3 := by
+  intro h
+  rcases Relation.ReflTransGen.cases_head h with h | ⟨c, ⟨a, b, -, ha, -, -⟩, -⟩
+  · exact absurd h (by decide)
+  · exact not_image_2 a ha
+
+example : ¬ Relation.ReflTransGen (mergedStep (mergeInto g12 1) (flowStep flow4)) 0 2 := by
+  intro h
+  rcases Relation.ReflTransGen.cases_tail h with h | ⟨c, -, ⟨a, b, -, -, hb, -⟩⟩
+  · exact absurd h (by decide)
+  · exact not_image_2 b hb
+
+example : ∀ x ∈ (flow4.map (mergeInto g12 1)).destutter (· ≠ ·), x ∈ mergeInto g12 1 '' Set.univ :=
+  flow_merge_typed g12 1 (fun _ _ => Set.mem_univ _)
+
+example : ¬ ∀ x ∈ (flow4.map (mergeInto g12 1)).destutter (· ≠ ·), x ∈ mergeInto g12 1 '' {b | b ≠ 3} := by
+  intro h
+  obtain ⟨b, hb, he⟩ := h 3 (by decide)
+  revert hb he
+  fin_cases b <;> decide
+
+example : ¬ ∀ x : Fin 4, ¬ Relation.TransGen (flowStep flow4) x x → ¬ Relation.TransGen (mergedStep (mergeInto g13 1) (flowStep flow4)) x x :=
+  fun h => h 1 (acyclic_of_lt (fun _ _ => flow4_step_lt) 1)
+    ((Relation.TransGen.single (show mergedStep (mergeInto g13 1) (flowStep flow4) 1 2 from
+      ⟨1, 2, ⟨1, rfl, rfl⟩, by decide, by decide, by decide⟩)).tail
+      (show mergedStep (mergeInto g13 1) (flowStep flow4) 2 1 from ⟨2, 3, ⟨2, rfl, rfl⟩, by decide, by decide, by decide⟩))
 
 /-! ### `cheaper_part_lowers_cost`
 

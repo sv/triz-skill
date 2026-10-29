@@ -102,9 +102,9 @@ for (const ev of suite.lookup_evals) {
 test("all 39 parameters present", () => assert.equal(triz.parameters().length, 39));
 test("all 40 principles present", () => assert.equal(triz.principles().length, 40));
 test("all 37 routed tools present", () => assert.equal(triz.toolCatalog().length, 37));
-test("effects database ships 56 curated entries with full metadata", () => {
+test("effects database ships 60 curated entries with full metadata", () => {
   const { effects } = triz.effects();
-  assert.equal(effects.length, 56);
+  assert.equal(effects.length, 60);
   assert.ok(effects.length >= 50, "starter set is substantive");
   for (const e of effects) {
     assert.ok(e.name && e.function && e.statement, `effect ${e.id} has name/function/statement`);
@@ -128,6 +128,15 @@ test("matrix_multi aggregation equals a manual fold of single lookups", () => {
   assert.equal(manual.size, multi.aggregated.length, "same principle set");
 });
 
+test("effects search finds release mechanisms for a deposited layer and for particles on a surface", () => {
+  const top = (q: string) => triz.effects(q).effects.slice(0, 5).map((e: any) => e.name);
+  for (const name of ["Vibration-assisted release", "Reverse-flow (back-pulse) cleaning", "Thermal-expansion mismatch detachment"]) {
+    assert.ok(top("remove a deposited layer").includes(name), name);
+  }
+  for (const name of ["Vibration-assisted release", "Electrostatic repulsion", "Reverse-flow (back-pulse) cleaning"]) {
+    assert.ok(top("release particles from a surface").includes(name), name);
+  }
+});
 test("effects search ranks Seebeck for temperature-to-voltage", () => {
   const r = triz.effects("convert temperature difference into voltage");
   assert.ok(r.matched >= 1);
