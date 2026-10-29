@@ -263,7 +263,8 @@ same order:
   "hint": "A wire carries its ports' carrier: set the wire's carrier to 'torque', or attach it to a port of carrier 'heat'." }
 ```
 
-- `code` is a stable kebab-case id from the table below. Branch on it, not on the message.
+- `code` is a stable kebab-case id, listed in [error-codes.md](error-codes.md). Branch on it,
+  not on the message.
 - `path` is a JSON path into the call's own arguments: `$.model…`, `$.compare_to…`,
   `$.transformation.parts[1].ports[0]`, `$.transitions.present_to_future[2]`. A path that ends in
   a key the input lacks names what to add (`$.carriers` for an unbound carrier variable). When
@@ -306,124 +307,35 @@ to check the rating, not a finding.
 
 ## Issue and lint codes
 
-| Code | Raised by | Meaning |
-|---|---|---|
-| `duplicate-id` | every model check; `triz_separate`, `triz_dynamics`, `triz_weakness`, `triz_transform` rewrite, `triz_rule_apply` ids | Two elements of one kind share an id (carrier, box, wire, port, state, value, demand, concept) |
-| `unknown-carrier` | every model check; `triz_rule_apply`, `triz_abstraction` map | A port or wire names a carrier the model does not declare |
-| `unknown-box` | every model check; box-set arguments (`trim`, `subsystem`, targets, transformations), `triz_abstraction` map | An id names no box of the model |
-| `unknown-port` | every model check; `triz_transform`, `triz_dynamics`, `triz_rule_apply`, `triz_abstraction` map | A box has no port with that id |
-| `unknown-wire` | `triz_transform`, `triz_rule_apply` | An id names no wire of the model |
-| `wrong-port-side` | every model check; `triz_transform` reverse | A wire leaves an input port or enters an output port |
-| `carrier-mismatch` | every model check; `triz_transform` reverse | A wire's carrier differs from a port it is attached to |
-| `incomplete-state-machine` | every model check | A box declares state, transition, or initial without the others it needs |
-| `behavior-and-transition` | every model check | A box declares both behavior and transition |
-| `undeclared-state` | every model check; `triz_dynamics` | A state is not among the box's declared states |
-| `no-declared-values` | every model check; `triz_behavior`, `triz_dynamics`, `triz_transform` interpose | Rows or a check need a carrier's values, and the carrier declares none |
-| `row-unknown-port` | every model check | A behavior, transition, or feasibility row names a port the box does not have |
-| `row-missing-value` | every model check | A behavior or transition row gives no value for one of the box's ports |
-| `undeclared-value` | every model check; `triz_dynamics`, `triz_weakness` | A value is not among the carrier's declared values |
-| `dominated-row` | every model check | A feasibility row repeats or is dominated by another row of the box |
-| `producible-with-rows` | every model check | A box declares producible together with behavior or transition |
-| `invalid-levels` | every model check | A carrier's levels do not start at 0 or do not strictly increase |
-| `flow-repeats-box` | every model check | A flow path lists a box directly after itself |
-| `listed-twice` | `triz_trim`, `trim` arguments, `triz_transform`, `triz_dynamics` inputs, `triz_weakness` acceptable | An id appears twice in a set argument |
-| `empty-set` | `trimCandidates`, nine-windows views, `triz_abstraction` map, mpv_weights | A set argument names nothing |
-| `too-few-members` | `triz_transform` segment and merge, `triz_dynamics` separation | A construction needs at least two parts, boxes, or demands |
-| `unknown-cost-dimension` | `triz_transform` segment and take_out, `triz_function_model` mpv_weights | A cost dimension is not one the box declares |
-| `cap-exceeded` | `triz_separate`, `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, certificates | A search or encoding passed its cap |
-| `internal-error` | any tool | An invariant of the kernel failed; the input is not at fault |
-| `format-unavailable` | `triz_export` format `svg` | The export format needs a layout engine this server does not have |
-| `box-map-without-compare-to` | `triz_function_model`, `triz_behavior` | box_map was passed without compare_to |
-| `absorb-without-trim` | `triz_behavior`, `triz_feasibility` | absorb was passed without trim |
-| `trim-with-compare-to` | `triz_behavior` | trim and compare_to were passed together |
-| `weakest-spec-without-target` | `triz_behavior` | weakest_spec was passed without compare_to or trim |
-| `rule-or-rule-id` | `triz_rule_apply` | Neither or both of rule and rule_id were passed |
-| `unknown-rule-id` | `triz_rule_apply` | rule_id names no built-in rule or detector |
-| `detector-takes-model-only` | `triz_rule_apply` uneven-development | A detector rule_id was passed with at, match, carriers, ids, limit, or max_steps |
-| `at-and-match` | `triz_rule_apply` | at and match were passed together |
-| `apply-args-without-match` | `triz_rule_apply` | carriers or ids were passed while only listing matches |
-| `listing-entry-as-match` | `triz_rule_apply` | A whole matches[i] entry was passed as match |
-| `mpv-weights-without-compare-to` | `triz_function_model` | mpv_weights was passed without compare_to |
-| `invalid-weight` | `triz_function_model` mpv_weights | An MPV weight is not positive |
-| `undeclared-cell` | `triz_separate`, embedded contradictions | A demand names a cell the axis does not declare |
-| `empty-axis` | `triz_separate` along | The axis to index by has no cells |
-| `part-without-ports` | `triz_transform` segment | A segment part lists no ports |
-| `port-assigned-twice` | `triz_transform` segment | A port is given to two parts |
-| `port-unassigned` | `triz_transform` segment | A port of the segmented box is given to no part |
-| `unknown-part` | `triz_transform` segment | cost_to names a part that is not listed |
-| `take-out-reading` | `triz_transform` take_out | The taken ports do not fit the take_out reading |
-| `not-adjacent` | `triz_transform` merge | Boxes to merge are not joined by functions inside the group or by consecutive positions on a flow |
-| `not-identical` | `triz_transform` merge | Boxes to merge as identical differ in role or port carriers |
-| `role-ambiguous` | `triz_transform` merge | The merged boxes have different roles and into.role is missing |
-| `wrong-rating` | `triz_transform` rerate, retarget | The function's rating does not fit the operation |
-| `already-rated` | `triz_transform` rerate | The function already has the requested rating |
-| `not-on-cycle` | `triz_transform` rerate, feedback | The function lies on, or closes, no loop |
-| `own-object-port` | `triz_transform` retarget | retarget points the harm at its own object port |
-| `self-loop` | `triz_transform` reverse | The function acts on its own performer |
-| `ambiguous-port` | `triz_transform` reverse | Several ports of the carrier fit; one must be named |
-| `missing-port` | `triz_transform` reverse | No port of the carrier fits; one must be named |
-| `declared-rows-block-change` | `triz_transform` reverse, `triz_rule_apply` | A box's declared rows would not name a port the change adds or deletes |
-| `nothing-to-back-up` | `triz_transform` standby | The box performs no useful function on another box |
-| `not-cheaper` | `triz_transform` cheap_copy | The copy is not cheaper than the box |
-| `dangling-wire` | `triz_transform` rewrite, `triz_rule_apply` | A kept wire would touch a deleted box or port |
-| `dangling-flow` | `triz_transform` rewrite, `triz_rule_apply` | A kept flow would pass a deleted box, or name it as its medium |
-| `unknown-flow` | `triz_transform` rewrite | An id names no flow of the model |
-| `flow-on-split-box` | `triz_transform` segment | Segmentation would leave a flow on a box that no part keeps |
-| `id-not-fresh` | `triz_transform`, `triz_rule_apply` ids | A new element's id is already taken |
-| `ill-typed-result` | `triz_transform` rewrite, `triz_rule_apply` | The step would produce a model that does not type-check |
-| `trim-blocked` | `trim` in `triz_transform`, `triz_behavior`, `triz_feasibility` | A function of a trimmed box has no typed absorber |
-| `not-an-absorbed-function` | `absorb` | absorb names a wire that is not a function the trimmed boxes perform on a remaining box |
-| `not-a-typed-absorber` | `absorb` | absorb names a port that is not an output of the function's carrier on a remaining box |
-| `rule-ill-typed` | `triz_rule_apply` | A rule pattern does not type-check, or a carrier variable is declared twice or never used |
-| `rule-malformed` | `triz_rule_apply` | A rule's interface, created elements, or like references are inconsistent |
-| `not-a-rule-element` | `triz_rule_apply` | A match, at, or ids key names nothing the rule has there |
-| `match-incomplete` | `triz_rule_apply` | A left-side element is not mapped by the match |
-| `match-not-homomorphic` | `triz_rule_apply` | The match does not preserve roles, sides, carriers, ratings, or incidences |
-| `match-identifies` | `triz_rule_apply` | Two left-side elements match one model element and one would be deleted |
-| `unbound-carrier-variable` | `triz_rule_apply` | A carrier variable used only on the right side is not bound |
-| `not-right-only-variable` | `triz_rule_apply` | carriers binds a variable that is not used only on the right side |
-| `distinct-carriers` | `triz_rule_apply` | Carrier variables the rule declares distinct bind the same carrier |
-| `forbid-violated` | `triz_rule_apply` | A rule's `forbid` condition holds: the match extends to an occurrence of it, or the check could not be decided within its budget |
-| `invalid-argument` | finite analysis APIs | An argument or cross-reference is invalid for the requested finite check |
-| `prior-malformed` | `triz_weakness` joint_prior | A joint situation prior (a weight per complete situation) is invalid, duplicated, or incomplete |
-| `required-input-malformed` | `triz_adequacy` | A required operating situation is invalid or duplicated |
-| `no-deliverables` | `triz_behavior`, `triz_weakness` | No product box receives a non-harmful function |
-| `box-map-unknown-box` | `triz_function_model`, `triz_behavior` | box_map names a box the concept or baseline does not have |
-| `box-map-ambiguous` | `triz_behavior` | box_map lands two concept input ports on one baseline port |
-| `box-map-port-mismatch` | `triz_behavior` | box_map maps a box to one without the same input port and carrier |
-| `input-domain-mismatch` | `triz_behavior`, `triz_weakness` | An input read by several models ranges over different values |
-| `nothing-to-specify` | `triz_behavior` weakest_spec | weakest_spec found no box without behaviour to specify |
-| `deliverables-differ` | `triz_weakness` | The concepts deliver different ports |
-| `acceptable-not-deliverable` | `triz_weakness` | acceptable names a port that is not a deliverable |
-| `acceptable-missing` | `triz_weakness` | A deliverable has no acceptable values |
-| `acceptable-entry-malformed` | `triz_weakness`, `triz_nine_windows` acceptable | An acceptable entry names neither or both of a port and a carrier, or of values and a threshold |
-| `invalid-threshold` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold cannot be read through the carrier's levels, or reads as no value |
-| `levels-differ` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold reads as different values in different concepts |
-| `invalid-prior` | `triz_weakness` priors | A prior is malformed: names neither or both of a port and a carrier, an input that is not a situation input, an undeclared value, a duplicate, or a weight that is not a nonnegative number; or priors and joint_prior are both given |
-| `unmapped-box` | `triz_abstraction` | map.ports names a box that map.boxes does not map |
-| `no-state` | `triz_dynamics` | A target or initial names a box that declares no state |
-| `uninitialised-state` | `triz_dynamics` | A stateful box has no initial states |
-| `not-boundary-input` | `triz_dynamics` inputs | inputs names a port that is not an unwired input port |
-| `window-invalid` | `triz_dynamics` separation | A separation window is inverted or ends after the horizon |
-| `windows-overlap` | `triz_dynamics` separation | Two separation windows overlap |
-| `horizon-inputs-mismatch` | `triz_dynamics` | inputs has fewer entries than the horizon needs |
-| `horizon-out-of-range` | `triz_dynamics` | The horizon is not an integer from 0 to the maximum |
-| `nothing-to-explore` | `triz_dynamics` | No box declares transition and no target names a box |
-| `no-product` | `triz_feasibility` | The model has no product box |
-| `unsupplied-requirement` | `triz_feasibility` | A feasibility row requires a level at an input no non-harmful function feeds |
-| `ambiguous-port-name` | `triz_nine_windows`, `triz_transform` merge | Collapsing gives two kept ports the same name |
-| `no-earlier-snapshot` | `triz_nine_windows` | A transition starts from a time with no snapshot |
-| `snapshot-not-reached` | `triz_nine_windows` | A transition's result differs from the snapshot it must reach |
-| `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
-| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe or safe target |
-| `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
-| `not-certifiable` | `triz_dynamics`, `triz_weakness` `certificate` | The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair |
-| `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a loss-like flow (pressure drop, leakage, noise, …) |
-| `trim-level-functions` | lint: `triz_trim` | The trim removes excessive or insufficient functions, listed under levelProblems |
-| `product-without-deliverable` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A product box receives no non-harmful function |
-| `unused-carrier` | lint (info) | A carrier types no port and no wire |
-| `unwired-port` | lint (info) | A port has no wire |
-| `unbacked-producible-row` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A producible row's output level is reached by no feasibility row of its box, read through the carriers' levels |
+Every issue already carries its `code`, `path`, `message`, and `hint`; correct the input at
+`path` as the hint says. [error-codes.md](error-codes.md) lists every code with the tools that
+raise it and what it means. Read it only when a hint is not enough.
+
+The lints, under `warnings` (they never change a verdict):
+
+| Lint | What to do |
+|---|---|
+| `defect-on-loss-carrier` | Check the rating: if no level of the flow is wanted from the performer, rate the function harmful |
+| `trim-level-functions` | Solve each entry of `levelProblems` as a level problem; no absorber takes the defect over |
+| `product-without-deliverable` | Give the product a non-harmful function, or change its role |
+| `unused-carrier` (info) | Delete the carrier, or type the port or wire that should carry it |
+| `unwired-port` (info) | Nothing, if it is meant: an unwired input is an operating condition, an unwired output spare capacity |
+| `unbacked-producible-row` | Fix the producible row, the feasibility rows, or the levels, whichever is wrong |
+
+The ten slips agents make most often:
+
+| Code | Fix |
+|---|---|
+| `carrier-mismatch` | A wire carries its ports' carrier: set the wire's `carrier` to the port's, or attach it to a port of the wire's carrier |
+| `wrong-port-side` | A wire runs from an output port to an input port: swap the ends, or pick ports of the right side |
+| `row-missing-value` | A `behavior` or `transition` row gives every port of its box a value: add the missing one |
+| `no-declared-values` | Declare `values` on the carrier before any row, target, or check reads it |
+| `box-map-without-compare-to` | Pass the baseline as `compare_to`; without a baseline, drop `box_map` |
+| `absorb-without-trim` | Pass `trim` with the boxes to remove, or drop `absorb` |
+| `trim-with-compare-to` | Drop `compare_to` to decide the model's own trim, or apply the trim with `triz_transform` and pass the result as `model` with `compare_to` |
+| `weakest-spec-without-target` | Add `compare_to` (the baseline's relation is the target) or `trim` (the untrimmed model's is) |
+| `listing-entry-as-match` | Pass `matches[i].match`, the inner object, not the whole listing entry |
+| `apply-args-without-match` | List without `carriers` or `ids`; pass them only when applying, with `match` |
 
 ## Certificates
 

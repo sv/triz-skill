@@ -175,7 +175,7 @@ Every `ok: false` result keeps its `errors` and adds `issues`: per error a stabl
 slips get a pointed hint, such as a whole `triz_rule_apply` listing entry passed as `match`.
 `triz_function_model`, `triz_trim`, and `triz_behavior` also return `warnings`: lints such as an
 excessive rating on a loss like a pressure drop, which never change a verdict.
-categorical-model.md tabulates every code.
+[error-codes.md](skills/triz-innovation/references/error-codes.md) tabulates every code.
 
 Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
 typed moves. Each returns a model that type-checks, or fails closed:

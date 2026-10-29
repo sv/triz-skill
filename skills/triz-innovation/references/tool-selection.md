@@ -42,8 +42,8 @@ When a model tool returns `ok: false`, read `issues`, not just `errors`: each na
 path and call again; do not reason over a result that failed. `triz_function_model`,
 `triz_trim`, and `triz_behavior` also return `warnings` (lints that never change a verdict);
 `triz_trim` poses excessive and insufficient functions as `levelProblems`; `triz_nine_windows`
-returns the models its transitions produce under `derived`. categorical-model.md tabulates the
-codes.
+returns the models its transitions produce under `derived`. [error-codes.md](error-codes.md)
+tabulates the codes.
 
 ## Route by stage
 

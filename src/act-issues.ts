@@ -13,7 +13,7 @@
  * points at the nearest input element that produced it.
  */
 
-/** Every issue and lint code, with what it means. references/categorical-model.md tabulates them; a test keeps the two in sync. */
+/** Every issue and lint code, with what it means. references/error-codes.md tabulates them; a test keeps the two in sync. */
 export const ISSUE_CODES = {
   // Typing of a model
   "duplicate-id": "Two elements of one kind share an id (carrier, box, wire, port, state, value, demand, concept)",
