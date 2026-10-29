@@ -15,6 +15,12 @@ assurance extension (#35) are in [categorical-future-plan.md](categorical-future
 what it delivered in [categorical-assurance.md](categorical-assurance.md). "What is not claimed",
 which the items close, is in the [theory map](theory-map.md#what-is-not-claimed).
 
+Two later sections add open items. C1–C8 come from a scan for natural constraints on the kernel's
+objects: properties the objects already have, or could declare, that the kernel ignores. C1, C2
+and C5 are the next implementation batch. Q1–Q6 come from applied category theory. Their sources
+were checked, and the notes below keep the corrections and cautions from that check. Literature
+ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
+
 | # | Item | Status | Closes or adds ("What is not claimed" in the theory map) | Effort |
 |---|---|---|---|---|
 | 1 | Certify unreachability and invariance | **Landed in #39** | Closed | — |
@@ -24,6 +30,20 @@ which the items close, is in the [theory map](theory-map.md#what-is-not-claimed)
 | 5 | Naturality of the verdicts in Lean | Open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35 | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
+| C1 | Quotient the row-table certificates by wires | Open; next batch | Adds: certificates for larger models within the same table-read cap | S–M |
+| C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Open; next batch | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
+| C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
+| C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
+| C5 | Decide time-invariant dynamics without a horizon | Open; next batch | "Unreachability within the horizon only … not certified", for time-invariant inputs | S |
+| C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
+| C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
+| C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
+| Q1 | Graded relations over a commutative quantale, staged | Open | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
+| Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
+| Q3 | Cross-check `triz_feasibility` against an independent co-design solver | Open; dev only | Adds: a second oracle beside the brute-force tests | S–M |
+| Q4 | Supersystem constraints as design problems | Open; docs | Adds: workflow guidance | S |
+| Q5 | Hierarchical boxes through operad substitution | Open | Adds: checked zoom in and out between box and inner model | M–L |
+| Q6 | Minimal base refinement when no global section exists | Open | Adds: a concrete next move after `irreducible` | M |
 
 ## Landed
 
@@ -111,6 +131,333 @@ feasibility solver is.
   fixpoint of the consistency operator, computed by descent from the full valuation set: a
   `compose: "whole"` option with a `steadyStates_gfp` characterization in theory/. The option
   landed in #35 as `scope: "whole"`, by exact finite search; the characterization remains.
+
+## From natural constraints
+
+A scan of the kernel's objects (main at `5179b99`, re-checked on this branch) for constraints they
+satisfy or could declare, ranked by payoff against effort. C1, C2 and C5 are the next
+implementation batch. Evidence names symbols rather than line numbers.
+
+### C1. Quotient the row-table certificates by wires
+
+- **Status.** Open; next batch. **Effort:** S–M.
+- **Constraint.** A wire is an equality, so the ports it joins form one variable. Encode and
+  decide over the classes of that quotient.
+- **Today.** It holds by construction, and the certificates ignore it. The evaluator merges wired
+  ports (`portVariables`, `src/act-behavior.ts`). The certificate encoder lists raw ports
+  (`encodedPorts`, `src/act-cert.ts`), and the wires stay equalities in `Rows` (`theory/CategoricalTriz.lean`).
+  Each decision enumerates every port valuation: the `rowWork` estimates in `src/act-cert.ts` raise
+  the value count to the number of ports, against `MAX_CERT_ROWS` = 2,000,000.
+- **Adds.** The scan estimates that the bearing's table reads fall from 68,608 to 2,240 per model,
+  and that a chain of binary mediators certifies 10 boxes instead of 5. Dynamics invariant
+  certificates gain the same.
+- **Plan.** Compute port classes with the union-find `portVariables` already uses, and emit them as
+  checked proof data: a class map and a spanning-forest witness (a `link` wire and a rank per port).
+  Keep the certified statements over raw ports. A lemma with decidable hypotheses,
+  `Rows.exists_steady_iff_classes`, rewrites each proof to a decision over class valuations. Change
+  the `rowWork` exponent to the class count. `scripts/certify.mjs` and the pinned statements need no
+  change, since a wrong witness fails the proof.
+- **Tests.** The work estimate on `bearing-heat-behavior`; a mediator chain that is `cap-exceeded`
+  today and certifies after, with every tampered copy still rejected; a corrupted class map that
+  joins two unwired ports and makes the proof fail.
+- **Risks.** Low. The statements and the checker stay as they are.
+
+### C2. Quantity kind: extensive or intensive carriers, and cost aggregation
+
+- **Status.** Open; next batch. **Effort:** S for sum and max; M for path costs.
+- **Constraint.** Each carrier and each cost dimension declares how amounts combine: extensive
+  (they sum) or intensive and shared (the max). A cost dimension can later also be path-wise: a sum
+  along a flow, the max across flows.
+- **Today.** For carriers, an assumption that is documented but unchecked. An output port's demand
+  is the max over the functions it feeds (`expand`, `src/act-feasibility.ts`), and the agent
+  reference says so; no lint catches an extensive flow fanned out without a splitter. For costs,
+  an assumption that is silent: `sumCosts` (`src/act.ts`) and the feasibility solver add every box.
+  Only the standalone `triz_conservation` meets the extensive case
+  (`src/act-quantitative.ts`), not the solver.
+- **Adds.** No false `feasible` when one output feeds two consumers of an extensive carrier: today
+  5 units supply 4 + 4. Peak dimensions take `"max"`. Latency needs `"path"` (a sum in series, the
+  max across parallel branches); `"max"` over boxes does not fix it. A conservation lint: a row on
+  an extensive carrier that provides more than it requires, with no declared conversion.
+- **Plan.** `Carrier.quantity?: "intensive" | "extensive"`, defaulting to today's intensive rule;
+  `expand` sums for extensive ports and fails closed, naming a merge box, when several wires feed
+  one extensive input. `FunctionModel.aggregate?: Record<Dim, "sum" | "max">`, defaulting to sum,
+  read by `sumCosts`, the feasibility costs, and `compareIdeality`; `"path"` later. Lint
+  `extensive-fan-out`. In Lean, the solver theorems are generic in the step and need only its
+  monotonicity, which a selection-shaped step keeps whether demands sum or take the max; record
+  that as a one-line lemma, and add `trim_lowers_peak` beside `trim_lowers_cost`.
+- **Tests.** A source providing 5 that feeds two consumers requiring 4: `infeasible`
+  (`unprovidable`, 8 demanded) with `extensive`, `feasible` with `intensive`. Path latency on
+  `software-cache` with a parallel replica.
+- **Risks.** Kinds can be mislabelled. Information copies freely. Percentiles do not compose
+  exactly, so this is a declared aggregation, not a correction. Defaulting from `layer` would
+  break label-blindness, so the kind must be explicit, with today's behaviour as the default.
+- **Overlap.** Partly planned: categorical-future-plan.md §7 names adapters for conversion and
+  conservation, with the acceptance case that five consumptive units cannot supply two
+  simultaneous four-unit branches. Cost aggregation is not planned anywhere.
+
+### C3. Level-monotone behaviour: signed loops and the least steady state
+
+- **Status.** Open. **Effort:** M for the sign classification; L with lattice reporting.
+- **Constraint.** For each input and output port pair, a box is monotone, antitone, or neither in
+  the `levels` order. Each strongly connected component of the port-level signed graph is then
+  balanced (reinforcing) or unbalanced (balancing).
+- **Today.** Ignored, and disclaimed: the levels check "does not apply the monotone reading to
+  behaviour rows, which have no order", and behaviour uses no least fixpoint because its values
+  are unordered. Order exists only through `levels` (`levelIssues`, `src/act.ts`). Harm loops read
+  polarity only. `triz_behavior`'s note says an input with no steady state "may signal a runaway
+  loop".
+- **Adds.** By Knaster–Tarski, a balanced loop of total, functional, monotone boxes with no fan-in
+  always has steady states: a lattice of them, with a least and a greatest. "Reached from rest"
+  (`kleene_lfp`) holds only under a declared delay reading, or when the loop passes through a
+  stateful box whose transitions are that map. Under the same conditions, no steady state needs an
+  unbalanced component, a negative cycle: an oscillation candidate, not a runaway. A runaway shows
+  as a partial box falling off its declared scale, or as an upper steady state. A non-monotone box
+  is a contradiction hint.
+- **Plan.** `Carrier.ordered?: true` declares that `values` run from least to most; `levels`
+  implies an order. Sign each (input, output) pair from the rows (`+`, `−`, constant, or none) and
+  classify per strongly connected component, not per harm-loop witness: a witness cycle is
+  box-level, and one component can hold cycles of both signs. A component is balanced when its
+  ports 2-colour so that `+` edges stay within a colour and `−` edges cross (Harary), a
+  linear-time check. Replace the runaway note with the cause, and report the least and greatest
+  steady states of balanced components. In Lean, a least fixed point gives a steady state of a
+  loop of a total, functional, monotone box (`OrderHom.lfp`, as `codesign_lfp` uses it); `gfp`
+  gives the greatest; `relTrace_not_loop` is the negative-cycle counterpart.
+- **Tests.** The bearing with ordered heat and preload: balanced, two steady states, no runaway
+  note. An antitone expansion: unbalanced, an oscillation-candidate note, and the `oscillating`
+  loop class for a stateful variant. Random balanced loops without fan-in never report
+  `noSteadyState`, against the brute force in `tests/act-semantics.test.ts`.
+- **Risks.** No example declares an order on behaviour carriers yet. Excessive functions are
+  non-monotone by nature. The lattice claim needs functional, total boxes and no fan-in onto loop
+  variables. Behaviour rows are not one-step transitions, so no dynamics claim follows without a
+  declared delay.
+- **Distinct from** the `unbacked-producible-row` lint, which reads producible rows against
+  feasibility amounts, not behaviour rows against an order.
+
+### C4. Product structure of the composed diagram
+
+- **Status.** Open. **Effort:** S–M.
+- **Constraint.** The connected components of the box–variable graph compose in parallel; joins
+  can use the finest factorisation by default.
+- **Today.** Proved in Lean and ignored by the kernel. `external_par` and `mem_steadyStates_par`
+  (`theory/Semantics.lean`) and `Factors` (`theory/CategoricalTriz.lean`) state it. The kernel
+  enumerates every boundary valuation jointly, under one cap, and joins all composed boxes at
+  once (`src/act-behavior.ts`); factorisation is used only as the `factorisations` hint.
+- **Adds.** Caps apply to the sum over components instead of the product. Weakness counts and
+  admitted sets become products. Certificates are encoded per component. `noSteadyState` is
+  attributed to a component.
+- **Risks.** Under `scope: "whole"` an inconsistent component still empties the relation; the
+  product keeps that only if no component is dropped. Comparing two models needs a common
+  coarsening of their partitions.
+
+### C5. Decide time-invariant dynamics without a horizon
+
+- **Status.** Open; next batch. **Effort:** S.
+- **Constraint.** The configuration space is finite: the product of the state sets and the
+  valuations. With time-invariant inputs the breadth-first search always saturates, so the horizon
+  is not needed to decide.
+- **Today.** Ignored by the verdict. The search stops at the horizon (`DEFAULT_HORIZON` = 20,
+  `src/act-dynamics.ts`), reports saturation only if the frontier empties, and otherwise answers
+  `*-within-horizon`. Yet the reached states and `loops` already explore without a horizon, and
+  the invariant certificate re-closes without one and refuses bounded-only claims.
+- **Adds.** A decided `unreachable` or `invariant` at every horizon, or a later `reachable` with a
+  shortest trace, within the same state cap, certifiable through the existing
+  `unreachable_of_invariant`. It closes "Unreachability within the horizon only … not certified"
+  for time-invariant inputs.
+- **Risks.** Some users mean the horizon as a requirement: keep the bounded verdict and add the
+  unbounded one beside it. No regression: if the cap is hit after the horizon, keep today's bounded
+  verdict and mark only the unbounded one undecided; never return `cap-exceeded` where a verdict is
+  decided today. Input schedules cannot saturate and stay bounded.
+
+### C6. Functional behaviour rows and a feedback cut
+
+- **Status.** Open. **Effort:** M.
+- **Constraint.** A box's outputs are a function of its inputs. Given a feedback cut, the steady
+  states are determined by the boundary inputs and the cut values.
+- **Today.** Allowed, not recognised. Rows may be partial and several-valued. Every behaviour box
+  in the examples is functional and total (motor, shaft, bearing, and housing in
+  `bearing-heat-behavior`). `joinRows` (`src/act-behavior.ts`) scans every row at every node, and
+  `severalSteadyStates` is counted but not explained.
+- **Adds.** The certificate exponent falls from all variables to the situations plus the cut; the
+  bearing's cut is {preload}, one binary variable. Evaluation becomes indexed propagation. The
+  cause of no steady state is classified: a partial box, a fan-in conflict, or a loop.
+- **Risks.** Nondeterminism legitimately models uncertainty: recognise functional rows, never
+  require them. The choice of cut is a heuristic.
+
+### C7. Acyclic overlaps in `triz_global_separation`
+
+- **Status.** Open. **Effort:** M.
+- **Constraint.** The overlap hypergraph of the regions is α-acyclic (a join tree).
+- **Today.** Ignored. Plain backtracking re-scans every region at every node
+  (`globalSeparation`, `src/act-global.ts`) under a 100,000 work cap. The theory map records the
+  triangle `x=y`, `y=z`, `x!=z`, and arc consistency is documented as insufficient
+  ([R25](../theory/REFERENCES.md#r25)).
+- **Adds.** On a join tree, pairwise (semijoin) consistency is equivalent to global consistency
+  (Beeri, Fagin, Maier and Yannakakis, JACM 1983), decided by a polynomial full reducer. A conflict
+  is localised to join-tree edges. The triangle stays the minimal cyclic case.
+- **Risks.** Space × time grids of regions are cyclic and fall back to search; only chain and tree
+  covers gain.
+- **Overlap.** Partly planned: categorical-future-plan.md §7 asks for small checked conflict
+  cores. Acyclicity is not planned.
+
+### C8. Totality and input-enabledness
+
+- **Status.** Open. **Effort:** S–M. **Overlaps** #35's §4 deadlock-freedom
+  ([categorical-future-plan.md](categorical-future-plan.md)): this is a sufficient condition for
+  it.
+- **Constraint.** Every input tuple, or every (state, inputs) pair, has a row; no input port is fed
+  by several wires; and the instantaneous loops are causal, or balanced and monotone as in C3.
+  Together these mean no configuration blocks.
+- **Today.** Partly checked. Totality is checked for downstream boxes only (`partialDownstream`,
+  `src/act-dynamics.ts` and `src/act-behavior.ts`). A blocked state makes a port-target verdict
+  `undecided` (reason `blocked`).
+- **Adds.** A static lint that empties `blocked`, so `undecided (blocked)` disappears where it
+  holds. The blocked-run conjunct that port-target unreachable certificates now state
+  (`unreachable_of_holding`) then holds vacuously. The existence half of adequacy follows.
+- **Risks.** Partial rows deliberately mean "cannot occur", so this stays a lint, not a
+  requirement.
+
+### Considered in the same scan and not planned
+
+- Polarity as a sign or semiring algebra: a MATRIZ rating is evaluative, not causal, and a harmful
+  function is usually a positive influence (friction raises heat). Kept in derived form as C3.
+- Requiring determinism, of behaviour rows or Mealy machines: nondeterminism models the
+  environment and uncertainty. Functional rows are kept only as a recognised class (C6).
+- Acyclicity as a requirement: harm loops are the point of function analysis. Acyclic parts are
+  used through C6's cut and C7 instead.
+- A carrier subtyping lattice: rules already match carriers through variables, abstraction maps
+  already coarsen carriers (`typed_map`), a looser trim screen only weakens a necessary-only check,
+  and the typing lemmas would all need re-proving.
+- The monotone reading in the levels consistency check: the exact match deliberately pins one
+  resource mode (the housing's 400 N row), and multi-mode coupling is categorical-future-plan.md §5.
+- Quantale, Markov, or interval enrichment as a constraint: Rel as a residuated quantale is item 7
+  and Q1; probabilities need evidence; intervals are §5's uncertainty envelopes, and `levels`
+  already give bands.
+- Symmetry reduction of replicated components: it needs item 4's canonical tie-breaks first, is L
+  effort, and exact replicas are rare.
+- Rule idempotence, termination, and commutation: the termination measure and pairwise
+  commutation landed in #35; critical pairs are categorical-future-plan.md §8.
+- A sheaf condition for the 9-windows presheaf on wire covers: a short proof that no verdict
+  consumes; `boundary_rewrite` already accounts for crossing wires.
+- Path-lifting abstraction maps that reflect reachability: planned as §6's dynamic simulation
+  relations.
+- A joint residual for three or more boxes under pairwise-decomposable safety: item 7.
+- An acyclic shortcut for the feasibility ascent: on acyclic parts the ascent already stops after
+  depth-many steps.
+- Markov kernels for weakness priors: `joint_prior` covers correlated conditions, and Bennett's
+  uniform-task caveat stays.
+
+## From applied category theory
+
+Suggestions from applied category theory, corrected against the kernel. Every source was checked
+to exist; the entries say how far each check went. Corrections that shape the entries:
+
+- **Harm loops are not where Censi's bound applies.** In `triz_feasibility` harmful functions carry
+  no demand; only non-harmful wires do. What applies is a feedback arc set over the non-harmful
+  wires among the composed boxes, with Censi's width and height bound (Q2).
+- **The two-box concept lattice does not become an arbitrary quantale.** With graded relations it
+  generalises to fuzzy concept lattices over a complete residuated lattice
+  ([R96](../theory/REFERENCES.md#r96)): a commutative, integral quantale with residuation (Q1).
+- **"Agree on overlaps iff a global section exists" holds for a chosen family of local sections,
+  not for local solution sets.** Pairwise compatible solution sets can still have no global
+  choice: the triangle case. `triz_global_separation` already decides the exact global question by
+  search; polynomial cases need an acyclic overlap structure (C7).
+- **The operad does not turn the 9-windows restriction grid into anything by itself.** Restriction
+  forgets the outside (a presheaf); operad substitution zooms into a box (a hierarchy). They are
+  complementary, and the new piece is substitution (Q5).
+- **Feasibility is already partly beyond Boolean.** `triz_feasibility` returns antichains of
+  minimal cost vectors, the upper-set structure over costs. Behaviour, the weakest specification,
+  the two-box specification, and weakness are the Boolean parts.
+
+### Q1. Graded relations over a commutative quantale, staged
+
+- **Status.** Open. **Effort:** M for stage 1; L for stage 2.
+- **Change.** In Lean, relations valued in a commutative quantale (Mathlib's `Quantale`,
+  [R49](../theory/REFERENCES.md#r49)), with series, parallel, trace, and residual; the Boolean
+  case (`Prop`) recovers today's theorems as instances.
+  - **Stage 1.** A generic residual, instantiated at `Prop` (today) and at the cost quantale
+    ([0, ∞], min, +), used only for `weakest_spec`'s cheapest producible extension: the cheapest
+    set of rows to make producible.
+  - **Stage 2**, only if a use case appears: graded two-box concepts over residuated lattices, and
+    graded weakness.
+- **Closes or adds.** "`requiredInfeasible` names the rows the target needs that the declaration
+  excludes; it does not say which of them is cheapest to make producible." It is the general form
+  of item 7's joint residual (Rel as a residuated quantale). Heterogeneous change of base would
+  couple Boolean behaviour with cost feasibility, which #35's coupled contracts do by search today.
+- **Risks.** Boolean stays the default and the certified core, recovered as the support of any
+  graded result. Certificates never use real-valued weights, since `decide` needs finite or
+  discrete carriers. Probabilities stay with `priors` and `joint_prior`: summing probabilities is
+  not an idempotent join, so they are not a quantale of this kind. Graded weakness overlaps
+  `priors` and `joint_prior`: unify, do not duplicate.
+- **Evidence.** Riess et al. 2026 ([R91](../theory/REFERENCES.md#r91)); only the abstract has
+  been read, which states monotone co-design generalised to quantales, covering cost, confidence,
+  and implementation sets, with heterogeneous composition by change of base. Bělohlávek 2004
+  ([R96](../theory/REFERENCES.md#r96)) for the two-box case.
+
+### Q2. Complexity estimate before the feasibility search
+
+- **Status.** Open. **Effort:** S.
+- **Change.** Before solving, `triz_feasibility` reports the feedback arc set over the non-harmful
+  wires among the composed boxes, and Censi's bounds on the Kleene steps (the height) and the
+  antichain size (the width). Cap hints then point at the loop to cut.
+- **Adds.** A predicted cost and better `cap-exceeded` hints.
+- **Risks.** It concerns the non-harmful wires, not harm loops (see the corrections above).
+- **Evidence.** Censi, *A Mathematical Theory of Co-Design* ([R5](../theory/REFERENCES.md#r5)):
+  the number of Kleene iterations is bounded by the height of the antichain poset, and the total
+  work by width × height × the cost of one step; the width of the resource poset is the design
+  complexity; feedback is chosen through an arc feedback set of the co-design graph. The paper
+  does not use the word "thickness".
+
+### Q3. Cross-check against an independent co-design solver
+
+- **Status.** Open; development only. **Effort:** S–M.
+- **Change.** Differential tests of `triz_feasibility` against codesign-mcdp's antichain and
+  Kleene core on generated monotone models, as an optional development dependency that CI skips
+  when Python is absent.
+- **Adds.** A second, independent oracle beside the brute-force tests.
+- **Risks.** Use only the library's core. An automated review notes that it does not verify
+  user-supplied monotonicity, and that its newer sections rest on unproven theorems. Optional.
+- **Evidence.** Briat 2026 ([R92](../theory/REFERENCES.md#r92)), reference manual v0.2.1, MIT
+  licence: the antichain calculus, series, parallel, and feedback composition, a Kleene solver, and
+  declarative and modular builders.
+
+### Q4. Supersystem constraints as design problems
+
+- **Status.** Open; documentation. **Effort:** S.
+- **Change.** Guidance in workflow.md: model regulations, community or policy limits as
+  supersystem boxes with `feasibility` rows, then compare the Pareto fronts with and without them.
+- **Adds.** It makes visible the Pareto shift that the co-design case studies report.
+- **Risks.** Documentation only; no kernel change.
+- **Evidence.** Zardini et al. 2021 ([R93](../theory/REFERENCES.md#r93)): co-design of the full
+  hardware and software stack of a self-driving vehicle; later talks extend it to mobility
+  systems, from city policy down to vehicle autonomy.
+
+### Q5. Hierarchical boxes through operad substitution
+
+- **Status.** Open. **Effort:** M–L.
+- **Change.** Schema: an optional `inner` model on a box, with matching interface ports. Lean: a
+  substitution lemma, that the external relation of the substituted diagram equals the composite
+  through the box's external relation. It builds on `glueAlong`, `seq`, `par`, and `feedback` in
+  `theory/Semantics.lean`, which makes the semantics an algebra for substitution. Kernel: the
+  9-windows subsystem row reads a box's inner model.
+- **Adds.** Native subsystem-of-subsystem models: zooming in and out becomes checked composition,
+  not a separate model.
+- **Risks.** The lens and optics view of dynamics is not needed for any verdict; do not plan it.
+  Restriction and substitution are complementary (see the corrections above).
+- **Evidence.** Spivak 2013 ([R27](../theory/REFERENCES.md#r27)); Vagner, Spivak and Lerman 2015
+  ([R94](../theory/REFERENCES.md#r94)).
+
+### Q6. Minimal base refinement when no global section exists
+
+- **Status.** Open. **Effort:** M.
+- **Change.** When a separation or global-separation check is irreducible, compute the smallest
+  refinement of the base, splitting one cell or adding one axis value, after which a compatible
+  family exists. Report it as a resource to create: a time slot, a region, or a condition.
+- **Adds.** It turns `irreducible` into a concrete next design move.
+- **Risks.** Acyclic covers (C7) make the check polynomial; cyclic ones need search.
+- **Evidence.** Le Masson, Hatchuel and Weil 2023 ([R95](../theory/REFERENCES.md#r95)), as
+  motivation and analogy only: its C-K/topos model treats the knowledge base as a topos and
+  sheafification as preserving existing knowledge while expanding it. It is not a basis for any
+  kernel theorem.
 
 ## Deliberately not planned
 
