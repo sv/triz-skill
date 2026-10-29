@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_nine_windows`: subsystem, system, and supersystem views for each time snapshot.
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
+- `theory/Witnesses.lean`: each typing lemma's hypotheses hold on a concrete diagram, and dropping any one breaks it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
 - Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.
 - Function-model JSON Schema and four example models: bearing, cached API, marketplace, connection pool.

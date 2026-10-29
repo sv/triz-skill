@@ -142,6 +142,9 @@ with no `sorry`:
   re-attachment to a same-carrier port;
 - restriction composes.
 
+`theory/Witnesses.lean` checks that none of the typing lemmas is vacuous. For each, a concrete
+diagram meets all its hypotheses, and a counterexample shows each hypothesis is needed.
+
 It also states trimming as a left Kan extension, which the kernel does not decide.
 
 ```bash
