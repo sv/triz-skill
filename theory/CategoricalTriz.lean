@@ -955,9 +955,9 @@ complete lattice (`safe_iff_le_concept`); every concept is safe (`concept_safe`)
 containing a concept is that concept (`concept_maximal`). So the maximal safe pairs are exactly the
 concepts. `T` is achievable iff some concept's composite covers it (`exists_eq₂_iff`). Two concepts
 can be incomparable (`Witnesses.lean`), so there may be no weakest pair, and no product of two
-residuals stands for them. The kernel computes none of this:
-with two or more boxes without behaviour it answers `undecided` (`several-holes`). Three or more
-boxes are not stated. -/
+residuals stands for them. The kernel enumerates the concepts of the safe row pairs up to a cap and
+returns those that cover `T`; that its enumeration and grouping compute them is tested, not proved.
+Three or more boxes are not stated, and the kernel answers `undecided` (`several-holes`). -/
 
 section Holes
 
