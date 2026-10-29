@@ -37,7 +37,7 @@ test("core serves lookups from an injected static provider (hosted-mode parity)"
   const eff = core.effects("convert temperature difference into voltage");
   assert.ok(eff.effects.slice(0, 5).some((e) => e.name === "Seebeck effect"));
   assert.equal(core.toolCatalog().length, 37);
-  assert.equal(core.effects().effects.length, 56);
+  assert.equal(core.effects().effects.length, 60);
 });
 
 test("useProvider resets caches between providers", () => {

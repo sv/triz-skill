@@ -35,6 +35,26 @@
           "description": "R: what is there afterwards; R \\ K is created under fresh ids",
           "$ref": "#/$defs/Pattern"
         },
+        "distinct": {
+          "description": "Pairs of carrier variables that must bind to different carriers: an application condition, checked with the gluing conditions",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ],
+            "items": false,
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
         "source": {
           "type": "object",
           "properties": {

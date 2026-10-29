@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction", "triz_flow"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -192,6 +192,30 @@ console.log(`triz_abstraction identity map -> ${linked.verdict}, levels consiste
 if (linked.verdict !== "abstraction" || linked.levels?.consistent !== false) fail("abstraction or levels check wrong");
 const unmapped = await json("triz_abstraction", { detailed: model, coarse: model, map: { boxes: { ghost: "bearing" } } });
 if (unmapped.ok !== false) fail("malformed abstraction map did not fail closed");
+const line = {
+  domain: "physical",
+  carriers: [{ id: "water", layer: "material", dimension: "m³/h" }, { id: "head", layer: "energy", dimension: "kPa" }],
+  boxes: [
+    { id: "pump", name: "Pump", role: "tool", outputs: [{ id: "out", carrier: "head" }] },
+    { id: "valve-a", name: "Valve A", role: "tool", outputs: [{ id: "drop", carrier: "head" }] },
+    { id: "valve-b", name: "Valve B", role: "tool", outputs: [{ id: "drop", carrier: "head" }] },
+    { id: "water", name: "Water", role: "product", inputs: [{ id: "head", carrier: "head" }] },
+  ],
+  wires: [
+    { id: "w-pump", from: { box: "pump", port: "out" }, to: { box: "water", port: "head" }, carrier: "head", polarity: "useful" },
+    { id: "w-a", from: { box: "valve-a", port: "drop" }, to: { box: "water", port: "head" }, carrier: "head", polarity: "harmful" },
+    { id: "w-b", from: { box: "valve-b", port: "drop" }, to: { box: "water", port: "head" }, carrier: "head", polarity: "useful" },
+  ],
+  flows: [{ id: "line", carrier: "water", medium: "water", path: ["pump", "valve-a", "valve-b"] }],
+};
+const flowed = await json("triz_flow", { model: line });
+console.log(`triz_flow line -> bottlenecks [${flowed.flows?.[0]?.bottlenecks.map((b) => b.box)}]`);
+if (flowed.flows?.[0]?.bottlenecks.map((b) => b.box).join() !== "valve-a") fail("flow bottleneck wrong");
+const series = await json("triz_transform", { model: line, transformation: { op: "merge", boxes: ["valve-a", "valve-b"], into: { id: "valves", name: "Valves" } } });
+if (!series.ok || series.flows?.paths?.line?.join() !== "pump,valves") fail("merge along a flow failed");
+const lagging = await json("triz_rule_apply", { model, rule_id: "uneven-development" });
+console.log(`triz_rule_apply uneven-development -> ${lagging.verdict}`);
+if (!lagging.ok) fail("uneven-development detector failed");
 
 await client.close();
 console.log("SMOKE OK");

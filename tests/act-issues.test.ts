@@ -118,8 +118,19 @@ const beh = () => example("bearing-heat-behavior");
 const dyn = () => example("bearing-heat-dynamics");
 const fea = () => example("bearing-heat-feasibility");
 const T = (transformation: Record<string, unknown>, model = bh()) => ({ tool: "triz_transform", args: { model, transformation } });
+/** The bearing with a flow of radial load from the housing through the bearing to the shaft. */
+const flowing = (path = ["housing", "bearing", "shaft"]): FunctionModel => ({ ...bh(), flows: [{ id: "load", carrier: "radial-load", path }] });
 
 const cases: Case[] = [
+  // Flows, the working-field rule, and the uneven-development detector
+  { code: "flow-repeats-box", tool: "triz_function_model", args: { model: flowing(["housing", "bearing", "bearing", "shaft"]) }, path: "$.model.flows[0].path[2]", hint: /Drop the repeated 'bearing'/ },
+  { code: "unknown-box", tool: "triz_flow", args: { model: flowing(["housing", "ghost"]) }, path: "$.model.flows[0].path[1]" },
+  { code: "unknown-flow", ...T({ op: "rewrite", delete: { flows: ["ghost"] } }, flowing()), path: "$.transformation.delete.flows[0]", hint: /'load'/ },
+  { code: "dangling-flow", ...T({ op: "rewrite", delete: { boxes: ["housing"] } }, flowing()), path: "$.model.flows[0]", hint: /delete.flows/ },
+  { code: "flow-on-split-box", ...T({ op: "segment", box: "bearing", parts: [{ id: "a", ports: ["race"] }, { id: "b", ports: ["friction", "preload-in"] }] }, flowing()), path: "$.transformation.parts", hint: /'bearing'/ },
+  { code: "not-adjacent", ...T({ op: "merge", boxes: ["housing", "shaft"], into: { id: "m", name: "M" } }, flowing()), path: "$.model.flows[0].path", hint: /'bearing'/ },
+  { code: "distinct-carriers", tool: "triz_rule_apply", args: { model: bh(), rule_id: "working-field", match: listed("working-field", bh()).match, carriers: { d: listed("working-field", bh()).match.carriers.c } }, path: "$.carriers.d", hint: /new field's carrier/ },
+  { code: "detector-takes-model-only", tool: "triz_rule_apply", args: { model: bh(), rule_id: "uneven-development", limit: 5 }, path: "$.limit", hint: /Drop 'limit'/ },
   // checkModel, through each tool that type-checks a model
   { code: "duplicate-id", tool: "triz_function_model", args: { model: edit("bearing-heat", (m) => { m.wires[1].id = m.wires[0].id; }) }, path: "$.model.wires[1]" },
   { code: "unknown-carrier", tool: "triz_function_model", args: { model: edit("bearing-heat", (m) => { m.boxes[0].outputs![0].carrier = "lava"; }) }, path: "$.model.boxes[0].outputs[0].carrier", hint: /Declare carrier 'lava'/ },

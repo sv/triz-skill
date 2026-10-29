@@ -24,7 +24,7 @@ recalling principle numbers or matrix cells.
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it; excessive and insufficient functions come back as level problems |
 | `triz_separate(contradiction, along?, certificate?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis; with `certificate`, also return a Lean certificate |
 | `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks, and which principles have none |
-| `triz_rule_apply(model, rule_id \| rule, at?, match?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback) |
+| `triz_rule_apply(model, rule_id \| rule, at?, match?, carriers?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback, changing the working field); `rule_id: "uneven-development"` is a detector that names the lagging subsystem |
 | `triz_nine_windows(present, past?, future?, subsystem[], transitions?, acceptable?)` | Subsystem, system, and supersystem views per time, with harm loops per window; transitions as `triz_transform` sequences, checked against the snapshots and restricted to the subsystem; with declared rows, each time's behaviour and feasibility verdicts and how they (and, with `acceptable`, weakness) change between times |
 | `triz_export(model, format)` | Graphviz DOT, an open hypergraph, or a Lean certificate (`lean`) of a model that type-checks |
 | `triz_behavior(model, compare_to?, box_map?, trim?, absorb?, max_states?, weakest_spec?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `compare_to` (a segment's `boxMap` as `box_map`) or `trim`, decide preserved, changed (counterexample), or undecided; with `weakest_spec`, the weakest specification for the one box without behaviour against the same target: spec, impossible, or undecided |
@@ -32,6 +32,7 @@ recalling principle numbers or matrix cells.
 | `triz_dynamics(model, horizon?, initial?, inputs?, unsafe?, safe?, separation?, max_states?)` | Bounded runs of boxes with declared state: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (trap), or oscillating |
 | `triz_feasibility(model, trim?, absorb?, max_antichain?, max_iterations?)` | Minimal resource vectors from declared box feasibility (monotone co-design, least fixpoint); with `trim`, decide feasible, infeasible (binding dimension or unprovidable port), or undecided, and the absorber's added resources; with carrier `levels`, the feasibility rows that disagree with declared behaviour |
 | `triz_abstraction(detailed, coarse, map)` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms, and feasibility amounts read against coarse behaviour through levels |
+| `triz_flow(model)` | Flow analysis over the model's declared `flows` (boxes in series along a carrier): per flow, bottleneck, accumulation, and leak candidates, loops, and the harm loops it meets |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.
@@ -59,7 +60,7 @@ codes.
 |---|---|
 | Goal or stakeholder conflict is unclear | Key stakeholder requirements; external-functioning analysis; system operator |
 | Undesirable effect has several plausible causes | Cause-effect chain; diagnostic analysis; operating zone/time |
-| Bottleneck, delay, leakage, or accumulation | Flow analysis; resource analysis; function-cost analysis |
+| Bottleneck, delay, leakage, or accumulation | Flow analysis (`triz_flow` over declared flow paths); resource analysis; function-cost analysis |
 | Improving A worsens B | Technical contradiction; matrix; inventive principles |
 | One property must have opposing values | Physical contradiction; separation principles |
 | Interaction is absent, weak, excessive, or harmful | Functional analysis; Su-Field; inventive standards |
@@ -68,6 +69,7 @@ codes.
 | Component creates cost but little value | Function-cost analysis; trimming |
 | Capability exists in another system or field | Benchmarking; feature transfer; functional-oriented search; effects |
 | System is near a structural limit | Trends of evolution; limits analysis; system operator |
+| One subsystem seems to hold the others back | Trends of evolution: uneven development (`triz_rule_apply` `uneven-development` names the lagging box); limits analysis |
 | Team is trapped by scale or timing assumptions | Size-time-cost; inversion; creative-imagination tools |
 | Many linked contradictions compete for attention | Cause-effect network; rank by causal reach, severity, controllability, and strategic relevance |
 | It is unclear what customers actually pay for | Main parameters of value analysis; key stakeholder requirements; trends of evolution |

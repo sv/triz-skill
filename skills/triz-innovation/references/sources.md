@@ -198,8 +198,9 @@ Considered and not adopted:
   - Adopted: trimming as a single rewrite at a named occurrence (`triz_transform` `trim`). It is
     checked by the no-dangling condition, cited from Bonchi et al. (2022) above.
   - Adopted: rules as data, occurrence search, and double-pushout application
-    (`triz_rule_apply`), with two more evolution lines as rules: mono → bi, and self-adjusting
-    feedback.
+    (`triz_rule_apply`), with three more evolution lines as rules: mono → bi, self-adjusting
+    feedback, and changing the working field. Uneven development of subsystems is a detector
+    over the same tool, not a rule.
   - Not adopted: the other evolution lines. categorical-model.md gives the reason for each.
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
@@ -215,6 +216,16 @@ adaptations needed mainly for non-technical staff; and (c) the fail-closed disci
 more than table coverage. When a license-clean machine-readable variant source exists, the
 importer (`scripts/import-matrix.mjs`) remains the sanctioned ingestion path — note it would
 need its parameter dimension (48, not 39) widened first.
+
+## Inventive standards: no data source
+
+Router entry 26, Inventive standards, names no MCP tool, and `data/` holds no list of the
+standards. No machine-readable source of their text with clear redistribution terms has been
+identified for this repository, and the standards are not written into data from memory: a
+standard the server returned would have nothing to be checked against. The kernel's
+constructions (harm loops, trimming, `interpose`, the evolution-line rules) work on function
+models; none of them is a standard. Until such a source exists, the agent applies the standards
+from the literature it cites, and says which.
 
 ## Supporting AI-TRIZ research
 

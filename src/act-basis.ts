@@ -19,7 +19,7 @@ export const THEOREMS = [
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
   "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict",
   "typed_overlay", "typed_dpo",
-  "typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost",
+  "typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost",
   "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
   "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",

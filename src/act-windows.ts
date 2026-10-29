@@ -14,8 +14,8 @@
  *                  snapshot. Each transition is reported as one net rewrite step and as its part
  *                  inside the subsystem; restriction commutes with every step once the step is
  *                  restricted too (restrict_rewrite in theory/CategoricalTriz.lean). When the
- *                  snapshots declare behaviour or feasibility, each time's system view carries
- *                  its verdicts, and each change between times says how they move.
+ *                  snapshots declare behaviour, feasibility, or flows, each time's system view
+ *                  carries its verdicts, and each change between times says how they move.
  *
  * Every view passes checkModel or the call fails closed. In theory/, the level axis is a presheaf,
  * and the subsystem and system rows with transitions are a functor from time × (box subsets)ᵒᵖ to
@@ -24,6 +24,7 @@
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
+import { flowAnalysis, flowsThrough, mapFlows, restrictFlows } from "./act-flow.js";
 import { compareBehavior, externalBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
 import { feasibility } from "./act-feasibility.js";
 import type { Theorem } from "./act-basis.js";
@@ -54,7 +55,8 @@ function knownSet(model: FunctionModel, ids: string[], what: string, root: strin
 
 /**
  * Sub-model on `boxes`; crossing wires become the boundary. Budget and contradictions are dropped
- * (they describe the whole). Issue paths: `$.model…` and `$.boxes[k]`.
+ * (they describe the whole). Each flow keeps its runs of consecutive boxes inside (restrictFlows);
+ * flows that cross the boundary are listed in it. Issue paths: `$.model…` and `$.boxes[k]`.
  */
 export function restrict(model: FunctionModel, boxes: string[]) {
   const check = checkModel(model, "$.model");
@@ -62,14 +64,19 @@ export function restrict(model: FunctionModel, boxes: string[]) {
   if (issues.length) return fail(issues);
   const keep = new Set(boxes);
   const inside = (w: Wire) => keep.has(w.from.box) && keep.has(w.to.box);
-  const { budget: _budget, contradictions: _contradictions, ...rest } = model;
-  const sub: FunctionModel = { ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter(inside) };
+  const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
+  const cut = restrictFlows(model.flows, keep);
+  const sub: FunctionModel = {
+    ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter(inside),
+    ...(model.flows ? { flows: cut.flows } : {}),
+  };
   return {
     ok: true as const,
     model: sub,
     boundary: {
       entering: model.wires.filter((w) => !keep.has(w.from.box) && keep.has(w.to.box)).map((w) => w.id),
       leaving: model.wires.filter((w) => keep.has(w.from.box) && !keep.has(w.to.box)).map((w) => w.id),
+      ...(cut.crossing.length ? { flows: cut.crossing } : {}),
     },
     basis: RESTRICT,
   };
@@ -77,8 +84,9 @@ export function restrict(model: FunctionModel, boxes: string[]) {
 
 /**
  * Replace `group` by one black box. Each kept port is renamed `<box>.<port>`; a collision between
- * such names fails closed. The box's cost is the per-dimension sum over the group. Issue paths:
- * `$.model…`, `$.group[k]`, and `$.box` for the black box.
+ * such names fails closed. The box's cost is the per-dimension sum over the group. Each flow
+ * through the group passes the black box instead, once per visit (mapFlows); a flow wholly inside
+ * the group is hidden and listed. Issue paths: `$.model…`, `$.group[k]`, and `$.box` for the black box.
  */
 export function collapse(model: FunctionModel, group: string[], box: { id: string; name: string; role: Box["role"]; action?: string }) {
   const check = checkModel(model, "$.model");
@@ -115,9 +123,11 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     ...(Object.keys(cost).length ? { cost } : {}),
   };
   const redirect = (e: Wire["from"]) => (members.has(e.box) ? { box: box.id, port: name(e.box, e.port) } : e);
+  const through = flowsThrough(model.flows, members);
+  const quotient = mapFlows(through, (id) => (members.has(id) ? box.id : id));
   const r = rewrite(model, {
-    delete: { boxes: group, wires: touching.map((w) => w.id) },
-    add: { boxes: [black], wires: crossing.map((w) => ({ ...w, from: redirect(w.from), to: redirect(w.to) })) },
+    delete: { boxes: group, wires: touching.map((w) => w.id), flows: through.map((f) => f.id) },
+    add: { boxes: [black], wires: crossing.map((w) => ({ ...w, from: redirect(w.from), to: redirect(w.to) })), flows: quotient.flows },
   });
   if (!r.ok) return internal(r, [["$.add.boxes[0].id", "$.box.id", "collapse"], ["$.add.boxes[0]", "$.box", "collapse"]]);
   return {
@@ -125,6 +135,7 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     model: r.model,
     hidden: hidden.map((w) => w.id),
     hiddenHarms: hidden.filter((w) => w.polarity === "harmful" || w.polarity === "excessive").map((w) => w.id),
+    ...(through.length ? { flows: { through: through.map((f) => f.id), hidden: quotient.gone } } : {}),
     basis: r.basis,
   };
 }
@@ -168,15 +179,18 @@ function differing<X extends { id: string }>(a: X[], b: X[]): string[] {
   return [...new Set([...ka.keys(), ...kb.keys()])].filter((id) => ka.get(id) !== kb.get(id)).sort();
 }
 
-/** Two models agree on boxes, wires, and carriers as data (array order ignored). */
+/** Two models agree on boxes, wires, carriers, and flows as data (array order ignored). */
 function sameStructure(a: FunctionModel, b: FunctionModel) {
-  const diff = { boxes: differing(a.boxes, b.boxes), wires: differing(a.wires, b.wires), carriers: differing(a.carriers, b.carriers) };
-  return { same: !diff.boxes.length && !diff.wires.length && !diff.carriers.length, diff };
+  const diff = { boxes: differing(a.boxes, b.boxes), wires: differing(a.wires, b.wires), carriers: differing(a.carriers, b.carriers), flows: differing(a.flows ?? [], b.flows ?? []) };
+  return { same: Object.values(diff).every((d) => !d.length), diff };
 }
 
-/** Boxes in `keep` and wires with both ends in it; unlike restrict, an empty or partial set is fine. */
+/**
+ * Boxes in `keep` and wires with both ends in it; unlike restrict, an empty or partial set is fine.
+ * Flows are dropped: the subsystem part of a step, and restrict_rewrite, concern boxes and wires.
+ */
 function within(model: FunctionModel, keep: Set<string>): FunctionModel {
-  const { budget: _budget, contradictions: _contradictions, ...rest } = model;
+  const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
   return { ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter((w) => keep.has(w.from.box) && keep.has(w.to.box)) };
 }
 
@@ -191,9 +205,16 @@ function netStep(a: FunctionModel, b: FunctionModel) {
   const changedWires = new Set(differing(a.wires, b.wires));
   const kept = (w: Wire) => !changedWires.has(w.id) && keptBoxes.has(w.from.box) && keptBoxes.has(w.to.box);
   const keptWires = new Set(a.wires.filter(kept).map((w) => w.id));
+  const changedFlows = new Set(differing(a.flows ?? [], b.flows ?? []));
   const step: RewriteStep = {
-    delete: { boxes: a.boxes.filter((x) => !keptBoxes.has(x.id)).map((x) => x.id), wires: a.wires.filter((w) => !keptWires.has(w.id)).map((w) => w.id) },
-    add: { boxes: b.boxes.filter((x) => !keptBoxes.has(x.id)), wires: b.wires.filter((w) => !keptWires.has(w.id)) },
+    delete: {
+      boxes: a.boxes.filter((x) => !keptBoxes.has(x.id)).map((x) => x.id), wires: a.wires.filter((w) => !keptWires.has(w.id)).map((w) => w.id),
+      ...(changedFlows.size ? { flows: (a.flows ?? []).filter((f) => changedFlows.has(f.id)).map((f) => f.id) } : {}),
+    },
+    add: {
+      boxes: b.boxes.filter((x) => !keptBoxes.has(x.id)), wires: b.wires.filter((w) => !keptWires.has(w.id)),
+      ...(changedFlows.size ? { flows: (b.flows ?? []).filter((f) => changedFlows.has(f.id)) } : {}),
+    },
   };
   const replay = rewrite(a, step);
   return replay.ok && sameStructure(replay.model, b).same ? { ok: true as const, step } : { ok: false as const };
@@ -271,11 +292,13 @@ function transition<T extends { op: string }>(
   if (!net.ok) return invalid([issue("internal-error", root, `${key}: internal: the net step does not replay; please report`, "Report this with the input; the snapshots themselves may be fine.")]);
   const sub = stepInSubsystem(start, model, net.step, keep);
   if (!sub) return invalid([issue("internal-error", root, `${key}: internal: restriction does not commute with the step; please report`, "Report this with the input; the snapshots themselves may be fine.")]);
+  const flowsChanged = differing(start.flows ?? [], model.flows ?? []);
   return {
     from, to, status: "ok" as const,
     snapshot: target ? "reached" as const : "derived" as const,
     applied,
     step: ids(net.step),
+    ...(flowsChanged.length ? { flowsChanged } : {}),
     subsystem: sub,
     model,
   };
@@ -311,6 +334,43 @@ function feasibilityAt(m: FunctionModel, rules: Reroot = []) {
   };
 }
 
+/** The system view's flows at one time: each flow's path and its triz_flow candidates, by id. */
+function flowsAt(m: FunctionModel, rules: Reroot = []) {
+  const r = flowAnalysis(m);
+  if (!r.ok) return failed(r, rules);
+  return {
+    ok: true as const,
+    flows: r.flows.map((f) => ({
+      id: f.id, path: f.path,
+      bottlenecks: f.bottlenecks.map((b) => b.wire), accumulation: f.accumulation.map((a) => a.box),
+      leaks: f.leaks.map((l) => l.wire), loops: f.loops.length,
+    })),
+  };
+}
+
+/** How the flows change between two times: added, removed, re-routed, and the candidates each flow gains or loses. */
+function flowDelta(a: FunctionModel, b: FunctionModel, rules: [Reroot, Reroot]) {
+  const [x, y] = [flowsAt(a, rules[0]), flowsAt(b, rules[1])];
+  if (!x.ok) return x;
+  if (!y.ok) return y;
+  const before = new Map(x.flows.map((f) => [f.id, f])), after = new Map(y.flows.map((f) => [f.id, f]));
+  const minus = (p: string[], q: string[]) => p.filter((v) => !q.includes(v));
+  const both = [...before.keys()].filter((id) => after.has(id));
+  const candidates = both.flatMap((id) => {
+    const [f, g] = [before.get(id)!, after.get(id)!];
+    const d = (k: "bottlenecks" | "accumulation" | "leaks") => ({ gone: minus(f[k], g[k]), new: minus(g[k], f[k]) });
+    const out = { bottlenecks: d("bottlenecks"), accumulation: d("accumulation"), leaks: d("leaks") };
+    return Object.values(out).some((v) => v.gone.length || v.new.length) ? [{ flow: id, ...out }] : [];
+  });
+  return {
+    ok: true as const,
+    added: [...after.keys()].filter((id) => !before.has(id)),
+    removed: [...before.keys()].filter((id) => !after.has(id)),
+    rerouted: both.filter((id) => JSON.stringify(before.get(id)!.path) !== JSON.stringify(after.get(id)!.path)),
+    candidates,
+  };
+}
+
 const decidedFeasibility = (v: ReturnType<typeof feasibilityAt>) => v.ok && (v.verdict === "feasible" || v.verdict === "infeasible");
 const canonVectors = (v: ReturnType<typeof feasibilityAt>) => (v.ok && "minimal" in v ? (v.minimal ?? []).map((x) => canon(x)).sort().join("|") : "");
 
@@ -321,7 +381,7 @@ const canonVectors = (v: ReturnType<typeof feasibilityAt>) => (v.ok && "minimal"
  * `acceptable`. Feasibility: the verdicts at both times, and changed only when both are decided.
  * A failure (say, different deliverables for the ranking) is reported here and does not fail the grid.
  */
-function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, what: { behavior: boolean; feasibility: boolean }, acceptable: Acceptable[] | undefined, rootOf: (time: Time, path: string) => Reroot[number]) {
+function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, what: { behavior: boolean; feasibility: boolean; flows: boolean }, acceptable: Acceptable[] | undefined, rootOf: (time: Time, path: string) => Reroot[number]) {
   const out: Record<string, unknown> = {};
   if (what.behavior) {
     const c = compareBehavior(a, b);
@@ -351,6 +411,7 @@ function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, 
       };
     } else out.weakness = { prompt: "Pass acceptable (per deliverable port or carrier: values, or a threshold through the carrier's levels) to rank the times by the situations they admit." };
   }
+  if (what.flows) out.flows = flowDelta(a, b, [[rootOf(from, "$.model")], [rootOf(to, "$.model")]]);
   if (what.feasibility) {
     const [x, y] = [feasibilityAt(a, [rootOf(from, "$.model")]), feasibilityAt(b, [rootOf(to, "$.model")])];
     const decided = decidedFeasibility(x) && decidedFeasibility(y);
@@ -372,8 +433,8 @@ function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, 
  * stable box ids. `transitions` links them by transformation sequences, applied in order with
  * `apply` (triz_transform's operations at the tool boundary): `past_to_present` needs `past` and
  * must reach `present`; `present_to_future` must reach `future` if one is given, and otherwise
- * derives it. A sequence that fails, or that does not reach the snapshot (boxes, wires, and
- * carriers compared by id and content; array order ignored; other fields not compared), fails
+ * derives it. A sequence that fails, or that does not reach the snapshot (boxes, wires, carriers,
+ * and flows compared by id and content; array order ignored; other fields not compared), fails
  * closed. Each transition is reported as one net step and as its part inside the subsystem.
  *
  * `subsystem` names the boxes to zoom into (ids absent from a snapshot are listed, not invented).
@@ -427,10 +488,12 @@ export function nineWindows<T extends { op: string }>(spec: {
   let id = spec.system?.id ?? "system";
   for (let n = 2; spec.system?.id === undefined && outside.has(id); n++) id = `system-${n}`;
   const declared = (pick: (b: FunctionModel["boxes"][number]) => unknown) => TIMES.some((t) => models[t]?.boxes.some((b) => pick(b) !== undefined));
-  const what = { behavior: declared((b) => b.behavior), feasibility: declared((b) => b.feasibility) };
+  const what = { behavior: declared((b) => b.behavior), feasibility: declared((b) => b.feasibility), flows: TIMES.some((t) => (models[t]?.flows ?? []).length > 0) };
+  const any = what.behavior || what.feasibility || what.flows;
   const verdictsAt = (m: FunctionModel, time: Time) => ({
     ...(what.behavior ? { behavior: behaviourAt(m, [rootOf(time, "$.model")]) } : {}),
     ...(what.feasibility ? { feasibility: feasibilityAt(m, [rootOf(time, "$.model")]) } : {}),
+    ...(what.flows ? { flows: flowsAt(m, [rootOf(time, "$.model")]) } : {}),
   });
   const windows = TIMES.map((time) => {
     const m = models[time];
@@ -454,7 +517,7 @@ export function nineWindows<T extends { op: string }>(spec: {
       subsystem: sub?.ok
         ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)), basis: sub.basis }
         : { empty: true, absent: spec.subsystem },
-      system: { ...summary(m), ...(what.behavior || what.feasibility ? { verdicts: verdictsAt(m, time) } : {}) },
+      system: { ...summary(m), ...(any ? { verdicts: verdictsAt(m, time) } : {}) },
       supersystem: sup?.ok
         ? { ...summary(sup.model), collapsed: group, hidden: sup.hidden, hiddenHarms: sup.hiddenHarms, model: sup.model, basis: sup.basis }
         : { empty: true, reason: "no box to collapse into the system" },
@@ -470,7 +533,7 @@ export function nineWindows<T extends { op: string }>(spec: {
       from: TIMES[i] as Time, to: TIMES[i + 1] as Time,
       addedBoxes: [...after].filter((x) => !before.has(x)),
       removedBoxes: [...before].filter((x) => !after.has(x)),
-      ...(typed && (what.behavior || what.feasibility) ? { verdicts: verdictDelta(a, b, TIMES[i], TIMES[i + 1], what, spec.acceptable, rootOf) } : {}),
+      ...(typed && any ? { verdicts: verdictDelta(a, b, TIMES[i], TIMES[i + 1], what, spec.acceptable, rootOf) } : {}),
     });
   }
   const issues = [...transitions, ...windows].flatMap((x) => (x.status === "invalid" ? x.issues : []));
@@ -485,6 +548,9 @@ export function nineWindows<T extends { op: string }>(spec: {
     note: "Views are typed restrictions and collapses of each time's model. A transition given as transformations is applied and checked; between snapshots without one, only the box ids added and removed are listed. derived holds the model each transition produced, by time: a derived future is that column's model, and a reached snapshot equals it up to order. The supersystem collapse is not checked against transitions. Fill missing windows before drawing conclusions from the grid."
       + (what.behavior || what.feasibility
         ? " The snapshots declare rows, so each time's system view carries its behaviour and feasibility verdicts (system.verdicts), and each change between times says how they change (changes[].verdicts). These are computed on the system view only: restriction drops the budget and cuts the deliverables' suppliers, and the collapsed box declares no rows."
+        : "")
+      + (what.flows
+        ? " The snapshots declare flows, so each time's system view carries each flow's triz_flow candidates (system.verdicts.flows), and each change lists the flows added, removed, and re-routed and the candidates each flow gains or loses (changes[].verdicts.flows)."
         : ""),
   };
 }

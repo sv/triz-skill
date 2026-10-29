@@ -7,6 +7,7 @@ import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Fintype.Prod
+import Mathlib.Data.List.Destutter
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
@@ -132,6 +133,56 @@ theorem reach_quotient {γ : Type*} {s : γ → γ → Prop} (q : β → γ)
     · exact ih.tail hs
 
 end Loops
+
+/-! ## Flows (`flows`, `triz_flow`, and `merge` along a flow)
+
+A flow is a path of boxes: the order in which a carrier passes them. Its steps are the pairs of
+consecutive boxes (`flowStep`). `merge` sends a group `G` of boxes to one box `m` and every other
+box to itself (`mergeInto`). The merged flow is the path mapped and with repeats in a row dropped
+(`List.destutter`); its steps are the images of the steps whose ends land in different boxes
+(`mergedStep`), which tests check against the TypeScript. Two facts hold for any group: the merged
+flow names only boxes of the merged model, and a box outside the group that reached another one
+along the flow still reaches it. Neither needs the group to be adjacent on the flow, the reading of
+Principle 5. Adjacency is what keeps the merge from closing a loop in the flow; `Witnesses` shows a
+merge of boxes with a box between them that does. -/
+
+section Flows
+
+variable {β γ : Type*}
+
+/-- Consecutive boxes along a flow path. -/
+def flowStep (path : List β) (a b : β) : Prop := ∃ i : ℕ, path[i]? = some a ∧ path[i + 1]? = some b
+
+/-- The steps of a merged flow: the images of steps whose ends land in different boxes. -/
+def mergedStep (q : β → γ) (r : β → β → Prop) (x y : γ) : Prop :=
+  ∃ a b, r a b ∧ q a = x ∧ q b = y ∧ x ≠ y
+
+/-- The merge map: the group `G` goes to the merged box `m`, every other box to itself. -/
+def mergeInto (G : Set β) [DecidablePred (· ∈ G)] (m : β) (b : β) : β := if b ∈ G then m else b
+
+/-- Typing of a merged flow: every box on it is a box of the merged model, the image of the
+model's boxes. -/
+theorem flow_merge_typed [DecidableEq β] (G : Set β) [DecidablePred (· ∈ G)] (m : β)
+    {boxes : Set β} {path : List β} (hp : ∀ b ∈ path, b ∈ boxes) :
+    ∀ x ∈ (path.map (mergeInto G m)).destutter (· ≠ ·), x ∈ mergeInto G m '' boxes := by
+  intro x hx
+  obtain ⟨b, hb, rfl⟩ := List.mem_map.mp ((List.destutter_sublist _ _).subset hx)
+  exact ⟨b, hp b hb, rfl⟩
+
+/-- Reachability along a flow between boxes outside the group survives the merge: each step maps
+to a step of the merged flow or into the merged box (`reach_quotient`). -/
+theorem flow_merge_reach (G : Set β) [DecidablePred (· ∈ G)] (m : β) {r : β → β → Prop} {u v : β}
+    (hu : u ∉ G) (hv : v ∉ G) (h : Relation.ReflTransGen r u v) :
+    Relation.ReflTransGen (mergedStep (mergeInto G m) r) u v := by
+  have e : ∀ {b}, b ∉ G → mergeInto G m b = b := fun hb => if_neg hb
+  have := reach_quotient (mergeInto G m) (s := mergedStep (mergeInto G m) r)
+    (fun a b hab => by
+      by_cases hq : mergeInto G m a = mergeInto G m b
+      · exact Or.inl hq
+      · exact Or.inr ⟨a, b, hab, rfl, rfl, hq⟩) h
+  rwa [e hu, e hv] at this
+
+end Flows
 
 /-! ## Label blindness
 

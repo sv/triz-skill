@@ -274,7 +274,7 @@ test("externalBehavior equals the Lean semantics of its upstream part on seeded 
     const m = genModel(r);
     if (size(m) > 20_000) continue;
     n++;
-    assert.deepEqual(checkModel(m), { ok: true, errors: [] }, `seed ${seed}`);
+    assert.deepEqual(checkModel(m), { ok: true, errors: [], issues: [] }, `seed ${seed}`);
     const res = assertAgrees(m, `seed ${seed}`);
     if (!deliverables(m).length) { seen.noDeliverable++; continue; }
     if (!res) { seen.undecided++; continue; }

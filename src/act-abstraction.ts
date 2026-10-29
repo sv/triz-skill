@@ -27,11 +27,17 @@
  * loops the coarse model hides or loses, whether reachability among the mapped boxes passes to the
  * coarse model (reach_map, when nothing is forgotten), and, where a coarse box with behaviour has
  * exactly one preimage box with feasibility, whether that box's amounts read through the coarse
- * carriers' levels fall in the coarse behaviour (src/act-levels.ts).
+ * carriers' levels fall in the coarse behaviour (src/act-levels.ts). When either model declares
+ * flows, each detailed flow passes along the map as through a merge: its runs inside the mapped
+ * boxes, each box sent to its image, repeats in a row collapsed (reach_quotient). Each image is
+ * matched against the coarse flows of the image carrier, step by step, and the coarse flow steps
+ * that are no detailed step's image are listed. Flows are reported, not checked: they do not
+ * change the verdict.
  */
 import { z } from "zod";
 import { checkModel, harmLoops, shortestPath, type FunctionModel, type Polarity } from "./act.js";
 import { rowsConsistency, READING, BAND } from "./act-levels.js";
+import { mapFlows, restrictFlows, stepsOf } from "./act-flow.js";
 import type { Theorem } from "./act-basis.js";
 import { at, fail, issue, quoted, rebase, type Issue } from "./act-issues.js";
 
@@ -230,6 +236,31 @@ export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel,
   };
   const failed = Object.entries(checks).filter(([, c]) => !c.ok).map(([k]) => k);
   const harms = (ws: Wire[]) => ws.filter((w) => NEGATIVE.has(w.polarity)).map((w) => w.id);
+  // Flows along the map: the runs inside the mapped boxes, sent through the box map like a merge.
+  const step = (c: string, a: string, b: string) => JSON.stringify([c, a, b]);
+  const coarseSteps = new Set((coarse.flows ?? []).flatMap((f) => stepsOf(f.path).map(([a, b]) => step(f.carrier, a, b))));
+  const imaged = new Set<string>();
+  const flowImages = (detailed.flows ?? []).map((f) => {
+    const runs = restrictFlows([f], mappedBoxes).flows;
+    const sent = mapFlows(runs, (id) => boxImage(id) ?? null);
+    const carrier = carrierImage(f.carrier) ?? null;
+    const images = sent.flows.map((g) => {
+      const missing = stepsOf(g.path).filter(([a, b]) => carrier === null || !coarseSteps.has(step(carrier, a, b)));
+      if (carrier !== null) for (const [a, b] of stepsOf(g.path)) imaged.add(step(carrier, a, b));
+      return { path: g.path, ...(g.medium !== undefined ? { medium: g.medium } : {}), matched: !missing.length, ...(missing.length ? { missingSteps: missing.map(([a, b]) => [a, b]) } : {}) };
+    });
+    return { flow: f.id, carrier, images, ...(sent.gone.length ? { hiddenRuns: sent.gone.length } : {}), ...(runs.length ? {} : { outside: true }) };
+  });
+  const unbacked = (coarse.flows ?? []).flatMap((f) => {
+    const steps = stepsOf(f.path).filter(([a, b]) => !imaged.has(step(f.carrier, a, b))).map(([a, b]) => [a, b]);
+    return steps.length ? [{ flow: f.id, steps }] : [];
+  });
+  const flowReport = (detailed.flows ?? []).length || (coarse.flows ?? []).length ? {
+    images: flowImages,
+    unbacked,
+    basis: ["reach_quotient"] as Theorem[],
+    note: "Each detailed flow's runs inside the mapped boxes pass to the coarse model as through a merge, so a box that reaches another along a run still does along its image. matched: every step of the image is a step of a coarse flow of the image carrier. unbacked: coarse flow steps that are no detailed step's image. Flows do not change the verdict.",
+  } : undefined;
   const reaches = !forgotten.length && checks.total.ok;
   return {
     ok: true as const,
@@ -255,6 +286,7 @@ export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel,
     reachability: reaches
       ? { preserved: true as const, basis: ["reach_map"] as Theorem[], note: "Every function between mapped boxes stays inside one coarse box or maps to a coarse function, so whatever one mapped box reaches in the detailed model, its image reaches in the coarse one." }
       : { preserved: false as const, note: forgotten.length ? `The coarse model forgets ${forgotten.length} function(s) between mapped boxes (functions.forgotten): paths through them have no image.` : "Some mapped function has no image (checks.total), so its paths have none." },
+    ...(flowReport ? { flows: flowReport } : {}),
     ...(levels.length ? { levels: { consistent: !levelFindings.length, boxes: levels.map((l) => ("inconsistencies" in l ? (({ inconsistencies: _i, ...rest }) => rest)(l) : l)), inconsistencies: levelFindings, basis: [...READING, ...BAND] } } : {}),
     note: (failed.length ? `Not an abstraction: the ${failed.join(", ")} check(s) fail; see checks.` : "The coarse model is an abstraction of the mapped part of the detailed model: every coarse function and harm loop is the image of a detailed one.")
       + (harms(forgotten).length || harms(hidden).length ? ` The coarse model does not show ${[...harms(forgotten), ...harms(hidden)].map((id) => `'${id}'`).join(", ")}, harmful or excessive in the detailed model (functions.forgottenHarms, hiddenHarms): verdicts on the coarse model say nothing about them.` : "")

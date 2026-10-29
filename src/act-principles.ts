@@ -32,6 +32,7 @@
 import { checkModel, harmLoops, shortestPath, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { collapse } from "./act-windows.js";
+import { flowsThrough, mapFlows, stepsOf } from "./act-flow.js";
 import type { Theorem } from "./act-basis.js";
 import { at, fail, issue, quoted, rebase, second, unknownBox, unknownWire, type Failure, type Issue } from "./act-issues.js";
 
@@ -97,14 +98,19 @@ function replace(model: FunctionModel, spec: { boxes?: Box[]; wires?: Wire[] }):
 
 /**
  * Principle 5 (Merging), structural part: `collapse` the boxes into one box. Reading 'adjacent'
- * (default) requires functions inside the group to join every box, ignoring direction. Reading
- * 'identical' requires the same role and the same multiset of carriers on each side; names and
- * actions are labels and are not compared. Every path between boxes maps to a path between their
- * images, but merging can close new loops: negative functions newly on a harm loop are listed, and
- * functions inside the group are hidden and listed. The merged box declares no behavior, so the
- * boxes whose declared behavior it drops are listed too. There is no box map: the merged ports are
- * renamed '<box>.<port>', so a merged product's deliverables get new keys whatever box id a map
- * names, and compare_to reads them as lost and regained. "In space or time" is not modelled.
+ * (default) requires the group to be joined, ignoring direction, by functions inside it or by
+ * steps of a declared flow inside it: two boxes one after the other on a flow are adjacent even
+ * when neither acts on the other. Boxes on one flow with a box outside the group between them are
+ * not: merging them would close a loop in the flow. Reading 'identical' requires the same role and
+ * the same multiset of carriers on each side; names and actions are labels and are not compared.
+ * Every path between boxes maps to a path between their images, and every flow passes the merged
+ * box where it passed the group (flow_merge_reach), but merging can close new loops: negative
+ * functions newly on a harm loop are listed, flows whose merged path newly recurs to the merged box
+ * are listed, and functions inside the group are hidden and listed, as are flows wholly inside it.
+ * The merged box declares no behavior, so the boxes whose declared behavior it drops are listed
+ * too. There is no box map: the merged ports are renamed '<box>.<port>', so a merged product's
+ * deliverables get new keys whatever box id a map names, and compare_to reads them as lost and
+ * regained. "In space or time" is not modelled.
  */
 export function merge(model: FunctionModel, spec: {
   boxes: string[]; into: { id: string; name: string; role?: Box["role"]; action?: string }; reading?: "adjacent" | "identical";
@@ -130,17 +136,36 @@ export function merge(model: FunctionModel, spec: {
     }
   } else {
     const members = new Set(spec.boxes), seen = new Set([spec.boxes[0]]), queue = [spec.boxes[0]];
-    const inside = model.wires.filter((w) => members.has(w.from.box) && members.has(w.to.box));
+    const links = [
+      ...model.wires.map((w) => [w.from.box, w.to.box] as const),
+      ...(model.flows ?? []).flatMap((f) => stepsOf(f.path)),
+    ].filter(([a, b]) => members.has(a) && members.has(b));
     for (let v = queue.shift(); v !== undefined; v = queue.shift()) {
-      for (const w of inside) {
-        const next = w.from.box === v ? w.to.box : w.to.box === v ? w.from.box : undefined;
+      for (const [a, b] of links) {
+        const next = a === v ? b : b === v ? a : undefined;
         if (next !== undefined && !seen.has(next)) { seen.add(next); queue.push(next); }
       }
     }
     const apart = spec.boxes.filter((id) => !seen.has(id));
     if (apart.length) {
-      return one("not-adjacent", "$.boxes", `boxes [${apart.join(", ")}] are not joined to '${spec.boxes[0]}' by functions inside the group: not adjacent (reading 'identical' merges unjoined boxes of the same shape)`,
-        `Add the boxes that join them to the group, drop ${quoted(apart)}, or use reading 'identical' if they have the same role and port carriers.`);
+      const gaps = apart.flatMap((id) => {
+        for (const f of model.flows ?? []) {
+          const here = f.path.flatMap((x, i) => (x === id ? [i] : [])), near = f.path.flatMap((x, i) => (seen.has(x) ? [i] : []));
+          const pairs = here.flatMap((i) => near.map((j) => [Math.min(i, j), Math.max(i, j)] as const)).sort((x, y) => (x[1] - x[0]) - (y[1] - y[0]));
+          if (pairs.length) {
+            const [i, j] = pairs[0], between = f.path.slice(i + 1, j);
+            return [issue("not-adjacent", at("$.model.flows", (model.flows ?? []).indexOf(f), "path"),
+              `on flow '${f.id}', '${f.path[i]}' and '${f.path[j]}' have [${between.join(", ")}] between them, so merging them would close a loop in the flow`,
+              `Merge boxes that follow one another on the flow: add ${quoted(between)} to the group, or merge '${f.path[i]}' with its neighbour.`)];
+          }
+        }
+        return [];
+      });
+      return fail([
+        issue("not-adjacent", "$.boxes", `boxes [${apart.join(", ")}] are not joined to '${spec.boxes[0]}' by functions inside the group or by consecutive positions on a flow: not adjacent (reading 'identical' merges unjoined boxes of the same shape)`,
+          `Add the boxes that join them to the group, drop ${quoted(apart)}, or use reading 'identical' if they have the same role and port carriers.`),
+        ...gaps,
+      ]);
     }
   }
   const roles = [...new Set(group.map((b) => b.role))];
@@ -149,6 +174,15 @@ export function merge(model: FunctionModel, spec: {
   const c = collapse(model, spec.boxes, { ...spec.into, role });
   if (!c.ok) return rebase(c, [["$.group", "$.boxes"], ["$.box", "$.into"]]);
   const before = looped(model);
+  const members = new Set(spec.boxes);
+  const through = flowsThrough(model.flows, members);
+  const merged = mapFlows(through, (id) => (members.has(id) ? spec.into.id : id));
+  // A merged path recurs to the merged box more often than the path recurred to any one member: the merge closed that loop.
+  const count = (path: string[], id: string) => path.filter((x) => x === id).length;
+  const newlyLoopedFlows = merged.flows.filter((f) => {
+    const original = through.find((g) => g.id === f.id)!;
+    return count(f.path, spec.into.id) > Math.max(...spec.boxes.map((id) => count(original.path, id)));
+  }).map((f) => f.id).sort();
   return {
     ok: true as const,
     model: c.model,
@@ -156,6 +190,14 @@ export function merge(model: FunctionModel, spec: {
     hidden: c.hidden,
     hiddenHarms: c.hiddenHarms,
     newlyLooped: [...looped(c.model)].filter((id) => !before.has(id)).sort(),
+    ...(through.length ? {
+      flows: {
+        paths: Object.fromEntries(merged.flows.map((f) => [f.id, f.path])),
+        hidden: merged.gone,
+        newlyLooped: newlyLoopedFlows,
+        basis: ["flow_merge_typed", "flow_merge_reach"] as Theorem[],
+      },
+    } : {}),
     droppedBehavior: group.filter((b) => b.behavior).map((b) => b.id),
     deliverableKeysChanged: group.some((b) => b.role === "product"),
     basis: [...c.basis, "reach_quotient"] as Theorem[],
@@ -447,7 +489,13 @@ export function cheapCopy(model: FunctionModel, spec: { box: string; copy: { id?
   const copy: Box = { ...rest, id, name: spec.copy.name ?? `${box.name} (copy)`, ...(Object.keys(now).length ? { cost: now } : {}) };
   const moved = model.wires.filter((w) => w.from.box === box.id || w.to.box === box.id);
   const follow = (e: Endpoint) => (e.box === box.id ? { box: id, port: e.port } : e);
-  const r = rewrite(model, { delete: { boxes: [box.id], wires: moved.map((w) => w.id) }, add: { boxes: [copy], wires: moved.map((w) => ({ ...w, from: follow(w.from), to: follow(w.to) })) } });
+  // A renamed copy takes the box's place on every flow.
+  const through = id === box.id ? [] : flowsThrough(model.flows, new Set([box.id]));
+  const renamedFlows = mapFlows(through, (x) => (x === box.id ? id : x));
+  const r = rewrite(model, {
+    delete: { boxes: [box.id], wires: moved.map((w) => w.id), flows: through.map((f) => f.id) },
+    add: { boxes: [copy], wires: moved.map((w) => ({ ...w, from: follow(w.from), to: follow(w.to) })), flows: renamedFlows.flows },
+  });
   if (!r.ok) return internal(r, [["$.add.boxes[0].id", "$.copy.id", "collapse"], ["$.add.boxes[0]", "$.copy", "collapse"]]);
   const renamed = id !== box.id;
   return {

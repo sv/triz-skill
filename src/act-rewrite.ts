@@ -21,8 +21,9 @@
  * The principle texts above are quoted from data/principles.json. A construction makes the
  * structural part of a principle checkable. It does not show that the principle solves anything.
  */
-import { checkModel, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
+import { checkModel, trimCandidates, type Flow, type FunctionModel, type Polarity } from "./act.js";
 import { REWRITE, type Theorem } from "./act-basis.js";
+import { flowsThrough, mapFlows } from "./act-flow.js";
 import { at, fail, issue, quoted, rebase, second, unknownBox, unknownWire, type Failure, type Issue, type Reroot } from "./act-issues.js";
 
 /** An identity mediator composes away: r ∘ (=) = r. */
@@ -46,8 +47,8 @@ function duplicates(ids: string[]): string[] {
 }
 
 export interface RewriteStep {
-  delete?: { boxes?: string[]; wires?: string[] };
-  add?: { boxes?: Box[]; wires?: Wire[] };
+  delete?: { boxes?: string[]; wires?: string[]; flows?: string[] };
+  add?: { boxes?: Box[]; wires?: Wire[]; flows?: Flow[] };
 }
 
 /** An id like `id` that none of `taken` uses, for hints. */
@@ -65,24 +66,31 @@ export const internal = <F extends Failure>(f: F, rules: Reroot = []): F =>
 /**
  * Apply one rewrite step at an occurrence named by id. Fails closed on every condition. Issue
  * paths are `$.model…` and `$.delete…` / `$.add…`; an issue of the result points at the input
- * element it came from: a kept model element, or the added one.
+ * element it came from: a kept model element, or the added one. A flow names boxes, not ports, so
+ * it may pass a deleted box only when the step adds a box with that id back; otherwise the step
+ * must delete or restate the flow.
  */
 export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; model: FunctionModel; basis: Theorem[] } | Failure {
   const check = checkModel(model, "$.model");
   if (!check.ok) return fail(check.issues);
   const issues: Issue[] = [];
-  const delBoxes = step.delete?.boxes ?? [], delWires = step.delete?.wires ?? [];
-  const addBoxes = step.add?.boxes ?? [], addWires = step.add?.wires ?? [];
+  const delBoxes = step.delete?.boxes ?? [], delWires = step.delete?.wires ?? [], delFlows = step.delete?.flows ?? [];
+  const addBoxes = step.add?.boxes ?? [], addWires = step.add?.wires ?? [], addFlows = step.add?.flows ?? [];
   const boxIds = new Set(model.boxes.map((b) => b.id)), wireIds = new Set(model.wires.map((w) => w.id));
+  const flowIds = new Set((model.flows ?? []).map((f) => f.id));
   delBoxes.forEach((id, k) => {
     if (!boxIds.has(id)) issues.push(issue("unknown-box", at("$.delete.boxes", k), `delete: unknown box '${id}'`, `Delete boxes the model has: ${quoted(boxIds)}.`));
   });
   delWires.forEach((id, k) => {
     if (!wireIds.has(id)) issues.push(issue("unknown-wire", at("$.delete.wires", k), `delete: unknown wire '${id}'`, `Delete wires the model has: ${quoted(wireIds)}.`));
   });
+  delFlows.forEach((id, k) => {
+    if (!flowIds.has(id)) issues.push(issue("unknown-flow", at("$.delete.flows", k), `delete: unknown flow '${id}'`, `Delete flows the model has: ${quoted(flowIds)}.`));
+  });
   for (const id of duplicates(delBoxes)) issues.push(issue("listed-twice", at("$.delete.boxes", second(delBoxes, id)), `delete: box '${id}' listed twice`, `List '${id}' once in delete.boxes.`));
   for (const id of duplicates(delWires)) issues.push(issue("listed-twice", at("$.delete.wires", second(delWires, id)), `delete: wire '${id}' listed twice`, `List '${id}' once in delete.wires.`));
-  const goneBoxes = new Set(delBoxes), goneWires = new Set(delWires);
+  for (const id of duplicates(delFlows)) issues.push(issue("listed-twice", at("$.delete.flows", second(delFlows, id)), `delete: flow '${id}' listed twice`, `List '${id}' once in delete.flows.`));
+  const goneBoxes = new Set(delBoxes), goneWires = new Set(delWires), goneFlows = new Set(delFlows);
   for (const w of model.wires) {
     if (goneWires.has(w.id)) continue;
     for (const end of [w.from.box, w.to.box]) {
@@ -90,6 +98,22 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
         issues.push(issue("dangling-wire", "$.delete.wires", `no-dangling: wire '${w.id}' still touches deleted box '${end}'; delete or re-attach it`,
           `Add '${w.id}' to delete.wires. To keep the function, also add a copy of it in add.wires attached to a remaining box.`));
       }
+    }
+  }
+  const readded = new Set(addBoxes.map((b) => b.id));
+  const keptFlowIndex = (model.flows ?? []).flatMap((f, i) => (goneFlows.has(f.id) ? [] : [i]));
+  const keptFlows = keptFlowIndex.map((i) => model.flows![i]);
+  for (const i of keptFlowIndex) {
+    const f = model.flows![i];
+    for (const id of new Set(f.path)) {
+      if (goneBoxes.has(id) && !readded.has(id)) {
+        issues.push(issue("dangling-flow", at("$.model.flows", i), `no-dangling: flow '${f.id}' still passes deleted box '${id}'; delete or restate it`,
+          `Add '${f.id}' to delete.flows, and add it back in add.flows with a path that avoids '${id}' (or add a box '${id}' back in the same step).`));
+      }
+    }
+    if (f.medium !== undefined && goneBoxes.has(f.medium) && !readded.has(f.medium)) {
+      issues.push(issue("dangling-flow", at("$.model.flows", i, "medium"), `no-dangling: flow '${f.id}' still names deleted box '${f.medium}' as its medium; delete or restate it`,
+        `Add '${f.id}' to delete.flows, and add it back in add.flows with another medium or none.`));
     }
   }
   const keptIndex = model.boxes.flatMap((b, i) => (goneBoxes.has(b.id) ? [] : [i]));
@@ -102,18 +126,25 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
   addWires.forEach((w, k) => {
     if (keptWireIds.has(w.id)) issues.push(issue("id-not-fresh", at("$.add.wires", k, "id"), `add: wire id '${w.id}' is not fresh`, `Pick a wire id no kept wire uses, e.g. '${freshLike(w.id, keptWireIds)}', or delete wire '${w.id}' in the same step.`));
   });
-  const addBoxIds = addBoxes.map((b) => b.id), addWireIds = addWires.map((w) => w.id);
+  const keptFlowIds = new Set(keptFlows.map((f) => f.id));
+  addFlows.forEach((f, k) => {
+    if (keptFlowIds.has(f.id)) issues.push(issue("id-not-fresh", at("$.add.flows", k, "id"), `add: flow id '${f.id}' is not fresh`, `Pick a flow id no kept flow uses, e.g. '${freshLike(f.id, keptFlowIds)}', or delete flow '${f.id}' in the same step.`));
+  });
+  const addBoxIds = addBoxes.map((b) => b.id), addWireIds = addWires.map((w) => w.id), addFlowIds = addFlows.map((f) => f.id);
   for (const id of duplicates(addBoxIds)) issues.push(issue("duplicate-id", at("$.add.boxes", second(addBoxIds, id)), `add: box '${id}' added twice`, `Add box '${id}' once.`));
   for (const id of duplicates(addWireIds)) issues.push(issue("duplicate-id", at("$.add.wires", second(addWireIds, id)), `add: wire '${id}' added twice`, `Add wire '${id}' once.`));
+  for (const id of duplicates(addFlowIds)) issues.push(issue("duplicate-id", at("$.add.flows", second(addFlowIds, id)), `add: flow '${id}' added twice`, `Add flow '${id}' once.`));
   if (issues.length) return fail(issues);
-  const result: FunctionModel = { ...model, boxes: [...keptBoxes, ...addBoxes], wires: [...keptWires, ...addWires] };
+  const { flows: _flows, ...rest } = model;
+  const flows = model.flows !== undefined || addFlows.length ? [...keptFlows, ...addFlows] : undefined;
+  const result: FunctionModel = { ...rest, boxes: [...keptBoxes, ...addBoxes], wires: [...keptWires, ...addWires], ...(flows ? { flows } : {}) };
   const after = checkModel(result, "#");
   if (after.ok) return { ok: true, model: result, basis: REWRITE };
   // The result is not input: point each issue at the kept model element or the added one it came from.
   const origin = (path: string) => {
-    const m = /^#\.(boxes|wires)\[(\d+)\](.*)$/.exec(path);
+    const m = /^#\.(boxes|wires|flows)\[(\d+)\](.*)$/.exec(path);
     if (!m) return path.replace(/^#/, "$.model");
-    const [, list, n, rest] = m, i = Number(n), kept = list === "boxes" ? keptIndex : keptWireIndex;
+    const [, list, n, rest] = m, i = Number(n), kept = list === "boxes" ? keptIndex : list === "wires" ? keptWireIndex : keptFlowIndex;
     return i < kept.length ? `$.model.${list}[${kept[i]}]${rest}` : `$.add.${list}[${i - kept.length}]${rest}`;
   };
   return fail(after.issues.map((x) => issue("ill-typed-result", origin(x.path), `result: ${x.message}`, `The step leaves the model ill-typed. ${x.hint}`)));
@@ -187,7 +218,8 @@ export function splitBehavior(box: Box, parts: Array<{ id: string; ports: string
  * are independent when no wire joins two of them; the result reports any that do (former
  * self-loops). Splitting a product box changes deliverable keys. Pass the returned `boxMap` as
  * `box_map` to triz_function_model with compare_to (see mapBoxes); `deliverableKeysChanged` says
- * when that is needed.
+ * when that is needed. A flow through the box stays on the part that keeps the box's id; with no
+ * such part it fails closed, since the ports do not say which part the flow passes.
  */
 export function segment(model: FunctionModel, spec: { box: string; parts: PartSpec[]; costTo?: Record<string, string> }) {
   const box = model.boxes.find((b) => b.id === spec.box);
@@ -211,6 +243,12 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
   for (const [dim, part] of Object.entries(costTo)) {
     if (!Object.hasOwn(box.cost ?? {}, dim)) issues.push(issue("unknown-cost-dimension", at("$.cost_to", dim), `costTo: box '${box.id}' has no cost dimension '${dim}'`, `cost_to keys are '${box.id}''s cost dimensions: ${quoted(Object.keys(box.cost ?? {}))}.`));
     if (!partIds.includes(part)) issues.push(issue("unknown-part", at("$.cost_to", dim), `costTo: '${dim}' assigned to unknown part '${part}'`, `cost_to values are part ids: ${quoted(partIds)}.`));
+  }
+  // Which part a flow passes through is not determined by the ports, so a flow stays only on a part that keeps the box's id.
+  const onFlows = flowsThrough(model.flows, new Set([box.id])).map((f) => f.id);
+  if (onFlows.length && !partIds.includes(box.id)) {
+    issues.push(issue("flow-on-split-box", "$.parts", `box '${box.id}' lies on flow ${onFlows.map((f) => `'${f}'`).join(", ")}: give the part the flow passes through the id '${box.id}', or restate the flow with rewrite first`,
+      `Name the part the flow passes '${box.id}' (parts[i].id), or restate flow ${quoted(onFlows)} with a rewrite step that lists the parts on its path.`));
   }
   if (issues.length) return fail(issues);
 
@@ -408,7 +446,9 @@ export function interpose(model: FunctionModel, spec: {
  * trimCandidates). `absorb` picks an absorber per function wire; the default is the first listed
  * (most radical). Re-attached functions keep their id and rating, which is an assumption to
  * substantiate. A blocked trim (an orphaned function) fails closed: deleting its performer would
- * leave the function dangling.
+ * leave the function dangling. Each flow through a trimmed box closes up over it, passing from the
+ * box before it to the box after; a flow left with one box is dropped, and both are reported.
+ * Whether the flow can pass without the trimmed box is part of the trimming problem.
  */
 export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, { box: string; port: string }> }) {
   const screen = trimCandidates(model, spec.trim);
@@ -445,7 +485,13 @@ export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?:
   const trimmed = new Set(spec.trim);
   const removed = model.wires.filter((w) => trimmed.has(w.from.box) || trimmed.has(w.to.box));
   const reattached = chosen.map((c) => ({ ...byWire.get(c.wire)!, from: { box: c.box, port: c.port } }));
-  const r = rewrite(model, { delete: { boxes: spec.trim, wires: removed.map((w) => w.id) }, add: { wires: reattached } });
+  // A flow closes up over a trimmed box: it passes from the box before it straight to the one after.
+  const through = flowsThrough(model.flows, trimmed);
+  const bypass = mapFlows(through, (id) => (trimmed.has(id) ? null : id));
+  const r = rewrite(model, {
+    delete: { boxes: spec.trim, wires: removed.map((w) => w.id), flows: through.map((f) => f.id) },
+    add: { wires: reattached, flows: bypass.flows },
+  });
   if (!r.ok) return internal(r, [["$.add.wires", "$.absorb", "collapse"]]);
   return {
     ok: true as const,
@@ -454,6 +500,7 @@ export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?:
     noLongerNeeded: screen.functions.filter((f) => f.rule === "A").map((f) => f.wire),
     dropped: screen.dropped,
     removedHarms: screen.removedHarms,
+    ...(through.length ? { flows: { bypassed: bypass.changed, dropped: bypass.gone } } : {}),
     basis: [...r.basis, "typed_reroute"] as Theorem[],
     note: "Compare with the baseline via triz_function_model compare_to. Each absorber is a trimming problem to solve; its new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility).",
   };

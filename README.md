@@ -91,14 +91,15 @@ missing.
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
-| `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback) |
-| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times; returns the models transitions derive |
+| `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
+| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
 | `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
 | `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources; with carrier `levels`, the rows that disagree with declared behaviour |
 | `triz_abstraction` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms listed |
+| `triz_flow` | Flow analysis over declared flow paths (boxes in series): per flow, bottleneck, accumulation, and leak candidates, and loops |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -110,7 +111,8 @@ model written as an open wiring diagram, defined by
 
 - boxes are components with typed ports;
 - wires are functions rated useful, insufficient, excessive, or harmful;
-- carriers name what flows and in what unit.
+- carriers name what flows and in what unit;
+- flows, optionally, list the boxes a carrier passes through in series, in order.
 
 Any dangling, mis-directed, or mistyped wire fails closed. The checks cover:
 
@@ -139,8 +141,18 @@ typed moves. Each returns a model that type-checks, or fails closed:
 `triz_rule_apply` takes a rule as data, a span L ← K → R of patterns
 ([`rule.schema.json`](skills/triz-innovation/schemas/rule.schema.json)). It lists the rule's
 matches in a model, then applies one by double pushout after checking the no-identification and
-no-dangling conditions. Two built-in rules encode evolution lines whose text describes a
-structural move: mono → bi, and self-adjusting feedback.
+no-dangling conditions. Three built-in rules encode evolution lines whose text describes a
+structural move: mono → bi, self-adjusting feedback, and changing the working field (the same
+function on another carrier, with the change recorded). The uneven-development line is a
+detector instead: it names the lagging subsystem, a box of the largest harm-loop region that is on
+a binding feasibility dimension or limits a deliverable.
+
+Functions record who acts on whom, not which boxes sit in series along a flow: two valves in a
+line both act on the water, not on each other. A model can declare `flows`, each an ordered path
+of boxes with a carrier. `triz_flow` reports per flow its bottleneck candidates (resistance-like
+functions acting on the flow), accumulation candidates (flows converging, or ending inside the
+system), leaks, and loops. Principle 5's `merge` treats boxes consecutive on a flow as adjacent,
+and every construction carries the flows along.
 
 When boxes declare behaviour (finite carrier `values` and relation rows), `triz_behavior`
 decides a concept against a baseline instead of only screening it: `preserved`, `changed` with
@@ -319,7 +331,7 @@ construction.
 ## Data provenance and licensing
 
 - The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
-  the effects starter database (56 entries) is curated from textbook physics, chemistry, and
+  the effects starter database (60 entries) is curated from textbook physics, chemistry, and
   geometry.
 - `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
   and widely republished. To regenerate the file from a source of your own choosing:

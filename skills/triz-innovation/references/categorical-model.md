@@ -20,6 +20,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Flow (substance, energy, data, money) | carrier with `layer` and `dimension` | — | — |
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
+| Components in series along a flow; flow analysis | `flows`: an ordered path of the boxes a carrier passes through, optionally with the `medium` box that stands for what flows | `triz_flow`: bottleneck, accumulation, and leak candidates, loops; `merge` treats boxes consecutive on a flow as adjacent | `edge_on_cycle` (loops), `flow_merge_typed`, `flow_merge_reach`; definitions `flowStep`, `mergedStep`, `mergeInto` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
 | What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
@@ -36,6 +37,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
+| A subsystem that lags (uneven development) | a box of the largest harm-loop region that is on a binding feasibility dimension or limits a deliverable | `triz_rule_apply` `uneven-development`: lagging, none, or undecided | `edge_on_cycle`; the feasibility verdict's basis |
 | Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`; `supportedOn`, `typedOn`; used by those, never cited: `restrict_restrict`, `restrict_of_subset` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem; with declared rows, the verdicts per time and how they change | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot; `system.verdicts` and `changes[].verdicts` | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
@@ -58,6 +60,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    verdict about the coarse one (see [Abstraction between models](#abstraction-between-models)).
    Give the carriers that both sides read `levels`, so that the detailed model's amounts read
    as the coarse model's values (see [Levels](#levels-numeric-to-qualitative)).
+
+   When components sit in series along a flow, declare it in `flows`: functions say who acts on
+   whom, not what a carrier passes through in order. Call `triz_flow` for its bottleneck,
+   accumulation, and leak candidates (see [Flows](#flows)).
 2. **Harm loops.** For each reported loop, name the causal mechanism and the evidence for every
    function in the witness cycle. A loop is a candidate to examine, not a finding. Useful-only
    feedback, such as a control loop, is not reported.
@@ -274,6 +280,7 @@ to check the rating, not a finding.
 | `undeclared-value` | every model check; `triz_dynamics`, `triz_weakness` | A value is not among the carrier's declared values |
 | `dominated-row` | every model check | A feasibility row repeats or is dominated by another row of the box |
 | `invalid-levels` | every model check | A carrier's levels do not start at 0 or do not strictly increase |
+| `flow-repeats-box` | every model check | A flow path lists a box directly after itself |
 | `listed-twice` | `triz_trim`, `trim` arguments, `triz_transform`, `triz_dynamics` inputs, `triz_weakness` acceptable | An id appears twice in a set argument |
 | `empty-set` | `trimCandidates`, nine-windows views, `triz_abstraction` map, mpv_weights | A set argument names nothing |
 | `too-few-members` | `triz_transform` segment and merge, `triz_dynamics` separation | A construction needs at least two parts, boxes, or demands |
@@ -285,7 +292,8 @@ to check the rating, not a finding.
 | `trim-with-compare-to` | `triz_behavior` | trim and compare_to were passed together |
 | `weakest-spec-without-target` | `triz_behavior` | weakest_spec was passed without compare_to or trim |
 | `rule-or-rule-id` | `triz_rule_apply` | Neither or both of rule and rule_id were passed |
-| `unknown-rule-id` | `triz_rule_apply` | rule_id names no built-in rule |
+| `unknown-rule-id` | `triz_rule_apply` | rule_id names no built-in rule or detector |
+| `detector-takes-model-only` | `triz_rule_apply` uneven-development | A detector rule_id was passed with at, match, carriers, ids, limit, or max_steps |
 | `at-and-match` | `triz_rule_apply` | at and match were passed together |
 | `apply-args-without-match` | `triz_rule_apply` | carriers or ids were passed while only listing matches |
 | `listing-entry-as-match` | `triz_rule_apply` | A whole matches[i] entry was passed as match |
@@ -298,7 +306,7 @@ to check the rating, not a finding.
 | `port-unassigned` | `triz_transform` segment | A port of the segmented box is given to no part |
 | `unknown-part` | `triz_transform` segment | cost_to names a part that is not listed |
 | `take-out-reading` | `triz_transform` take_out | The taken ports do not fit the take_out reading |
-| `not-adjacent` | `triz_transform` merge | Boxes to merge are not joined by functions inside the group |
+| `not-adjacent` | `triz_transform` merge | Boxes to merge are not joined by functions inside the group or by consecutive positions on a flow |
 | `not-identical` | `triz_transform` merge | Boxes to merge as identical differ in role or port carriers |
 | `role-ambiguous` | `triz_transform` merge | The merged boxes have different roles and into.role is missing |
 | `wrong-rating` | `triz_transform` rerate, retarget | The function's rating does not fit the operation |
@@ -312,6 +320,9 @@ to check the rating, not a finding.
 | `nothing-to-back-up` | `triz_transform` standby | The box performs no useful function on another box |
 | `not-cheaper` | `triz_transform` cheap_copy | The copy is not cheaper than the box |
 | `dangling-wire` | `triz_transform` rewrite, `triz_rule_apply` | A kept wire would touch a deleted box or port |
+| `dangling-flow` | `triz_transform` rewrite, `triz_rule_apply` | A kept flow would pass a deleted box, or name it as its medium |
+| `unknown-flow` | `triz_transform` rewrite | An id names no flow of the model |
+| `flow-on-split-box` | `triz_transform` segment | Segmentation would leave a flow on a box that no part keeps |
 | `id-not-fresh` | `triz_transform`, `triz_rule_apply` ids | A new element's id is already taken |
 | `ill-typed-result` | `triz_transform` rewrite, `triz_rule_apply` | The step would produce a model that does not type-check |
 | `trim-blocked` | `trim` in `triz_transform`, `triz_behavior`, `triz_feasibility` | A function of a trimmed box has no typed absorber |
@@ -325,6 +336,7 @@ to check the rating, not a finding.
 | `match-identifies` | `triz_rule_apply` | Two left-side elements match one model element and one would be deleted |
 | `unbound-carrier-variable` | `triz_rule_apply` | A carrier variable used only on the right side is not bound |
 | `not-right-only-variable` | `triz_rule_apply` | carriers binds a variable that is not used only on the right side |
+| `distinct-carriers` | `triz_rule_apply` | Carrier variables the rule declares distinct bind the same carrier |
 | `no-deliverables` | `triz_behavior`, `triz_weakness` | No product box receives a non-harmful function |
 | `box-map-unknown-box` | `triz_function_model`, `triz_behavior` | box_map names a box the concept or baseline does not have |
 | `box-map-ambiguous` | `triz_behavior` | box_map lands two concept input ports on one baseline port |
@@ -951,6 +963,64 @@ levels above on the coarse carrier, is an abstraction, and it reports the housin
 The map is checked as data. Whether the coarse boxes' rows are true of their preimages, and
 whether forgetting a function is safe, stays with you.
 
+## Flows
+
+A function says that one box acts on another. It does not say that a carrier passes through
+boxes one after the other: two valves in a line both act on the water, and neither acts on the
+other. A model can declare `flows`. Each is an ordered `path` of box ids with the `carrier` that
+moves along it, and optionally the `medium`, the box that stands for what flows when the boxes on
+the path act on it rather than pass it on. A box may recur later in a path, which closes a loop,
+but may not follow itself. The type check fails closed on an unknown carrier, box, or medium.
+
+`triz_flow` reads each flow. Every item it returns is a structural candidate, not a finding:
+
+- **Steps**: the consecutive pairs, each with the functions of the flow's carrier from one box
+  to the next. `declaredOnly` counts the steps no function joins.
+- **Where a function acts on the flow**: at its object, when it carries the flow's carrier and
+  its object is on the path; or at its performer, when its object is the medium and its
+  performer is on the path. The first reading fits boxes that pass the carrier on, such as the
+  stages of a request path. The second fits boxes in series that each act on the medium, such as
+  valves on the water.
+- **Bottleneck candidates**: the performer of a function acting on the flow that is rated
+  insufficient, excessive, or harmful: a resistance-like output on the flow, with the position
+  where it acts.
+- **Accumulation candidates**: a box where the steps of every flow of the carrier converge (at
+  least two predecessors, and fewer successors than predecessors), or a last box inside the
+  engineered system (role tool or mediator) that no flow of the carrier continues from.
+- **Leak candidates**: a function on the carrier from a box on the path to an environment or
+  supersystem box off it.
+- **Loops**: a box that recurs on the path, with the cycle between two occurrences. Its first
+  step and the rest of it form a cycle of the flow's step relation (`edge_on_cycle`). The harm
+  loops that share a box with the path are listed too.
+
+Every construction carries flows, so each result still type-checks:
+
+| Construction | What happens to a flow |
+|---|---|
+| `merge`, and the supersystem `collapse` | Each box of the group becomes the merged box, and repeats in a row collapse into one step. A flow wholly inside the group is hidden and listed. |
+| `trim` | The flow closes up over a trimmed box, from the box before it to the box after. A flow left with one box is dropped. Both are reported. Whether the flow can pass without the trimmed box is part of the trimming problem. |
+| `cheap_copy` under a new id | The copy takes the box's place. |
+| `segment`, `take_out` | The flow stays on the part that keeps the box's id (`take_out`'s remainder does). With no such part, `segment` fails closed: the ports do not say which part the flow passes. |
+| `rewrite` | A flow may pass a deleted box only if the step adds a box with that id back. Otherwise the step must delete or restate the flow (`delete.flows`, `add.flows`). |
+| Rules (`triz_rule_apply`) | A flow is a hyperedge on boxes that no pattern names, so deleting a box it passes is a dangling match, refused. |
+| Subsystem view (`restrict`) | Each flow keeps its runs of consecutive boxes inside the subsystem; the flows that cross are listed in the boundary. A medium outside is dropped. |
+| `triz_abstraction` | Each detailed flow's runs inside the mapped boxes pass through the box map as through a merge (`reach_quotient`) and are matched step by step against the coarse flows of the image carrier (`flows.images`); coarse flow steps no detailed step maps to are listed (`flows.unbacked`). Flows do not change the verdict. |
+| `triz_nine_windows` | A transition must reach the snapshot's flows, and `flowsChanged` lists those it changes. Each system view carries every flow's candidates (`system.verdicts.flows`), and each change lists the flows added, removed, and re-routed and the candidates each gains or loses (`changes[].verdicts.flows`). |
+
+Under the adjacent reading, `merge` accepts a group joined by functions inside it or by steps of
+a flow inside it. Boxes on one flow with a box outside the group between them are refused, with
+the boxes between them named: merging them would close a loop in the flow. A merge joined by
+functions can still close one; `flows.newlyLooped` lists those flows.
+
+`theory/` states two facts about a merge, for any group. `flow_merge_typed`: every box on the
+merged flow, the mapped path with repeats in a row dropped, is a box of the merged model.
+`flow_merge_reach`: a box outside the group that reached another one outside it along a flow
+still reaches it along the merged flow, whose steps (`mergedStep`) are the images of the steps
+whose ends land in different boxes. It rests on `reach_quotient`. A property test checks that
+the kernel's merged paths have exactly those steps. Adjacency is not a hypothesis of either: it
+is Principle 5's reading. What it buys is shown in `Witnesses.lean`: merging the adjacent boxes 1
+and 2 of the flow 0 → 1 → 2 → 3 leaves no loop, and merging 1 and 3 closes the loop 1 → 2 → 1.
+
 ## Principle constructions
 
 A construction is listed here only when the principle's text, looked up in
@@ -963,7 +1033,7 @@ one and why.
 |---|---|---|---|
 | 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts, and, for a box that declares behaviour, whether its relation is the product of its projections onto the parts (`behaviourallyIndependent`). For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
 | 2 Taking out | "Separate an interfering part or isolate the only needed part." | `take_out`: split the given ports off into a new box. | Reading `interfering`: the split-off ports touch a harmful or excessive function. Reading `needed`: they carry every useful function, so the remainder is a trimming candidate. |
-| 5 Merging | "Bring identical or adjacent operations together in space or time." | `merge`: `collapse` the boxes into one. | Reading `adjacent` (default): functions inside the group join every box. Reading `identical`: the same role and the same carriers on each side; names and actions are labels and are not compared. Every path maps to a path (`reach_quotient`), but a merge can close loops: harms newly on a harm loop are listed, as are the hidden internal functions. |
+| 5 Merging | "Bring identical or adjacent operations together in space or time." | `merge`: `collapse` the boxes into one. | Reading `adjacent` (default): functions inside the group, or consecutive positions on a declared flow, join every box; boxes with a box between them on a flow are refused. Reading `identical`: the same role and the same carriers on each side; names and actions are labels and are not compared. Every path maps to a path (`reach_quotient`), and every flow passes the merged box (`flow_merge_typed`, `flow_merge_reach`), but a merge can close loops: harms newly on a harm loop are listed, as are flows newly looped, the hidden internal functions, and flows hidden inside the merged box. |
 | 6 Universality | "Make an object perform multiple functions and eliminate other parts." | `trim` with every `absorb` choice on one box. No new operation. | As for `trim`: each re-attached function goes to a typed absorber. The result shows the box performing its own and the absorbed functions. |
 | 11 Beforehand cushioning | "Prepare emergency means beforehand to offset low reliability." | `standby`: an unwired box with an output port for each port through which the box performs a useful function on another box. | Harm loops, deliverables, and every existing function are unchanged; only cost is added. Losing the box is modelled as trimming it: afterwards `triz_trim` lists the standby as an absorber of each such function, and `newlyCovered` lists those that had none. |
 | 13 The other way round | "Invert the action; make movable parts fixed and fixed parts movable." | `reverse`: u → v becomes v → u with the same id, carrier, and rating. | Needs an output of the carrier on v and an input on u; a named port the box lacks is added (`typed_extend`), and none or several unnamed ones fail closed. The edge set changes by exactly that converse. The returned `undo`, a `rewrite`, gives back the original model, added ports included. |
@@ -982,7 +1052,7 @@ that move is `interpose`.
 Trimming as a rewrite is the evolution-line move named in
 [evolution-trends.md](evolution-trends.md): "the function remains, the component disappears".
 `trim` builds that rewrite and checks it. It does not show that a trend applies to the system.
-Two other lines are rules; see below.
+Three other lines are rules, and one is a detector; see below.
 
 ### All 40 principles
 
@@ -1008,7 +1078,7 @@ the original.
 | 2 | Taking out / Extraction | "Separate an interfering part or isolate the only needed part." | structural | `take_out`: "an interfering part" touches a harmful or excessive function; "the only needed part" carries every useful one. |
 | 3 | Local quality | "Make each part fulfill a different, locally optimal function." | parametric | "a different, locally optimal function" for "each part" reads as a parameter whose value differs by location: `triz_separate` with `along: "space"`, after `segment` makes the parts. "Optimal" is not checked. |
 | 4 | Asymmetry | "Replace symmetric forms with asymmetric ones." | analogy only | "symmetric forms" are geometry; the model has none. |
-| 5 | Merging / Consolidation | "Bring identical or adjacent operations together in space or time." | structural | `merge`, which is `collapse`: "identical" boxes share role and port carriers, "adjacent" ones are joined by functions. "In space or time" is not modelled. |
+| 5 | Merging / Consolidation | "Bring identical or adjacent operations together in space or time." | structural | `merge`, which is `collapse`: "identical" boxes share role and port carriers, "adjacent" ones are joined by functions or sit one after the other on a declared flow. "In space or time" is not modelled. |
 | 6 | Universality | "Make an object perform multiple functions and eliminate other parts." | structural | `trim` with every `absorb` choice on one box: the trim does "eliminate other parts", and that box comes to "perform multiple functions". No new operation. |
 | 7 | Nested doll / Nesting | "Place one object inside another; use layered containment." | analogy only | "Place one object inside another": the model has no containment. `collapse` is a view of a group, not a placement. |
 | 8 | Anti-weight / Counterweight | "Compensate an object's weight by coupling it to a lifting force." | analogy only | "Compensate an object's weight": no forces or balance. Adding the lifting function is a plain `rewrite`, and nothing checks that it compensates. |
@@ -1069,7 +1139,8 @@ that rule's. So a pattern box matches any box that has at least the pattern's po
 2. No-identification: two pattern elements with the same image must both be kept.
 3. No-dangling: every port of a deleted box must be in L, and every wire on a deleted port must
    be deleted. Bonchi et al. (2022, Def. 3.16 and Prop. 3.17) show that these two conditions
-   are exactly what the pushout complement needs.
+   are exactly what the pushout complement needs. A declared flow is a hyperedge on boxes that
+   no pattern names, so a deleted box may not lie on a flow or be one's medium.
 4. Declared rows:
    - A kept box that declares `behavior` or `transition` must keep its ports, because its rows
      name every port once. A rule that adds or deletes one of its ports fails with
@@ -1078,8 +1149,15 @@ that rule's. So a pattern box matches any box that has at least the pattern's po
      but must keep every port its rows name. A rule that deletes one fails with
      `feasibility:`; restate or remove the rows first.
    - A `like` copy copies none of these rows.
-5. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
-6. The result must pass the type check of `triz_function_model`.
+5. `distinct`: each listed pair of carrier variables must bind different carriers. It is an
+   application condition, not part of the pushout, and it only refuses applications.
+6. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
+7. The result must pass the type check of `triz_function_model`.
+
+The result lists in `fieldChanges` every created wire that is `like` a deleted wire on another
+carrier, with both carriers' layer and dimension: the same function in another field. It reports
+`deliverableKeysChanged` when a deliverable moved to another port or carrier, so `compare_to`
+would read it as lost and regained.
 
 `typed_dpo` in `theory/` states that the result is typed when four things hold: the model is
 typed, R is typed, no surviving wire touches a deleted box, and R gives no port a carrier other
@@ -1091,8 +1169,8 @@ carrier condition. The Lean statement leaves two things out:
 - Typing does not need no-identification, which is what makes the result a pushout. A witness
   in `Witnesses.lean` gives a typed result that breaks it.
 
-A property test applies four rules at every match in 200 generated models. Every applicable
-match gives a typed model. Every other match fails on a named condition, never at step 6. A
+A property test applies five rules at every match in 200 generated models. Every applicable
+match gives a typed model. Every other match fails on a named condition, never at step 7. A
 test on the bearing model with declared behaviour checks step 4.
 
 The search is bounded. Past the step budget the list is `decided: false`, and past the match
@@ -1102,19 +1180,20 @@ limit it is `complete: false`. Every listed match is verified before it is retur
 
 A line is encoded only where its text in [evolution-trends.md](evolution-trends.md) describes a
 move on the wiring. The rule encodes that move and no more, and cites the line; a test checks
-that the quoted text is on that line.
+that the quoted text is on that line. A line whose text names a diagnosis rather than a move can
+be a detector: it reports where the line points in the model and changes nothing.
 
 | Line | Text | Decision |
 |---|---|---|
 | Transition to supersystem | "mono → bi → poly → system with its supersystem" | Rule `mono-bi`: a second performer of a matched function. The copy takes the performer's role, name, action, and cost, so its cost counts, and the function's rating. Apply it again for poly. The supersystem step is not encoded. |
 | Increasing controllability | "fixed → adjustable → self-adjusting with feedback" | Rule `feedback`: one useful function from the object back to the tool, on a carrier the caller binds. The text names no sensor or controller, so the rule adds no box. The earlier steps are not encoded. `triz_transform` `feedback` (Principle 23) adds a function between boxes you name instead of searching for an occurrence. |
 | Increasing ideality | "function preserved while parts and cost vanish" | Trimming, already `triz_transform` `trim`. |
-| Dynamization | "rigid → jointed → flexible → field" | Not encoded: the steps change how rigid a component is, which the wiring does not represent. |
+| Dynamization | "rigid → jointed → flexible → field" | Not encoded: no structural reading holds. The steps change how rigid a component is, its degrees of freedom, which the wiring does not represent. "Jointed" resembles `segment` with a function between the parts, but that cannot tell a joint from any other contact between two parts. "Field" resembles the `working-field` rule, but that rule changes a function's carrier and cannot tell whether the tool itself has become a field. Neither is the line. |
 | Increasing coordination | "parts synchronize rhythm and parameters" | Not encoded: it changes parameters, not structure. |
-| Uneven development of subsystems | "one subsystem lags and becomes the limiter" | Not encoded: a diagnosis, not a move. |
+| Uneven development of subsystems | "one subsystem lags and becomes the limiter" | Detector `uneven-development` (`triz_rule_apply` with `rule_id`), not a rule: a diagnosis, not a move. The lagging subsystem is a box of the largest harm-loop region (the most boxes; every region of that size is searched) that is on a binding dimension (`triz_feasibility` finds the model over budget, and the box's fixed cost, or its row's operating cost in the witness of some minimal vector, is above 0 on a dimension every minimal vector exceeds; every minimal vector is read, not only the 50 `triz_feasibility` lists) or limits a deliverable (feasibility finds its rows unprovidable, or it performs an insufficient function on a product). Verdict `lagging` with each box's reasons; `none` when feasibility is decided and no box qualifies; `undecided` with no harm loop, or when feasibility is undecided and no box limits a deliverable. |
 | Transition to microlevel | "mechanism shrinks toward particle and field interactions" | Not encoded: scale is not in the wiring. |
 | Decreasing human involvement | "human does → machine does → system decides" | Not encoded: a machine performing the function in place of a human leaves the wiring as it was, and no role tells them apart. |
-| Changing the working field | "mechanical → thermal → chemical → electric → magnetic → electromagnetic" | Not encoded. A field would be a carrier, but the kernel reads a carrier's layer and dimension as labels, so it cannot order fields. It also identifies a delivered function by its carrier, so "the same function in another field" has no structural reading. |
+| Changing the working field | "mechanical → thermal → chemical → electric → magnetic → electromagnetic" | Rule `working-field`: the matched function and its two ports go, and a function of the same rating and verb comes on a carrier the caller binds as `d`, with a port of `d` on each box. `distinct` refuses `d` equal to the matched carrier. `fieldChanges` records both carriers' layer and dimension. Still unchecked: the order of fields, since the kernel reads a carrier's layer and dimension as labels and `Layer` puts mechanical and electric fields alike under `energy`; whether `d` is a field at all; and whether the new field delivers the function. A port that carries other functions too cannot go (dangling). A product's deliverable moves to the new port and carrier (`deliverableKeysChanged`). |
 
 A rule application is a move to evaluate, not evidence that the trend applies.
 
@@ -1254,8 +1333,8 @@ example cohort churn against fee changes. Name it only from that evidence.
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
   `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize`. The isomorphism check
   (`comparison.isomorphism`) does not compare carrier values, declared behaviour, feasibility,
-  or dynamics, so isomorphic models can get different `triz_behavior`, `triz_feasibility`, and
-  `triz_dynamics` verdicts.
+  dynamics, or flows, so isomorphic models can get different `triz_behavior`, `triz_feasibility`,
+  `triz_dynamics`, and `triz_flow` verdicts.
   - Property tests check this over 200 seeded random models with every array permuted.
   - Excluded by design: free text, witness-cycle tie-breaks (which follow id order), absorber
     port tie-breaks (which follow port order), and the truncated conflict-cell list.
@@ -1280,8 +1359,9 @@ example cohort churn against fee changes. Name it only from that evidence.
     only under its no-dangling and gluing conditions, which the kernel checks on the model
     given.
 - 9 windows, in the kernel:
-  - A transition reaches a snapshot when boxes, wires, and carriers agree by id and content,
-    ignoring array order. `domain`, `system`, `budget`, `weights`, and `contradictions` are not
+  - A transition reaches a snapshot when boxes, wires, carriers, and flows agree by id and
+    content, ignoring array order. Flow changes are listed in `flowsChanged`; the subsystem part
+    of a step, like `restrict_rewrite`, concerns boxes and wires only. `domain`, `system`, `budget`, `weights`, and `contradictions` are not
     compared.
   - Lean wires have fixed endpoints, so a step never moves one. A function re-attached under the
     same id, as an applied trim does, counts as one function deleted and another glued.
@@ -1307,9 +1387,17 @@ example cohort churn against fee changes. Name it only from that evidence.
 - Levels read amounts into values; they do not say that the values mean what the behaviour rows
   assume. The consistency check compares a row's named ports only, at the exact values its
   amounts read as. It does not apply the monotone reading to behaviour rows, which have no order.
-- Not adopted: 9 windows as a fibration, evolution lines other than the three above as rules
-  (the table gives each reason), and the principles classified parametric or analogy only above
-  as transformations. The formal-methods analogies are recorded in [sources.md](sources.md);
-  none is implemented.
+- Flows are declared, not inferred. A flow analysis item is a structural candidate: a bottleneck
+  candidate does not measure a resistance, and an accumulation candidate does not show that
+  anything piles up. Rates, capacities, and delays are not modelled. `triz_behavior`,
+  `triz_dynamics`, and `triz_feasibility` ignore flows, and the per-instance Lean certificates do
+  not cover them. A trim's flow bypass assumes the carrier can pass from the box before to the
+  box after.
+- The uneven-development detector reads structure and declared feasibility rows. It does not
+  measure how far a subsystem lags; "largest" counts boxes, not effect.
+- Not adopted: 9 windows as a fibration, evolution lines other than the four encoded as rules and
+  the one read as a detector (the table gives each reason), and the principles classified
+  parametric or analogy only above as transformations. The formal-methods analogies are
+  recorded in [sources.md](sources.md); none is implemented.
 - The principle constructions check structure only. The label-blindness property tests do not
   cover them.
