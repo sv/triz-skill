@@ -13,7 +13,8 @@
  *                        with one witness cycle per such function. Useful-only feedback is not a harm.
  *  - idealityProfile   — function counts and costs per resource dimension; dimensions are never
  *                        summed, and a scalar ratio exists only under explicit weights.
- *  - compareIdeality   — baseline vs concept as a componentwise (Pareto) comparison.
+ *  - compareIdeality   — baseline vs concept as a componentwise (Pareto) comparison; with MPV
+ *                        weights, also over the main parameters of value only (mpvComparison).
  *  - trimCandidates    — TRIZ trimming rules A/B/C screened by carrier type (necessary, not sufficient).
  *  - separationCheck   — physical contradiction as a gluing problem over a finite
  *                        space × time × condition × direction × level base.

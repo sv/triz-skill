@@ -25,6 +25,8 @@
  *                            gives the target).
  *  - weaknessRanking       — the situations each concept admits (a steady state, and every output
  *                            acceptable), ranked by inclusion; the count is a secondary figure.
+ *                            Acceptable values are listed, or derived from a threshold through the
+ *                            carrier's levels (src/act-levels.ts).
  *
  * Every search is finite and capped; past the cap the call fails closed. The verdict is about the
  * relations as declared. Whether a declared relation is physically or economically true, the

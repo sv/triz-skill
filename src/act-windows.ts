@@ -13,7 +13,9 @@
  *                  to the earlier snapshot, or both, in which case the sequence must reach the
  *                  snapshot. Each transition is reported as one net rewrite step and as its part
  *                  inside the subsystem; restriction commutes with every step once the step is
- *                  restricted too (restrict_rewrite in theory/CategoricalTriz.lean).
+ *                  restricted too (restrict_rewrite in theory/CategoricalTriz.lean). When the
+ *                  snapshots declare behaviour or feasibility, each time's system view carries
+ *                  its verdicts, and each change between times says how they move.
  *
  * Every view passes checkModel or the call fails closed. In theory/, the level axis is a presheaf,
  * and the subsystem and system rows with transitions are a functor from time × (box subsets)ᵒᵖ to
