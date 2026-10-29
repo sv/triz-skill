@@ -305,8 +305,8 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   const errors = [from, to].filter((x): x is string => typeof x === "string");
   if (errors.length) return fail(...errors);
   const [src, tgt] = [from, to] as Array<{ port: string; added: boolean }>;
-  const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior).map((b) => b.id);
-  if (declared.length) return fail(...declared.map((id) => `box '${id}' declares behavior: a new port needs a value in every row; declare it with rewrite, then reverse onto it`));
+  const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior || b.producible);
+  if (declared.length) return fail(...declared.map((b) => `box '${b.id}' declares ${b.behavior ? "behavior" : "producible"}: a new port needs a value in every row; declare it with rewrite, then reverse onto it`));
   const extended = new Map<string, Box>();
   const add = (box: Box, side: "outputs" | "inputs", port: string) => {
     const b = extended.get(box.id) ?? box;

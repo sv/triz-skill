@@ -86,6 +86,8 @@ export const Box = z.strictObject({
     .describe("Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together"),
   behavior: z.array(BehaviorRow).min(1).optional()
     .describe("Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown"),
+  producible: z.array(BehaviorRow).min(1).optional()
+    .describe("For a box whose behaviour is unknown: the rows it can physically produce, over the carriers' declared values, as behavior rows. triz_behavior weakest_spec keeps only these, and reports the rows the target needs that the box cannot produce. A box declares behavior or producible, not both"),
   state: z.array(Id).min(1).optional()
     .describe("Declared state: the finite set of values the box carries from one step to the next. Requires transition"),
   initial: z.array(Id).min(1).optional().describe("States the box may start in; a subset of state"),
@@ -192,6 +194,7 @@ function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
   if (b.state && !b.transition) errors.push(`box '${b.id}' declares state without transition`);
   if (b.initial && !b.state) errors.push(`box '${b.id}' declares initial without state`);
   if (b.behavior && b.transition) errors.push(`box '${b.id}' declares both behavior and transition: a stateless box declares behavior, a stateful one transition`);
+  if (b.producible && (b.behavior || b.transition)) errors.push(`box '${b.id}' declares producible with ${b.behavior ? "behavior" : "transition"}: producible bounds a box whose behaviour is unknown`);
   for (const s of duplicates(b.state ?? [])) errors.push(`box '${b.id}': duplicate state '${s}'`);
   const states = new Set(b.state ?? []);
   if (b.state) for (const s of b.initial ?? []) if (!states.has(s)) errors.push(`box '${b.id}': initial state '${s}' is not declared in state`);
@@ -201,7 +204,7 @@ function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
     }
   });
   const values = new Map(carriers.map((c) => [c.id, c.values]));
-  for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition]] as const) {
+  for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition], ["producible", b.producible]] as const) {
     if (!rows) continue;
     for (const p of [...inputs(b), ...outputs(b)]) {
       if (values.has(p.carrier) && !values.get(p.carrier)) errors.push(`box '${b.id}' declares ${kind}, but carrier '${p.carrier}' of port '${p.id}' declares no values`);

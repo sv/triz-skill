@@ -614,18 +614,48 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
       if (!goal.has(tupleKey(z.slice(0, k))) && !violation.has(r)) violation.set(r, { input: u, outputs: z.slice(0, k), target: sorted(goal) });
     }
   }
-  const spec = rows.filter((r) => !violation.has(tupleKey(r)));
+  // W, the residual; with producible rows F, the spec is W ∩ F, and W \ F are the rows the box cannot produce.
+  const residual = rows.filter((r) => !violation.has(tupleKey(r)));
+  const producible = hole.producible && new Set(hole.producible.map((row) => tupleKey(ports.map((q) => (q.side === "in" ? row.in[q.id] : row.out[q.id])))));
+  const spec = producible ? residual.filter((r) => producible.has(tupleKey(r))) : residual;
+  const infeasible = producible ? residual.filter((r) => !producible.has(tupleKey(r))) : [];
+  const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
+  /** Where the composite of `keep` misses the target: the first such input, and how many there are. */
+  const coverage = (keep: Set<string>) => {
+    let count = 0;
+    let first: { input: Array<Endpoint & { value: string }>; target: string[][]; delivered: string[][]; missing: string[][] } | undefined;
+    for (const u of valuationsOf(space.typed, space.domain)) {
+      const goal = outputsAt(t, t.inputs, space.at, u);
+      const delivered = new Map([...outputsAt(e, conceptInputs, space.at, u).values()].filter((z) => keep.has(tupleKey(z.slice(k)))).map((z) => [tupleKey(z.slice(0, k)), z.slice(0, k)]));
+      const missing = [...goal].filter(([y]) => !delivered.has(y));
+      if (!missing.length) continue;
+      count++;
+      first ??= { input: situation(u), target: sorted(goal), delivered: sorted(delivered), missing: sorted(new Map(missing)) };
+    }
+    return { uncovered: first, uncoveredInputs: count };
+  };
   const inSpec = new Set(spec.map(tupleKey));
-  let uncoveredInputs = 0;
-  let uncovered: { input: Array<Endpoint & { value: string }>; target: string[][]; delivered: string[][]; missing: string[][] } | undefined;
-  for (const u of valuationsOf(space.typed, space.domain)) {
-    const goal = outputsAt(t, t.inputs, space.at, u);
-    const delivered = new Map([...outputsAt(e, conceptInputs, space.at, u).values()].filter((z) => inSpec.has(tupleKey(z.slice(k)))).map((z) => [tupleKey(z.slice(0, k)), z.slice(0, k)]));
-    const missing = [...goal].filter(([y]) => !delivered.has(y));
-    if (!missing.length) continue;
-    uncoveredInputs++;
-    uncovered ??= { input: space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] })), target: sorted(goal), delivered: sorted(delivered), missing: sorted(new Map(missing)) };
+  const ofSpec = coverage(inSpec);
+  const ofResidual = producible ? coverage(new Set(residual.map(tupleKey))) : ofSpec;
+  // The residual covers the target and the producible spec does not: for each target pair it misses, the rows of W \ F that deliver it.
+  const requiredInfeasible: Array<{ input: Array<Endpoint & { value: string }>; outputs: string[]; rows: ReturnType<typeof asRow>[] }> = [];
+  const required = new Set<string>();
+  if (producible && !ofResidual.uncovered && ofSpec.uncovered) {
+    const cannot = new Set(infeasible.map(tupleKey));
+    for (const u of valuationsOf(space.typed, space.domain)) {
+      const goal = outputsAt(t, t.inputs, space.at, u), all = [...outputsAt(e, conceptInputs, space.at, u).values()];
+      const delivered = new Set(all.filter((z) => inSpec.has(tupleKey(z.slice(k)))).map((z) => tupleKey(z.slice(0, k))));
+      for (const [y, outputs] of goal) {
+        if (delivered.has(y)) continue;
+        const by = all.filter((z) => tupleKey(z.slice(0, k)) === y && cannot.has(tupleKey(z.slice(k)))).map((z) => z.slice(k));
+        // The residual covers this pair and no producible row of it does, so a row of W \ F must.
+        if (!by.length) throw new Error(`invariant: no row of the residual delivers [${outputs.join(", ")}] at input [${u.join(", ")}]`);
+        for (const r of by) required.add(tupleKey(r));
+        if (requiredInfeasible.length < LISTED) requiredInfeasible.push({ input: situation(u), outputs, rows: by.map(asRow) });
+      }
+    }
   }
+  const { uncovered, uncoveredInputs } = ofResidual.uncovered ? ofResidual : ofSpec;
 
   // Independent re-check: declare the spec and compare the concept's relation with the target.
   if (spec.length) {
@@ -635,7 +665,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
     for (const u of valuationsOf(space.typed, space.domain)) {
       const goal = outputsAt(t, t.inputs, space.at, u), got = outputsAt(again, conceptInputs, space.at, u);
       const outside = [...got.keys()].some((y) => !goal.has(y)), short = [...goal.keys()].some((y) => !got.has(y));
-      if (outside || (!uncovered && short)) throw new Error(`invariant: the declared spec ${outside ? "leaves" : "does not cover"} the target at input [${u.join(", ")}]`);
+      if (outside || (!ofSpec.uncovered && short)) throw new Error(`invariant: the declared spec ${outside ? "leaves" : "does not cover"} the target at input [${u.join(", ")}]`);
     }
   }
 
@@ -654,24 +684,41 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
       return { row: asRow(r), input: space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: v.input[i] })), delivers: v.outputs, target: v.target };
     }),
     blockedInputs: blocked.slice(0, LISTED).map(inputsOf),
+    ...(producible ? {
+      producible: {
+        declared: producible.size, residualRows: residual.length,
+        infeasibleRows: infeasible.length, infeasible: infeasible.slice(0, LISTED).map(asRow),
+      },
+    } : {}),
     deliverables: target, gainedDeliverables, inputs: space.inputs, inputValuations: valuations, composed: p.composed.map((b) => b.id), assumption: ASSUMPTION,
   };
   const blockNote = blocked.length && spec.length
     ? ` At ${blocked.length} input tuple(s) of '${hole.id}' (blockedInputs) every output takes the composite outside the target, so the spec has no row there: '${hole.id}' must rule those steady states out, which the physics must substantiate.`
     : "";
   const unusedNote = common.unusedRows ? ` ${common.unusedRows} row(s) of the spec occur in no steady state (unusedRows): they constrain nothing.` : "";
+  if (producible && !ofResidual.uncovered && ofSpec.uncovered) {
+    return {
+      ok: true as const, verdict: "impossible" as const, reason: "infeasible" as const, preserves: false as const, ...common, uncovered: ofSpec.uncovered, uncoveredInputs: ofSpec.uncoveredInputs,
+      requiredInfeasible, requiredInfeasibleRows: required.size,
+      basis: ["not_covers_feasible_iff", "required_row_of_eq", ...(spec.length ? [] : ["map_empty"])] as Theorem[],
+      note: `No behaviour '${hole.id}' can produce gives the target relation. Some behaviour of it would: the residual covers the target. But its producible rows (spec) miss the outputs under uncovered (${ofSpec.uncoveredInputs} of ${valuations} input valuations). This is the residual contradiction: for each target output they miss, requiredInfeasible lists the residual rows that deliver it, none of them producible, and every relation that gives the target contains one of them. Make one of those rows producible (another physical box, field, or resource), or change another box or the wiring.`,
+    };
+  }
   if (uncovered) {
     return {
       ok: true as const, verdict: "impossible" as const, reason: "not-covered" as const, preserves: false as const, ...common, uncovered, uncoveredInputs,
-      basis: ["not_covers_iff", ...(spec.length ? [] : ["map_empty"])] as Theorem[],
-      note: `No behaviour of '${hole.id}' gives the target relation. Every relation that keeps the composite inside the target is contained in the spec, and the spec's composite misses the outputs under uncovered (${uncoveredInputs} of ${valuations} input valuations). Change another box or the wiring.`
-        + (spec.length ? "" : ` The spec is empty: every row of '${hole.id}' takes the composite outside the target. The empty relation stays inside trivially, since its composite is empty, so staying inside is never read as preserving.`),
+      basis: ["not_covers_iff", ...(residual.length ? [] : ["map_empty"])] as Theorem[],
+      note: `No behaviour of '${hole.id}' gives the target relation. Every relation that keeps the composite inside the target is contained in the ${producible ? "residual (before producible)" : "spec"}, and its composite misses the outputs under uncovered (${uncoveredInputs} of ${valuations} input valuations). Change another box or the wiring.`
+        + (residual.length ? "" : ` The spec is empty: every row of '${hole.id}' takes the composite outside the target. The empty relation stays inside trivially, since its composite is empty, so staying inside is never read as preserving.`),
     };
   }
   return {
     ok: true as const, verdict: "spec" as const, preserves: true as const, ...common,
-    basis: ["le_residual_iff", "covers_iff_exists_eq"] as Theorem[],
-    note: `The weakest specification for '${hole.id}' (residual in Rel): every row whose composite stays inside the target, and with all of them declared the concept's relation equals the target. Any behaviour of '${hole.id}' that gives the target is contained in it, so declaring it commits '${hole.id}' to the fewest constraints. It holds for the other boxes' relations as declared; whether a physical '${hole.id}' can meet it, and at what cost, is outside the kernel.` + blockNote + unusedNote,
+    basis: ["le_residual_iff", producible ? "covers_feasible_iff" : "covers_iff_exists_eq"] as Theorem[],
+    note: (producible
+      ? `The weakest producible specification for '${hole.id}': every row it can produce (producible) whose composite stays inside the target, and with all of them declared the concept's relation equals the target. Any producible behaviour of '${hole.id}' that gives the target is contained in it.${infeasible.length ? ` ${infeasible.length} row(s) of the residual are not producible (producible.infeasible) and are left out; the target does not need them.` : ""}`
+      : `The weakest specification for '${hole.id}' (residual in Rel): every row whose composite stays inside the target, and with all of them declared the concept's relation equals the target. Any behaviour of '${hole.id}' that gives the target is contained in it, so declaring it commits '${hole.id}' to the fewest constraints.`)
+      + ` It holds for the other boxes' relations as declared; whether a physical '${hole.id}' can meet it, and at what cost, is outside the kernel.` + blockNote + unusedNote,
   };
 }
 

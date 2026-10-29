@@ -809,6 +809,33 @@ theorem not_covers_iff (hC : PreservesUnions C) {T : SetRel γ δ} :
     ¬ T ⊆ C (residual C T) ↔ ∀ R, C R ≠ T := by
   rw [← covers_iff_exists_eq hC, not_exists]
 
+/-- With the rows `F` the box can produce: some relation within `F` achieves `T` iff the
+composite of the residual cut down to `F` covers `T`. With `F` everything, this is
+`covers_iff_exists_eq`. -/
+theorem covers_feasible_iff (hC : PreservesUnions C) {T : SetRel γ δ} {F : SetRel α β} :
+    (∃ R ⊆ F, C R = T) ↔ T ⊆ C (residual C T ∩ F) := by
+  refine ⟨fun ⟨R, hRF, h⟩ => ?_, fun h => ⟨residual C T ∩ F, Set.inter_subset_right, ?_⟩⟩
+  · have hR : R ⊆ residual C T ∩ F := Set.subset_inter (subset_residual_of_eq hC h) hRF
+    exact h.symm.subset.trans ((gc_residual hC).monotone_l hR)
+  · exact (((gc_residual hC).monotone_l Set.inter_subset_left).trans (map_residual_subset hC T)).antisymm h
+
+/-- When the producible part of the residual misses part of `T`, no relation the box can produce
+achieves `T`, even where the whole residual covers it. -/
+theorem not_covers_feasible_iff (hC : PreservesUnions C) {T : SetRel γ δ} {F : SetRel α β} :
+    ¬ T ⊆ C (residual C T ∩ F) ↔ ∀ R ⊆ F, C R ≠ T := by
+  rw [← covers_feasible_iff hC]
+  simp only [not_exists, not_and]
+
+/-- A relation that achieves `T` holds, for each pair of `T`, a row of the residual whose
+composite delivers that pair. So when no producible row of the residual delivers it, every
+relation achieving `T` contains one of the residual's rows that cannot be produced. -/
+theorem required_row_of_eq (hC : PreservesUnions C) {R : SetRel α β} {T : SetRel γ δ}
+    (h : C R = T) {q : γ × δ} (hq : q ∈ T) : ∃ p ∈ R, p ∈ residual C T ∧ q ∈ C {p} := by
+  rw [← h, hC R] at hq
+  simp only [Set.mem_iUnion] at hq
+  obtain ⟨p, hp, hq⟩ := hq
+  exact ⟨p, hp, subset_residual_of_eq hC h hp, hq⟩
+
 end Residual
 
 /-! ## Weakness ranking (`weaknessRanking`)

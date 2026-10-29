@@ -22,7 +22,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
-| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
 | Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `return_ge_two` |
@@ -378,8 +378,27 @@ inputs.
   - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
     `max_states`.
   - A carrier of the box without `values` fails closed.
-- **Re-check.** The kernel declares `W`, recomputes the concept's relation, and compares it with
-  the target before it answers.
+- **Producible rows.** The box to specify may declare `producible`: behaviour rows over its
+  ports' declared values that it can physically produce, the set `F`. A box declares `behavior`
+  or `producible`, not both, and the rows are typed like behaviour rows. The kernel cuts the
+  residual down to them: the spec is `W ∩ F`. Some relation within `F` gives the target iff the
+  composite of `W ∩ F` covers it (`covers_feasible_iff`). So the verdicts are:
+  - `spec`, when `W ∩ F` covers the target. `producible.infeasible` lists the rows of `W` left out
+    (`infeasibleRows` counts them); the target does not need them.
+  - `impossible` with reason `infeasible`, when `W` covers the target and `W ∩ F` does not. No
+    relation the box can produce gives the target (`not_covers_feasible_iff`), though one it
+    cannot produce would. This is the residual contradiction. `requiredInfeasible` gives, for each
+    target pair `W ∩ F` misses (an input and its outputs), the rows of `W` whose composite
+    delivers it. None is producible, and every relation that gives the target contains at least
+    one row of each entry (`required_row_of_eq`): one of them, not all.
+  - `impossible` with reason `not-covered`, when `W` itself fails to cover the target, whatever is
+    producible. `uncovered` is then the residual's witness.
+
+  `excluded` keeps its meaning: rows whose composite leaves the target, producible or not. A
+  transformation that adds a port to the box refuses, as it does for behaviour; `segment`,
+  `take_out`, and `merge` drop `producible` from the boxes they replace.
+- **Re-check.** The kernel declares the spec (`W`, or `W ∩ F`), recomputes the concept's relation,
+  and compares it with the target before it answers.
 
 ## Weakness ranking
 
@@ -850,6 +869,10 @@ example cohort churn against fee changes. Name it only from that evidence.
     or with what new harms.
   - It is named for what it computes. It is not abduction, and it does not search for
     mechanisms.
+  - `producible` is declared, not derived. The kernel does not check that a physical box can
+    produce those rows and no others, and it does not read `feasibility` levels as rows.
+    `requiredInfeasible` names the rows the target needs that the declaration excludes; it does
+    not say which of them is cheapest to make producible.
 - Lean proves the residual's properties for every context that preserves unions, and that
   composition and the trace preserve unions. It does not prove that the kernel's join is such a
   context, or that the evaluator computes it. Two things are tested instead:

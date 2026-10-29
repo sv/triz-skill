@@ -142,7 +142,9 @@ is the product of the projections, and Intermediary's mediator can declare an id
 The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
 weakest specification for the one box without behaviour, such as an absorber: every row that
 keeps the relation inside the target. The verdict is `spec` when that specification also covers
-the target, and `impossible` when no behaviour of the box can. `triz_weakness` ranks modelled
+the target, and `impossible` when no behaviour of the box can. When the box declares the rows it
+can physically produce (`producible`), the specification is cut down to them, and a target only
+unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. `triz_weakness` ranks modelled
 concepts by the situations they admit (references/weakness.md).
 
 When boxes declare feasibility (minimal rows of levels provided against levels required and
@@ -197,7 +199,9 @@ with no `sorry`:
   the row (a, d);
 - series composition and the trace preserve unions, so for one unknown box the rows that keep a
   composite inside a target form the weakest specification (a Galois connection), and the target
-  is reachable iff that specification's composite covers it;
+  is reachable iff that specification's composite covers it; within the rows the box can
+  produce, iff the specification cut down to them covers it, and a relation that reaches the
+  target holds, for each target pair, a row of the specification that delivers it;
 - concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
   strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a

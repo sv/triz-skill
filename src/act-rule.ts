@@ -304,7 +304,7 @@ export function gluingConditions(model: FunctionModel, rule: Rule, match: RuleMa
 }
 
 /**
- * Declared rows a rule would leave ill-typed on a kept box. Behaviour and transition rows name
+ * Declared rows a rule would leave ill-typed on a kept box. Behaviour, transition, and producible rows name
  * every port once, so the box must keep its ports exactly: a rule that adds or deletes one is
  * refused. Feasibility rows name only some ports (an omitted one provides and needs 0), so the box
  * may gain ports but must keep every port its rows name. These are not gluing conditions; they
@@ -319,7 +319,7 @@ export function declaredRowConditions(model: FunctionModel, rule: Rule, match: R
     ...[...R.ports].filter(([k, p]) => K.boxes.has(p.box) && !K.ports.has(k)).map(([, p]) => get(match.boxes, p.box)!),
   ]);
   return model.boxes.flatMap((b) => {
-    const rows = (["behavior", "transition"] as const).filter((kind) => b[kind] && changed.has(b.id))
+    const rows = (["behavior", "transition", "producible"] as const).filter((kind) => b[kind] && changed.has(b.id))
       .map((kind) => `behaviour: the rule changes the ports of box '${b.id}', which declares ${kind}; restate or remove its ${kind} first`);
     if (!b.feasibility) return rows;
     const named = new Set(b.feasibility.flatMap((r) => [...Object.keys(r.provides ?? {}), ...Object.keys(r.requires ?? {})]));

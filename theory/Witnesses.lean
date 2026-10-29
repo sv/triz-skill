@@ -651,6 +651,89 @@ example : ¬ ((∃ R, allOrNothingBool R = {((), true)}) ↔
     · exact (Set.ext_iff.mp h ((), true)).2 rfl
   exact ⟨fun h => let ⟨R, hR⟩ := h.2 hcov; hne R hR, fun h => h.2 hne hcov⟩
 
+/-! ### Producible rows: `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`
+
+On `passOn` with target `{true}`, the residual is the one row delivering `true`. When the box can
+produce that row (`F` everything), the producible residual covers the target and that row
+achieves it. When it can produce only the row delivering `false`, the residual still covers the
+target, but its producible part is empty: no producible relation achieves the target, and the row
+delivering `true` is the required, unproducible one. Without `hC`, `allOrNothingBool` breaks the
+iff with `F` everything, as it breaks `covers_iff_exists_eq`. -/
+
+/-- The residual of `passOn` for the target `{true}` is the row delivering `true`. -/
+theorem passOn_residual : residual (deliver passOn) {((), true)} = {((), true)} := by
+  ext ⟨u, b⟩
+  cases u
+  cases b <;> simp [residual, deliver, passOn, Set.subset_def, Prod.ext_iff]
+
+theorem passOn_single : deliver passOn {((), true)} = {((), true)} := by
+  ext ⟨u, b⟩
+  cases u
+  cases b <;> simp [deliver, passOn]
+
+example : ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)} ∩ Set.univ) ∧
+    ∃ R ⊆ (Set.univ : SetRel Unit Bool), deliver passOn R = {((), true)} := by
+  have h : ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)} ∩ Set.univ) := by
+    rw [Set.inter_univ, passOn_residual, passOn_single]
+  exact ⟨h, (covers_feasible_iff (deliver_preservesUnions passOn)).2 h⟩
+
+/-- Only the row delivering `false` is producible: the residual covers the target, its producible
+part does not, and no producible relation achieves the target. -/
+example : ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)}) ∧
+    ¬ ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)} ∩ {((), false)}) ∧
+    ∀ R ⊆ ({((), false)} : SetRel Unit Bool), deliver passOn R ≠ {((), true)} := by
+  have hF : residual (deliver passOn) {((), true)} ∩ {((), false)} = ∅ := by
+    rw [passOn_residual]
+    ext ⟨u, b⟩
+    simp [Prod.ext_iff]
+  have hn : ¬ ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)} ∩ {((), false)}) := by
+    rw [hF, map_empty (deliver_preservesUnions passOn)]
+    exact fun h => h rfl
+  exact ⟨by rw [passOn_residual, passOn_single], hn, (not_covers_feasible_iff (deliver_preservesUnions passOn)).1 hn⟩
+
+/-- The row delivering `true` is required: any relation achieving `{true}` holds it, and it is in
+the residual. -/
+example : ∃ p ∈ ({((), true)} : SetRel Unit Bool), p ∈ residual (deliver passOn) {((), true)} ∧
+    ((), true) ∈ deliver passOn {p} :=
+  required_row_of_eq (deliver_preservesUnions passOn) passOn_single rfl
+
+/-- Without `h`: the empty relation does not achieve `{true}`, and holds no row. -/
+example : deliver passOn ∅ ≠ {((), true)} ∧ ¬ ∃ p ∈ (∅ : SetRel Unit Bool), ((), true) ∈ deliver passOn {p} := by
+  rw [map_empty (deliver_preservesUnions passOn)]
+  exact ⟨fun h => by simpa using (Set.ext_iff.mp h ((), true)).2 rfl, fun ⟨_, hp, _⟩ => hp⟩
+
+/-- Without `hq`: the pair `false` is outside the target, and the achieving row does not deliver it. -/
+example : ((), false) ∉ ({((), true)} : SetRel Unit Bool) ∧
+    ¬ ∃ p ∈ ({((), true)} : SetRel Unit Bool), ((), false) ∈ deliver passOn {p} := by
+  refine ⟨by simp, fun ⟨p, hp, hq⟩ => ?_⟩
+  rw [Set.mem_singleton_iff.mp hp, passOn_single] at hq
+  simp at hq
+
+/-- Without `hC`: `allOrNothingBool` with `F` everything breaks `covers_feasible_iff`, since the
+residual of `{true}` is everything and its composite covers the target, yet nothing achieves it;
+and it breaks `required_row_of_eq`, since everything achieves everything with no single row
+delivering anything. -/
+example : ¬ ((∃ R ⊆ (Set.univ : SetRel Unit Bool), allOrNothingBool R = {((), true)}) ↔
+      {((), true)} ⊆ allOrNothingBool (residual allOrNothingBool {((), true)} ∩ Set.univ)) ∧
+    allOrNothingBool Set.univ = Set.univ ∧
+    ¬ ∃ p ∈ (Set.univ : SetRel Unit Bool), p ∈ residual allOrNothingBool Set.univ ∧
+      ((), true) ∈ allOrNothingBool {p} := by
+  have single : ∀ p : Unit × Bool, ({p} : SetRel Unit Bool) ≠ Set.univ := fun p h => by
+    have := h ▸ Set.mem_univ ((), !p.2)
+    simp [Prod.ext_iff] at this
+  have hW : residual allOrNothingBool {((), true)} = Set.univ := Set.eq_univ_of_forall fun p => by
+    simp only [residual, allOrNothingBool, Set.mem_setOf_eq, if_neg (single p), Set.empty_subset]
+  have hne : ∀ R, allOrNothingBool R ≠ {((), true)} := fun R h => by
+    unfold allOrNothingBool at h
+    split_ifs at h
+    · have := (Set.ext_iff.mp h ((), false)).1 trivial
+      simp at this
+    · exact (Set.ext_iff.mp h ((), true)).2 rfl
+  refine ⟨fun h => ?_, by simp [allOrNothingBool], fun ⟨p, _, _, hq⟩ => ?_⟩
+  · obtain ⟨R, -, hR⟩ := h.2 (by rw [Set.inter_univ, hW]; simp [allOrNothingBool])
+    exact hne R hR
+  · simp [allOrNothingBool] at hq
+
 /-! ## Weakness ranking
 
 `admits_mono_ok`: a predicate that also accepts `false` admits the situation `false` as well;

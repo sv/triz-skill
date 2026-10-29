@@ -96,6 +96,14 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   const impossible = await call("triz_behavior", { model: dry, trim: ["bearing"], weakest_spec: true });
   assert.equal(impossible.verdict, "impossible");
   collect(impossible);
+  // With producible rows on the housing: a spec within them, and a target only an unproducible row reaches.
+  for (const [bore, verdict] of [["supported", "spec"], ["unsupported", "impossible"]] as const) {
+    const bounded = structuredClone(open);
+    bounded.boxes.find((b) => b.id === "housing")!.producible = [{ in: {}, out: { bore } }];
+    const r = await call("triz_behavior", { model: bounded, trim: ["bearing"], weakest_spec: true });
+    assert.equal(r.verdict, verdict);
+    collect(r);
+  }
   const variant = (keep: (lube: string) => boolean) => {
     const m = structuredClone(dry);
     const b = m.boxes.find((x) => x.id === "bearing")!;
@@ -122,7 +130,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   }
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
-    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker", "trapped_reachIn", "closed_reachIn"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker", "trapped_reachIn", "closed_reachIn",
+    "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
