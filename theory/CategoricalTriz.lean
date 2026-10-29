@@ -8,6 +8,10 @@ import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Fintype.Prod
+import Mathlib.Data.Finite.Prod
+import Mathlib.Data.Quot
+import Mathlib.Data.Set.Piecewise
+import Mathlib.Data.Setoid.Basic
 import Mathlib.Data.List.Destutter
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
@@ -735,6 +739,8 @@ unchanged (`Relation.comp_eq`, cited too). The statements below add that series 
 monotone, that adding rows never removes a steady state, and they pin down the trace on the
 loops the tests check: semantic sanity lemmas, which no verdict cites. The last three
 characterise when a box's relation splits over a segmentation of its ports, which `segment`
+cites. The subsection after them shows that a box's relation has a unique finest factorisation
+over its ports, and how to compute it one port at a time, which `segment`'s suggested partition
 cites. The TypeScript evaluator is checked against them by tests, not by extraction.
 
 For a model that declares behaviour, `trimPreservesBehavior` decides whether a trim keeps the
@@ -827,6 +833,291 @@ theorem eq_projections_pi_iff {ι : Type*} {X : ι → Type*} (R : Set (∀ i, X
   refine Set.Subset.antisymm (Set.subset_pi_eval_image _ _) fun f hf i _ => ?_
   obtain ⟨g, hg, hgi⟩ := hf i (Set.mem_univ i)
   exact hgi ▸ hg i (Set.mem_univ i)
+
+/-! ### The finest factorisation (`finestFactorisation`)
+
+A partition of a box's ports is a `Setoid` on them. The relation factors over it when it is the
+product of its block projections. Factorisations are closed under merging blocks and under common
+refinement, so over finitely many ports, at least one of them, there is a unique finest one. The
+kernel computes it one port at a time (`IsFinest.addPort`): each new port merges with the blocks
+so far that the rectangle test couples to it, on the projection onto the ports so far. -/
+
+section Factorisation
+
+variable {ι : Type*} {X : ι → Type*}
+
+/-- The product of the block projections of `R` over the partition `s`: the valuations that
+agree, on each block, with some row. -/
+def blockProd (R : Set (∀ i, X i)) (s : Setoid ι) : Set (∀ i, X i) :=
+  {g | ∀ i, ∃ f ∈ R, ∀ j, s i j → f j = g j}
+
+/-- `R` factors over the partition `s` of its ports: it is the product of its block projections. -/
+def Factors (R : Set (∀ i, X i)) (s : Setoid ι) : Prop := R = blockProd R s
+
+/-- `s` is the finest partition `R` factors over: every partition `R` factors over merges blocks
+of `s`. -/
+def IsFinest (R : Set (∀ i, X i)) (s : Setoid ι) : Prop := Factors R s ∧ ∀ t, Factors R t → s ≤ t
+
+/-- The partition of the ports into `S` and the rest. -/
+def split (S : Set ι) : Setoid ι where
+  r i j := (i ∈ S ↔ j ∈ S)
+  iseqv := ⟨fun _ => Iff.rfl, Iff.symm, Iff.trans⟩
+
+theorem split_apply {S : Set ι} {i j : ι} : split S i j ↔ (i ∈ S ↔ j ∈ S) := Iff.rfl
+
+theorem subset_blockProd (R : Set (∀ i, X i)) (s : Setoid ι) : R ⊆ blockProd R s :=
+  fun f hf _ => ⟨f, hf, fun _ _ => rfl⟩
+
+/-- `R` is always inside the product of its block projections, so it factors iff that product
+adds no valuation. -/
+theorem factors_iff {R : Set (∀ i, X i)} {s : Setoid ι} : Factors R s ↔ blockProd R s ⊆ R :=
+  ⟨fun h => h.symm.subset, fun h => (subset_blockProd R s).antisymm h⟩
+
+/-- Over single ports, factoring is `eq_projections_pi_iff`'s condition. -/
+theorem factors_bot_iff {R : Set (∀ i, X i)} :
+    Factors R ⊥ ↔ R = Set.univ.pi (fun i => Function.eval i '' R) := by
+  have : blockProd R ⊥ = Set.univ.pi (fun i => Function.eval i '' R) := Set.ext fun _ =>
+    ⟨fun hg i _ => let ⟨f, hf, hfg⟩ := hg i; ⟨f, hf, hfg i rfl⟩,
+     fun hg i => let ⟨f, hf, hfg⟩ := hg i trivial; ⟨f, hf, fun j hij => hij ▸ hfg⟩⟩
+  rw [Factors, this]
+
+/-- A coarser partition factors too: merging blocks keeps a factorisation. -/
+theorem Factors.mono {R : Set (∀ i, X i)} {s t : Setoid ι} (h : Factors R s) (hst : s ≤ t) :
+    Factors R t :=
+  factors_iff.mpr fun _ hg => factors_iff.mp h fun i =>
+    let ⟨f, hf, hfg⟩ := hg i
+    ⟨f, hf, fun j hij => hfg j (hst hij)⟩
+
+/-- In particular `R` factors over any block of a factorisation against the rest. -/
+theorem Factors.split_block {R : Set (∀ i, X i)} {s : Setoid ι} (h : Factors R s) (a : ι) :
+    Factors R (split {b | s a b}) :=
+  h.mono fun _ _ hbc => split_apply.mpr ⟨fun hb => s.trans' hb hbc, fun hc => s.trans' hc (s.symm' hbc)⟩
+
+/-- With at least one port, every relation factors over the one-block partition. -/
+theorem factors_top [Nonempty ι] (R : Set (∀ i, X i)) : Factors R ⊤ :=
+  factors_iff.mpr fun g hg => by
+    obtain ⟨f, hf, hfg⟩ := hg (Classical.arbitrary ι)
+    exact (funext fun j => hfg j trivial) ▸ hf
+
+/-- With at least one port, the empty relation factors over every partition. -/
+theorem factors_empty [Nonempty ι] (s : Setoid ι) : Factors (∅ : Set (∀ i, X i)) s :=
+  factors_iff.mpr fun _ hg => (hg (Classical.arbitrary ι)).elim fun _ h => h.1.elim
+
+/-- If `R` factors over two partitions, it factors over their common refinement. Take a valuation
+that agrees with some row on each block of `s ⊓ t`, and a block of `s`. Gluing rows along `s`, and
+then along `t`, gives a row that agrees with the valuation on that block; gluing those rows along
+`s` gives the valuation itself. -/
+theorem Factors.inf {R : Set (∀ i, X i)} {s t : Setoid ι} (hs : Factors R s) (ht : Factors R t) :
+    Factors R (s ⊓ t) := by
+  classical
+  refine factors_iff.mpr fun g hg => factors_iff.mp hs fun i => ?_
+  choose c hc hcg using hg
+  -- the row of `j₀` on the `s`-block of `i`, the row of `i` elsewhere: a row, by `hs`
+  have glue : ∀ j₀, (fun j => if s i j then c j₀ j else c i j) ∈ R := fun j₀ =>
+    factors_iff.mp hs fun p => by
+      by_cases hp : s i p
+      · exact ⟨c j₀, hc j₀, fun j hpj => by rw [if_pos (s.trans' hp hpj)]⟩
+      · exact ⟨c i, hc i, fun j hpj => by rw [if_neg fun hij => hp (s.trans' hij (s.symm' hpj))]⟩
+  refine ⟨fun j => if s i j then g j else c i j, factors_iff.mp ht fun m => ?_,
+    fun j hij => by simp only [if_pos hij]⟩
+  by_cases hm : ∃ j₀, t m j₀ ∧ s i j₀
+  · obtain ⟨j₀, hmj₀, hij₀⟩ := hm
+    refine ⟨_, glue j₀, fun j hmj => ?_⟩
+    by_cases hij : s i j
+    · simp only [if_pos hij]
+      exact hcg j₀ j (Setoid.inf_iff_and.mpr ⟨s.trans' (s.symm' hij₀) hij, t.trans' (t.symm' hmj₀) hmj⟩)
+    · simp only [if_neg hij]
+  · exact ⟨c i, hc i, fun j hmj => by simp only [if_neg fun hij => hm ⟨j, hmj, hij⟩]⟩
+
+/-- Over two blocks, `S` and the rest, factoring is the rectangle condition: the valuation that
+reads one row on `S` and another off `S` is a row. This is the test the kernel runs on each block. -/
+theorem factors_split_iff [Nonempty ι] {R : Set (∀ i, X i)} {S : Set ι} [DecidablePred (· ∈ S)] :
+    Factors R (split S) ↔ ∀ f ∈ R, ∀ g ∈ R, S.piecewise f g ∈ R := by
+  constructor
+  · intro h f hf g hg
+    refine factors_iff.mp h fun i => ?_
+    by_cases hi : i ∈ S
+    · exact ⟨f, hf, fun j hij => (Set.piecewise_eq_of_mem _ _ _ (split_apply.mp hij |>.mp hi)).symm⟩
+    · exact ⟨g, hg, fun j hij =>
+        (Set.piecewise_eq_of_notMem _ _ _ fun hj => hi (split_apply.mp hij |>.mpr hj)).symm⟩
+  · intro h
+    refine factors_iff.mpr fun g hg => ?_
+    choose c hc hcg using hg
+    obtain ⟨i₀⟩ := ‹Nonempty ι›
+    have hin : ∃ f ∈ R, ∀ j ∈ S, f j = g j := by
+      by_cases hne : ∃ a, a ∈ S
+      · obtain ⟨a, ha⟩ := hne
+        exact ⟨c a, hc a, fun j hj => hcg a j (split_apply.mpr (iff_of_true ha hj))⟩
+      · exact ⟨c i₀, hc i₀, fun j hj => (hne ⟨j, hj⟩).elim⟩
+    have hout : ∃ f ∈ R, ∀ j ∉ S, f j = g j := by
+      by_cases hne : ∃ b, b ∉ S
+      · obtain ⟨b, hb⟩ := hne
+        exact ⟨c b, hc b, fun j hj => hcg b j (split_apply.mpr (iff_of_false hb hj))⟩
+      · exact ⟨c i₀, hc i₀, fun j hj => (hne ⟨j, hj⟩).elim⟩
+    obtain ⟨f₁, hf₁, h₁⟩ := hin
+    obtain ⟨f₂, hf₂, h₂⟩ := hout
+    convert h f₁ hf₁ f₂ hf₂ using 1
+    funext j
+    by_cases hj : j ∈ S
+    · rw [Set.piecewise_eq_of_mem _ _ _ hj, h₁ j hj]
+    · rw [Set.piecewise_eq_of_notMem _ _ _ hj, h₂ j hj]
+
+/-- Over finitely many ports, at least one of them, a finest factorisation exists: a minimal one
+among the finitely many partitions `R` factors over, which is below each of them since their
+common refinement factors too. -/
+theorem exists_isFinest [Finite ι] [Nonempty ι] (R : Set (∀ i, X i)) : ∃ s, IsFinest R s := by
+  haveI : Finite (Setoid ι) := Finite.of_injective (fun s : Setoid ι => (⇑s : ι → ι → Prop))
+    fun _ _ h => Setoid.eq_iff_rel_eq.mpr h
+  obtain ⟨s, hs⟩ := exists_minimal_of_wellFoundedLT (Factors R) ⟨⊤, factors_top R⟩
+  exact ⟨s, hs.prop, fun t ht => (hs.eq_of_le (hs.prop.inf ht) inf_le_left).symm.le.trans inf_le_right⟩
+
+/-- The finest factorisation is unique. -/
+theorem IsFinest.unique {R : Set (∀ i, X i)} {s t : Setoid ι} (hs : IsFinest R s)
+    (ht : IsFinest R t) : s = t :=
+  le_antisymm (hs.2 t ht.1) (ht.2 s hs.1)
+
+/-- A partition factors iff it merges blocks of the finest one: `segment`'s split holds exactly
+when each part is a union of suggested blocks. -/
+theorem IsFinest.factors_iff {R : Set (∀ i, X i)} {s t : Setoid ι} (hs : IsFinest R s) :
+    Factors R t ↔ s ≤ t :=
+  ⟨hs.2 t, hs.1.mono⟩
+
+/-- Two ports share a block of the finest factorisation iff no split of the ports into two
+groups, over which `R` factors, separates them. -/
+theorem IsFinest.rel_iff {R : Set (∀ i, X i)} {s : Setoid ι} (hs : IsFinest R s) {i j : ι} :
+    s i j ↔ ∀ S, Factors R (split S) → (i ∈ S ↔ j ∈ S) :=
+  ⟨fun hij _ hS => hs.2 _ hS hij, fun h => (h _ (hs.1.split_block i)).mp (s.refl' i)⟩
+
+/-- The rows of `R` seen on the ports `T` only: the valuations that agree with some row on `T`.
+This is the projection of `R` onto `T`, as a relation over every port. -/
+def onPorts (T : Set ι) (R : Set (∀ i, X i)) : Set (∀ i, X i) := {g | ∃ f ∈ R, ∀ j ∈ T, f j = g j}
+
+theorem onPorts_univ (R : Set (∀ i, X i)) : onPorts Set.univ R = R :=
+  Set.ext fun g => ⟨fun ⟨_, hf, h⟩ => (funext fun j => h j trivial) ▸ hf,
+    fun hg => ⟨g, hg, fun _ _ => rfl⟩⟩
+
+theorem subset_onPorts (T : Set ι) (R : Set (∀ i, X i)) : R ⊆ onPorts T R :=
+  fun g hg => ⟨g, hg, fun _ _ => rfl⟩
+
+theorem onPorts_anti {T T' : Set ι} (h : T ⊆ T') (R : Set (∀ i, X i)) :
+    onPorts T' R ⊆ onPorts T R :=
+  fun _ ⟨f, hf, hfg⟩ => ⟨f, hf, fun j hj => hfg j (h hj)⟩
+
+theorem onPorts_onPorts {T T' : Set ι} (h : T ⊆ T') (R : Set (∀ i, X i)) :
+    onPorts T (onPorts T' R) = onPorts T R :=
+  Set.ext fun _ => ⟨fun ⟨_, ⟨f, hf, hff'⟩, hf'g⟩ => ⟨f, hf, fun j hj => (hff' j (h hj)).trans (hf'g j hj)⟩,
+    fun ⟨f, hf, hfg⟩ => ⟨f, subset_onPorts T' R hf, hfg⟩⟩
+
+/-- Projecting keeps a factorisation. Rows chosen through one representative per block glue to
+a row of `R`. -/
+theorem Factors.onPorts {R : Set (∀ i, X i)} {s : Setoid ι} (h : Factors R s) (T : Set ι) :
+    Factors (onPorts T R) s := by
+  refine factors_iff.mpr fun g hg => ?_
+  choose c hc hcg using hg
+  choose d hd hdc using hc
+  let rep : ι → ι := fun j => (Quotient.mk s j).out
+  have hrep : ∀ {i j}, s i j → rep i = rep j := fun hij => by
+    simp only [rep, Quotient.sound hij]
+  refine ⟨fun j => d (rep j) j, factors_iff.mp h fun i => ⟨d (rep i), hd _, fun j hij => by
+    simp only [hrep hij]⟩, fun j hj => (hdc _ j hj).trans (hcg _ j (Quotient.mk_out j))⟩
+
+/-- Ports outside `T` split off from the projection onto `T`, which does not read them. -/
+theorem factors_onPorts_split [Nonempty ι] {R : Set (∀ i, X i)} {T S : Set ι}
+    (hS : ∀ j ∈ S, j ∉ T) : Factors (onPorts T R) (split S) := by
+  classical
+  exact factors_split_iff.mpr fun _ _ _ ⟨f, hf, hfg⟩ => ⟨f, hf, fun j hj => by
+    rw [Set.piecewise_eq_of_notMem _ _ _ fun h => hS j h hj, hfg j hj]⟩
+
+/-- `P` with the ports `M` made into one block. -/
+def mergeBlock (P : Setoid ι) (M : Set ι) : Setoid ι where
+  r i j := (i ∈ M ∧ j ∈ M) ∨ (i ∉ M ∧ j ∉ M ∧ P i j)
+  iseqv := by
+    refine ⟨fun i => (em (i ∈ M)).elim (fun h => .inl ⟨h, h⟩) (fun h => .inr ⟨h, h, P.refl' i⟩),
+      fun h => h.elim (fun h => .inl ⟨h.2, h.1⟩) (fun h => .inr ⟨h.2.1, h.1, P.symm' h.2.2⟩), ?_⟩
+    rintro i j k (⟨hi, hj⟩ | ⟨hi, hj, hij⟩) (⟨hj', hk⟩ | ⟨hj', hk, hjk⟩)
+    · exact .inl ⟨hi, hk⟩
+    · exact (hj' hj).elim
+    · exact (hj hj').elim
+    · exact .inr ⟨hi, hk, P.trans' hij hjk⟩
+
+/-- Seen on no ports, a relation factors finest over single ports. -/
+theorem isFinest_onPorts_empty [Nonempty ι] (R : Set (∀ i, X i)) : IsFinest (onPorts ∅ R) ⊥ :=
+  ⟨factors_iff.mpr fun _ hg => let ⟨_, ⟨f, hf, _⟩, _⟩ := hg (Classical.arbitrary ι)
+    ⟨f, hf, fun _ h => h.elim⟩, fun _ _ => bot_le⟩
+
+/-- One more port. Let `P` be the finest factorisation of the projection of `R` onto the ports `T`,
+and `x` a port outside `T`. The finest factorisation of the projection onto `insert x T` merges `x`
+with exactly the blocks of `P` inside `T` that the rectangle test couples to the rest of
+`insert x T`, and keeps every other block of `P`. Starting from no ports
+(`isFinest_onPorts_empty`) and adding them one by one gives the finest factorisation of `R`
+(`onPorts_univ`): this is the kernel's computation. -/
+theorem IsFinest.addPort [Finite ι] {R : Set (∀ i, X i)} {T : Set ι} {x : ι} {P : Setoid ι}
+    (hP : IsFinest (onPorts T R) P) (hx : x ∉ T) :
+    IsFinest (onPorts (insert x T) R) (mergeBlock P (insert x
+      {a | a ∈ T ∧ ¬ Factors (onPorts (insert x T) R) (split {b | P a b})})) := by
+  classical
+  haveI : Nonempty ι := ⟨x⟩
+  set S' := onPorts (insert x T) R
+  set M := insert x {a | a ∈ T ∧ ¬ Factors S' (split {b | P a b})}
+  -- every partition the projection onto `insert x T` factors over merges blocks of `P`
+  have hPle : ∀ t, Factors S' t → P ≤ t := fun t ht =>
+    hP.2 t (onPorts_onPorts (Set.subset_insert x T) R ▸ ht.onPorts T)
+  -- `P` keeps each port outside `T` on its own
+  have hout : ∀ {j k}, j ∉ T → P j k → k = j := fun {j} {_} hj hjk =>
+    (split_apply.mp (hP.2 _ (factors_onPorts_split (S := {j}) fun _ h => h ▸ hj) hjk)).mp rfl
+  have hblock : ∀ {i j}, P i j → {b | P j b} = {b | P i b} := fun {_} {_} hij =>
+    Set.ext fun _ => ⟨P.trans' hij, P.trans' (P.symm' hij)⟩
+  refine ⟨?_, fun t ht => ?_⟩
+  · -- the finest factorisation of `S'` merges no more than `mergeBlock P M` does
+    obtain ⟨F, hF⟩ := exists_isFinest S'
+    have key : ∀ {i j}, F i j → i ∉ M → j ∉ M ∧ P i j := by
+      intro i j hij hi
+      have hix : i ≠ x := fun h => hi (h ▸ Set.mem_insert x _)
+      by_cases hiT : i ∈ T
+      · have hfac : Factors S' (split {b | P i b}) := by
+          by_contra hc
+          exact hi (Set.mem_insert_of_mem x ⟨hiT, hc⟩)
+        have hPij : P i j := (split_apply.mp (hF.2 _ hfac hij)).mp (P.refl' i)
+        refine ⟨fun hj => ?_, hPij⟩
+        rcases hj with rfl | ⟨_, hc⟩
+        · exact hx (hout hx (P.symm' hPij) ▸ hiT)
+        · exact hc (hblock hPij ▸ hfac)
+      · have hji : j ∈ ({i} : Set ι) := (split_apply.mp (hF.2 _ (factors_onPorts_split (S := {i})
+          fun _ h => h ▸ fun h' => (Set.mem_insert_iff.mp h').elim hix hiT) hij)).mp (Set.mem_singleton i)
+        rw [Set.mem_singleton_iff.mp hji]
+        exact ⟨hi, P.refl' i⟩
+    refine hF.1.mono fun i j hij => ?_
+    by_cases hi : i ∈ M
+    · by_cases hj : j ∈ M
+      · exact .inl ⟨hi, hj⟩
+      · exact absurd hi (key (F.symm' hij) hj).1
+    · exact .inr ⟨hi, key hij hi⟩
+  · -- every partition `S'` factors over puts `x` with each coupled block
+    have hx' : ∀ a ∈ M, t a x := by
+      rintro a (rfl | ⟨haT, hc⟩)
+      · exact t.refl' a
+      by_contra hax
+      -- `x` is off the block `C` of `a` in `t`, so the block `A ⊆ C` of `a` in `P` splits off
+      refine hc (factors_split_iff.mpr fun f hf g hg => ?_)
+      set A := {b | P a b}
+      set C := {b | t a b}
+      have hAC : A ⊆ C := fun b hb => hPle t ht hb
+      obtain ⟨g', hg', hg'T⟩ := factors_split_iff.mp (hP.1.split_block a) f
+        (onPorts_anti (Set.subset_insert x T) R hf) g (onPorts_anti (Set.subset_insert x T) R hg)
+      obtain ⟨r, hr, hrC⟩ := factors_split_iff.mp (ht.split_block a) _ (subset_onPorts _ R hg') g hg
+      refine ⟨r, hr, fun j hj => (hrC j hj).trans ?_⟩
+      by_cases hjC : j ∈ C
+      · rw [Set.piecewise_eq_of_mem _ _ _ hjC]
+        rcases hj with rfl | hjT
+        · exact (hax hjC).elim
+        · exact hg'T j hjT
+      · rw [Set.piecewise_eq_of_notMem _ _ _ hjC,
+          Set.piecewise_eq_of_notMem _ _ _ fun h => hjC (hAC h)]
+    rintro i j (⟨hi, hj⟩ | ⟨_, _, hij⟩)
+    · exact t.trans' (hx' i hi) (t.symm' (hx' j hj))
+    · exact hPle t ht hij
+
+end Factorisation
 
 end Behaviour
 
