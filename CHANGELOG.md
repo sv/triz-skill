@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Release workflow's MCP Registry job waits up to 15 minutes for the version to appear on npm before publishing.
+
 ## [0.4.0] - 2026-10-29
 
 ### Added

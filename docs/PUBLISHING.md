@@ -53,7 +53,9 @@ Release flow:
      the upload when the version is already on npm, so re-running it after a later step failed
      is safe.
    - `mcp-registry` then publishes `server.json`, using a pinned, Sigstore-verified
-     `mcp-publisher`. Re-run this job on its own if the registry hiccups.
+     `mcp-publisher`. The registry checks the package on npm, and npm can take minutes to list
+     a new version (0.4.0 took about 6), so the job first waits up to 15 minutes for it. If
+     the job still fails, re-run only that job: `gh run rerun <run-id> --failed`.
 
 Manual fallback: `pnpm publish --access public` (no provenance outside CI) after running the same gates
 locally (`pnpm build && pnpm typecheck && pnpm test && node scripts/smoke-mcp.mjs dist/server.js`).
