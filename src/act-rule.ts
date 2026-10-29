@@ -749,8 +749,9 @@ type Reason =
  *  - lies in a largest harm-loop region: a strongly connected region of harmLoops with the most
  *    boxes (every region of that size is searched, in harmLoops order); and
  *  - is on a binding dimension or limits a deliverable. On a binding dimension: triz_feasibility
- *    finds the model infeasible over budget, and the box's fixed cost, or its row's operating cost
- *    in some minimal resource vector, is above 0 on a dimension every minimal vector exceeds.
+ *    finds the model infeasible over budget, and the box's fixed cost, or the operating cost of
+ *    its row in the witness of some minimal resource vector, is above 0 on a dimension every
+ *    minimal vector exceeds. Every minimal vector is read, not only the 50 the tool lists.
  *    Limits a deliverable: it is the box feasibility finds unprovidable, or it performs an
  *    insufficient function on a product box.
  * Verdicts: `lagging` with the candidates and their reasons; `none` when feasibility is decided and
@@ -769,9 +770,11 @@ export function laggingSubsystem(model: FunctionModel) {
   }
   const size = Math.max(...loops.map((l) => l.boxes.length));
   const regions = loops.filter((l) => l.boxes.length === size);
-  const f = feasibility(model);
+  // Every minimal vector, not the display list: a vector past the first 50 may be the only one in which a box's row costs on a binding dimension.
+  const f = feasibility(model, {}, { listAll: true });
   if (!f.ok) return f;
   const minimal = "minimal" in f ? f.minimal : [];
+  if ("minimalCount" in f && minimal.length !== f.minimalCount) throw new Error(`laggingSubsystem invariant: ${minimal.length} of ${f.minimalCount} minimal vectors read`);
   const binding = f.verdict === "infeasible" && "binding" in f ? f.binding : [];
   const unprovidable = f.verdict === "infeasible" && "unprovidable" in f ? f.unprovidable.box : undefined;
   const basis = "basis" in f ? f.basis : [];

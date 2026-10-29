@@ -310,6 +310,37 @@ test("rule `distinct` must name two carrier variables of the rule", () => {
   assert.match(validateRule({ ...rule, distinct: [["c", "c"]] }).errors.join(), /distinct: 'c' is paired with itself/);
 });
 
+test("detector uneven-development reads every minimal vector, not only the 50 feasibility lists", async () => {
+  // A is the only box of a harm loop (a harmful self-loop). Its 51 rows all provide level 1; row i
+  // costs { a: i, b: 50 - i, usd: 1 only for i = 50 }, so all 51 vectors are minimal. Z, outside
+  // the loop, costs 1 USD in every configuration, so with a USD budget of 0 USD binds. Only row 50
+  // puts A on that binding dimension.
+  const rows = (k: number) => Array.from({ length: k }, (_, i) => ({ provides: { out: 1 }, cost: { a: i, b: 50 - i, ...(i === 50 ? { usd: 1 } : {}) } }));
+  const model = (k: number, drop0 = false): FunctionModel => FunctionModel.parse({
+    domain: "physical",
+    carriers: [{ id: "x", layer: "energy", dimension: "units" }, { id: "h", layer: "energy", dimension: "W" }],
+    boxes: [
+      { id: "A", name: "A", role: "tool", inputs: [{ id: "back", carrier: "h" }], outputs: [{ id: "out", carrier: "x" }, { id: "heat", carrier: "h" }], feasibility: rows(k).slice(drop0 ? 1 : 0) },
+      { id: "P", name: "P", role: "product", inputs: [{ id: "in", carrier: "x" }], feasibility: [{ requires: { in: 1 } }] },
+      { id: "Z", name: "Z", role: "tool", cost: { usd: 1 } },
+    ],
+    wires: [
+      { id: "w-out", from: { box: "A", port: "out" }, to: { box: "P", port: "in" }, carrier: "x", polarity: "useful" },
+      { id: "w-self", from: { box: "A", port: "heat" }, to: { box: "A", port: "back" }, carrier: "h", polarity: "harmful" },
+    ],
+    budget: { a: 100, b: 100, usd: 0 },
+  });
+  const m = model(51);
+  const listed = await specs.triz_feasibility.handler({ model: m });
+  const f = JSON.parse(listed.content[0].text);
+  assert.deepEqual([f.verdict, f.binding, f.minimalCount, f.minimal.length], ["infeasible", ["usd"], 51, 50], "feasibility lists 50 of 51 minimal vectors");
+  const r = await call({ model: m, rule_id: "uneven-development" });
+  assert.equal(r.verdict, "lagging");
+  assert.deepEqual(r.lagging.map((x: { box: string; reasons: Array<{ kind: string; dimensions?: string[] }> }) => [x.box, x.reasons.map((y) => [y.kind, y.dimensions])]), [["A", [["binding", ["usd"]]]]]);
+  // The verdict does not depend on which vectors the display list happens to show.
+  assert.equal((await call({ model: model(51, true), rule_id: "uneven-development" })).verdict, "lagging");
+});
+
 test("detector uneven-development: the lagging box of the largest harm-loop region", async () => {
   const feasible = example("bearing-heat-feasibility");
   const detect = async (model: FunctionModel) => call({ model, rule_id: "uneven-development" });

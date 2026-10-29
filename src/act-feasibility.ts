@@ -231,8 +231,12 @@ function judge(model: FunctionModel, dims: string[], vectors: number[][]) {
   return { verdict: "undecided" as const, reason: "unbudgeted" as const, over, within, unbudgeted: dimsUsed, note: `A minimal resource vector fits every budgeted dimension but uses ${dimsUsed.map((d) => `'${d}'`).join(", ")}, which the budget does not limit.` };
 }
 
-/** The model's minimal resource vectors and their verdict against its budget. */
-export function feasibility(model: FunctionModel, caps: Caps = {}) {
+/**
+ * The model's minimal resource vectors and their verdict against its budget. `minimal` lists at
+ * most 50 vectors for display, affordable ones first; `minimalCount` is how many there are. A
+ * caller that decides something about every minimal vector passes `listAll`, which lists them all.
+ */
+export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listAll?: boolean } = {}) {
   const p = setup(model);
   if (!p.ok) return p;
   const composed = p.composed.map((b) => b.id);
@@ -268,8 +272,9 @@ export function feasibility(model: FunctionModel, caps: Caps = {}) {
   }));
   // Affordable vectors first, so every withinBudget position resolves to a listed witness.
   const order = [...within, ...all.map((_, i) => i).filter((i) => !within.includes(i))];
-  const affordable = verdict.verdict === "feasible" ? { withinBudget: within.slice(0, LISTED).map((_, k) => k), withinBudgetCount: within.length } : {};
-  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, LISTED).map((i) => all[i]), minimalCount: all.length, ...stats };
+  const listed = opts.listAll ? all.length : LISTED;
+  const affordable = verdict.verdict === "feasible" ? { withinBudget: within.slice(0, listed).map((_, k) => k), withinBudgetCount: within.length } : {};
+  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, listed).map((i) => all[i]), minimalCount: all.length, ...stats };
 }
 
 type Result = ReturnType<typeof feasibility>;
