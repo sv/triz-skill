@@ -5,11 +5,18 @@ import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
 import Mathlib.Order.Comparable
+import Mathlib.Order.FixedPoints
+import Mathlib.Order.Iterate
+import Mathlib.Order.Minimal
+import Mathlib.Order.UpperLower.Closure
+import Mathlib.Order.UpperLower.CompleteLattice
+import Mathlib.Order.UpperLower.Principal
 
 /-!
 # Categorical TRIZ: the statements behind the kernel's checks
@@ -684,5 +691,293 @@ theorem eq_projections_pi_iff {ι : Type*} {X : ι → Type*} (R : Set (∀ i, X
   exact hgi ▸ hg i (Set.mem_univ i)
 
 end Behaviour
+
+/-! ## Declared dynamics (`boundedDynamics`)
+
+A box that declares state and transition rows is a nondeterministic Mealy machine: a relation
+from (state, input) to (next state, output), a map `S × I → Set (S × O)`. A lens or optic with a
+residual is such a machine with the residual as its state; nothing more is claimed. One step
+under the admissible inputs forgets the input and the output. The kernel composes the boxes
+synchronously and searches the step relation on configurations breadth first, up to a horizon.
+The statements below hold for any step relation `r`, so they cover that configuration graph. A
+trace is a sequence `τ : ℕ → σ` whose first `n` steps are admitted. The TypeScript search is
+checked against them by tests, not by extraction. -/
+
+section Dynamics
+
+variable {S I O σ : Type*}
+
+/-- A nondeterministic Mealy machine: `T s i s' o` admits moving from `s` to `s'` on input `i`,
+emitting `o`. -/
+abbrev Mealy (S I O : Type*) := S → I → S → O → Prop
+
+/-- One step under the admissible inputs `X`: some admissible input and some output. -/
+def mealyStep (T : Mealy S I O) (X : Set I) : S → S → Prop := fun s s' => ∃ i ∈ X, ∃ o, T s i s' o
+
+/-- More rows, or more admissible inputs, never remove a step. -/
+theorem mealyStep_mono {T T' : Mealy S I O} {X X' : Set I} (hT : T ≤ T') (hX : X ⊆ X') :
+    mealyStep T X ≤ mealyStep T' X' :=
+  fun _ _ ⟨i, hi, o, h⟩ => ⟨i, hX hi, o, hT _ _ _ _ h⟩
+
+/-- Reachable in exactly `n` steps. -/
+def reachIn (r : σ → σ → Prop) : ℕ → σ → σ → Prop
+  | 0 => Eq
+  | n + 1 => Relation.Comp (reachIn r n) r
+
+/-- Reachable within `n` steps. -/
+def reachWithin (r : σ → σ → Prop) (n : ℕ) (a b : σ) : Prop := ∃ k ≤ n, reachIn r k a b
+
+variable {r r' : σ → σ → Prop}
+
+/-- More admissible steps never remove a configuration reachable in exactly `n` steps. -/
+theorem reachIn_mono (h : r ≤ r') (n : ℕ) : reachIn r n ≤ reachIn r' n := by
+  induction n with
+  | zero => exact le_rfl
+  | succ n ih => exact relation_comp_mono ih h
+
+/-- More admissible steps never remove a configuration reachable within `n` steps. -/
+theorem reachWithin_mono (h : r ≤ r') (n : ℕ) : reachWithin r n ≤ reachWithin r' n :=
+  fun _ _ ⟨k, hk, hr⟩ => ⟨k, hk, reachIn_mono h k _ _ hr⟩
+
+/-- Reachable in exactly `n` steps iff some trace of `n` admitted steps runs from `a` to `b`. -/
+theorem reachIn_iff_trace {n : ℕ} {a b : σ} :
+    reachIn r n a b ↔ ∃ τ : ℕ → σ, τ 0 = a ∧ τ n = b ∧ ∀ i < n, r (τ i) (τ (i + 1)) := by
+  induction n generalizing b with
+  | zero =>
+    constructor
+    · intro h
+      exact ⟨fun _ => a, rfl, h, fun i hi => absurd hi (Nat.not_lt_zero i)⟩
+    · rintro ⟨τ, h0, h1, -⟩
+      exact h0.symm.trans h1
+  | succ n ih =>
+    constructor
+    · rintro ⟨c, hac, hcb⟩
+      obtain ⟨τ, h0, hn, hτ⟩ := ih.mp hac
+      refine ⟨fun i => if i ≤ n then τ i else b, by simp [h0], by simp, fun i hi => ?_⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hi | rfl
+      · simp only [hi.le, Nat.succ_le_of_lt hi, if_true]
+        exact hτ i hi
+      · simp only [le_refl, if_true, Nat.not_succ_le_self, if_false]
+        exact hn ▸ hcb
+    · rintro ⟨τ, h0, hn, hτ⟩
+      exact ⟨τ n, ih.mpr ⟨τ, h0, rfl, fun i hi => hτ i (Nat.lt_succ_of_lt hi)⟩, hn ▸ hτ n (Nat.lt_succ_self n)⟩
+
+/-- Reachable within `n` steps iff some trace of at most `n` admitted steps runs from `a` to `b`:
+a search that exhausts the configurations within `n` steps rules out every such trace. -/
+theorem reachWithin_iff_trace {n : ℕ} {a b : σ} :
+    reachWithin r n a b ↔ ∃ k ≤ n, ∃ τ : ℕ → σ, τ 0 = a ∧ τ k = b ∧ ∀ i < k, r (τ i) (τ (i + 1)) :=
+  exists_congr fun _ => and_congr_right fun _ => reachIn_iff_trace
+
+/-- Every point of one trace is reached at its own time, along that one run: a witness that
+visits two target sets at two times is a single run (separation in time). -/
+theorem reachIn_of_trace {n i : ℕ} {τ : ℕ → σ} (hτ : ∀ j < n, r (τ j) (τ (j + 1))) (hi : i ≤ n) :
+    reachIn r i (τ 0) (τ i) :=
+  reachIn_iff_trace.mpr ⟨τ, rfl, rfl, fun j hj => hτ j (by omega)⟩
+
+/-- Counterexample soundness: a trace of at most `n` admitted steps that ends in `U` makes `U`
+reachable within `n` steps. -/
+theorem reach_of_trace {U : Set σ} {n k : ℕ} {τ : ℕ → σ} (hτ : ∀ i < k, r (τ i) (τ (i + 1)))
+    (hk : k ≤ n) (hU : τ k ∈ U) : ∃ b ∈ U, reachWithin r n (τ 0) b :=
+  ⟨τ k, hU, k, hk, reachIn_iff_trace.mpr ⟨τ, rfl, rfl, hτ⟩⟩
+
+/-- Saturation: if every configuration reachable in `k + 1` steps from the initial set `A` is
+already reachable within `k`, then the configurations within `k` steps are all the reachable
+ones, at any horizon. -/
+theorem reachWithin_saturated {A : Set σ} {k : ℕ}
+    (h : ∀ b, (∃ a ∈ A, reachIn r (k + 1) a b) → ∃ a ∈ A, reachWithin r k a b) (n : ℕ) (b : σ) :
+    (∃ a ∈ A, reachWithin r n a b) → ∃ a ∈ A, reachWithin r k a b := by
+  rintro ⟨a, ha, m, -, hm⟩
+  induction m generalizing b with
+  | zero => exact ⟨a, ha, 0, Nat.zero_le k, hm⟩
+  | succ m ih =>
+    obtain ⟨c, hac, hcb⟩ := hm
+    obtain ⟨a', ha', j, hj, hj'⟩ := ih c hac
+    rcases Nat.lt_or_eq_of_le hj with hj | rfl
+    · exact ⟨a', ha', j + 1, hj, c, hj', hcb⟩
+    · exact h b ⟨a', ha', c, hj', hcb⟩
+
+/-! ### Loop classification
+
+The kernel classifies the closed strongly connected components of the reachable state graph. A
+component is closed when no step leaves it. -/
+
+/-- No step leaves `C`. -/
+def Closed (r : σ → σ → Prop) (C : Set σ) : Prop := ∀ a ∈ C, ∀ b, r a b → b ∈ C
+
+/-- A fixed point lies on a cycle: the run can stay there forever. -/
+theorem fixed_on_cycle {s : σ} (h : r s s) : Relation.TransGen r s s :=
+  Relation.TransGen.single h
+
+/-- A run that enters a closed set never leaves it, at any number of steps (a trap). -/
+theorem closed_reachIn {C : Set σ} (hC : Closed r C) {a : σ} (ha : a ∈ C) (n : ℕ) {b : σ}
+    (h : reachIn r n a b) : b ∈ C := by
+  induction n generalizing b with
+  | zero => exact (show a = b from h) ▸ ha
+  | succ n ih =>
+    obtain ⟨c, hac, hcb⟩ := h
+    exact hC c (ih hac) b hcb
+
+/-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
+cycles have length two or more. -/
+theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc : reachIn r n s s) :
+    2 ≤ n := by
+  rcases n with _ | _ | n
+  · exact absurd hn (lt_irrefl 0)
+  · obtain ⟨c, hsc, hcs⟩ := hc
+    obtain rfl : s = c := hsc
+    exact (h s hcs).elim
+  · omega
+
+end Dynamics
+
+/-! ## Co-design feasibility (`feasibility`, `trimFeasibility`)
+
+Censi's monotone design problems (A Mathematical Theory of Co-Design, arXiv:1512.08055): a
+feasibility relation `d f r` says resources `r` suffice for functionality `f`. It is monotone when
+providing less never needs more and more resources never hurt. Series, parallel, and feedback
+composition keep that property (Censi, Props. 2–4), so a model whose boxes declare monotone rows
+has a monotone composite. Feedback is the relational trace of the behaviour section.
+
+The kernel solves the composite as a least fixpoint. A configuration is a demanded level per port
+and a cost vector, in a finite join-semilattice `P`; `h s x` says that some row selection
+provides what `s` demands and places the demand and cost `x`. One step maps an upper set `U` of
+configurations to the configurations above some `x ⊔ s` with `s ∈ U` and `h s x` (`kleeneStep`,
+Censi's eq. 26). The kernel represents an upper set by its antichain of minimal elements and
+computes the step on that antichain, which `kleeneStep_upperClosure` justifies when requirements
+only shrink as demands do. Iterating from `⊥` (every configuration) reaches the least fixpoint on
+a finite lattice (`kleene_lfp`), and that fixpoint is the upward closure of the feasible
+configurations (`codesign_lfp`): its minimal elements are exactly the minimal feasible ones.
+
+Behaviour, above, equates values and has no order to iterate in, so it takes the trace of
+steady states and not a least fixpoint. The TypeScript solver is checked against these
+statements by tests, including a brute-force comparison, not by extraction. -/
+
+section Feasibility
+
+variable {F M R υ : Type*} [Preorder F] [Preorder M] [Preorder R] [Preorder υ]
+
+/-- Censi's monotone design problem as a relation: providing less never needs more, and more
+resources never hurt. -/
+def MonotoneFeasibility (d : F → R → Prop) : Prop :=
+  ∀ ⦃f f' r r'⦄, f' ≤ f → r ≤ r' → d f r → d f' r'
+
+/-- Series composition (Mathlib's `Relation.Comp`): one box's required resource is the next
+box's functionality. -/
+theorem feasibility_comp {d : F → M → Prop} {e : M → R → Prop}
+    (hd : MonotoneFeasibility d) (he : MonotoneFeasibility e) :
+    MonotoneFeasibility (Relation.Comp d e) := by
+  rintro f f' r r' hf hr ⟨m, h₁, h₂⟩
+  exact ⟨m, hd hf le_rfl h₁, he le_rfl hr h₂⟩
+
+/-- Parallel composition: two boxes side by side, their resources combined by `op` (costs add,
+port demands take the larger) and compared with `≤`. -/
+theorem feasibility_par {F₂ R₂ : Type*} [Preorder F₂] [Preorder R₂] {d : F → R → Prop}
+    {e : F₂ → R₂ → Prop} (op : R → R₂ → R) (hd : MonotoneFeasibility d) (he : MonotoneFeasibility e) :
+    MonotoneFeasibility (fun (f : F × F₂) (r : R) => ∃ r₁ r₂, d f.1 r₁ ∧ e f.2 r₂ ∧ op r₁ r₂ ≤ r) := by
+  rintro f f' r r' hf hr ⟨r₁, r₂, h₁, h₂, hle⟩
+  exact ⟨r₁, r₂, hd hf.1 le_rfl h₁, he hf.2 le_rfl h₂, hle.trans hr⟩
+
+/-- Feedback: the trace of a monotone feasibility relation is monotone. -/
+theorem feasibility_trace {d : F × υ → R × υ → Prop} (hd : MonotoneFeasibility d) :
+    MonotoneFeasibility (relTrace d) := by
+  rintro f f' r r' hf hr ⟨u, hu⟩
+  exact ⟨u, hd (Prod.mk_le_mk.mpr ⟨hf, le_rfl⟩) (Prod.mk_le_mk.mpr ⟨hr, le_rfl⟩) hu⟩
+
+end Feasibility
+
+section Kleene
+
+/-- Kleene's ascent on a finite complete lattice: iterating a monotone map from `⊥` as many times
+as the lattice has elements gives its least fixpoint. -/
+theorem kleene_lfp {α : Type*} [CompleteLattice α] [Fintype α] (f : α →o α) :
+    f^[Fintype.card α] ⊥ = f.lfp := by
+  set a : ℕ → α := fun n => f^[n] ⊥ with ha
+  have hmono : Monotone a := Monotone.monotone_iterate_of_le_map f.monotone bot_le
+  have hsucc : ∀ n, a (n + 1) = f (a n) := fun n => by simp only [ha, Function.iterate_succ_apply']
+  have hle : ∀ n, a n ≤ f.lfp := by
+    intro n
+    induction n with
+    | zero => exact bot_le
+    | succ n ih => rw [hsucc]; exact f.map_le_lfp ih
+  -- Two equal iterates make the chain stall, and a stalled value is a fixpoint.
+  have key : ∀ i j : ℕ, i < j → a i = a j → a i = f.lfp := by
+    intro i j hij heq
+    have hfix : f (a i) = a i := le_antisymm
+      (by rw [← hsucc]; exact (hmono (by omega : i + 1 ≤ j)).trans heq.ge)
+      (by rw [← hsucc]; exact hmono (Nat.le_succ i))
+    exact le_antisymm (hle i) (f.lfp_le_fixed hfix)
+  obtain ⟨i, j, hij, heq⟩ := Fintype.exists_ne_map_eq_of_card_lt
+    (fun k : Fin (Fintype.card α + 1) => a k) (by simp)
+  have hi := i.isLt
+  have hj := j.isLt
+  have hne : (i : ℕ) ≠ j := Fin.val_injective.ne hij
+  obtain ⟨k, hk, hak⟩ : ∃ k ≤ Fintype.card α, a k = f.lfp := by
+    rcases lt_or_gt_of_ne hne with h | h
+    · exact ⟨i, by omega, key i j h heq⟩
+    · exact ⟨j, by omega, key j i h heq.symm⟩
+  exact le_antisymm (hle _) (hak ▸ hmono hk)
+
+end Kleene
+
+section CoDesign
+
+variable {P : Type*} [SemilatticeSup P]
+
+/-- One step of the co-design ascent on upper sets of configurations (Censi's eq. 26):
+everything above `x ⊔ s` for a configuration `s` in `U` and a requirement `x` of `s`. Upper sets
+are ordered by reverse inclusion, so `⊥` is every configuration. -/
+def kleeneStep (h : P → P → Prop) : UpperSet P →o UpperSet P where
+  toFun U := ⟨{t | ∃ s ∈ U, ∃ x, h s x ∧ x ⊔ s ≤ t}, by
+    rintro a b hab ⟨s, hs, x, hx, hle⟩
+    exact ⟨s, hs, x, hx, hle.trans hab⟩⟩
+  monotone' U V hUV := by
+    rw [← UpperSet.coe_subset_coe] at hUV ⊢
+    rintro t ⟨s, hs, x, hx, hle⟩
+    exact ⟨s, hUV hs, x, hx, hle⟩
+
+/-- Membership in one step, unfolded. -/
+theorem mem_kleeneStep {h : P → P → Prop} {U : UpperSet P} {t : P} :
+    t ∈ kleeneStep h U ↔ ∃ s ∈ U, ∃ x, h s x ∧ x ⊔ s ≤ t := Iff.rfl
+
+/-- The step can be computed on generators, such as an antichain of minimal configurations, when
+a smaller demand never needs more (`hmono`). -/
+theorem kleeneStep_upperClosure {h : P → P → Prop}
+    (hmono : ∀ ⦃s s' x⦄, s ≤ s' → h s' x → ∃ y ≤ x, h s y) (A : Set P) :
+    kleeneStep h (upperClosure A) = upperClosure {y | ∃ s ∈ A, ∃ x, h s x ∧ y = x ⊔ s} := by
+  ext t
+  simp only [SetLike.mem_coe, mem_kleeneStep, mem_upperClosure, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨s, ⟨a, ha, has⟩, x, hx, hle⟩
+    obtain ⟨y, hyx, hy⟩ := hmono has hx
+    exact ⟨y ⊔ a, ⟨a, ha, y, hy, rfl⟩, (sup_le_sup hyx has).trans hle⟩
+  · rintro ⟨_, ⟨a, ha, x, hx, rfl⟩, hle⟩
+    exact ⟨a, ⟨a, ha, le_rfl⟩, x, hx, hle⟩
+
+/-- On a finite set of configurations, the least fixpoint of the step is the upward closure of the
+feasible configurations: those with a requirement below themselves. Its minimal elements are
+the minimal feasible configurations. -/
+theorem codesign_lfp [Finite P] (h : P → P → Prop) :
+    ((kleeneStep h).lfp : Set P) = upperClosure {s | ∃ x, h s x ∧ x ≤ s} := by
+  ext t
+  simp only [SetLike.mem_coe, mem_upperClosure, Set.mem_setOf_eq]
+  constructor
+  · -- A minimal element of a fixpoint is reached from itself, so it is feasible.
+    intro ht
+    obtain ⟨m, hmt, hmin⟩ := exists_minimal_le_of_wellFoundedLT (· ∈ (kleeneStep h).lfp) t ht
+    have hm : m ∈ kleeneStep h (kleeneStep h).lfp := by rw [OrderHom.map_lfp]; exact hmin.prop
+    obtain ⟨s, hs, x, hx, hle⟩ := hm
+    have hsm : s ≤ m := le_sup_right.trans hle
+    obtain rfl : s = m := le_antisymm hsm (hmin.2 hs hsm)
+    exact ⟨s, ⟨x, hx, le_sup_left.trans hle⟩, hmt⟩
+  · -- Everything above a feasible configuration is a post-fixpoint, so the lfp contains it.
+    rintro ⟨s, ⟨x, hx, hxs⟩, hst⟩
+    have hlfp : (kleeneStep h).lfp ≤ UpperSet.Ici s := by
+      refine OrderHom.lfp_le _ ?_
+      rw [← UpperSet.coe_subset_coe]
+      intro u hu
+      exact ⟨s, UpperSet.mem_Ici_iff.mpr le_rfl, x, hx, (sup_le hxs le_rfl).trans hu⟩
+    exact UpperSet.coe_subset_coe.mpr hlfp (UpperSet.mem_Ici_iff.mpr hst)
+
+end CoDesign
 
 end CategoricalTriz

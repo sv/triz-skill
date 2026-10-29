@@ -50,6 +50,9 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
     collect(await call("triz_behavior", { model: m }));
+    collect(await call("triz_feasibility", { model: m }));
+    collect(await call("triz_dynamics", { model: m }));
+    if (m.wires.length) collect(await call("triz_dynamics", { model: m, unsafe: [{ box: m.wires[0].from.box, port: m.wires[0].from.port, values: m.carriers.find((c) => c.id === m.wires[0].carrier)?.values ?? ["x"] }] }));
     if (m.wires.length) {
       const interpose = { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } };
       collect(await call("triz_transform", { model: m, transformation: interpose }));
@@ -59,6 +62,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     if (listed.matches.length) collect(await call("triz_rule_apply", { model: m, rule_id: "mono-bi", match: listed.matches[0].match }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
+  collect(await call("triz_feasibility", { model: example("bearing-heat-feasibility"), trim: ["bearing"] }));
   const bearing = example("bearing-heat"), cache = example("software-cache");
   for (const [model, transformation] of [
     [bearing, { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } }],
@@ -136,6 +140,15 @@ test("verdicts cite the statement they use", async () => {
   assert.deepEqual(dyn.along.basis, ["exists_section_iff"]);
   const [first] = (await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi" })).matches;
   assert.deepEqual((await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi", match: first.match })).basis, ["typed_dpo"]);
+
+  const heated = example("bearing-heat-dynamics");
+  const run = await call("triz_dynamics", { model: heated, unsafe: [{ box: "shaft", state: ["hot"] }], safe: [{ box: "shaft", state: ["cold", "warm", "hot"] }] });
+  assert.deepEqual([run.escalation.basis, run.invariance.basis], [["reach_of_trace"], ["reachWithin_iff_trace", "reachWithin_saturated"]]);
+  const short = await call("triz_dynamics", { model: heated, horizon: 1, unsafe: [{ box: "shaft", state: ["hot"] }] });
+  assert.deepEqual(short.escalation.basis, ["reachWithin_iff_trace"]);
+  const phases = [{ id: "cold", where: [{ box: "shaft", state: ["cold"] }], window: { from: 0, to: 0 } }, { id: "hot", where: [{ box: "shaft", state: ["hot"] }], window: { from: 1, to: 3 } }];
+  assert.deepEqual((await call("triz_dynamics", { model: heated, horizon: 3, separation: phases })).separation.basis, ["reachIn_of_trace"]);
+  assert.deepEqual((await call("triz_dynamics", { model: heated, horizon: 3, separation: [phases[0], { ...phases[1], window: { from: 1, to: 1 } }] })).separation.basis, ["reachIn_iff_trace"]);
 });
 
 test("a pure trim cites trim_lowers_cost for its cost relief, and only when a trimmed box declares a cost", async () => {
