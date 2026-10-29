@@ -120,11 +120,14 @@ With `trim`, the trim is applied as `triz_transform` does, and the verdict is on
 
 - `changed`, reason `lost-deliverables`: a deliverable port has no non-harmful function after
   the trim. No behaviour is needed for this.
-- `undecided`: a box that can reach a deliverable, in the baseline or in the trimmed model,
-  declares no behaviour. The output names those boxes. Segmentation, Taking out, and
-  Intermediary build new boxes without behaviour, so their results stay undecided until you
-  declare it.
-- `preserved`: the baseline and trimmed input→deliverable relations are equal.
+- `undecided`, reason `missing-behavior`: a box that can reach a deliverable, in the baseline
+  or in the trimmed model, declares no behaviour. The output names those boxes. Segmentation,
+  Taking out, and Intermediary build new boxes without behaviour, so their results stay
+  undecided until you declare it.
+- `undecided`, reason `no-steady-state`: neither model has a steady state at any compared
+  input, so both relations are empty and their equality says nothing about the trim.
+- `preserved`: the baseline and trimmed input→deliverable relations are equal, and at least
+  one of them is non-empty.
 - `changed`, reason `counterexample`: the relations differ. The output gives the first input
   where they differ, the outputs of each model there, and the `direction`: the trimmed relation
   strictly contains the baseline, the baseline strictly contains it, or neither.
@@ -133,7 +136,11 @@ The two relations are compared over the union of their boundary inputs. A port t
 model reads, such as an input the trim leaves unwired, ranges over every declared value in both
 models (`inputsOnlyIn`). A counterexample that sets such a port follows from the model, not
 from the physics. The result counts, per model, the input valuations with no steady state
-(`noSteadyState`). Two empty relations are equal and read `preserved`, so check that count.
+(`noSteadyState`), and the compared inputs where neither model has one (`emptyInBoth`). Two
+relations that are empty everywhere read `undecided`, never `preserved`. When only some inputs
+are empty in both, those inputs agree and are counted. `preserved` then also rests on the
+inputs where both models have steady states. If one model has steady states at an input and
+the other has none, the verdict is `changed`, and the counterexample says which side is empty.
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
 
@@ -190,6 +197,9 @@ example cohort churn against fee changes. Name it only from that evidence.
   dynamics, convergence, or which steady state the system reaches. A least fixpoint (iteration
   from no value) is not used: it needs initial loop values the model does not declare, and on an
   unseeded loop it delivers nothing.
+- `preserved` means equal relations, not equal non-empty outputs at every input. An input with
+  no steady state in either model agrees vacuously; only relations empty everywhere are
+  refused (`undecided`, `no-steady-state`).
 - A `preserved` verdict holds for the relations as declared. Whether they are true, the
   absorber's above all, is outside the kernel, and so are the absorber's added cost and new
   harms. Downstream boxes are not composed; see `partialDownstream`.

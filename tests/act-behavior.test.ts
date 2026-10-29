@@ -169,7 +169,7 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
   const noShaft = bearing();
   delete box(noShaft, "shaft").behavior;
   const u = trimPreservesBehavior(noShaft, { trim: ["bearing"] });
-  assert.ok(u.ok && u.verdict === "undecided");
+  assert.ok(u.ok && u.verdict === "undecided" && u.reason === "missing-behavior");
   assert.deepEqual([u.missingBehavior, u.missingIn], [["shaft"], { baseline: ["shaft"], trimmed: [] }]);
   const e = externalBehavior(noShaft);
   assert.deepEqual(e.ok && !e.decided && e.missingBehavior, ["shaft"]);
@@ -177,7 +177,7 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
   const noHousing = bearing();
   delete box(noHousing, "housing").behavior;
   const v = trimPreservesBehavior(noHousing, { trim: ["bearing"] });
-  assert.ok(v.ok && v.verdict === "undecided");
+  assert.ok(v.ok && v.verdict === "undecided" && v.reason === "missing-behavior");
   assert.deepEqual(v.missingIn, { baseline: [], trimmed: ["housing"] });
   const before = externalBehavior(noHousing);
   assert.ok(before.ok && before.decided, "the housing is downstream until the trim");
@@ -200,7 +200,12 @@ test("constructions do not invent behaviour: new boxes from segment and interpos
   assert.deepEqual(s.ok && !s.decided && s.missingBehavior, ["sleeve"]);
 });
 
-test("decided trim: inputs with no steady state are reported at the top level, never hidden in the verdict", () => {
+/**
+ * The negation loop delivering to user.p, plus a proxy (trimmable, with an origin as absorber)
+ * delivering to user.q. With `mode`, the loop also reads an unwired mode input: 'id' feeds its
+ * value back unchanged (two steady states), 'neg' negates it (none).
+ */
+function loopWithProxy(mode = false): FunctionModel {
   const m = loop([["0", "1"], ["1", "0"]]);
   m.carriers.push({ id: "d", layer: "information", dimension: "request", values: ["served"] });
   box(m, "user").inputs!.push({ id: "q", carrier: "d" });
@@ -209,14 +214,50 @@ test("decided trim: inputs with no steady state are reported at the top level, n
     { id: "origin", name: "Origin", role: "mediator", outputs: [{ id: "o", carrier: "d" }], behavior: [{ in: {}, out: { o: "served" } }] },
   );
   m.wires.push({ id: "w-serve", from: { box: "proxy", port: "o" }, to: { box: "user", port: "q" }, carrier: "d", polarity: "useful" });
-  const r = trimPreservesBehavior(m, { trim: ["proxy"] });
-  assert.ok(r.ok && r.verdict === "preserved", "both relations are empty, hence equal");
-  assert.deepEqual(r.noSteadyState, { baseline: 1, trimmed: 1 });
-  assert.match(r.note, /no steady state: 1 in the baseline, 1 trimmed/);
+  if (mode) {
+    m.carriers.push({ id: "m", layer: "information", dimension: "mode", values: ["id", "neg"] });
+    const l = box(m, "loop");
+    l.inputs!.push({ id: "mode", carrier: "m" });
+    l.behavior = ["0", "1"].flatMap((x) => [
+      { in: { x, mode: "id" }, out: { y: x, z: x } },
+      { in: { x, mode: "neg" }, out: { y: x === "0" ? "1" : "0", z: x } },
+    ]);
+  }
+  return m;
+}
+
+test("decided trim: when neither relation has a steady state, the verdict is undecided, not preserved", () => {
+  const r = trimPreservesBehavior(loopWithProxy(), { trim: ["proxy"] });
+  assert.ok(r.ok && r.verdict === "undecided" && r.reason === "no-steady-state");
+  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, trimmed: 1 }, 1, 1]);
+  assert.match(r.note, /Neither model has a steady state at any of the 1 compared input valuations/);
+  assert.deepEqual([r.baseline.noSteadyState, r.trimmed.noSteadyState], [[[]], [[]]]);
+
   const clean = trimPreservesBehavior(bearing(), { trim: ["bearing"] });
   assert.ok(clean.ok && clean.verdict === "preserved");
-  assert.deepEqual(clean.noSteadyState, { baseline: 0, trimmed: 0 });
+  assert.deepEqual([clean.noSteadyState, clean.emptyInBoth], [{ baseline: 0, trimmed: 0 }, 0]);
   assert.doesNotMatch(clean.note, /no steady state/);
+});
+
+test("decided trim: steady states in one model only is changed, with the empty side named", () => {
+  // Trimming the negation loop: its delivered value now comes from the origin, which has a steady state.
+  const m = loopWithProxy();
+  box(m, "origin").outputs!.push({ id: "bit", carrier: "c" });
+  box(m, "origin").behavior = [{ in: {}, out: { o: "served", bit: "0" } }];
+  const r = trimPreservesBehavior(m, { trim: ["loop"], absorb: { "w-out": { box: "origin", port: "bit" } } });
+  assert.ok(r.ok && r.verdict === "changed" && r.reason === "counterexample");
+  assert.equal(r.direction, "trimmed-contains-baseline");
+  assert.deepEqual([r.counterexample.baseline, r.counterexample.trimmed], [[], [["0", "served"]]]);
+  assert.match(r.note, /The baseline has no steady state at this input/);
+});
+
+test("decided trim: inputs empty in both models agree, are counted, and do not decide the verdict alone", () => {
+  const r = trimPreservesBehavior(loopWithProxy(true), { trim: ["proxy"] });
+  assert.ok(r.ok && r.verdict === "preserved");
+  assert.deepEqual(r.inputs.map((q) => `${q.box}.${q.port}`), ["loop.mode"]);
+  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, trimmed: 1 }, 2, 1]);
+  assert.deepEqual(r.baseline.relation.map((row) => [row.input, row.outputs]), [[["id"], [["0", "served"], ["1", "served"]]], [["neg"], []]]);
+  assert.match(r.note, /1 of the 2 compared have none in either model and agree only in that/);
 });
 
 test("ill-typed behaviour fails closed in every tool that takes a model", async () => {

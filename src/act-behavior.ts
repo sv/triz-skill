@@ -17,7 +17,7 @@
  *  - trimPreservesBehavior — perform a trim (applyTrim) and decide whether the input→deliverable
  *                            relation is unchanged: preserved, changed (with a counterexample input
  *                            and which relation contains which), or undecided (the boxes that need
- *                            behaviour and declare none).
+ *                            behaviour and declare none, or no steady state in either model).
  *
  * Every search is finite and capped; past the cap the call fails closed. The verdict is about the
  * relations as declared. Whether a declared relation is physically or economically true, the
@@ -242,9 +242,12 @@ export function externalBehavior(model: FunctionModel, opts: { maxStates?: numbe
  * Decide whether a trim preserves the input→deliverable relation. Order: the trim must apply
  * (applyTrim); a baseline deliverable port left without a non-harmful function is a structural
  * loss, `changed` without any behaviour; then every box that can reach a deliverable, in either
- * model, must declare behaviour, else `undecided`; then both relations are compared over the union
- * of their boundary inputs. A port only one model reads ranges over every declared value in both,
- * so a counterexample that sets an opened port follows from the model, not from the physics.
+ * model, must declare behaviour, else `undecided` (missing-behavior); then both relations are
+ * compared over the union of their boundary inputs. A port only one model reads ranges over every
+ * declared value in both, so a counterexample that sets an opened port follows from the model, not
+ * from the physics. When neither model has a steady state at any input, both relations are empty
+ * and their equality says nothing: the verdict is `undecided` (no-steady-state), never `preserved`.
+ * Otherwise an input where neither model has a steady state agrees, and is counted (`emptyInBoth`).
  */
 export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
@@ -264,7 +267,7 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
   if (before.missing.length || after.missing.length) {
     const missing = [...new Set([...before.missing, ...after.missing])];
     return {
-      ok: true as const, verdict: "undecided" as const, ...head, missingBehavior: missing,
+      ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, ...head, missingBehavior: missing,
       missingIn: { baseline: before.missing, trimmed: after.missing },
       note: `Declare behavior for ${missing.map((id) => `'${id}'`).join(", ")}: they can reach a deliverable, so the decision depends on them. The carrier screen (triz_trim) is all that holds without it.`,
     };
@@ -283,7 +286,7 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
   if (valuations > max) return { ok: false as const, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
   const at = (e: Evaluation, u: string[]) => e.table.get(tupleKey(e.inputs.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
 
-  let differing = 0, onlyBaseline = false, onlyTrimmed = false;
+  let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyTrimmed = false;
   let counterexample: { input: Array<Endpoint & { value: string }>; baseline: string[][]; trimmed: string[][]; onlyBaseline: string[][]; onlyTrimmed: string[][] } | undefined;
   for (let n = 0; n < valuations; n++) {
     let rest = n;
@@ -294,6 +297,7 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
       return x;
     });
     const x = at(b, u), y = at(t, u);
+    if (!x.size && !y.size) emptyInBoth++;
     const lostHere = sorted(new Map([...x].filter(([k]) => !y.has(k)))), gainedHere = sorted(new Map([...y].filter(([k]) => !x.has(k))));
     if (!lostHere.length && !gainedHere.length) continue;
     differing++;
@@ -307,11 +311,17 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
   const empties = (e: Evaluation) => [...e.table.values()].filter((r) => !r.count).length;
   const noSteadyState = { baseline: empties(b), trimmed: empties(t) };
   const common = {
-    ...head, inputs, inputsOnlyIn, inputValuations: valuations, noSteadyState,
+    ...head, inputs, inputsOnlyIn, inputValuations: valuations, noSteadyState, emptyInBoth,
     baseline: summary(b, before), trimmed: summary(t, after), assumption: ASSUMPTION,
   };
+  if (noSteadyState.baseline === b.table.size && noSteadyState.trimmed === t.table.size) {
+    return {
+      ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, ...common,
+      note: `Neither model has a steady state at any of the ${valuations} compared input valuations: both relations are empty, so their equality says nothing about the trim. Check the loops upstream of the deliverables (baseline.noSteadyState, trimmed.noSteadyState); this may signal a runaway loop or a modelling error.`,
+    };
+  }
   const runaway = noSteadyState.baseline || noSteadyState.trimmed
-    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.trimmed} trimmed (listed under baseline.noSteadyState and trimmed.noSteadyState). They are compared like any other input, and may signal a runaway loop.`
+    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.trimmed} trimmed (listed under baseline.noSteadyState and trimmed.noSteadyState); ${emptyInBoth} of the ${valuations} compared have none in either model and agree only in that. They may signal a runaway loop.`
     : "";
   if (!counterexample) {
     return {

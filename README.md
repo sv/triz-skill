@@ -123,8 +123,8 @@ typed moves. Each returns a model that type-checks, or fails closed:
 
 When boxes declare behaviour (finite carrier `values` and relation rows), `triz_behavior`
 decides a trim instead of only screening it: `preserved`, `changed` with a counterexample input,
-or `undecided` naming the boxes that need behaviour. The semantics is steady state; it says
-nothing about dynamics.
+or `undecided` (boxes that need behaviour, or no steady state in either model). The semantics
+is steady state; it says nothing about dynamics.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
