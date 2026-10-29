@@ -9,7 +9,7 @@ certifies these verdicts for this one instance; nothing is extracted from Lean. 
 the encoding: read them to see that the data is the model you meant.
 
 Check with `node scripts/certify.mjs <file>` in a checkout of github.com/sv/triz-skill: Lean
-against `theory/` when it is built, otherwise the AXLE service.
+against `theory/` once it is built. `--remote` sends this file to the AXLE service instead.
 -/
 
 namespace BearingEscalation
