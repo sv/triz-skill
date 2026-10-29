@@ -26,6 +26,7 @@ recalling principle numbers or matrix cells.
 | `triz_transform(model, transformation)` | Apply one typed move: segment, take_out, interpose, an applied trim, or a raw rewrite; the result type-checks or fails closed |
 | `triz_nine_windows(present, past?, future?, subsystem[], transitions?)` | Subsystem, system, and supersystem views per time, with harm loops per window; transitions as `triz_transform` sequences, checked against the snapshots and restricted to the subsystem |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
+| `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

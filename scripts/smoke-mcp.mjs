@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -100,6 +100,21 @@ console.log(`triz_nine_windows present_to_future trim -> future ${step?.snapshot
 if (!grid.ok || step.snapshot !== "derived" || grid.windows[2].status !== "ok" || step.subsystem.boundary.added.join() !== "w-support") fail("9-windows transition wrong");
 const unreached = await json("triz_nine_windows", { present: model, future: model, subsystem: ["shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
 if (unreached.ok !== false) fail("unreachable future snapshot did not fail closed");
+
+const behaving = {
+  ...model,
+  carriers: [{ ...model.carriers[0], values: ["held", "loose"] }, { ...model.carriers[1], values: ["low", "high"] }],
+  boxes: [
+    { ...model.boxes[0], behavior: [{ in: {}, out: { race: "held", rub: "low" } }] },
+    { ...model.boxes[1], behavior: [{ in: {}, out: { bore: "held" } }] },
+    model.boxes[2],
+  ],
+};
+const decided = await json("triz_behavior", { model: behaving, trim: ["bearing"] });
+console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
+if (decided.verdict !== "preserved") fail("decided trim wrong");
+const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
+if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
 
 await client.close();
 console.log("SMOKE OK");

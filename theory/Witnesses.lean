@@ -202,6 +202,44 @@ example : ((Wiring.restrictionGrid (P := Unit) (C := Unit) addWire addWire).map
 
 /-! ## Behaviour
 
-Reserved for the witnesses of the behaviour lemmas, added with them. -/
+The behaviour lemmas with hypotheses are the two monotonicity statements. Lemmas without
+hypotheses (`relTrace_swap`, `loopStates_id`, `relTrace_not_loop`) need no witness. -/
+
+/-! ### `relation_comp_mono`
+
+Both hypotheses hold on a strict inclusion of relations on `Bool`. Without `hR`, or without `hS`,
+a larger first or second box gives a composite that is not below the smaller one's. -/
+
+example : Relation.Comp (fun (a b : Bool) => a = b ∧ a = true) (fun (b c : Bool) => b = c) ≤
+    Relation.Comp (fun (a b : Bool) => a = b) (fun (b c : Bool) => b = c) :=
+  relation_comp_mono (fun _ _ h => h.1) le_rfl
+
+example : ¬ Relation.Comp (fun (_ _ : Unit) => True) (fun (_ _ : Unit) => True) ≤
+    Relation.Comp (fun (_ _ : Unit) => False) (fun (_ _ : Unit) => True) := by
+  intro h
+  obtain ⟨_, hb, _⟩ := h () () ⟨(), trivial, trivial⟩
+  exact hb
+
+example : ¬ Relation.Comp (fun (_ _ : Unit) => True) (fun (_ _ : Unit) => True) ≤
+    Relation.Comp (fun (_ _ : Unit) => True) (fun (_ _ : Unit) => False) := by
+  intro h
+  obtain ⟨_, _, hc⟩ := h () () ⟨(), trivial, trivial⟩
+  exact hc
+
+/-! ### `relTrace_mono`
+
+The hypothesis holds on a strict inclusion whose trace is non-empty. Without it, a loop that
+admits every value has a trace that is not below the trace of a loop that admits none. -/
+
+example : relTrace (fun (p q : Unit × Bool) => q.2 = p.2 ∧ p.2 = true) () () ∧
+    relTrace (fun (p q : Unit × Bool) => q.2 = p.2 ∧ p.2 = true) ≤
+      relTrace (fun (p q : Unit × Bool) => q.2 = p.2) :=
+  ⟨⟨true, rfl, rfl⟩, relTrace_mono fun _ _ h => h.1⟩
+
+example : ¬ relTrace (fun (_ _ : Unit × Unit) => True) ≤
+    relTrace (fun (_ _ : Unit × Unit) => False) := by
+  intro h
+  obtain ⟨_, hu⟩ := h () () ⟨(), trivial⟩
+  exact hu
 
 end CategoricalTriz.Witnesses

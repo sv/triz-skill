@@ -9,6 +9,7 @@
  *                     vertex → one in-port vertex, carrying the rating). The interface is the
  *                     unwired ports. Ports, not wires, are the vertices because a port may carry
  *                     several functions (fan-out, or a useful and a harmful wire on the same pair).
+ *                     Declared box behaviour rides on the box hyperedge; carrier values on the carriers.
  *  - fromHypergraph — the inverse decoder, so the encoding is tested to be lossless.
  *
  * Pure: no filesystem, so the hosted Worker entry can bundle it.
@@ -78,7 +79,7 @@ export function toDot(model: FunctionModel): string {
 
 export interface HyperVertex { box: string; port: string; side: "in" | "out"; carrier: string; label?: string; }
 export type HyperEdge =
-  | { kind: "box"; id: string; name: string; role: Box["role"]; action?: string; cost?: Record<string, number>; sources: number[]; targets: number[] }
+  | { kind: "box"; id: string; name: string; role: Box["role"]; action?: string; cost?: Record<string, number>; behavior?: Box["behavior"]; sources: number[]; targets: number[] }
   | { kind: "function"; id: string; carrier: string; polarity: Polarity; verb?: string; sources: [number]; targets: [number] };
 export interface OpenHypergraph {
   format: "triz-open-hypergraph/1";
@@ -114,6 +115,7 @@ export function toHypergraph(model: FunctionModel): OpenHypergraph {
     role: b.role,
     ...(b.action !== undefined ? { action: b.action } : {}),
     ...(b.cost !== undefined ? { cost: b.cost } : {}),
+    ...(b.behavior !== undefined ? { behavior: b.behavior } : {}),
     sources: (b.inputs ?? []).map((p) => vertex(b, "in", p)),
     targets: (b.outputs ?? []).map((p) => vertex(b, "out", p)),
   }));
@@ -175,6 +177,7 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
         ...(inputs.length ? { inputs } : {}),
         ...(outputs.length ? { outputs } : {}),
         ...(e.cost !== undefined ? { cost: e.cost } : {}),
+        ...(e.behavior !== undefined ? { behavior: e.behavior } : {}),
       });
     } else {
       if (e.sources.length !== 1 || e.targets.length !== 1) { errors.push(`function '${e.id}' must have one source and one target vertex`); continue; }

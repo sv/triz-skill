@@ -44,6 +44,8 @@ export const Carrier = z.strictObject({
   id: Id,
   layer: Layer,
   dimension: z.string().min(1).describe("Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"),
+  values: z.array(Id).min(1).optional()
+    .describe("Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior"),
 }).meta({ id: "Carrier" });
 
 export const Port = z.strictObject({
@@ -51,6 +53,11 @@ export const Port = z.strictObject({
   carrier: Id.describe("Carrier id"),
   label: z.string().optional(),
 }).meta({ id: "Port" });
+
+export const BehaviorRow = z.strictObject({
+  in: z.record(z.string(), Id).describe("Input port id → value; names every input port of the box"),
+  out: z.record(z.string(), Id).describe("Output port id → value; names every output port of the box"),
+}).meta({ id: "BehaviorRow", description: "One admissible (inputs, outputs) pair of the box's relation" });
 
 export const Box = z.strictObject({
   id: Id,
@@ -61,6 +68,8 @@ export const Box = z.strictObject({
   outputs: z.array(Port).optional(),
   cost: z.record(Dim, z.number().nonnegative()).optional()
     .describe("Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together"),
+  behavior: z.array(BehaviorRow).min(1).optional()
+    .describe("Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown"),
 }).meta({ id: "Box" });
 
 export const Endpoint = z.strictObject({ box: Id, port: Id }).meta({ id: "Endpoint" });
@@ -147,6 +156,30 @@ function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 }
 
+/**
+ * Typing of a declared behaviour: every port's carrier declares its values, and every row gives
+ * each input and output port exactly one declared value. Unknown ports and values fail closed.
+ */
+function behaviorErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
+  if (!b.behavior) return [];
+  const errors: string[] = [];
+  const values = new Map(carriers.map((c) => [c.id, c.values]));
+  for (const p of [...inputs(b), ...outputs(b)]) {
+    if (values.has(p.carrier) && !values.get(p.carrier)) errors.push(`box '${b.id}' declares behavior, but carrier '${p.carrier}' of port '${p.id}' declares no values`);
+  }
+  b.behavior.forEach((row, i) => {
+    for (const [side, ports, given] of [["input", inputs(b), row.in], ["output", outputs(b), row.out]] as const) {
+      for (const k of Object.keys(given)) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' behavior row ${i}: no ${side} port '${k}'`);
+      for (const p of ports) {
+        if (!Object.hasOwn(given, p.id)) { errors.push(`box '${b.id}' behavior row ${i}: ${side} port '${p.id}' has no value`); continue; }
+        const declared = values.get(p.carrier);
+        if (declared && !declared.includes(given[p.id])) errors.push(`box '${b.id}' behavior row ${i}: value '${given[p.id]}' of port '${p.id}' is not declared by carrier '${p.carrier}'`);
+      }
+    }
+  });
+  return errors;
+}
+
 export interface CheckResult { ok: boolean; errors: string[]; }
 
 /** Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail closed. */
@@ -157,11 +190,13 @@ export function checkModel(model: FunctionModel): CheckResult {
   for (const id of duplicates(model.carriers.map((c) => c.id))) errors.push(`duplicate carrier id '${id}'`);
   for (const id of duplicates(model.boxes.map((b) => b.id))) errors.push(`duplicate box id '${id}'`);
   for (const id of duplicates(model.wires.map((w) => w.id))) errors.push(`duplicate wire id '${id}'`);
+  for (const c of model.carriers) for (const v of duplicates(c.values ?? [])) errors.push(`carrier '${c.id}': duplicate value '${v}'`);
   for (const b of model.boxes) {
     for (const id of duplicates([...inputs(b), ...outputs(b)].map((p) => p.id))) errors.push(`box '${b.id}': duplicate port id '${id}'`);
     for (const p of [...inputs(b), ...outputs(b)]) {
       if (!carriers.has(p.carrier)) errors.push(`box '${b.id}' port '${p.id}': unknown carrier '${p.carrier}'`);
     }
+    errors.push(...behaviorErrors(b, model.carriers));
   }
   for (const w of model.wires) {
     if (!carriers.has(w.carrier)) errors.push(`wire '${w.id}': unknown carrier '${w.carrier}'`);

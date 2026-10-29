@@ -31,7 +31,7 @@ function graph(edges: Array<[string, string, FunctionModel["wires"][number]["pol
 }
 
 test("shipped domain examples parse and type-check", () => {
-  for (const name of ["bearing-heat", "software-cache", "marketplace-take-rate"]) {
+  for (const name of ["bearing-heat", "bearing-heat-behavior", "software-cache", "marketplace-take-rate"]) {
     assert.deepEqual(checkModel(example(name)), { ok: true, errors: [] }, name);
   }
 });
@@ -257,7 +257,7 @@ test("committed JSON Schema matches the zod model (regenerate with pnpm schema)"
 
 test("kernel tools are registered and answer over the shared spec", async () => {
   const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
-  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows"]) assert.ok(specs[name], name);
+  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) assert.ok(specs[name], name);
   const out = JSON.parse((await specs.triz_trim.handler({ model: example("bearing-heat"), trim: ["bearing"] })).content[0].text);
   assert.equal(out.verdict, "typed-feasible");
 });

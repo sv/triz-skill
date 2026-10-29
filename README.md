@@ -93,6 +93,7 @@ missing.
 | `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
+| `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -120,6 +121,11 @@ typed moves. Each returns a model that type-checks, or fails closed:
 - an applied trim;
 - a raw rewrite.
 
+When boxes declare behaviour (finite carrier `values` and relation rows), `triz_behavior`
+decides a trim instead of only screening it: `preserved`, `changed` with a counterexample input,
+or `undecided` (boxes that need behaviour, or no steady state in either model). The semantics
+is steady state; it says nothing about dynamics.
+
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
@@ -130,7 +136,8 @@ in categorical-model.md. That shows the kernel reads only the wiring shape, not 
 transfer between domains.
 [categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
 what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
-software models. One software model has the physical model's wiring shape.
+software models. One software model has the physical model's wiring shape. A copy of the
+physical model declares box behaviour, so its trim can be decided.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
@@ -143,14 +150,17 @@ with no `sorry`:
 - restriction composes, and makes typed diagrams a presheaf on the poset of box sets;
 - restriction commutes with every rewrite step restricted to the subsystem, so the subsystem
   and system rows of the 9 windows, with two steps, form a functor from time × (box sets)ᵒᵖ to
-  sets.
+  sets;
+- series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
+  trace is monotone and yanks a swap to the identity.
 
-`theory/Witnesses.lean` checks that none of the typing, restriction, and rewrite lemmas is
-vacuous. For each, a concrete
-diagram meets all its hypotheses, and a counterexample shows each hypothesis is needed.
+`theory/Witnesses.lean` checks that none of the typing, restriction, rewrite, or
+behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
+hypotheses, and a counterexample shows each hypothesis is needed.
 
 It also states trimming as a left Kan extension. No theorem links that statement to the
-kernel, and nothing decides it.
+kernel, and nothing decides it. `triz_behavior` decides a finite relational question instead,
+which is not proved equivalent.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
