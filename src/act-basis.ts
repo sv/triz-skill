@@ -23,6 +23,7 @@ export const THEOREMS = [
   "typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost",
   "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
   "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff",
+  "IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
   "admits_incomparable", "card_lt_of_strictly_weaker",
   "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated",
