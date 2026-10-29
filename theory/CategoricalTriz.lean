@@ -19,6 +19,7 @@ import Mathlib.Data.Finset.Card
 import Mathlib.Order.GaloisConnection.Basic
 import Mathlib.Order.FixedPoints
 import Mathlib.Order.Iterate
+import Mathlib.Order.Concept
 import Mathlib.Order.Minimal
 import Mathlib.Order.UpperLower.Closure
 import Mathlib.Order.UpperLower.CompleteLattice
@@ -835,14 +836,16 @@ end Behaviour
 Fix every box of a model but one, `m`, and a target relation `T`. The context `C` sends a relation
 for `m` to the model's input→deliverable relation. Series composition and the trace preserve
 unions in each argument, so a context in which `m` occurs once sends a union of rows to the union
-of their composites (`PreservesUnions`). Then the rows whose composite stays inside `T` form the
+of their composites (`PreservesUnions`; the semantics of `Semantics.lean` is such a context for
+every box declared by rows over its own ports, as kernel boxes are, `holeContext_preservesUnions`). Then the rows whose composite stays inside `T` form the
 largest relation that keeps the composite inside `T` (`le_residual_iff`, a Galois connection).
 Every relation achieving `T` is contained in it, so it commits to the fewest constraints. The
 empty relation is always inside (its composite is empty), so staying inside `T` is not enough:
 `T` is achievable iff the residual's composite covers `T` (`covers_iff_exists_eq`). The kernel
-computes every row's composite in one search, grouping steady states by `m`'s row. That grouping
-is union preservation; tests check it, nothing is extracted. Two unknown boxes do not split into
-two such problems: the residual for one depends on the relation chosen for the other. -/
+computes every row's composite in one search, grouping steady states by `m`'s row. That the
+grouping computes `external` is tested; nothing is extracted. Two unknown boxes do not split into
+two such problems: the residual for one depends on the relation chosen for the other (see
+`Two unknown boxes` below). -/
 
 section Residual
 
@@ -941,6 +944,89 @@ theorem required_row_of_eq (hC : PreservesUnions C) {R : SetRel α β} {T : SetR
 
 end Residual
 
+/-! ### Two unknown boxes
+
+With two boxes left open, the context preserves unions in each (`PreservesUnions₂`; the semantics
+does, `holeContext₂_preservesUnions₂` in `Semantics.lean`). A pair of relations keeps the composite
+inside `T` iff every row of the first forms a safe pair with every row of the second
+(`le_safeRows_iff`). So the safe pairs of relations are the rectangles inside the safe pairs of
+rows. Every safe pair lies inside a formal concept of that relation, Mathlib's `Concept`, a
+complete lattice (`safe_iff_le_concept`); every concept is safe (`concept_safe`); and a safe pair
+containing a concept is that concept (`concept_maximal`). So the maximal safe pairs are exactly the
+concepts. `T` is achievable iff some concept's composite covers it (`exists_eq₂_iff`). Two concepts
+can be incomparable (`Witnesses.lean`), so there may be no weakest pair, and no product of two
+residuals stands for them. The kernel computes none of this:
+with two or more boxes without behaviour it answers `undecided` (`several-holes`). Three or more
+boxes are not stated. -/
+
+section Holes
+
+variable {α β α' β' γ δ : Type*}
+
+/-- A context with two unknown boxes preserves unions in each: a composite pair needs one row of
+each box. -/
+def PreservesUnions₂ (C : SetRel α β → SetRel α' β' → SetRel γ δ) : Prop :=
+  ∀ R₁ R₂, C R₁ R₂ = ⋃ p ∈ R₁, ⋃ q ∈ R₂, C {p} {q}
+
+/-- The safe pairs of rows: a row of each box whose composite stays inside `T`. -/
+def SafeRows (C : SetRel α β → SetRel α' β' → SetRel γ δ) (T : SetRel γ δ) (p : α × β)
+    (q : α' × β') : Prop :=
+  C {p} {q} ⊆ T
+
+variable {C : SetRel α β → SetRel α' β' → SetRel γ δ}
+
+/-- More rows in either box never remove a composite pair. -/
+theorem PreservesUnions₂.mono (hC : PreservesUnions₂ C) {R₁ S₁ : SetRel α β}
+    {R₂ S₂ : SetRel α' β'} (h₁ : R₁ ⊆ S₁) (h₂ : R₂ ⊆ S₂) : C R₁ R₂ ⊆ C S₁ S₂ := by
+  rw [hC R₁, hC S₁]
+  exact Set.biUnion_subset_biUnion_left h₁ |>.trans' (Set.iUnion₂_mono fun _ _ =>
+    Set.biUnion_subset_biUnion_left h₂)
+
+/-- A pair of relations keeps the composite inside `T` iff the second lies in the upper polar of
+the first along the safe pairs of rows. -/
+theorem le_safeRows_iff (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+    {T : SetRel γ δ} : C R₁ R₂ ⊆ T ↔ R₂ ⊆ upperPolar (SafeRows C T) R₁ := by
+  rw [hC R₁ R₂]
+  simp only [Set.iUnion₂_subset_iff]
+  exact ⟨fun h q hq p hp => h p hp q hq, fun h p hp q hq => h hq hp⟩
+
+/-- A pair of relations keeps the composite inside `T` iff it lies inside a formal concept of the
+safe pairs of rows (Mathlib's `Concept`): the one its first relation generates. -/
+theorem safe_iff_le_concept (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+    {T : SetRel γ δ} :
+    C R₁ R₂ ⊆ T ↔
+      ∃ c : Concept (α × β) (α' × β') (SafeRows C T), R₁ ⊆ c.extent ∧ R₂ ⊆ c.intent := by
+  rw [le_safeRows_iff hC]
+  refine ⟨fun h => ⟨Concept.ofObjects _ R₁, subset_lowerPolar_upperPolar _ R₁, h⟩, ?_⟩
+  rintro ⟨c, h₁, h₂⟩
+  exact h₂.trans (c.upperPolar_extent ▸ upperPolar_anti _ h₁)
+
+/-- Every concept of the safe pairs of rows keeps the composite inside `T`. -/
+theorem concept_safe (hC : PreservesUnions₂ C) {T : SetRel γ δ}
+    (c : Concept (α × β) (α' × β') (SafeRows C T)) : C c.extent c.intent ⊆ T :=
+  (safe_iff_le_concept hC).2 ⟨c, subset_rfl, subset_rfl⟩
+
+/-- Concepts are the maximal safe pairs: a safe pair containing a concept is that concept. -/
+theorem concept_maximal (hC : PreservesUnions₂ C) {T : SetRel γ δ}
+    (c : Concept (α × β) (α' × β') (SafeRows C T)) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+    (h : C R₁ R₂ ⊆ T) (h₁ : c.extent ⊆ R₁) (h₂ : c.intent ⊆ R₂) : R₁ = c.extent ∧ R₂ = c.intent := by
+  have hR₂ : R₂ ⊆ c.intent := (le_safeRows_iff hC).1 h |>.trans (c.upperPolar_extent ▸ upperPolar_anti _ h₁)
+  have hR₁ : R₁ ⊆ c.extent := by
+    rw [← c.lowerPolar_intent]
+    exact (subset_upperPolar_iff_subset_lowerPolar.1 ((le_safeRows_iff hC).1 h)).trans
+      (lowerPolar_anti _ h₂)
+  exact ⟨hR₁.antisymm h₁, hR₂.antisymm h₂⟩
+
+/-- Some pair of relations achieves `T` iff some concept's composite covers `T`. -/
+theorem exists_eq₂_iff (hC : PreservesUnions₂ C) {T : SetRel γ δ} :
+    (∃ R₁ R₂, C R₁ R₂ = T) ↔
+      ∃ c : Concept (α × β) (α' × β') (SafeRows C T), T ⊆ C c.extent c.intent := by
+  refine ⟨fun ⟨R₁, R₂, h⟩ => ?_, fun ⟨c, h⟩ => ⟨_, _, (concept_safe hC c).antisymm h⟩⟩
+  obtain ⟨c, h₁, h₂⟩ := (safe_iff_le_concept hC).1 h.le
+  exact ⟨c, h.ge.trans (hC.mono h₁ h₂)⟩
+
+end Holes
+
 /-! ## Weakness ranking (`weaknessRanking`)
 
 A concept admits a situation (a valuation of the boundary inputs) when it has a steady state there
@@ -1001,7 +1087,12 @@ under the admissible inputs forgets the input and the output. The kernel compose
 synchronously and searches the step relation on configurations breadth first, up to a horizon.
 The statements below hold for any step relation `r`, so they cover that configuration graph. A
 trace is a sequence `τ : ℕ → σ` whose first `n` steps are admitted. The TypeScript search is
-checked against them by tests, not by extraction. -/
+checked against them by tests, not by extraction.
+
+The one link to the behaviour section: read as behaviour, with its state fed back through the
+trace, a machine's steady states are its fixed points under a held input (`relTrace_mealyRel_iff`),
+each a self-loop of the step (`relTrace_mealyRel_fixed`). Whether a run reaches one, and which, is
+not stated. The kernel does not read transition rows as behaviour. -/
 
 section Dynamics
 
@@ -1018,6 +1109,24 @@ def mealyStep (T : Mealy S I O) (X : Set I) : S → S → Prop := fun s s' => �
 theorem mealyStep_mono {T T' : Mealy S I O} {X X' : Set I} (hT : T ≤ T') (hX : X ⊆ X') :
     mealyStep T X ≤ mealyStep T' X' :=
   fun _ _ ⟨i, hi, o, h⟩ => ⟨i, hX hi, o, hT _ _ _ _ h⟩
+
+/-- A machine read as a steady-state relation, its state fed back as the loop value: from
+(input, state) to (output, next state). -/
+def mealyRel (T : Mealy S I O) : I × S → O × S → Prop := fun p q => T p.2 p.1 q.2 q.1
+
+/-- Read as behaviour with its state fed back through the trace, a machine relates an input to an
+output iff some state stays fixed on that input, emitting that output: a steady state is a fixed
+point of the dynamics under a held input, nothing more. -/
+theorem relTrace_mealyRel_iff {T : Mealy S I O} {i : I} {o : O} :
+    relTrace (mealyRel T) i o ↔ ∃ s, T s i s o :=
+  Iff.rfl
+
+/-- Such a state is a self-loop of one step on that input, so a run that reaches it can stay there
+(`fixed_on_cycle`). Whether a run reaches it is not stated. -/
+theorem relTrace_mealyRel_fixed {T : Mealy S I O} {i : I} {o : O} (h : relTrace (mealyRel T) i o) :
+    ∃ s, mealyStep T {i} s s :=
+  let ⟨s, hs⟩ := h
+  ⟨s, i, rfl, o, hs⟩
 
 /-- Reachable in exactly `n` steps. -/
 def reachIn (r : σ → σ → Prop) : ℕ → σ → σ → Prop

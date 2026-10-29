@@ -23,7 +23,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Components in series along a flow; flow analysis | `flows`: an ordered path of the boxes a carrier passes through, optionally with the `medium` box that stands for what flows | `triz_flow`: bottleneck, accumulation, and leak candidates, loops; `merge` treats boxes consecutive on a flow as adjacent | `edge_on_cycle` (loops), `flow_merge_typed`, `flow_merge_reach`; definitions `flowStep`, `mergedStep`, `mergeInto` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
-| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq`; for two boxes, never cited: `le_safeRows_iff`, `safe_iff_le_concept`, `concept_maximal`, `exists_eq₂_iff` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
 | Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `return_ge_two` |
@@ -225,11 +225,19 @@ Most are semantic sanity lemmas: they pin the semantics down on the tests' own e
 about one model, and the evaluator is checked against that semantics by a brute-force cross-check,
 not derived from it. `relation_comp_iSup_left`,
 `relation_comp_iSup_right`, and `relTrace_iSup` say why a context built from composition and the
-trace preserves unions, the hypothesis of the residual lemmas; that the kernel's join is such a
-context is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
+trace preserves unions, the hypothesis of the residual lemmas. `holeContext_preservesUnions` in
+`theory/Semantics.lean` proves it for the semantics itself. That the kernel's join computes that
+semantics is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
 `subset_residual_of_eq`, `admits_bot`, `admits_mono_ok`, and `AtLeastAsWeak`'s reflexivity and
-transitivity serve the cited lemmas or the docs. A test keeps all of these out of the citable
-list.
+transitivity serve the cited lemmas or the docs. Two statements describe computations the kernel
+does not make:
+- the two-box lemmas `PreservesUnions₂.mono`, `le_safeRows_iff`, `safe_iff_le_concept`,
+  `concept_safe`, `concept_maximal`, and `exists_eq₂_iff`, since the kernel answers
+  `several-holes`;
+- the link between dynamics and behaviour, `relTrace_mealyRel_iff` and
+  `relTrace_mealyRel_fixed`, since the kernel reads no transition row as behaviour.
+
+A test keeps all of these out of the citable list.
 
 ## Feedback for agents
 
@@ -568,6 +576,15 @@ of its rows. Lean proves, with no `sorry`:
   from (input, loop value) to (output, loop value). The hypothesis is the same as for series: the
   loop wires join exactly the loop ports.
 - **Monotonicity** (`external_mono`). Widening any box's relation widens the external relation.
+- **A box left open** (`holeContext_preservesUnions`). Add a hole to a diagram: a box declared
+  by a relation from its input ports to its output ports (`withHole`). The external relation, as
+  a function of the hole's relation, preserves unions, because a related pair needs exactly one
+  row of the hole. That is the hypothesis of the residual lemmas behind the
+  [weakest box specification](#weakest-box-specification), for every diagram, with the hole any
+  box declared by rows over its own ports, as every kernel box is.
+  With two holes it preserves unions in each (`holeContext₂_preservesUnions₂`). The same
+  relation placed in two holes does not; `theory/SemanticsWitnesses.lean` has the
+  counterexample.
 - **Functor** (`semantics`). Objects are interfaces. Morphisms are open diagrams, two of them
   identified when their external relations agree. Composition is `seq`, and the identity is a
   diagram of bare interface ports. This is a category, and `semantics` is a faithful functor from
@@ -669,7 +686,9 @@ inputs.
     `compare_to`.
   - Two or more boxes without behaviour give `undecided` (`several-holes`). The largest safe
     relation for one depends on the relation chosen for the others, so no box has a single
-    weakest choice.
+    weakest choice. For two boxes Lean characterises the maximal safe pairs as formal concepts
+    (`safe_iff_le_concept`, `concept_maximal`), which can be incomparable; the kernel computes
+    none.
   - Missing baseline behaviour, and a target empty at every input (`no-steady-state`), give
     `undecided`.
   - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
@@ -1340,6 +1359,15 @@ example cohort churn against fee changes. Name it only from that evidence.
   decide it there; they do not certify the evaluator either.
 - The weakest specification is decided for one box without behaviour only. With several, the
   safe relations are not a product of per-box residuals, so none is computed.
+  - For two boxes, Lean states what a computation would have to find, and the kernel does not
+    compute it. A pair of relations keeps the composite inside the target iff every row of the
+    first forms a safe pair with every row of the second (`le_safeRows_iff`). Every safe pair lies
+    inside a formal concept of the safe row pairs, Mathlib's `Concept` (`safe_iff_le_concept`),
+    every concept is safe (`concept_safe`), and a safe pair containing a concept is that concept
+    (`concept_maximal`): the maximal safe pairs are exactly the concepts. The target is
+    achievable iff some concept's composite covers it (`exists_eq₂_iff`). Two concepts can be
+    incomparable (`theory/Witnesses.lean`), so there may be no weakest pair. Three or more boxes
+    are not stated.
   - It is the residual of the declared context. It says what the box must do for the concept's
     relation to equal the target. It does not say that a physical box can do it, at what cost,
     or with what new harms.
@@ -1350,8 +1378,10 @@ example cohort churn against fee changes. Name it only from that evidence.
     `requiredInfeasible` names the rows the target needs that the declaration excludes; it does
     not say which of them is cheapest to make producible.
 - Lean proves the residual's properties for every context that preserves unions, and that
-  composition and the trace preserve unions. It does not prove that the kernel's join is such a
-  context, or that the evaluator computes it. Two things are tested instead:
+  composition and the trace preserve unions. The semantics of `theory/Semantics.lean`, with one
+  box left open as a hole, is such a context for every diagram and every box declared by rows
+  over its own ports, which every kernel box is (`holeContext_preservesUnions`). Lean does not prove that the kernel's join computes that
+  semantics; the evaluator is not extracted from it. Two things are tested instead:
   - the grouping of steady states by the box's row, by a brute force over every relation the
     box could declare (the bearing's housing, and a correlated two-deliverable case);
   - the result, by a re-check that declares the spec.
@@ -1362,7 +1392,12 @@ example cohort churn against fee changes. Name it only from that evidence.
   distribution over tasks, and a real prior overrides it (weakness.md). Neither the spec nor the
   ranking makes a principle claim.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
-  dynamics, convergence, or which steady state the system reaches. Behaviour uses no least
+  dynamics, convergence, or which steady state the system reaches. Lean links the two readings
+  at fixed points only. Read as behaviour, with its state fed back through the trace, a
+  machine relates an input to an output iff some state stays fixed under that held input,
+  emitting that output (`relTrace_mealyRel_iff`). Each such state is a self-loop of the step
+  (`relTrace_mealyRel_fixed`). This says nothing about whether a run reaches such a state, and
+  the kernel does not read transition rows as behaviour. Behaviour uses no least
   fixpoint: its values are unordered, so there is no least value to iterate from, and iterating
   from no value delivers nothing on an unseeded loop. Feasibility uses one because its levels are
   ordered and its relations monotone ([Co-design feasibility](#co-design-feasibility)).

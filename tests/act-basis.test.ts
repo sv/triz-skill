@@ -155,7 +155,9 @@ test("every basis cited by any tool output names a listed theorem", async () => 
  */
 test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
   const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
-    "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans"];
+    "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans",
+    // Two boxes without behaviour, and dynamics read as behaviour: computations the kernel does not make.
+    "PreservesUnions₂.mono", "le_safeRows_iff", "safe_iff_le_concept", "concept_safe", "concept_maximal", "exists_eq₂_iff", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
     assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);
