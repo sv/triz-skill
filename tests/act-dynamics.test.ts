@@ -1,6 +1,7 @@
 /**
  * Declared dynamics: typing of state and transition rows (fail closed), the bearing's heat →
- * preload loop escalating and a damped variant that does not, the horizon and the state cap,
+ * preload loop escalating and a damped variant that does not, trapped and recurrent loop classes
+ * (a wear model with and without renewal), the horizon and the state cap,
  * input sequences and blocked runs, separation in time along one run, consistency with
  * triz_behavior at fixed points (and where it does not extend), and re-checking every trace.
  */
@@ -446,17 +447,76 @@ test("loop classification: a two-well model is bistable", () => {
 test("loop classification: the bearing's heat → preload runaway is a trap; the damped bearing settles outside it", () => {
   const r = run(escalating(), { unsafe: HOT });
   assert.ok(r.loops.classified);
-  assert.deepEqual(r.loops.classes, ["escalating"]);
+  assert.deepEqual(r.loops.classes, ["trapped"]);
   assert.deepEqual(r.loops.harmLoops, [{ boxes: ["bearing", "shaft"], negative: ["w-heat", "w-preload"] }]);
-  assert.deepEqual(r.loops.closed, [{ size: 1, states: [["hot"]], kind: "settles", fixedPoints: [["hot"]], unsafe: true }]);
-  const [trap] = r.loops.escalating!;
+  assert.deepEqual(r.loops.closed, [{ size: 1, states: [["hot"]], kind: "settles", fixedPoints: [["hot"]], unsafe: true, allUnsafe: true }]);
+  const [trap] = r.loops.trapped!;
   assert.equal(trap.from, "initial");
   assert.deepEqual(trap.trace, r.escalation!.trace);
-  assert.deepEqual(trap.basis, ["closed_reachIn", "reach_of_trace"]);
+  assert.deepEqual(trap.basis, ["trapped_reachIn", "reach_of_trace"]);
+  assert.equal(r.loops.recurrent, undefined);
+  assert.match(r.loops.note, /never recovers/);
   const calm = run(damped(), { unsafe: HOT });
   assert.ok(calm.loops.classified);
   assert.deepEqual(calm.loops.classes, []);
-  assert.deepEqual(calm.loops.closed, [{ size: 1, states: [["warm"]], kind: "settles", fixedPoints: [["warm"]], unsafe: false }]);
+  assert.deepEqual(calm.loops.closed, [{ size: 1, states: [["warm"]], kind: "settles", fixedPoints: [["warm"]], unsafe: false, allUnsafe: false }]);
+});
+
+/**
+ * A two-state wear model: a part wears from thin to thick, and thick is unsafe. With `renew`,
+ * a thick part can also return to thin.
+ */
+function wear(renew: boolean): FunctionModel {
+  return graph([["thin", "thin"], ["thin", "thick"], ["thick", "thick"], ...(renew ? [["thick", "thin"] as [string, string]] : [])], ["thin"]);
+}
+const THICK = [{ box: "ball", state: ["thick"] }];
+
+test("loop classification: an absorbing unsafe state is trapped; one the run can leave again is recurrent", () => {
+  const absorbing = run(wear(false), { unsafe: THICK });
+  assert.ok(absorbing.loops.classified && absorbing.loops.complete);
+  assert.deepEqual(absorbing.loops.classes, ["trapped"]);
+  assert.deepEqual(absorbing.loops.closed, [{ size: 1, states: [["thick"]], kind: "settles", fixedPoints: [["thick"]], unsafe: true, allUnsafe: true }]);
+  const [trap] = absorbing.loops.trapped!;
+  assert.deepEqual([trap.from, trap.time, trap.trace.map((st) => st.state[0])], ["initial", 1, ["thin", "thick"]]);
+  assert.deepEqual(trap.basis, ["trapped_reachIn", "reach_of_trace"]);
+  assert.deepEqual(checkRun(wear(false), { unsafe: THICK }, trap.trace), { ok: true, errors: [] });
+
+  // Renewal makes thin and thick one closed component: it meets the unsafe set and holds a safe state.
+  const renewed = run(wear(true), { unsafe: THICK });
+  assert.ok(renewed.loops.classified && renewed.loops.complete);
+  assert.deepEqual(renewed.loops.classes, ["recurrent"]);
+  assert.deepEqual(renewed.loops.closed, [{ size: 2, states: [["thin"], ["thick"]], kind: "settles", fixedPoints: [["thin"], ["thick"]], unsafe: true, allUnsafe: false }]);
+  assert.equal(renewed.loops.trapped, undefined);
+  const [back] = renewed.loops.recurrent!;
+  assert.deepEqual([back.component, back.from, back.time, back.trace.map((st) => st.state[0])], [0, "initial", 1, ["thin", "thick"]]);
+  assert.deepEqual(back.safe, { state: ["thin"], values: [] });
+  assert.deepEqual(back.basis, ["closed_reachIn", "reach_of_trace"]);
+  assert.match(renewed.loops.note, /it can recover, but it never leaves the component/);
+  // The escalation verdict is the same for both: the unsafe state is reachable; only the class differs.
+  assert.deepEqual([absorbing.escalation?.verdict, renewed.escalation?.verdict], ["reachable", "reachable"]);
+
+  // Without the thin self-loop the renewing part oscillates too, and both classes are listed.
+  const cycling = run(graph([["thin", "thick"], ["thick", "thin"]], ["thin"]), { unsafe: THICK });
+  assert.ok(cycling.loops.classified);
+  assert.deepEqual(cycling.loops.classes, ["recurrent", "oscillating"]);
+});
+
+test("loop classification: a state unsafe under one valuation only is recurrent, not trapped", () => {
+  // The heater stays hot under either power value, and only power on is unsafe: hot holds a safe configuration.
+  const m = heater();
+  for (const r of box(m, "heater").transition!) if (r.state === "hot") r.next = "hot";
+  const onWhenHot = [{ box: "heater", state: ["hot"] }, { box: "heater", port: "power", values: ["on"] }];
+  const r = run(m, { unsafe: onWhenHot });
+  assert.ok(r.loops.classified);
+  assert.deepEqual(r.loops.closed.map((c) => [c.states, c.unsafe, c.allUnsafe]), [[[["hot"]], true, false]]);
+  assert.deepEqual(r.loops.classes, ["recurrent"]);
+  const [back] = r.loops.recurrent!;
+  assert.deepEqual(back.safe.state, ["hot"]);
+  assert.equal(back.safe.values[r.variables.findIndex((v) => v.port === "power")], "off");
+  // With every power value unsafe at hot, the same component is trapped.
+  const trapped = run(m, { unsafe: [{ box: "heater", state: ["hot"] }] });
+  assert.ok(trapped.loops.classified);
+  assert.deepEqual(trapped.loops.classes, ["trapped"]);
 });
 
 test("loop classification: a negation loop with declared state oscillates with period 2", () => {
@@ -475,7 +535,7 @@ test("loop classification: classes coexist, safe states are starts, and 'none' o
   const edges: Array<[string, string]> = [...TWO_WELLS, ["top", "ring1"], ["ring1", "ring2"], ["ring2", "ring1"]];
   const all = run(graph(edges, ["top"]), { unsafe: [{ box: "ball", state: ["right"] }] });
   assert.ok(all.loops.classified);
-  assert.deepEqual(all.loops.classes, ["bistable", "escalating", "oscillating"]);
+  assert.deepEqual(all.loops.classes, ["bistable", "trapped", "oscillating"]);
   assert.deepEqual(all.loops.closed.map((c) => c.kind), ["settles", "settles", "oscillates"]);
 
   // From the left well alone the right well is unreachable; from the declared safe state top it is a trap.
@@ -485,8 +545,8 @@ test("loop classification: classes coexist, safe states are starts, and 'none' o
   assert.ok(fromSafe.loops.classified);
   assert.deepEqual(fromSafe.loops.starts, { initial: 1, safe: 1 });
   // The safe start top reaches both wells, so they are reported bistable too, though the initial state reaches one.
-  assert.deepEqual(fromSafe.loops.classes, ["bistable", "escalating"]);
-  const [trap] = fromSafe.loops.escalating!;
+  assert.deepEqual(fromSafe.loops.classes, ["bistable", "trapped"]);
+  const [trap] = fromSafe.loops.trapped!;
   assert.equal(trap.from, "safe");
   assert.deepEqual(trap.trace.map((st) => st.state[0]), ["top", "right"]);
   assert.deepEqual(checkRun(graph(TWO_WELLS, ["left"]), spec, trap.trace, "safe"), { ok: true, errors: [] });
@@ -511,8 +571,9 @@ test("loop classification: classes coexist, safe states are starts, and 'none' o
   assert.equal(skipped.loops.complete, false);
   assert.match(skipped.loops.safeStartsSkipped!, /120 global states exceed the cap of 100/);
   assert.deepEqual(skipped.loops.starts, { initial: 1, safe: 0 });
-  assert.deepEqual(skipped.loops.classes, ["escalating"]);
-  assert.deepEqual(skipped.loops.escalating![0].trace.map((st) => st.state), [["cold", "t0"], ["warm", "t0"], ["hot", "t0"]]);
+  // The clock returns to t0, so the component (hot, any time) holds no safe configuration: still trapped.
+  assert.deepEqual(skipped.loops.classes, ["trapped"]);
+  assert.deepEqual(skipped.loops.trapped![0].trace.map((st) => st.state), [["cold", "t0"], ["warm", "t0"], ["hot", "t0"]]);
 
   // A blocked state is a closed component that is not classified.
   const stuck = run(heater([["on", "hot"], ["off", "hot"]]), {});

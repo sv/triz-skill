@@ -969,7 +969,9 @@ theorem reachWithin_saturated {A : Set σ} {k : ℕ}
 /-! ### Loop classification
 
 The kernel classifies the closed strongly connected components of the reachable state graph. A
-component is closed when no step leaves it. -/
+component is closed when no step leaves it. Its configurations form a closed set of the
+configuration graph: a trapped component is one inside the unsafe set (`trapped_reachIn`), a
+recurrent one meets the unsafe set without lying inside it. -/
 
 /-- No step leaves `C`. -/
 def Closed (r : σ → σ → Prop) (C : Set σ) : Prop := ∀ a ∈ C, ∀ b, r a b → b ∈ C
@@ -986,6 +988,13 @@ theorem closed_reachIn {C : Set σ} (hC : Closed r C) {a : σ} (ha : a ∈ C) (n
   | succ n ih =>
     obtain ⟨c, hac, hcb⟩ := h
     exact hC c (ih hac) b hcb
+
+/-- A closed set inside the unsafe set is an absorbing trap: from any of its states, every state
+reachable at any number of steps is unsafe. A closed set that only meets the unsafe set holds the
+run too, but may reach safe states again (recurrent, not trapped). -/
+theorem trapped_reachIn {C U : Set σ} (hC : Closed r C) (hCU : C ⊆ U) {a : σ} (ha : a ∈ C) (n : ℕ)
+    {b : σ} (h : reachIn r n a b) : b ∈ U :=
+  hCU (closed_reachIn hC ha n h)
 
 /-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
 cycles have length two or more. -/

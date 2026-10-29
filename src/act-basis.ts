@@ -24,7 +24,7 @@ export const THEOREMS = [
   "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
   "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated",
-  "fixed_on_cycle", "closed_reachIn", "return_ge_two",
+  "fixed_on_cycle", "closed_reachIn", "trapped_reachIn", "return_ge_two",
   "kleene_lfp", "kleeneStep_upperClosure", "codesign_lfp",
 ] as const;
 /** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */

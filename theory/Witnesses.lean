@@ -857,6 +857,43 @@ example : Closed (fun a b : Bool => a = b) {true} ∧ reachIn (fun a b : Bool =>
     false ∉ ({true} : Set Bool) :=
   ⟨fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha, rfl, by simp⟩
 
+/-! ### `trapped_reachIn`
+
+A two-state wear model: `false` is thin, `true` is thick, and the unsafe set is `{true}`. When
+thick is absorbing (`wearOnly`), `{true}` is closed and inside the unsafe set, and the run stays
+unsafe. Each hypothesis is needed: without closedness, the recoverable step (`wearOrRenew`)
+leaves `{true}` for the safe `false`; without `C ⊆ U`, the closed set `Set.univ` holds the safe
+`false`; without the start in `C`, a run from `false` stays safe. A closed set that meets `U`
+without lying inside it is recurrent, not trapped: under `wearOrRenew`, `Set.univ` is closed,
+meets `{true}`, and reaches the safe `false` from `true`. -/
+
+/-- Wear only: thin may stay thin or wear thick; thick stays thick. -/
+def wearOnly : Bool → Bool → Prop := fun s t => s = true → t = true
+
+/-- Wear or renew: thick may also return to thin. -/
+def wearOrRenew : Bool → Bool → Prop := fun _ _ => True
+
+example : Closed wearOnly {true} ∧ ({true} : Set Bool) ⊆ {true} ∧ reachIn wearOnly 2 true true ∧
+    true ∈ ({true} : Set Bool) :=
+  have hC : Closed wearOnly {true} := fun _ ha _ hb => hb ha
+  have hr : reachIn wearOnly 2 true true := ⟨true, ⟨true, rfl, fun _ => rfl⟩, fun _ => rfl⟩
+  ⟨hC, subset_rfl, hr, trapped_reachIn hC subset_rfl (Set.mem_singleton true) 2 hr⟩
+
+example : ¬ Closed wearOrRenew {true} ∧ reachIn wearOrRenew 1 true false ∧ false ∉ ({true} : Set Bool) :=
+  ⟨fun h => by simpa using h true rfl false trivial, ⟨true, rfl, trivial⟩, by simp⟩
+
+example : Closed wearOnly Set.univ ∧ ¬ (Set.univ : Set Bool) ⊆ {true} ∧ reachIn wearOnly 0 false false ∧
+    false ∉ ({true} : Set Bool) :=
+  ⟨fun _ _ _ _ => trivial, fun h => by simpa using h (Set.mem_univ false), rfl, by simp⟩
+
+example : Closed wearOnly {true} ∧ false ∉ ({true} : Set Bool) ∧ reachIn wearOnly 1 false false :=
+  ⟨fun _ ha _ hb => hb ha, by simp, ⟨false, rfl, fun h => absurd h Bool.false_ne_true⟩⟩
+
+/-- Recurrent, not trapped: a closed set that meets the unsafe set and reaches a safe state. -/
+example : Closed wearOrRenew Set.univ ∧ (Set.univ ∩ {true} : Set Bool).Nonempty ∧
+    reachIn wearOrRenew 1 true false ∧ false ∉ ({true} : Set Bool) :=
+  ⟨fun _ _ _ _ => trivial, ⟨true, trivial, rfl⟩, ⟨true, rfl, trivial⟩, by simp⟩
+
 /-! ### `return_ge_two`
 
 Negation on `Bool` has no fixed point and returns in two steps. Without `h`, the identity returns

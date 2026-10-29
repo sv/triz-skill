@@ -96,7 +96,7 @@ missing.
 | `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second |
-| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
+| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
 | `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
@@ -157,7 +157,8 @@ When boxes declare state (`state`, `initial`, and `transition` rows), `triz_dyna
 every run up to a horizon. It decides whether a harm loop escalates into an unsafe set, with a
 shortest trace, and whether a safe set is invariant. It also decides whether one run meets
 time-separated demands within their windows. It classifies the loops' long-run behaviour as
-bistable, escalating into a trap, or oscillating. Only finite, discrete dynamics are covered.
+bistable, trapped (a closed component inside the unsafe set), recurrent (one that meets it and
+can recover), or oscillating. Only finite, discrete dynamics are covered.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
@@ -201,8 +202,9 @@ with no `sorry`:
   strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
   layer that adds nothing completes the reachable set, reachability is monotone in the
-  transition rows, a closed set holds every run that enters it, and without a fixed point every
-  return takes two steps or more;
+  transition rows, a closed set holds every run that enters it, from a closed set inside the
+  unsafe set every reachable state is unsafe, and without a fixed point every return takes two
+  steps or more;
 - series, parallel, and feedback composition keep feasibility monotone, Kleene's ascent reaches
   the least fixpoint of a finite lattice, and the co-design fixpoint is the upward closure of the
   feasible configurations.

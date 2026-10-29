@@ -106,9 +106,21 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   });
   assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
   collect(ranked);
+  // Loop classes: a wear model whose thick state is absorbing (trapped), and one that can renew (recurrent).
+  const wear = (renew: boolean) => ({
+    domain: "physical", carriers: [],
+    boxes: [{ id: "part", name: "Part", role: "product", state: ["thin", "thick"], initial: ["thin"],
+      transition: [["thin", "thin"], ["thin", "thick"], ["thick", "thick"], ...(renew ? [["thick", "thin"]] : [])].map(([state, next]) => ({ state, in: {}, next, out: {} })) }],
+    wires: [],
+  });
+  for (const renew of [false, true]) {
+    const loops = (await call("triz_dynamics", { model: wear(renew), unsafe: [{ box: "part", state: ["thick"] }] })).loops;
+    assert.deepEqual(loops.classes, [renew ? "recurrent" : "trapped"]);
+    collect(loops);
+  }
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
-    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker", "trapped_reachIn", "closed_reachIn"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -170,6 +182,7 @@ test("verdicts cite the statement they use", async () => {
   const heated = example("bearing-heat-dynamics");
   const run = await call("triz_dynamics", { model: heated, unsafe: [{ box: "shaft", state: ["hot"] }], safe: [{ box: "shaft", state: ["cold", "warm", "hot"] }] });
   assert.deepEqual([run.escalation.basis, run.invariance.basis], [["reach_of_trace"], ["reachWithin_iff_trace", "reachWithin_saturated"]]);
+  assert.deepEqual(run.loops.trapped[0].basis, ["trapped_reachIn", "reach_of_trace"]);
   const short = await call("triz_dynamics", { model: heated, horizon: 1, unsafe: [{ box: "shaft", state: ["hot"] }] });
   assert.deepEqual(short.escalation.basis, ["reachWithin_iff_trace"]);
   const phases = [{ id: "cold", where: [{ box: "shaft", state: ["cold"] }], window: { from: 0, to: 0 } }, { id: "hot", where: [{ box: "shaft", state: ["hot"] }], window: { from: 1, to: 3 } }];
