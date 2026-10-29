@@ -29,6 +29,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
+| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
@@ -122,14 +123,73 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `subsystem.interiorUnchanged`: the part is empty;
    - `subsystem.boundary`: the crossing functions the transition cuts and adds.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
-   `triz_function_model` also reports whether the two models have the same wiring shape.
+   `triz_function_model` also reports whether the two models have the same wiring shape. Use
+   format `lean` for a certificate that Lean can check (see Certificates).
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the last column above, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
-extracted from Lean. A basis never means the TRIZ reading of a verdict is proved. A verdict that
-needs no theorem, such as a compatible pair, cites none.
+extracted from Lean. Typing, harm-loop witness, and separation verdicts can also be certified
+per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
+verdict that needs no theorem, such as a compatible pair, cites none.
+
+## Certificates
+
+Tests check the kernel against `theory/`. A certificate checks one run of it instead
+(translation validation). `triz_export` with format `lean`, and `triz_separate` with
+`certificate: true`, return a Lean file that imports `CategoricalTriz`. The file encodes the
+model as finite tables. It states the kernel's verdicts about those tables in the theory's
+terms, and proves each by `decide` and the theorem the verdict cites. `certifies` lists the
+verdicts. Model ids appear only in escaped string tables, which show the encoding, so no id can
+inject Lean.
+
+| Verdict | Statement in the certificate | Proof |
+|---|---|---|
+| `checkModel` ok | `diagram.Typed`: every function runs from an output port to an input port, both of its carrier | `decide` |
+| A harm-loop witness cycle | the function is harmful or excessive, its return path holds step by step (`Relation.ReflTransGen diagram.Acts`), and a closed loop runs through it | `edge_on_cycle` |
+| One value meets every demand, or none does | `∃ v, ∀ i, v ∈ values i`, or its negation | `decide` |
+| A compatible pair | the two demands share a value | `decide` |
+| A separated pair | no common value; disjoint regions on exactly the listed axes and overlap on the others; an assignment that meets both | `separated_iff_axis`, `glue_of_disjoint_regions` |
+| An irreducible pair | no common value; overlap on every axis; no assignment meets both | `no_section_of_overlap` |
+| Gluable, or not | `∃ s, IsSection support values s`, or its negation at a conflict cell | `exists_section_iff` |
+
+Check a certificate with `node scripts/certify.mjs <file>`:
+
+- **Locally**, when `theory/` is built: `lake env lean` against it, at the repo's Mathlib pin.
+- **Remotely** otherwise: the theory and the certificate go to the AXLE service (environment
+  `lean-4.32.2`, no key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own
+  revision, which may differ from the pin. The MCP server and the Worker never call AXLE.
+
+A certificate is accepted only if all of these hold:
+
+- It is in the generator's grammar, checked before Lean runs. It holds only the generator's data
+  lines and `diagram` as written, each theorem sits once in the namespace the generator uses and
+  carries its pinned statement, and no proof line holds a command, option, or attribute. Names
+  are read from the code with comments removed, as Lean reads them. That rules out what Lean's messages cannot show,
+  such as `set_option debug.skipKernelTC`, a hidden `variable`, or a redefined `out`.
+- Lean reports no error and no warning, so there is no `sorry`. Exit status alone would not
+  show this: Lean exits 0 on `sorry`, and AXLE reports `okay`.
+- Every theorem is elaborated, and each depends on no axiom beyond `propext`,
+  `Classical.choice`, and `Quot.sound`. That rules out `native_decide` and an axiom of the
+  file's own. With `--tamper`, the script also checks that a
+copy with every verdict negated, or with one function's carrier changed, fails at the theorems
+it must. CI builds the certificates of the bearing and cached-API examples
+(`theory/Certificates/`), which a test keeps equal to the generator's output, and runs both
+checks on them.
+
+A certificate does not show:
+
+- that the file encodes your model. The trust base is the Lean kernel, the theory's
+  definitions, and the encoding of ids as indices, which the id tables show. Generate the file
+  again and compare to check it;
+- more than the listed verdicts. Duplicate ids and behaviour rows are not encoded, and the list
+  of harm loops is not certified complete. Ideality, trimming, transformations, nine windows,
+  isomorphism, and `triz_behavior` verdicts are not certified;
+- anything about the kernel on other inputs. Nothing is extracted from Lean.
+
+Generation fails closed past functions × ports = 250000, or cells × demands × values = 100000
+for a contradiction.
 
 ## Declared behaviour
 
@@ -599,7 +659,7 @@ example cohort churn against fee changes. Name it only from that evidence.
   its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
   that the trace is monotone, that the trace of a swap is the identity, that every value is a
   steady state of an identity loop, and that a negation loop has none. The evaluator is checked
-  by tests, not extracted from these statements.
+  by tests, not extracted from these statements, and its verdicts are not certified per instance.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
   dynamics, convergence, or which steady state the system reaches. Behaviour uses no least
   fixpoint: its values are unordered, so there is no least value to iterate from, and iterating

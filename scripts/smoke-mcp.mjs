@@ -87,6 +87,9 @@ console.log(`triz_export hypergraph -> ${hyper.content?.vertices.length} vertice
 if (!hyper.ok || hyper.content.vertices.length !== 5 || hyper.content.hyperedges.length !== 5) fail("hypergraph export wrong");
 const badExport = await json("triz_export", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] }, format: "dot" });
 if (badExport.ok !== false) fail("mistyped export did not fail closed");
+const cert = await json("triz_export", { model, format: "lean" });
+console.log(`triz_export lean -> ${cert.certifies?.map((c) => c.theorem.split(".").at(-1)).join(", ")}`);
+if (!cert.ok || !cert.content.startsWith("import CategoricalTriz\n") || cert.certifies[0]?.theorem !== "TrizCertificate.typed") fail("lean certificate wrong");
 
 const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
 console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);
