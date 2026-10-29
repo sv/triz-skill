@@ -47,7 +47,7 @@ function pumpLoop(demand: number, generator: Array<[number, number, number]> = [
 
 test("feasibility typing fails closed: unknown ports, dominated and repeated rows, unsupplied requirements", () => {
   const broken = (edit: (m: FunctionModel) => void) => { const m = bearing(); edit(m); return checkModel(m).errors.join("; "); };
-  assert.deepEqual(checkModel(bearing()), { ok: true, errors: [] });
+  assert.deepEqual(checkModel(bearing()), { ok: true, errors: [], issues: [] });
   assert.match(broken((m) => { box(m, "housing").feasibility![0].provides = { ghost: 1 }; }), /box 'housing' feasibility row 0: no output port 'ghost'/);
   assert.match(broken((m) => { box(m, "shaft").feasibility![0].provides = { drive: 1 }; }), /box 'shaft' feasibility row 0: no output port 'drive'/);
   assert.match(broken((m) => { box(m, "shaft").feasibility![0].requires = { expansion: 1 }; }), /box 'shaft' feasibility row 0: no input port 'expansion'/);

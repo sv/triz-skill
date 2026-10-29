@@ -17,6 +17,7 @@
  */
 import { checkModel, type FunctionModel, type Polarity } from "./act.js";
 import { modelCertificate } from "./act-cert.js";
+import { fail } from "./act-issues.js";
 
 type Box = FunctionModel["boxes"][number];
 type Port = NonNullable<Box["inputs"]>[number];
@@ -227,8 +228,8 @@ export const CERTIFICATE_NOTE = "Lean checks these verdicts for this one instanc
 
 /** Export after type-checking; fails closed with the checkModel errors. */
 export function exportModel(model: FunctionModel, format: ExportFormat) {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   if (format === "lean") {
     const cert = modelCertificate(model);
     return cert.ok ? { ok: true as const, format, content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } : cert;

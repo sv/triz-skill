@@ -88,11 +88,11 @@ missing.
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check; `mpv_weights` for a comparison over the main parameters of value |
-| `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
+| `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback) |
-| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times |
+| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times; returns the models transitions derive |
 | `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
@@ -118,6 +118,14 @@ Any dangling, mis-directed, or mistyped wire fails closed. The checks cover:
 - trimming by rules A/B/C;
 - ideality compared per dimension and never summed;
 - physical-contradiction separation as a gluing problem.
+
+Every `ok: false` result keeps its `errors` and adds `issues`: per error a stable kebab-case
+`code`, a JSON `path` into the call's arguments (such as `$.model.wires[2].carrier`), and a
+`hint` with a concrete fix, so an agent can correct its input from the output alone. Common
+slips get a pointed hint, such as a whole `triz_rule_apply` listing entry passed as `match`.
+`triz_function_model`, `triz_trim`, and `triz_behavior` also return `warnings`: lints such as an
+excessive rating on a loss like a pressure drop, which never change a verdict.
+categorical-model.md tabulates every code.
 
 Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
 typed moves. Each returns a model that type-checks, or fails closed:

@@ -30,21 +30,20 @@
  * principle solves anything.
  */
 import { checkModel, harmLoops, shortestPath, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
-import { rewrite, type RewriteStep } from "./act-rewrite.js";
+import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { collapse } from "./act-windows.js";
 import type { Theorem } from "./act-basis.js";
+import { at, fail, issue, quoted, rebase, second, unknownBox, unknownWire, type Failure, type Issue } from "./act-issues.js";
 
 type Box = FunctionModel["boxes"][number];
 type Wire = FunctionModel["wires"][number];
 type Endpoint = Wire["from"];
-type Failure = { ok: false; errors: string[] };
-
 const LEVELS: ReadonlySet<Polarity> = new Set(["useful", "insufficient", "excessive"]);
-const fail = (...errors: string[]): Failure => ({ ok: false, errors });
 const typed = (model: FunctionModel): Failure | null => {
-  const check = checkModel(model);
-  return check.ok ? null : fail(...check.errors);
+  const check = checkModel(model, "$.model");
+  return check.ok ? null : fail(check.issues);
 };
+const one = (code: Issue["code"], path: string, message: string, hint: string) => fail([issue(code, path, message, hint)]);
 
 function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
@@ -113,19 +112,22 @@ export function merge(model: FunctionModel, spec: {
   const bad = typed(model);
   if (bad) return bad;
   const byId = new Map(model.boxes.map((b) => [b.id, b]));
-  const errors = [
-    ...spec.boxes.filter((id) => !byId.has(id)).map((id) => `unknown box '${id}'`),
-    ...duplicates(spec.boxes).map((id) => `box '${id}' listed twice`),
-    ...(spec.boxes.length < 2 ? ["merging needs at least two boxes"] : []),
+  const issues = [
+    ...spec.boxes.flatMap((id, k) => (byId.has(id) ? [] : [unknownBox(model, id, at("$.boxes", k))])),
+    ...duplicates(spec.boxes).map((id) => issue("listed-twice", at("$.boxes", second(spec.boxes, id)), `box '${id}' listed twice`, `List '${id}' once in boxes.`)),
+    ...(spec.boxes.length < 2 ? [issue("too-few-members", "$.boxes", "merging needs at least two boxes", "List two or more boxes to merge.")] : []),
   ];
-  if (errors.length) return fail(...errors);
+  if (issues.length) return fail(issues);
   const reading = spec.reading ?? "adjacent";
   const group = spec.boxes.map((id) => byId.get(id)!);
   if (reading === "identical") {
     const carriers = (ports: Box["inputs"]) => (ports ?? []).map((p) => p.carrier).sort();
     const shape = (b: Box) => JSON.stringify([b.role, carriers(b.inputs), carriers(b.outputs)]);
     const differ = group.filter((b) => shape(b) !== shape(group[0])).map((b) => b.id);
-    if (differ.length) return fail(`boxes [${differ.join(", ")}] differ from '${group[0].id}' in role or port carriers: not identical`);
+    if (differ.length) {
+      return one("not-identical", "$.boxes", `boxes [${differ.join(", ")}] differ from '${group[0].id}' in role or port carriers: not identical`,
+        `Merge boxes with '${group[0].id}''s role and port carriers only, or use reading 'adjacent' for boxes joined by functions.`);
+    }
   } else {
     const members = new Set(spec.boxes), seen = new Set([spec.boxes[0]]), queue = [spec.boxes[0]];
     const inside = model.wires.filter((w) => members.has(w.from.box) && members.has(w.to.box));
@@ -136,13 +138,16 @@ export function merge(model: FunctionModel, spec: {
       }
     }
     const apart = spec.boxes.filter((id) => !seen.has(id));
-    if (apart.length) return fail(`boxes [${apart.join(", ")}] are not joined to '${spec.boxes[0]}' by functions inside the group: not adjacent (reading 'identical' merges unjoined boxes of the same shape)`);
+    if (apart.length) {
+      return one("not-adjacent", "$.boxes", `boxes [${apart.join(", ")}] are not joined to '${spec.boxes[0]}' by functions inside the group: not adjacent (reading 'identical' merges unjoined boxes of the same shape)`,
+        `Add the boxes that join them to the group, drop ${quoted(apart)}, or use reading 'identical' if they have the same role and port carriers.`);
+    }
   }
   const roles = [...new Set(group.map((b) => b.role))];
   const role = spec.into.role ?? (roles.length === 1 ? roles[0] : undefined);
-  if (!role) return fail(`the boxes have roles [${roles.join(", ")}]: give into.role`);
+  if (!role) return one("role-ambiguous", "$.into", `the boxes have roles [${roles.join(", ")}]: give into.role`, `Set into.role to the merged box's role: one of ${quoted(roles)}, or another role.`);
   const c = collapse(model, spec.boxes, { ...spec.into, role });
-  if (!c.ok) return c;
+  if (!c.ok) return rebase(c, [["$.group", "$.boxes"], ["$.box", "$.into"]]);
   const before = looped(model);
   return {
     ok: true as const,
@@ -174,23 +179,35 @@ export function rerate(model: FunctionModel, spec: {
   const bad = typed(model);
   if (bad) return bad;
   const w = model.wires.find((x) => x.id === spec.wire);
-  if (!w) return fail(`unknown wire '${spec.wire}'`);
+  if (!w) return fail([unknownWire(model, spec.wire, "$.wire")]);
   const reading = spec.reading ?? "partial";
   const cycle = cycleThrough(model, w);
   if (reading === "partial") {
-    if (w.polarity !== "useful") return fail(`function '${w.id}' is rated '${w.polarity}', not useful: the full action to do less or more of is a useful one`);
-    if (spec.polarity !== "insufficient" && spec.polarity !== "excessive") return fail(`reading 'partial' rates the function 'insufficient' (slightly less) or 'excessive' (slightly more), not '${spec.polarity}'`);
+    if (w.polarity !== "useful") {
+      return one("wrong-rating", "$.wire", `function '${w.id}' is rated '${w.polarity}', not useful: the full action to do less or more of is a useful one`,
+        LEVELS.has(w.polarity) ? `'${w.id}' is already at a partial level. To move it along a loop use reading 'feedback'; to undo the defect, rate it useful with reading 'feedback' if it lies on a cycle, or with rewrite.`
+          : `Re-rate a useful function. To turn this harm to use, see retarget (Principle 22).`);
+    }
+    if (spec.polarity !== "insufficient" && spec.polarity !== "excessive") {
+      return one("wrong-rating", "$.polarity", `reading 'partial' rates the function 'insufficient' (slightly less) or 'excessive' (slightly more), not '${spec.polarity}'`, "Set polarity to 'insufficient' or 'excessive'.");
+    }
   } else {
-    if (!LEVELS.has(w.polarity) || !LEVELS.has(spec.polarity)) return fail(`reading 'feedback' changes the level of a useful function (useful, insufficient, excessive); '${w.polarity}' to '${spec.polarity}' is not such a change`);
-    if (w.polarity === spec.polarity) return fail(`function '${w.id}' is already rated '${spec.polarity}'`);
-    if (!cycle.length) return fail(`function '${w.id}' lies on no cycle ('${w.to.box}' does not reach '${w.from.box}'): it is not feedback`);
+    if (!LEVELS.has(w.polarity) || !LEVELS.has(spec.polarity)) {
+      return one("wrong-rating", LEVELS.has(w.polarity) ? "$.polarity" : "$.wire", `reading 'feedback' changes the level of a useful function (useful, insufficient, excessive); '${w.polarity}' to '${spec.polarity}' is not such a change`,
+        "Change a useful, insufficient, or excessive function to another of those levels; a harmful rating is not a level.");
+    }
+    if (w.polarity === spec.polarity) return one("already-rated", "$.polarity", `function '${w.id}' is already rated '${spec.polarity}'`, `Pick a different level for '${w.id}' among ${quoted([...LEVELS].filter((p) => p !== w.polarity))}.`);
+    if (!cycle.length) {
+      return one("not-on-cycle", "$.wire", `function '${w.id}' lies on no cycle ('${w.to.box}' does not reach '${w.from.box}'): it is not feedback`,
+        `Use reading 'partial' for a function off any loop, or add the return path first with the feedback operation.`);
+    }
   }
   const performer = model.boxes.find((b) => b.id === w.from.box)!;
   const r = rewrite(model, replace(model, {
     boxes: spec.cost ? [{ ...performer, cost: spec.cost }] : [],
     wires: [{ ...w, polarity: spec.polarity }],
   }));
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r);
   const key = (l: { boxes: string[] }) => JSON.stringify(l.boxes);
   const was = harmLoops(model), now = harmLoops(r.model);
   const created = now.filter((l) => !was.some((x) => key(x) === key(l))).map((l) => l.boxes);
@@ -219,12 +236,15 @@ export function feedback(model: FunctionModel, spec: { wire: Wire }) {
   if (bad) return bad;
   const w = spec.wire;
   const known = new Set(model.boxes.map((b) => b.id));
-  const missing = [w.from.box, w.to.box].filter((b) => !known.has(b));
-  if (missing.length) return fail(...[...new Set(missing)].map((b) => `unknown box '${b}'`));
+  const missing = [...new Set([w.from.box, w.to.box].filter((b) => !known.has(b)))];
+  if (missing.length) return fail(missing.map((b) => unknownBox(model, b, b === w.from.box ? "$.wire.from.box" : "$.wire.to.box")));
   const cycle = cycleThrough(model, w);
-  if (!cycle.length) return fail(`'${w.to.box}' does not reach '${w.from.box}': the function closes no loop, so it is not feedback`);
+  if (!cycle.length) {
+    return one("not-on-cycle", "$.wire", `'${w.to.box}' does not reach '${w.from.box}': the function closes no loop, so it is not feedback`,
+      `Feedback runs from a box back to one that already reaches it: pick a from box downstream of '${w.to.box}', or add the forward path first.`);
+  }
   const r = rewrite(model, { add: { wires: [w] } });
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r, [["$.add.wires[0]", "$.wire"]]);
   const loop = harmLoops(r.model).find((l) => l.boxes.includes(w.from.box));
   return {
     ok: true as const,
@@ -250,12 +270,21 @@ export function retarget(model: FunctionModel, spec: { wire: string; to: Endpoin
   const bad = typed(model);
   if (bad) return bad;
   const w = model.wires.find((x) => x.id === spec.wire);
-  if (!w) return fail(`unknown wire '${spec.wire}'`);
-  if (w.polarity !== "harmful") return fail(`function '${w.id}' is rated '${w.polarity}', not harmful: there is no harmful factor to use`);
-  if (spec.to.box === w.to.box && spec.to.port === w.to.port) return fail(`'${w.to.box}.${w.to.port}' is the harm's own object port: rating it useful there does not use the factor elsewhere`);
+  if (!w) return fail([unknownWire(model, spec.wire, "$.wire")]);
+  if (w.polarity !== "harmful") {
+    return one("wrong-rating", "$.wire", `function '${w.id}' is rated '${w.polarity}', not harmful: there is no harmful factor to use`,
+      `Retarget a harmful function: ${quoted(model.wires.filter((x) => x.polarity === "harmful").map((x) => x.id))}. To change '${w.id}''s level, use rerate.`);
+  }
+  if (spec.to.box === w.to.box && spec.to.port === w.to.port) {
+    return one("own-object-port", "$.to", `'${w.to.box}.${w.to.port}' is the harm's own object port: rating it useful there does not use the factor elsewhere`,
+      `Set to to another input port of carrier '${w.carrier}', one the factor could serve usefully; to re-rate the harm where it is, use rewrite.`);
+  }
   const used: Wire = { ...w, id: spec.keepHarm ? spec.id ?? `${w.id}/used` : spec.id ?? w.id, to: spec.to, polarity: "useful" };
   const r = rewrite(model, spec.keepHarm ? { add: { wires: [used] } } : { delete: { wires: [w.id] }, add: { wires: [used] } });
-  if (!r.ok) return r;
+  if (!r.ok) {
+    // The new function's target is `to`, its id `id`; anything else about it is the harm's.
+    return internal(r, [["$.add.wires[0].to", "$.to", "collapse"], ["$.add.wires[0].id", spec.id === undefined ? "$" : "$.id", "collapse"], ["$.add.wires[0]", "$.wire", "collapse"]]);
+  }
   const target = r.model.boxes.find((b) => b.id === spec.to.box)!;
   return {
     ok: true as const,
@@ -283,30 +312,42 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   const bad = typed(model);
   if (bad) return bad;
   const w = model.wires.find((x) => x.id === spec.wire);
-  if (!w) return fail(`unknown wire '${spec.wire}'`);
-  if (w.from.box === w.to.box) return fail(`function '${w.id}' is a self-loop on '${w.from.box}': reversing it leaves a self-loop`);
+  if (!w) return fail([unknownWire(model, spec.wire, "$.wire")]);
+  if (w.from.box === w.to.box) {
+    return one("self-loop", "$.wire", `function '${w.id}' is a self-loop on '${w.from.box}': reversing it leaves a self-loop`, `Reverse a function between two boxes; to change what '${w.from.box}' does to itself, use rerate or rewrite.`);
+  }
   const byId = new Map(model.boxes.map((b) => [b.id, b]));
-  const resolve = (box: Box, side: "outputs" | "inputs", named: string | undefined): { port: string; added: boolean } | string => {
+  const resolve = (box: Box, side: "outputs" | "inputs", named: string | undefined): { port: string; added: boolean } | Issue => {
     const field = side === "outputs" ? "ports.from" : "ports.to", kind = side === "outputs" ? "output" : "input";
+    const path = side === "outputs" ? "$.ports.from" : "$.ports.to";
+    const fits = (box[side] ?? []).filter((x) => x.carrier === w.carrier).map((x) => x.id);
     if (named !== undefined) {
       const p = (box[side] ?? []).find((x) => x.id === named);
-      if (p) return p.carrier === w.carrier ? { port: named, added: false } : `${field}: port '${box.id}.${named}' carries '${p.carrier}', not '${w.carrier}'`;
+      if (p) {
+        return p.carrier === w.carrier ? { port: named, added: false }
+          : issue("carrier-mismatch", path, `${field}: port '${box.id}.${named}' carries '${p.carrier}', not '${w.carrier}'`,
+            fits.length ? `Name an ${kind} of '${box.id}' that carries '${w.carrier}': ${quoted(fits)}, or a new port id to add one.` : `Name a new port id: it is added to '${box.id}' with carrier '${w.carrier}'.`);
+      }
       const other = side === "outputs" ? box.inputs : box.outputs;
-      return (other ?? []).some((x) => x.id === named) ? `${field}: port '${box.id}.${named}' is not an ${kind}` : { port: named, added: true };
+      return (other ?? []).some((x) => x.id === named)
+        ? issue("wrong-port-side", path, `${field}: port '${box.id}.${named}' is not an ${kind}`, `${field} names an ${kind} port of '${box.id}'; pick another id, and a missing one is added.`)
+        : { port: named, added: true };
     }
-    const fits = (box[side] ?? []).filter((x) => x.carrier === w.carrier).map((x) => x.id);
     if (fits.length === 1) return { port: fits[0], added: false };
     return fits.length
-      ? `box '${box.id}' has ${kind} ports [${fits.join(", ")}] of carrier '${w.carrier}': name one in ${field}`
-      : `box '${box.id}' has no ${kind} port of carrier '${w.carrier}': name one in ${field} to add it`;
+      ? issue("ambiguous-port", path, `box '${box.id}' has ${kind} ports [${fits.join(", ")}] of carrier '${w.carrier}': name one in ${field}`, `Set ${field} to one of ${quoted(fits)}.`)
+      : issue("missing-port", path, `box '${box.id}' has no ${kind} port of carrier '${w.carrier}': name one in ${field} to add it`, `Set ${field} to a new port id, e.g. '${w.carrier}-${kind === "output" ? "out" : "in"}': it is added to '${box.id}' with carrier '${w.carrier}'.`);
   };
   const performer = byId.get(w.to.box)!, object = byId.get(w.from.box)!;
   const from = resolve(performer, "outputs", spec.ports?.from), to = resolve(object, "inputs", spec.ports?.to);
-  const errors = [from, to].filter((x): x is string => typeof x === "string");
-  if (errors.length) return fail(...errors);
+  const issues = [from, to].filter((x): x is Issue => "code" in x);
+  if (issues.length) return fail(issues);
   const [src, tgt] = [from, to] as Array<{ port: string; added: boolean }>;
   const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior).map((b) => b.id);
-  if (declared.length) return fail(...declared.map((id) => `box '${id}' declares behavior: a new port needs a value in every row; declare it with rewrite, then reverse onto it`));
+  if (declared.length) {
+    return fail(declared.map((id) => issue("declared-rows-block-change", id === performer.id ? "$.ports.from" : "$.ports.to", `box '${id}' declares behavior: a new port needs a value in every row; declare it with rewrite, then reverse onto it`,
+      `Add the port to '${id}' with a value in every behavior row (rewrite: delete and re-add the box), then reverse naming it; or name an existing port of carrier '${w.carrier}'.`)));
+  }
   const extended = new Map<string, Box>();
   const add = (box: Box, side: "outputs" | "inputs", port: string) => {
     const b = extended.get(box.id) ?? box;
@@ -317,7 +358,7 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   const reversed: Wire = { ...w, from: { box: performer.id, port: src.port }, to: { box: object.id, port: tgt.port } };
   const step = replace(model, { boxes: [...extended.values()], wires: [reversed] });
   const r = rewrite(model, step);
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r);
   return {
     ok: true as const,
     model: r.model,
@@ -344,9 +385,12 @@ export function standby(model: FunctionModel, spec: {
   const bad = typed(model);
   if (bad) return bad;
   const box = model.boxes.find((b) => b.id === spec.box);
-  if (!box) return fail(`unknown box '${spec.box}'`);
+  if (!box) return fail([unknownBox(model, spec.box, "$.box")]);
   const performed = model.wires.filter((w) => w.from.box === box.id && w.to.box !== box.id && w.polarity !== "harmful");
-  if (!performed.length) return fail(`box '${box.id}' performs no useful function on another box: nothing to back up`);
+  if (!performed.length) {
+    const performers = [...new Set(model.wires.filter((w) => w.from.box !== w.to.box && w.polarity !== "harmful").map((w) => w.from.box))];
+    return one("nothing-to-back-up", "$.box", `box '${box.id}' performs no useful function on another box: nothing to back up`, `Back up a box that performs a useful function: ${quoted(performers)}.`);
+  }
   const s = spec.standby;
   const outputs = (box.outputs ?? []).filter((p) => performed.some((w) => w.from.port === p.id)).map((p) => ({ id: p.id, carrier: p.carrier }));
   const backup: Box = {
@@ -357,7 +401,7 @@ export function standby(model: FunctionModel, spec: {
   };
   const before = trimCandidates(model, [box.id]);
   const r = rewrite(model, { add: { boxes: [backup] } });
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r, [["$.add.boxes[0]", "$.standby"]]);
   const after = trimCandidates(r.model, [box.id]);
   if (!before.ok || !after.ok) throw new Error("standby invariant: the trim screen of a typed model failed");
   const covered = after.functions.filter((f) => f.absorbers.some((a) => a.box === backup.id)).map((f) => f.wire);
@@ -384,28 +428,34 @@ export function cheapCopy(model: FunctionModel, spec: { box: string; copy: { id?
   const bad = typed(model);
   if (bad) return bad;
   const box = model.boxes.find((b) => b.id === spec.box);
-  if (!box) return fail(`unknown box '${spec.box}'`);
+  if (!box) return fail([unknownBox(model, spec.box, "$.box")]);
   const was = box.cost ?? {}, now = spec.copy.cost;
-  const at = (c: Record<string, number>, d: string) => (Object.hasOwn(c, d) ? c[d] : 0);
+  const costAt = (c: Record<string, number>, d: string) => (Object.hasOwn(c, d) ? c[d] : 0);
   const dims = [...new Set([...Object.keys(was), ...Object.keys(now)])].sort();
-  const rising = dims.filter((d) => at(now, d) > at(was, d));
-  const lower = dims.filter((d) => at(now, d) < at(was, d));
-  if (rising.length) return fail(...rising.map((d) => `cost '${d}' rises from ${at(was, d)} to ${at(now, d)}: the copy is not inexpensive`));
-  if (!lower.length) return fail(`no cost dimension of '${box.id}' is lower in the copy: the copy is not inexpensive`);
+  const rising = dims.filter((d) => costAt(now, d) > costAt(was, d));
+  const lower = dims.filter((d) => costAt(now, d) < costAt(was, d));
+  if (rising.length) {
+    return fail(rising.map((d) => issue("not-cheaper", at("$.copy.cost", d), `cost '${d}' rises from ${costAt(was, d)} to ${costAt(now, d)}: the copy is not inexpensive`,
+      `Set copy.cost.${d} to at most ${costAt(was, d)}; a cheap copy costs no more on any dimension.`)));
+  }
+  if (!lower.length) {
+    return one("not-cheaper", "$.copy.cost", `no cost dimension of '${box.id}' is lower in the copy: the copy is not inexpensive`,
+      Object.keys(was).length ? `Lower at least one of '${box.id}''s costs in copy.cost: ${quoted(Object.keys(was).map((d) => `${d}=${was[d]}`))}.` : `'${box.id}' declares no cost, so no copy is cheaper: declare its cost first.`);
+  }
   const id = spec.copy.id ?? box.id;
   const { cost: _cost, ...rest } = box;
   const copy: Box = { ...rest, id, name: spec.copy.name ?? `${box.name} (copy)`, ...(Object.keys(now).length ? { cost: now } : {}) };
   const moved = model.wires.filter((w) => w.from.box === box.id || w.to.box === box.id);
   const follow = (e: Endpoint) => (e.box === box.id ? { box: id, port: e.port } : e);
   const r = rewrite(model, { delete: { boxes: [box.id], wires: moved.map((w) => w.id) }, add: { boxes: [copy], wires: moved.map((w) => ({ ...w, from: follow(w.from), to: follow(w.to) })) } });
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r, [["$.add.boxes[0].id", "$.copy.id", "collapse"], ["$.add.boxes[0]", "$.copy", "collapse"]]);
   const renamed = id !== box.id;
   return {
     ok: true as const,
     model: r.model,
     boxMap: renamed ? { [id]: box.id } : {},
     deliverableKeysChanged: renamed && box.role === "product",
-    costRelief: Object.fromEntries(lower.map((d) => [d, at(was, d) - at(now, d)])),
+    costRelief: Object.fromEntries(lower.map((d) => [d, costAt(was, d) - costAt(now, d)])),
     basis: [...r.basis, ...(renamed ? ["typed_rename"] : []), "cheaper_part_lowers_cost"] as Theorem[],
     note: "Only cost is compared: the copy's functions keep their ratings. If it performs less well, rate them with rerate; whether it is available, robust, or lasts is not modelled.",
   };

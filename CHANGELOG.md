@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Function-model JSON Schema and six example models: bearing, bearing with declared behaviour, bearing with declared dynamics, cached API, marketplace, connection pool.
 - `categorical-model.md`: modelling protocol, and what is and is not claimed.
 - CI and Lean workflows can be started by hand (`workflow_dispatch`).
+- Agent feedback: every `ok: false` result adds `issues` (`code`, `path`, `message`, `hint`) beside `errors`, zod errors carry hints, `triz_function_model`/`triz_trim`/`triz_behavior` report lint `warnings`, `triz_trim` lists `levelProblems`, and `triz_nine_windows` returns `derived` models.
 
 ### Changed
 
