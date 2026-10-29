@@ -36,6 +36,8 @@ import { checkModel, type FunctionModel } from "./act.js";
 import { applyTrim, mapBoxes } from "./act-rewrite.js";
 import { thresholdValues } from "./act-levels.js";
 import type { Theorem } from "./act-basis.js";
+// `at` is a local name for lookups here, so the path helper goes by `jp`.
+import { at as jp, fail, issue, quoted, rebase, where, type Failure as BaseFailure, type Issue, type Reroot } from "./act-issues.js";
 
 export type Box = FunctionModel["boxes"][number];
 type Endpoint = { box: string; port: string };
@@ -43,7 +45,7 @@ export type Typed = Endpoint & { carrier: string };
 /** Ports observed by an evaluation: deliverables, and with `side: "out"` any other composed port. */
 type Observed = Typed & { side?: "in" | "out" };
 /** `cap` marks a failure past the state cap, which the spec and ranking read as undecided. */
-type Failure = { ok: false; errors: string[]; cap?: true };
+type Failure = BaseFailure & { cap?: true };
 
 /** Cap on boundary valuations and on search states, per evaluation. */
 export const MAX_STATES = 100_000;
@@ -58,6 +60,18 @@ const SERIES: Theorem[] = ["Relation.comp_assoc"];
 const product = (sizes: number[]) => sizes.reduce((n, k) => n * k, 1);
 
 const NO_DELIVERABLES = "no deliverables: mark the box the main function acts on as role 'product' and feed it a non-harmful function";
+
+/** The no-deliverables issue, at the model's first product box (or its boxes when it has none). */
+function noDeliverables(model: FunctionModel, root: string, prefix = ""): Issue {
+  const product = model.boxes.findIndex((b) => b.role === "product");
+  return issue("no-deliverables", product < 0 ? jp(root, "boxes") : jp(root, "boxes", product), prefix + NO_DELIVERABLES, product < 0
+    ? "Set role 'product' on the box the main function acts on, and wire a useful, insufficient, or excessive function into one of its input ports."
+    : `Wire a useful, insufficient, or excessive function into an input port of '${model.boxes[product].id}': a deliverable is a product input fed by a non-harmful function.`);
+}
+
+/** A failure past the state cap; the spec and the ranking read it as undecided. */
+const capFail = (message: string, path = "$.model", hint = "Declare fewer values on the boundary inputs' carriers, or split the model."): Failure =>
+  ({ ...fail([issue("cap-exceeded", path, message, hint)]), cap: true });
 const ASSUMPTION = "Only boxes that can reach a deliverable are composed. Every other box is assumed to accept whatever it receives. A downstream box with a partial relation (partialDownstream) would rule out steady states in the full relational composite; it is not composed here.";
 
 /** Input ports of product boxes fed by at least one non-harmful function, in model order. */
@@ -206,9 +220,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
   const { variables, at: v, boundary } = portVariables(model, p.composed, observe.filter((d) => (d.side ?? "in") === "in"));
   const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
   const valuations = product(boundary.map((i) => domain.get(variables[i].carrier)!.length));
-  if (valuations > max) {
-    return { ok: false, cap: true, errors: [`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
-  }
+  if (valuations > max) return capFail(`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`);
 
   // Each composed box as deduplicated rows of (variable, value) bindings.
   const rowsOf = (b: Box) => {
@@ -247,7 +259,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
       row.count++;
     }, budget);
   }
-  if (overflow) return { ok: false, cap: true, errors: [`the steady-state search passed ${max} states. Declare fewer values or split the model`] };
+  if (overflow) return capFail(`the steady-state search passed ${max} states. Declare fewer values or split the model`, "$.model", "Declare fewer values on the carriers inside loops, or split the model.");
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
   return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored };
 }
@@ -274,10 +286,10 @@ function summary(e: Evaluation, p: Plan) {
 
 /** The model's input→deliverable relation under its declared behaviour (relational trace for feedback). */
 export function externalBehavior(model: FunctionModel, opts: { maxStates?: number } = {}) {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   const deliverables = deliverablePorts(model);
-  if (!deliverables.length) return { ok: false as const, errors: [NO_DELIVERABLES] };
+  if (!deliverables.length) return fail([noDeliverables(model, "$.model")]);
   const p = plan(model, deliverables);
   if (p.missing.length) {
     return {
@@ -307,19 +319,23 @@ function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Reco
   const toBaseline = new Map(concept.boxes.map((b, i) => [b.id, mapped.model.boxes[i].id]));
   const baseBoxes = new Map(baseline.boxes.map((b) => [b.id, b]));
   const owner = new Map<string, string>();
-  const errors: string[] = [];
+  const issues: Issue[] = [];
+  const mapKey = (id: string) => (Object.hasOwn(boxMap, id) ? jp("$.box_map", id) : "$.box_map");
   for (const b of concept.boxes) {
     const target = toBaseline.get(b.id)!;
     for (const p of b.inputs ?? []) {
       const k = endKey({ box: target, port: p.id });
-      if (owner.has(k)) errors.push(`box_map: input port '${p.id}' of '${owner.get(k)}' and of '${b.id}' both map to '${target}.${p.id}': ambiguous`);
-      else owner.set(k, b.id);
+      if (owner.has(k)) {
+        issues.push(issue("box-map-ambiguous", mapKey(b.id), `box_map: input port '${p.id}' of '${owner.get(k)}' and of '${b.id}' both map to '${target}.${p.id}': ambiguous`,
+          `Map '${owner.get(k)}' and '${b.id}' to different baseline boxes, or rename one of their '${p.id}' ports. Pass a segment's or take_out's boxMap unchanged.`));
+      } else owner.set(k, b.id);
       if (Object.hasOwn(boxMap, b.id) && !(baseBoxes.get(target)!.inputs ?? []).some((q) => q.id === p.id && q.carrier === p.carrier)) {
-        errors.push(`box_map: '${b.id}' maps to '${target}', which has no input port '${p.id}' of carrier '${p.carrier}'`);
+        issues.push(issue("box-map-port-mismatch", mapKey(b.id), `box_map: '${b.id}' maps to '${target}', which has no input port '${p.id}' of carrier '${p.carrier}'`,
+          `Map '${b.id}' to a baseline box with input port '${p.id}' of carrier '${p.carrier}', or drop it from box_map if it is new.`));
       }
     }
   }
-  if (errors.length) return { ok: false as const, errors };
+  if (issues.length) return fail(issues);
   return { ok: true as const, toBaseline: (e: Typed): Typed => ({ ...e, box: toBaseline.get(e.box)! }) };
 }
 
@@ -343,12 +359,13 @@ const deliverableKey = (d: Typed) => JSON.stringify([d.box, d.port, d.carrier]);
  * Deliverables only the concept has are listed (`gainedDeliverables`) and not compared.
  */
 export function compareBehavior(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number } = {}) {
-  for (const [side, m] of [["baseline", baseline], ["concept", concept]] as const) {
-    const check = checkModel(m);
-    if (!check.ok) return { ok: false as const, errors: check.errors.map((e) => `${side}: ${e}`) };
+  // Paths as triz_behavior orients the models: the baseline is compare_to, the concept is model.
+  for (const [side, m, root] of [["baseline", baseline, "$.compare_to"], ["concept", concept, "$.model"]] as const) {
+    const check = checkModel(m, root);
+    if (!check.ok) return rebase(fail(check.issues), [], `${side}: `);
   }
   const deliverables = deliverablePorts(baseline);
-  if (!deliverables.length) return { ok: false as const, errors: [NO_DELIVERABLES] };
+  if (!deliverables.length) return fail([noDeliverables(baseline, "$.compare_to")]);
   const align = alignment(baseline, concept, opts.boxMap ?? {});
   if (!align.ok) return align;
   const offered = new Map(deliverablePorts(concept).map((d) => [deliverableKey(align.toBaseline(d)), d]));
@@ -377,9 +394,9 @@ export function compareBehavior(baseline: FunctionModel, concept: FunctionModel,
   }
   const max = opts.maxStates ?? MAX_STATES;
   const b = evaluate(baseline, before, deliverables, max);
-  if (!b.ok) return { ok: false as const, errors: b.errors.map((e) => `baseline: ${e}`) };
+  if (!b.ok) return rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: ");
   const c = evaluate(concept, after, observed, max);
-  if (!c.ok) return { ok: false as const, errors: c.errors.map((e) => `concept: ${e}`) };
+  if (!c.ok) return rebase(fail(c.issues), [], "concept: ");
 
   // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
   const cInputs = c.inputs.map(align.toBaseline);
@@ -391,13 +408,14 @@ export function compareBehavior(baseline: FunctionModel, concept: FunctionModel,
     if (!p) return [];
     const [x, y] = [values(baseline, p.carrier), values(concept, q.carrier)];
     return p.carrier === q.carrier && x.length === y.length && x.every((v) => y.includes(v)) ? []
-      : [`input port '${q.box}.${q.port}' reads carrier '${p.carrier}' [${x.join(", ")}] in the baseline and '${q.carrier}' [${y.join(", ")}] in the concept: the relations range over different values`];
+      : [issue("input-domain-mismatch", where.carrier(concept, q.carrier, "$.model"), `input port '${q.box}.${q.port}' reads carrier '${p.carrier}' [${x.join(", ")}] in the baseline and '${q.carrier}' [${y.join(", ")}] in the concept: the relations range over different values`,
+        `Give input '${q.box}.${q.port}' the same carrier and values in both models (the baseline has '${p.carrier}' [${x.join(", ")}]), so both relations range over the same situations.`)];
   });
-  if (mismatched.length) return { ok: false as const, errors: mismatched };
+  if (mismatched.length) return fail(mismatched);
   const domain = inputs.map((q) => (known.has(endKey(q)) ? values(baseline, q.carrier) : values(concept, q.carrier)));
   const inputsOnlyIn = { baseline: b.inputs.filter((q) => !cInputs.some((r) => endKey(r) === endKey(q))), concept: cInputs.filter((q) => !known.has(endKey(q))) };
   const valuations = product(domain.map((vals) => vals.length));
-  if (valuations > max) return { ok: false as const, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
+  if (valuations > max) return fail([issue("cap-exceeded", "$.model", `the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`, "Declare fewer values on the boundary inputs' carriers, or read fewer inputs only one model has.")]);
   const at = (e: Evaluation, own: Typed[], u: string[]) => e.table.get(tupleKey(own.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
 
   let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyConcept = false;
@@ -459,8 +477,11 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
   if (!applied.ok) return applied;
   const r = compareBehavior(model, applied.model, { maxStates: spec.maxStates });
-  return r.ok ? { ...r, trim: spec.trim, chosen: applied.chosen } : r;
+  return r.ok ? { ...r, trim: spec.trim, chosen: applied.chosen } : rebase(r, TRIMMED);
 }
+
+/** Against its own trim, the baseline is the input model and the concept is the trim's result, which no input holds. */
+const TRIMMED: Reroot = [["$.compare_to", "$.model"], ["$.model", "$.trim", "collapse"]];
 
 const LISTED_ROWS = 200;
 const label = (e: Endpoint) => `${e.box}.${e.port}`;
@@ -482,10 +503,10 @@ function* valuationsOf(inputs: Typed[], domain: Map<string, string[]>) {
  * The situations several evaluations are compared over: the union of their boundary inputs, each
  * over its carrier's declared values. An input read by several must agree on carrier and values.
  */
-function situations(parts: Array<{ name: string; inputs: Typed[]; carriers: FunctionModel["carriers"] }>) {
+function situations(parts: Array<{ name: string; inputs: Typed[]; carriers: FunctionModel["carriers"]; root: string }>) {
   const inputs: Typed[] = [], domain = new Map<string, string[]>(), seen = new Map<string, { name: string; carrier: string; values: string[] }>();
-  const errors: string[] = [];
-  for (const { name, inputs: own, carriers } of parts) {
+  const issues: Issue[] = [];
+  for (const { name, inputs: own, carriers, root } of parts) {
     const values = new Map(carriers.map((c) => [c.id, c.values ?? []]));
     for (const q of own) {
       const first = seen.get(endKey(q)), vals = values.get(q.carrier)!;
@@ -494,11 +515,12 @@ function situations(parts: Array<{ name: string; inputs: Typed[]; carriers: Func
         inputs.push(q);
         domain.set(q.carrier + "\u0000" + endKey(q), vals);
       } else if (first.carrier !== q.carrier || first.values.length !== vals.length || first.values.some((x) => !vals.includes(x))) {
-        errors.push(`input '${label(q)}' is read by ${first.name} as carrier '${first.carrier}' [${first.values.join(", ")}] and by ${name} as carrier '${q.carrier}' [${vals.join(", ")}]: the situations must be the same`);
+        issues.push(issue("input-domain-mismatch", where.carrier({ carriers, boxes: [], wires: [] }, q.carrier, root), `input '${label(q)}' is read by ${first.name} as carrier '${first.carrier}' [${first.values.join(", ")}] and by ${name} as carrier '${q.carrier}' [${vals.join(", ")}]: the situations must be the same`,
+          `Give input '${label(q)}' the same carrier and values in every model that reads it (${first.name} has '${first.carrier}' [${first.values.join(", ")}]), or use different port ids if they are different conditions.`));
       }
     }
   }
-  if (errors.length) return { ok: false as const, errors };
+  if (issues.length) return fail(issues);
   // Each input gets its own domain entry, so carriers that share an id across models cannot clash.
   const typed = inputs.map((q) => ({ ...q, carrier: q.carrier + "\u0000" + endKey(q) }));
   const at = (q: Endpoint) => typed.findIndex((r) => endKey(r) === endKey(q));
@@ -511,9 +533,12 @@ function outputsAt(e: Evaluation, own: Endpoint[], at: (q: Endpoint) => number, 
 }
 
 /** The weakest specification and ranking read a state-cap failure as undecided. */
-const capped = (f: Failure, prefix = "") => (f.cap
-  ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: f.errors.map((e) => prefix + e), note: "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
-  : { ok: false as const, errors: f.errors.map((e) => prefix + e) });
+const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
+  const r = rebase(fail(f.issues), rules, prefix);
+  return f.cap
+    ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: r.errors, note: "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
+    : r;
+};
 
 /**
  * The weakest box specification (residual in Rel) for the one box of `concept` that can reach a
@@ -535,10 +560,11 @@ const capped = (f: Failure, prefix = "") => (f.cap
  * (no-steady-state); past the cap, `undecided` (state-cap).
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number }, of: string) {
-  const checked = checkModel(baseline);
-  if (!checked.ok) return { ok: false as const, errors: checked.errors.map((e) => `${of}: ${e}`) };
+  // Paths as with compare_to: the baseline is compare_to, the concept is model.
+  const checked = checkModel(baseline, "$.compare_to");
+  if (!checked.ok) return rebase(fail(checked.issues), [], `${of}: `);
   const target = deliverablePorts(baseline);
-  if (!target.length) return { ok: false as const, errors: [`${of}: ${NO_DELIVERABLES}`] };
+  if (!target.length) return fail([noDeliverables(baseline, "$.compare_to", `${of}: `)]);
   const align = alignment(baseline, concept, opts.boxMap ?? {});
   if (!align.ok) return align;
   const rename = align.toBaseline;
@@ -569,16 +595,20 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
     };
   }
   if (!p.missing.length) {
-    return { ok: false as const, errors: ["every box that can reach a deliverable declares behavior: there is no box to specify. Remove the behavior of the box to specify, or compare the relations with trim"] };
+    return fail([issue("nothing-to-specify", "$.model", "every box that can reach a deliverable declares behavior: there is no box to specify. Remove the behavior of the box to specify, or compare the relations with trim",
+      "Drop behavior from the one box whose specification you want (it becomes the box to specify), or omit weakest_spec to compare the relations as declared.")]);
   }
   const hole = concept.boxes.find((b) => b.id === p.missing[0])!;
   const declared = new Map(concept.carriers.map((c) => [c.id, c.values]));
   const ports = [...(hole.inputs ?? []).map((q) => ({ ...q, side: "in" as const })), ...(hole.outputs ?? []).map((q) => ({ ...q, side: "out" as const }))];
   const bare = ports.filter((q) => !declared.get(q.carrier));
-  if (bare.length) return { ok: false as const, errors: bare.map((q) => `box '${hole.id}' is the box to specify, but carrier '${q.carrier}' of port '${q.id}' declares no values`) };
+  if (bare.length) {
+    return fail(bare.map((q) => issue("no-declared-values", where.carrier(concept, q.carrier, "$.model"), `box '${hole.id}' is the box to specify, but carrier '${q.carrier}' of port '${q.id}' declares no values`,
+      `Declare values on carrier '${q.carrier}': the specification's rows range over them.`)));
+  }
   const max = opts.maxStates ?? MAX_STATES;
   const candidates = product(ports.map((q) => declared.get(q.carrier)!.length));
-  if (candidates > max) return capped({ ok: false, cap: true, errors: [`box '${hole.id}' has ${candidates} candidate rows; the cap is ${max}. Declare fewer values or split the box`] });
+  if (candidates > max) return capped(capFail(`box '${hole.id}' has ${candidates} candidate rows; the cap is ${max}. Declare fewer values or split the box`, where.box(concept, hole.id, "$.model"), `Declare fewer values on the carriers of '${hole.id}''s ports, or segment it so each part has fewer ports.`));
   const domain = new Map([...declared].map(([k, v]) => [k, v!]));
   const asRow = (vals: string[]) => ({
     in: Object.fromEntries(ports.flatMap((q, i) => (q.side === "in" ? [[q.id, vals[i]]] : []))),
@@ -588,7 +618,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
   const withBehavior = (behavior: ReturnType<typeof asRow>[]) => ({ ...concept, boxes: concept.boxes.map((b) => (b.id === hole.id ? { ...b, behavior } : b)) });
 
   const t = evaluate(baseline, before, target, max);
-  if (!t.ok) return capped(t, `${of}: `);
+  if (!t.ok) return capped(t, `${of}: `, [["$.model", "$.compare_to"]]);
   if ([...t.table.values()].every((r) => !r.count)) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, deliverables: target,
@@ -599,11 +629,14 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
   const probe: Observed[] = ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier, side: q.side }));
   const e = evaluate(full, plan(full, observe), [...observe, ...probe], max);
   if (!e.ok) return capped(e);
-  const space = situations([{ name: "the baseline", inputs: t.inputs, carriers: baseline.carriers }, { name: "the concept", inputs: e.inputs.map(rename), carriers: concept.carriers }]);
+  const space = situations([
+    { name: "the baseline", inputs: t.inputs, carriers: baseline.carriers, root: "$.compare_to" },
+    { name: "the concept", inputs: e.inputs.map(rename), carriers: concept.carriers, root: "$.model" },
+  ]);
   if (!space.ok) return space;
   const conceptInputs = e.inputs.map(rename);
   const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
-  if (valuations > max) return capped({ ok: false, cap: true, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] });
+  if (valuations > max) return capped(capFail(`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`));
 
   // C[{r}] at each situation, grouped by the box's row r (the probe, after the deliverables).
   const k = observe.length;
@@ -680,8 +713,8 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
 
 /** The weakest specification for the concept's one box without behaviour, against the baseline (compare_to). */
 export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number } = {}) {
-  const checked = checkModel(concept);
-  if (!checked.ok) return { ok: false as const, errors: checked.errors };
+  const checked = checkModel(concept, "$.model");
+  if (!checked.ok) return fail(checked.issues);
   return residualSpec(concept, baseline, opts, "compare_to");
 }
 
@@ -690,7 +723,7 @@ export function weakestTrimSpec(model: FunctionModel, spec: { trim: string[]; ab
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
   if (!applied.ok) return applied;
   const r = residualSpec(applied.model, model, { maxStates: spec.maxStates }, "baseline");
-  return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : r;
+  return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : rebase(r, TRIMMED);
 }
 
 /**
@@ -708,34 +741,54 @@ export type Acceptable = { box?: string; port?: string; carrier?: string; values
  * undeclared value, a threshold that is not a declared level, and a deliverable with no entry.
  */
 function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>, target: Typed[], acceptable: Acceptable[]) {
-  const errors: string[] = [];
-  const byPort = new Map<string, Acceptable>(), byCarrier = new Map<string, Acceptable>();
-  for (const a of acceptable) {
+  const issues: Issue[] = [];
+  const push = (code: Issue["code"], path: string, message: string, hint: string) => issues.push(issue(code, path, message, hint));
+  const byPort = new Map<string, { a: Acceptable; k: number }>(), byCarrier = new Map<string, { a: Acceptable; k: number }>();
+  const deliverables = quoted(target.map(label));
+  acceptable.forEach((a, k) => {
+    const here = jp("$.acceptable", k);
     const named = a.box !== undefined || a.port !== undefined;
-    if (named === (a.carrier !== undefined)) { errors.push("acceptable: each entry names a deliverable port (box and port) or a carrier, not both or neither"); continue; }
-    if (named && (a.box === undefined || a.port === undefined)) { errors.push("acceptable: an entry that names a port gives both box and port"); continue; }
+    if (named === (a.carrier !== undefined)) {
+      push("acceptable-entry-malformed", here, "acceptable: each entry names a deliverable port (box and port) or a carrier, not both or neither", `Give either box and port of a deliverable (${deliverables}) or a carrier, not both.`);
+      return;
+    }
+    if (named && (a.box === undefined || a.port === undefined)) { push("acceptable-entry-malformed", here, "acceptable: an entry that names a port gives both box and port", `Give both box and port, e.g. of one of ${deliverables}.`); return; }
     const name = named ? `'${a.box}.${a.port}'` : `carrier '${a.carrier}'`;
     const threshold = a.at_least !== undefined || a.below !== undefined;
-    if (threshold === (a.values !== undefined)) { errors.push(`acceptable: ${name}: give values or a threshold (at_least, below), not ${threshold ? "both" : "neither"}`); continue; }
+    if (threshold === (a.values !== undefined)) {
+      push("acceptable-entry-malformed", here, `acceptable: ${name}: give values or a threshold (at_least, below), not ${threshold ? "both" : "neither"}`,
+        threshold ? "Drop values to read the threshold through the carrier's levels, or drop at_least and below to list the values." : "Add values (the acceptable declared values), or at_least or below (a threshold that is one of the carrier's levels).");
+      return;
+    }
     if (named) {
       const e = { box: a.box!, port: a.port! };
-      if (!target.some((x) => endKey(x) === endKey(e))) { errors.push(`acceptable: '${label(e)}' is not a deliverable (deliverables: ${target.map(label).join(", ")})`); continue; }
-      if (byPort.has(endKey(e))) { errors.push(`acceptable: '${label(e)}' is listed twice`); continue; }
-      byPort.set(endKey(e), a);
+      if (!target.some((x) => endKey(x) === endKey(e))) { push("acceptable-not-deliverable", here, `acceptable: '${label(e)}' is not a deliverable (deliverables: ${target.map(label).join(", ")})`, `Name a deliverable port (a product input fed by a non-harmful function): ${deliverables}.`); return; }
+      if (byPort.has(endKey(e))) { push("listed-twice", here, `acceptable: '${label(e)}' is listed twice`, `List '${label(e)}' once, with every acceptable value.`); return; }
+      byPort.set(endKey(e), { a, k });
     } else {
-      if (!target.some((x) => x.carrier === a.carrier)) { errors.push(`acceptable: carrier '${a.carrier}' is the carrier of no deliverable (deliverables: ${target.map((d) => `${label(d)} (${d.carrier})`).join(", ")})`); continue; }
-      if (byCarrier.has(a.carrier!)) { errors.push(`acceptable: carrier '${a.carrier}' is listed twice`); continue; }
-      byCarrier.set(a.carrier!, a);
+      const carriers = [...new Set(target.map((d) => d.carrier))];
+      if (!target.some((x) => x.carrier === a.carrier)) { push("acceptable-not-deliverable", jp(here, "carrier"), `acceptable: carrier '${a.carrier}' is the carrier of no deliverable (deliverables: ${target.map((d) => `${label(d)} (${d.carrier})`).join(", ")})`, `Name a carrier a deliverable carries: ${quoted(carriers)}.`); return; }
+      if (byCarrier.has(a.carrier!)) { push("listed-twice", here, `acceptable: carrier '${a.carrier}' is listed twice`, `List carrier '${a.carrier}' once.`); return; }
+      byCarrier.set(a.carrier!, { a, k });
     }
-  }
+  });
   const accept = new Map<string, Set<string>>();
   const resolved: Array<Typed & { values: string[]; threshold?: { at_least?: number; below?: number; levels: unknown }; basis?: Theorem[] }> = [];
   for (const d of target) {
-    const a = byPort.get(endKey(d)) ?? byCarrier.get(d.carrier);
-    if (!a) { errors.push(`acceptable: no values for deliverable '${label(d)}'; the acceptability predicate is required for every deliverable`); continue; }
+    const entry = byPort.get(endKey(d)) ?? byCarrier.get(d.carrier);
+    if (!entry) {
+      push("acceptable-missing", "$.acceptable", `acceptable: no values for deliverable '${label(d)}'; the acceptability predicate is required for every deliverable`,
+        `Add { box: '${d.box}', port: '${d.port}', values: [...] } (or an entry for carrier '${d.carrier}') to acceptable, listing the values that are acceptable there.`);
+      continue;
+    }
+    const { a, k } = entry;
     const carrierIn = (c: { model: FunctionModel }) => c.model.carriers.find((x) => x.id === d.carrier)!;
     if (a.values) {
-      for (const c of concepts) for (const v of a.values) if (!(carrierIn(c).values ?? []).includes(v)) errors.push(`acceptable: value '${v}' of '${label(d)}' is not declared by carrier '${d.carrier}' in concept '${c.id}'`);
+      for (const c of concepts) {
+        a.values.forEach((v, j) => {
+          if (!(carrierIn(c).values ?? []).includes(v)) push("undeclared-value", jp("$.acceptable", k, "values", j), `acceptable: value '${v}' of '${label(d)}' is not declared by carrier '${d.carrier}' in concept '${c.id}'`, `Use values carrier '${d.carrier}' declares in concept '${c.id}': ${quoted(carrierIn(c).values ?? [])}.`);
+        });
+      }
       accept.set(endKey(d), new Set(a.values));
       resolved.push({ ...d, values: a.values });
       continue;
@@ -744,10 +797,16 @@ function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>
     let first: { id: string; values: string[] } | undefined;
     for (const c of concepts) {
       const r = thresholdValues(carrierIn(c), t);
-      if (!r.ok) { errors.push(`acceptable: '${label(d)}' in concept '${c.id}': ${r.error}`); continue; }
+      if (!r.ok) {
+        const levels = carrierIn(c).levels;
+        push("invalid-threshold", jp("$.acceptable", k, a.at_least !== undefined ? "at_least" : "below"), `acceptable: '${label(d)}' in concept '${c.id}': ${r.error}`,
+          levels ? `Use a threshold that is one of carrier '${d.carrier}''s level starts in concept '${c.id}' (${levels.map((l) => l.from).join(", ")}), or list values instead.` : `Declare levels on carrier '${d.carrier}' in concept '${c.id}', or list the acceptable values instead.`);
+        continue;
+      }
       if (!first) first = { id: c.id, values: r.values };
       else if (r.values.length !== first.values.length || r.values.some((v) => !first!.values.includes(v))) {
-        errors.push(`acceptable: '${label(d)}': the threshold reads as [${first.values.join(", ")}] in concept '${first.id}' and as [${r.values.join(", ")}] in concept '${c.id}': the concepts declare different levels for carrier '${d.carrier}'`);
+        push("levels-differ", jp("$.acceptable", k), `acceptable: '${label(d)}': the threshold reads as [${first.values.join(", ")}] in concept '${first.id}' and as [${r.values.join(", ")}] in concept '${c.id}': the concepts declare different levels for carrier '${d.carrier}'`,
+          `Declare the same levels for carrier '${d.carrier}' in every concept, or list the acceptable values instead of a threshold.`);
       }
     }
     if (first) {
@@ -755,7 +814,7 @@ function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>
       resolved.push({ ...d, values: first.values, threshold: { ...t, levels: carrierIn(concepts[0]).levels }, basis: ["level_gc"] });
     }
   }
-  if (errors.length) return { ok: false as const, errors };
+  if (issues.length) return fail(issues);
   return { ok: true as const, accept, resolved };
 }
 
@@ -774,19 +833,21 @@ function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>
  * behaviour or the state cap is `undecided`.
  */
 export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { maxStates?: number } = {}) {
-  const errors: string[] = [];
+  const issues: Issue[] = [];
   const ids = concepts.map((c) => c.id);
-  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) errors.push(`duplicate concept id '${id}'`);
-  for (const c of concepts) errors.push(...checkModel(c.model).errors.map((e) => `concept '${c.id}': ${e}`));
-  if (errors.length) return { ok: false as const, errors };
+  const root = (i: number) => jp("$.concepts", i, "model");
+  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) issues.push(issue("duplicate-id", jp("$.concepts", ids.indexOf(id, ids.indexOf(id) + 1), "id"), `duplicate concept id '${id}'`, `Give each concept its own id; rename the second '${id}'.`));
+  concepts.forEach((c, i) => issues.push(...rebase(fail(checkModel(c.model, root(i)).issues), [], `concept '${c.id}': `).issues));
+  if (issues.length) return fail(issues);
   const delivered = concepts.map((c) => deliverablePorts(c.model));
   const target = delivered[0];
-  if (!target.length) return { ok: false as const, errors: [`concept '${concepts[0].id}': ${NO_DELIVERABLES}`] };
+  if (!target.length) return fail([noDeliverables(concepts[0].model, root(0), `concept '${concepts[0].id}': `)]);
+  const same = `Deliver the same product input ports in every concept as '${concepts[0].id}' does (${quoted(target.map(label))}); rank only concepts that pass the adequacy filter.`;
   concepts.forEach((c, i) => {
-    for (const d of target) if (!delivered[i].some((x) => deliverableKey(x) === deliverableKey(d))) errors.push(`concept '${c.id}' does not deliver '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does`);
-    for (const d of delivered[i]) if (!target.some((x) => deliverableKey(x) === deliverableKey(d))) errors.push(`concept '${c.id}' delivers '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does not`);
+    for (const d of target) if (!delivered[i].some((x) => deliverableKey(x) === deliverableKey(d))) issues.push(issue("deliverables-differ", root(i), `concept '${c.id}' does not deliver '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does`, same));
+    for (const d of delivered[i]) if (!target.some((x) => deliverableKey(x) === deliverableKey(d))) issues.push(issue("deliverables-differ", root(i), `concept '${c.id}' delivers '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does not`, same));
   });
-  if (errors.length) return { ok: false as const, errors: [...errors, "the concepts must deliver the same ports: one that drops a deliverable has fewer outputs to be acceptable, and would look weaker"] };
+  if (issues.length) return fail([...issues, issue("deliverables-differ", "$.concepts", "the concepts must deliver the same ports: one that drops a deliverable has fewer outputs to be acceptable, and would look weaker", same)]);
   const acceptance = resolveAcceptable(concepts, target, acceptable);
   if (!acceptance.ok) return acceptance;
   const accept = acceptance.accept;
@@ -803,13 +864,13 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
   const evals: Evaluation[] = [];
   for (const [i, c] of concepts.entries()) {
     const e = evaluate(c.model, plans[i], target, max);
-    if (!e.ok) return capped(e, `concept '${c.id}': `);
+    if (!e.ok) return capped(e, `concept '${c.id}': `, [["$.model", root(i)]]);
     evals.push(e);
   }
-  const space = situations(concepts.map((c, i) => ({ name: `concept '${c.id}'`, inputs: evals[i].inputs, carriers: c.model.carriers })));
+  const space = situations(concepts.map((c, i) => ({ name: `concept '${c.id}'`, inputs: evals[i].inputs, carriers: c.model.carriers, root: root(i) })));
   if (!space.ok) return space;
   const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
-  if (valuations > max) return capped({ ok: false, cap: true, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] });
+  if (valuations > max) return capped(capFail(`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`, "$.concepts", "Declare fewer values on the situation inputs' carriers, or give the same operating condition the same box and port id in every concept."));
   const ok = (y: string[]) => y.every((x, j) => accept.get(endKey(target[j]))!.has(x));
   const all = [...valuationsOf(space.typed, space.domain)];
   const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
