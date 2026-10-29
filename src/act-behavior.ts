@@ -25,6 +25,8 @@
  *                            gives the target).
  *  - weaknessRanking       — the situations each concept admits (a steady state, and every output
  *                            acceptable), ranked by inclusion; the count is a secondary figure.
+ *                            Acceptable values are listed, or derived from a threshold through the
+ *                            carrier's levels (src/act-levels.ts).
  *
  * Every search is finite and capped; past the cap the call fails closed. The verdict is about the
  * relations as declared. Whether a declared relation is physically or economically true, the
@@ -32,6 +34,7 @@
  */
 import { checkModel, type FunctionModel } from "./act.js";
 import { applyTrim, mapBoxes } from "./act-rewrite.js";
+import { thresholdValues } from "./act-levels.js";
 import type { Theorem } from "./act-basis.js";
 
 export type Box = FunctionModel["boxes"][number];
@@ -737,7 +740,71 @@ export function weakestTrimSpec(model: FunctionModel, spec: { trim: string[]; ab
   return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : r;
 }
 
-type Acceptable = { box: string; port: string; values: string[] };
+/**
+ * One acceptability entry: for a deliverable port (box and port) or for every deliverable of a
+ * carrier, either the acceptable values or a numeric threshold read through the carrier's levels
+ * (`at_least`, `below`; src/act-levels.ts). A port entry takes precedence over a carrier entry.
+ */
+export type Acceptable = { box?: string; port?: string; carrier?: string; values?: string[]; at_least?: number; below?: number };
+
+/**
+ * Each deliverable's acceptable values. A threshold is read in each concept through that concept's
+ * levels for the carrier, and must give the same values in all of them. Fails closed on an entry
+ * that names neither or both of a port and a carrier, neither or both of values and a threshold, a
+ * port that is not a deliverable, a carrier no deliverable carries, an entry listed twice, an
+ * undeclared value, a threshold that is not a declared level, and a deliverable with no entry.
+ */
+function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>, target: Typed[], acceptable: Acceptable[]) {
+  const errors: string[] = [];
+  const byPort = new Map<string, Acceptable>(), byCarrier = new Map<string, Acceptable>();
+  for (const a of acceptable) {
+    const named = a.box !== undefined || a.port !== undefined;
+    if (named === (a.carrier !== undefined)) { errors.push("acceptable: each entry names a deliverable port (box and port) or a carrier, not both or neither"); continue; }
+    if (named && (a.box === undefined || a.port === undefined)) { errors.push("acceptable: an entry that names a port gives both box and port"); continue; }
+    const name = named ? `'${a.box}.${a.port}'` : `carrier '${a.carrier}'`;
+    const threshold = a.at_least !== undefined || a.below !== undefined;
+    if (threshold === (a.values !== undefined)) { errors.push(`acceptable: ${name}: give values or a threshold (at_least, below), not ${threshold ? "both" : "neither"}`); continue; }
+    if (named) {
+      const e = { box: a.box!, port: a.port! };
+      if (!target.some((x) => endKey(x) === endKey(e))) { errors.push(`acceptable: '${label(e)}' is not a deliverable (deliverables: ${target.map(label).join(", ")})`); continue; }
+      if (byPort.has(endKey(e))) { errors.push(`acceptable: '${label(e)}' is listed twice`); continue; }
+      byPort.set(endKey(e), a);
+    } else {
+      if (!target.some((x) => x.carrier === a.carrier)) { errors.push(`acceptable: carrier '${a.carrier}' is the carrier of no deliverable (deliverables: ${target.map((d) => `${label(d)} (${d.carrier})`).join(", ")})`); continue; }
+      if (byCarrier.has(a.carrier!)) { errors.push(`acceptable: carrier '${a.carrier}' is listed twice`); continue; }
+      byCarrier.set(a.carrier!, a);
+    }
+  }
+  const accept = new Map<string, Set<string>>();
+  const resolved: Array<Typed & { values: string[]; threshold?: { at_least?: number; below?: number; levels: unknown }; basis?: Theorem[] }> = [];
+  for (const d of target) {
+    const a = byPort.get(endKey(d)) ?? byCarrier.get(d.carrier);
+    if (!a) { errors.push(`acceptable: no values for deliverable '${label(d)}'; the acceptability predicate is required for every deliverable`); continue; }
+    const carrierIn = (c: { model: FunctionModel }) => c.model.carriers.find((x) => x.id === d.carrier)!;
+    if (a.values) {
+      for (const c of concepts) for (const v of a.values) if (!(carrierIn(c).values ?? []).includes(v)) errors.push(`acceptable: value '${v}' of '${label(d)}' is not declared by carrier '${d.carrier}' in concept '${c.id}'`);
+      accept.set(endKey(d), new Set(a.values));
+      resolved.push({ ...d, values: a.values });
+      continue;
+    }
+    const t = { ...(a.at_least !== undefined ? { at_least: a.at_least } : {}), ...(a.below !== undefined ? { below: a.below } : {}) };
+    let first: { id: string; values: string[] } | undefined;
+    for (const c of concepts) {
+      const r = thresholdValues(carrierIn(c), t);
+      if (!r.ok) { errors.push(`acceptable: '${label(d)}' in concept '${c.id}': ${r.error}`); continue; }
+      if (!first) first = { id: c.id, values: r.values };
+      else if (r.values.length !== first.values.length || r.values.some((v) => !first!.values.includes(v))) {
+        errors.push(`acceptable: '${label(d)}': the threshold reads as [${first.values.join(", ")}] in concept '${first.id}' and as [${r.values.join(", ")}] in concept '${c.id}': the concepts declare different levels for carrier '${d.carrier}'`);
+      }
+    }
+    if (first) {
+      accept.set(endKey(d), new Set(first.values));
+      resolved.push({ ...d, values: first.values, threshold: { ...t, levels: carrierIn(concepts[0]).levels }, basis: ["level_gc"] });
+    }
+  }
+  if (errors.length) return { ok: false as const, errors };
+  return { ok: true as const, accept, resolved };
+}
 
 /**
  * Rank concepts that declare behaviour by the situations they admit. A situation is a valuation of
@@ -767,19 +834,9 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
     for (const d of delivered[i]) if (!target.some((x) => deliverableKey(x) === deliverableKey(d))) errors.push(`concept '${c.id}' delivers '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does not`);
   });
   if (errors.length) return { ok: false as const, errors: [...errors, "the concepts must deliver the same ports: one that drops a deliverable has fewer outputs to be acceptable, and would look weaker"] };
-  const accept = new Map<string, Set<string>>();
-  for (const a of acceptable) {
-    const d = target.find((x) => endKey(x) === endKey(a));
-    if (!d) { errors.push(`acceptable: '${label(a)}' is not a deliverable (deliverables: ${target.map(label).join(", ")})`); continue; }
-    if (accept.has(endKey(a))) { errors.push(`acceptable: '${label(a)}' is listed twice`); continue; }
-    for (const c of concepts) {
-      const vals = c.model.carriers.find((x) => x.id === d.carrier)?.values ?? [];
-      for (const v of a.values) if (!vals.includes(v)) errors.push(`acceptable: value '${v}' of '${label(a)}' is not declared by carrier '${d.carrier}' in concept '${c.id}'`);
-    }
-    accept.set(endKey(a), new Set(a.values));
-  }
-  for (const d of target) if (!acceptable.some((a) => endKey(a) === endKey(d))) errors.push(`acceptable: no values for deliverable '${label(d)}'; the acceptability predicate is required for every deliverable`);
-  if (errors.length) return { ok: false as const, errors };
+  const acceptance = resolveAcceptable(concepts, target, acceptable);
+  if (!acceptance.ok) return acceptance;
+  const accept = acceptance.accept;
 
   const plans = concepts.map((c) => plan(c.model, target));
   const missing = Object.fromEntries(concepts.flatMap((c, i) => (plans[i].missing.length ? [[c.id, plans[i].missing]] : [])));
@@ -838,7 +895,9 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
   const maximal = concepts.filter((_, i) => !concepts.some((__, j) => j !== i && contains(j, i) && !contains(i, j))).map((c) => c.id);
   const weakest = concepts.filter((_, i) => concepts.every((__, j) => contains(i, j))).map((c) => c.id);
   return {
-    ok: true as const, verdict: "ranked" as const, deliverables: target, situations: space.inputs, situationCount: valuations, readByOne,
+    ok: true as const, verdict: "ranked" as const, deliverables: target,
+    ...(acceptance.resolved.some((r) => r.threshold) ? { acceptable: acceptance.resolved } : {}),
+    situations: space.inputs, situationCount: valuations, readByOne,
     weakest, maximal, pairs, concepts: perConcept,
     byCount: [...perConcept].sort((a, b) => b.admitted - a.admitted).map((c) => ({ id: c.id, admitted: c.admitted })),
     assumption: ASSUMPTION,

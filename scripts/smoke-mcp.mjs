@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -180,6 +180,12 @@ const held = await json("triz_dynamics", { model: heater, inputs: [[{ box: "heat
 if (held.invariance?.verdict !== "invariant-within-horizon") fail("invariance under an input sequence wrong");
 const capped = await json("triz_dynamics", { model: heater, unsafe: [{ box: "heater", state: ["hot"] }], max_states: 1 });
 if (capped.ok !== false) fail("state cap did not fail closed");
+const levelled = { ...feasible, carriers: feasible.carriers.map((c) => (c.id === "load" ? { ...c, values: ["loose", "held"], levels: [{ value: "loose", from: 0 }, { value: "held", from: 2500 }] } : c)) };
+const linked = await json("triz_abstraction", { detailed: feasible, coarse: { ...levelled, boxes: holding("held").boxes, wires: model.wires }, map: { boxes: Object.fromEntries(model.boxes.map((b) => [b.id, b.id])) } });
+console.log(`triz_abstraction identity map -> ${linked.verdict}, levels consistent ${linked.levels?.consistent}`);
+if (linked.verdict !== "abstraction" || linked.levels?.consistent !== false) fail("abstraction or levels check wrong");
+const unmapped = await json("triz_abstraction", { detailed: model, coarse: model, map: { boxes: { ghost: "bearing" } } });
+if (unmapped.ok !== false) fail("malformed abstraction map did not fail closed");
 
 await client.close();
 console.log("SMOKE OK");

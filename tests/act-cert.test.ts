@@ -349,6 +349,14 @@ test("a weakness certificate states each strictly ordered pair, and only those",
   assert.match(c.content, /^def conceptId : String := "tight"$/m);
   assert.match(c.content, /^theorem count_1_2 : \(admitted \(accepts acceptable\) \(Concept2\.rows\.relation inputDomain Concept2\.reads Concept2\.delivers\)\)\.card < /m);
   assert.deepEqual(lint(c.content), []);
+  // Acceptability given per carrier, or as a threshold through the carrier's levels: the same table.
+  const byCarrier = weaknessCertificate(concepts, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", values: ["supported"] }]);
+  assert.equal(content(byCarrier), c.content);
+  const levelled = supportConcepts().map((x) => {
+    x.model.carriers.find((k) => k.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
+    return x;
+  });
+  assert.equal(content(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), c.content);
   // second-weaker pairs name the weaker concept first.
   const flipped = weaknessCertificate([concepts[2], concepts[0]], SUPPORT_ACCEPTABLE);
   assert.ok(flipped.ok);

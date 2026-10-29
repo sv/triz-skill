@@ -475,6 +475,56 @@ theorem boundary_rewrite (r : Rule B W) (A : Set B) :
 /-- Box `a` acts on box `b`: some wire runs from `a` to `b`. `harmLoops` searches this graph. -/
 def Acts (a b : B) : Prop := ∃ w ∈ d.wires, (d.src w).1 = a ∧ (d.tgt w).1 = b
 
+/-! ### Abstraction maps (`checkAbstraction` in `src/act-abstraction.ts`)
+
+A detailed diagram `d` and a coarse diagram `e` of the same system are linked by a map on boxes
+`fB`, a map on each box's ports `fP`, and a map on carriers `fC`. Several detailed boxes may map
+to one coarse box, so these are not bijections and `typed_rename` does not apply. The kernel
+checks the map on the mapped part of `d`: the boxes it maps, and the functions between ports it
+maps. Unmapped boxes are a restriction (`typed_restrict`); a function with an unmapped port is
+forgotten, and listed. -/
+
+/-- The image of `d` along an abstraction map: each wire keeps its identity and runs between the
+images of its ports, with the image of its carrier; ports are typed by the coarse `out'` and
+`inp'`. -/
+def map {B' P' C' : Type*} (fB : B → B') (fP : B → P → P') (fC : C → C')
+    (out' inp' : B' → P' → Option C') : Wiring B' P' W C' where
+  boxes := fB '' d.boxes
+  wires := d.wires
+  src w := (fB (d.src w).1, fP (d.src w).1 (d.src w).2)
+  tgt w := (fB (d.tgt w).1, fP (d.tgt w).1 (d.tgt w).2)
+  carrier w := fC (d.carrier w)
+  out := out'
+  inp := inp'
+
+/-- Typing survives an abstraction map that commutes with port typing: a detailed output (input)
+port of carrier `c` maps to a coarse output (input) port of carrier `fC c`. This is the kernel's
+`typed` check; the map need not be injective on boxes, ports, or carriers. -/
+theorem typed_map {B' P' C' : Type*} {fB : B → B'} {fP : B → P → P'} {fC : C → C'}
+    {out' inp' : B' → P' → Option C'} (h : d.Typed)
+    (ho : ∀ b p c, d.out b p = some c → out' (fB b) (fP b p) = some (fC c))
+    (hi : ∀ b p c, d.inp b p = some c → inp' (fB b) (fP b p) = some (fC c)) :
+    (d.map fB fP fC out' inp').Typed := by
+  intro w hw
+  obtain ⟨hs, ht, hso, hti⟩ := h w hw
+  exact ⟨⟨_, hs, rfl⟩, ⟨_, ht, rfl⟩, ho _ _ _ hso, hi _ _ _ hti⟩
+
+/-- Reachability passes along an abstraction map when every function of `d` stays inside one
+coarse box or maps to a function of `e`: `reach_quotient` on the box map. -/
+theorem reach_map {B' P' W' C' : Type*} {e : Wiring B' P' W' C'} (fB : B → B')
+    (h : ∀ a b, d.Acts a b → fB a = fB b ∨ e.Acts (fB a) (fB b)) {u v : B}
+    (huv : Relation.ReflTransGen d.Acts u v) : Relation.ReflTransGen e.Acts (fB u) (fB v) :=
+  reach_quotient fB h huv
+
+/-- A detailed loop maps to a coarse loop: when a coarse function runs from the image of `a` to
+the image of `b`, and `b` reaches `a` in `d`, the image of `a` lies on a cycle of `e`. The kernel
+reads a coarse harm loop as the image of a detailed one this way. -/
+theorem cycle_map {B' P' W' C' : Type*} {e : Wiring B' P' W' C'} (fB : B → B')
+    (h : ∀ a b, d.Acts a b → fB a = fB b ∨ e.Acts (fB a) (fB b)) {a b : B} {w' : W'}
+    (hw' : w' ∈ e.wires) (hs : (e.src w').1 = fB a) (ht : (e.tgt w').1 = fB b)
+    (hback : Relation.ReflTransGen d.Acts b a) : Relation.TransGen e.Acts (fB a) (fB a) :=
+  edge_on_cycle ⟨w', hw', hs, ht⟩ (d.reach_map fB h hback)
+
 end Wiring
 
 /-! ## The level axis as a presheaf, and the restriction rows over time as a functor
@@ -1187,6 +1237,49 @@ theorem codesign_lfp [Finite P] (h : P → P → Prop) :
     exact UpperSet.coe_subset_coe.mpr hlfp (UpperSet.mem_Ici_iff.mpr hst)
 
 end CoDesign
+
+/-! ## Levels: numeric amounts read as qualitative values (`levels` in `src/act-levels.ts`)
+
+A carrier's `levels` give some of its values a threshold each, `t v`. An amount reads as the
+largest value whose threshold it reaches (`level`). The kernel requires the thresholds to
+increase along the levels' order and the first to be `0`, the least amount (`t ⊥ = ⊥`). Then the
+reading is a Galois connection: an amount reaches `t v` exactly when it reads as `v` or above
+(`level_gc`). That is what lets a numeric requirement, such as "at least `t v`", become a set of
+acceptable values, `v` and above, with nothing lost or added. `level_band` is what the
+consistency check between feasibility amounts and behaviour values reads: an amount lies in the
+band of the value it reads as. -/
+
+section Levels
+
+variable {V α : Type*} [LinearOrder V] [OrderBot V] [Fintype V] [LinearOrder α]
+
+/-- The value an amount reads as: the largest value whose threshold it reaches. -/
+def level (t : V → α) (a : α) : V := (Finset.univ.filter fun v => t v ≤ a).sup id
+
+/-- More of an amount never reads as less, whatever the thresholds. -/
+theorem level_monotone (t : V → α) : Monotone (level t) := fun _ _ hab =>
+  Finset.sup_mono fun v hv => Finset.mem_filter.mpr
+    ⟨Finset.mem_univ v, (Finset.mem_filter.mp hv).2.trans hab⟩
+
+/-- With the first threshold at the least amount, every amount lies in the band of the value it
+reads as: it reaches that value's threshold and no higher value's. -/
+theorem level_band [OrderBot α] {t : V → α} (h0 : t ⊥ = ⊥) (a : α) :
+    t (level t a) ≤ a ∧ ∀ w, level t a < w → a < t w := by
+  have hne : (Finset.univ.filter fun v => t v ≤ a).Nonempty := ⟨⊥, by simp [h0]⟩
+  obtain ⟨m, hm, hsup⟩ := Finset.exists_mem_eq_sup _ hne id
+  refine ⟨?_, fun w hw => not_le.mp fun hwa => ?_⟩
+  · rw [level, hsup]
+    exact (Finset.mem_filter.mp hm).2
+  · exact absurd (Finset.le_sup (f := id) (Finset.mem_filter.mpr ⟨Finset.mem_univ w, hwa⟩))
+      (not_le.mpr hw)
+
+/-- With increasing thresholds starting at the least amount, reading amounts as values is a
+Galois connection: an amount reaches `t v` iff it reads as `v` or above. -/
+theorem level_gc [OrderBot α] {t : V → α} (ht : Monotone t) (h0 : t ⊥ = ⊥) : GaloisConnection t (level t) :=
+  fun v a => ⟨fun h => Finset.le_sup (f := id) (Finset.mem_filter.mpr ⟨Finset.mem_univ v, h⟩),
+    fun h => (ht h).trans (level_band h0 a).1⟩
+
+end Levels
 
 /-! ## Row tables: certificates of dynamics and weakness verdicts
 

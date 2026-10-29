@@ -27,7 +27,9 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
 | Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `return_ge_two` |
 | Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
-| Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
+| Numeric amount read as a qualitative value | carrier `levels`: a threshold per value, from 0, increasing; an amount reads as the last value whose threshold it reaches | checkModel (fail closed); `triz_feasibility` `levels`: each feasibility row against the box's behaviour rows; `triz_abstraction` across the map; `triz_weakness` `acceptable` by `at_least` or `below` | `level_monotone`, `level_gc`, `level_band` |
+| A detailed and a coarse model of one system | an abstraction map: detailed box → coarse box (many to one), port → port per box, carrier → carrier | `triz_abstraction`: total, typed, every coarse function an image of its class, every coarse harm loop the image of a detailed one | `typed_map`, `reach_map`, `cycle_map`; definition `Wiring.map` |
+| Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; over the main parameters of value only with `mpv_weights`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
@@ -36,7 +38,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`; `supportedOn`, `typedOn`; used by those, never cited: `restrict_restrict`, `restrict_of_subset` |
-| System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
+| System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem; with declared rows, the verdicts per time and how they change | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot; `system.verdicts` and `changes[].verdicts` | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
 Ratings follow the MATRIZ function definition. A function is useful or harmful. Only useful
 functions have a performance level: normal, insufficient, or excessive. A back-reaction is
@@ -47,6 +49,12 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
 1. **Model.** List the boxes, the carriers with their units, and every function with its rating.
    Call `triz_function_model`. On `ok: false`, fix every listed error before going on; never
    reason over a model that does not type-check.
+
+   When one system has two models, a detailed one (many boxes, costs, feasibility) and a coarse
+   one (few boxes, declared behaviour), link them with `triz_abstraction` before you trust a
+   verdict about the coarse one (see [Abstraction between models](#abstraction-between-models)).
+   Give the carriers that both sides read `levels`, so that the detailed model's amounts read
+   as the coarse model's values (see [Levels](#levels-numeric-to-qualitative)).
 2. **Harm loops.** For each reported loop, name the causal mechanism and the evidence for every
    function in the witness cycle. A loop is a candidate to examine, not a finding. Useful-only
    feedback, such as a control loop, is not reported.
@@ -136,6 +144,15 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
 
    When several modelled concepts are adequate, rank them with `triz_weakness` (see
    [Weakness ranking](#weakness-ranking)).
+
+   When the main parameters of value are known ([workflow.md](workflow.md), MPV), pass them to
+   `triz_function_model` as `mpv_weights` with `compare_to`: each MPV, a cost dimension or
+   `harmful`, with your explicit weight. `comparison.mpv` compares the two models over those
+   axes only, componentwise (`pareto`) and by the weighted sum, lower being better (`verdict`).
+   `ignored` lists the axes outside the MPV set on which the models differ, so nothing the MPV
+   view leaves out is hidden. A lost deliverable still decides (`concept-loses-functions`). The
+   weights are never filled in, and they never make the model's scalar ratio computable, which
+   still needs `weights` on every dimension.
 6. **Windows.** Use `triz_nine_windows` with the present model, any past or future snapshots
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
@@ -152,6 +169,21 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `subsystem.withinSubsystem`: the transition is its own part, so it touches nothing outside;
    - `subsystem.interiorUnchanged`: the part is empty;
    - `subsystem.boundary`: the crossing functions the transition cuts and adds.
+
+   When the snapshots declare behaviour or feasibility, each time's system view also carries
+   its verdicts (`system.verdicts`: behaviour decided or why not; the feasibility verdict and its
+   minimal resource vectors), and each entry of `changes` says how they move from one time to
+   the next (`changes[].verdicts`):
+   - `behavior`: the later model compared with the earlier one, as `triz_behavior` with
+     `compare_to` (preserved, changed with a counterexample, or undecided);
+   - `weakness`: with `acceptable`, the two times ranked as concepts by the situations they
+     admit; without it, a prompt;
+   - `feasibility`: the verdict at both times. `changed` is claimed only when both are decided
+     (feasible or infeasible), and `resourcesChanged` says whether the minimal vectors moved.
+
+   These are computed on the system view only: restriction drops the budget and cuts the
+   deliverables' suppliers, and the collapsed box declares no rows. A failure in one of them,
+   such as different deliverables at two times, is reported there and never fails the grid.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape. Use
    format `lean` for a certificate that Lean can check (see Certificates).
@@ -440,6 +472,15 @@ behaviour.
   deliverable output there is acceptable (`admits`). `acceptable` gives, per deliverable port,
   the acceptable values, and it is required. A situation with no steady state is not admitted
   (`admits_bot`), so having no behaviour never makes a concept weak.
+- **Acceptable from a threshold.** An entry may name a carrier instead of a port, for every
+  deliverable of that carrier; a port entry takes precedence. Instead of `values`, it may give a
+  numeric requirement, `at_least` or `below` (or both, for a range), read through the carrier's
+  `levels`: `at_least: x` accepts the values whose whole band is at least x, `below: x` those
+  whose whole band is below x. Each bound must be a declared threshold, so the value set says
+  exactly what the amount does (`level_gc`); a bound inside a band fails closed, and so do an
+  empty set and concepts whose levels read the bound differently. The result lists each
+  deliverable's derived values under `acceptable`. This is the MPV chain's last link
+  ([workflow.md](workflow.md)): value driver, threshold, acceptable set.
 - **Ranking.** Concepts are ranked by inclusion of what they admit (`AtLeastAsWeak`, a preorder).
   The output gives:
   - `weakest`: a concept that admits everything any other admits, if one exists;
@@ -669,6 +710,92 @@ the declared levels, and the sums of one row per box closed under max. The antic
 grow exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi
 (2015, Prop. 5) bounds the work by the width of the loop's resource poset, the height of its
 lattice of antichains, and the cost of one evaluation, not by the size of the model.
+
+## Levels: numeric to qualitative
+
+Feasibility rows speak in numbers (2500 N); behaviour rows speak in values (`supported`). A
+carrier that declares `levels` links the two: each level is a declared value with a threshold
+`from`, and an amount reads as the last value whose threshold it reaches. The list orders its
+values from least to most; the `values` array need not. checkModel fails closed unless the
+carrier declares `values`, names each value at most once, starts at 0 (every amount is
+non-negative, so every amount reads as some value), and strictly increases. Those conditions
+make the reading monotone (`level_monotone`) and a Galois connection: an amount reaches a
+value's threshold exactly when it reads as that value or above (`level_gc`). Every amount lies
+in the band of the value it reads as (`level_band`).
+
+`triz_feasibility` then reads each feasibility row of a box that also declares behaviour
+(`levels` in its result):
+
+- Only the ports a row names, on carriers with levels, are read. A row is silent on the ports it
+  omits: an omitted requirement needs nothing, and a harmful output such as friction heat is
+  rarely a row's functionality.
+- The matching behaviour rows are those whose values on the row's input ports are the values
+  its required amounts read as. The row is consistent when one of them has, on the row's output
+  ports, the values its provided amounts read as.
+- `no-behavior-row`: no behaviour row has those input values, so the behaviour says the row's
+  operating point cannot occur. `value-mismatch`: the matching rows give other output values,
+  listed under `declared`.
+
+Inconsistencies are reported, not failed closed: either side may be the one to fix, or the
+thresholds. Take `bearing-heat-behavior.json`, add the feasibility rows of
+`bearing-heat-feasibility.json`, and give radial-load the levels `unsupported` from 0 and
+`supported` from 2500 N. Then `triz_feasibility` reads the shaft's 2500 N requirement and the
+bearing's 3000 N as `supported`, consistent with their behaviour, but the housing's cheaper row,
+400 N, reads as `unsupported` while the housing's behaviour declares its bore `supported`.
+`triz_abstraction` runs the same check across a map (below), and `triz_weakness` turns a
+threshold into an acceptable set (see [Weakness ranking](#weakness-ranking)).
+
+## Abstraction between models
+
+A detailed model (many boxes, costs, feasibility) and a coarse model (few boxes, declared
+behaviour) of the same system say different things, and each tool reads one of them.
+`triz_abstraction` checks that the coarse one is an abstraction of the detailed one under a
+typed map:
+
+- `boxes`: detailed box → coarse box. Several detailed boxes may share one coarse box, as a
+  segment's parts share the box they came from. A detailed box left out is outside the
+  abstraction: a restriction (`typed_restrict`).
+- `ports`: per mapped box, detailed port → port of its coarse box. Default: the coarse box's port
+  with the same id and side. A port with no image is internal.
+- `carriers`: detailed carrier → coarse carrier. Default: the coarse carrier with the same id.
+
+A detailed function between two mapped ports is mapped. A function whose ends map into one
+coarse box is hidden inside it, unless the coarse box has an image function for it. A function
+between two coarse boxes with an unmapped port is forgotten: the coarse model does not see it.
+The polarity class is the partition harm loops read: negative (harmful or excessive) or not
+(useful or insufficient). Four checks decide the verdict, `abstraction` or `not-an-abstraction`
+with the failing checks:
+
+1. **Total.** Every mapped port's carrier has an image, and every mapped function between two
+   coarse boxes has an image: a coarse function with the mapped endpoints, the mapped carrier,
+   and the same class.
+2. **Typed.** Each mapped port lands on a port of the same side whose carrier is its own
+   carrier's image, in the same layer. Then the image of the detailed model's mapped part is
+   typed (`typed_map`); the map need not be injective, so `typed_rename` would not do.
+3. **Wires.** Every coarse function is the image of a mapped detailed function of its class.
+4. **Harm loops.** Every coarse harm loop is the image of a detailed one. Each harmful or
+   excessive coarse function on it needs a negative preimage whose object reaches its performer
+   along mapped and hidden functions; then the detailed loop maps onto a coarse loop through it
+   (`cycle_map`, from `reach_quotient`), and the detailed cycle is the witness. This check can
+   fail where the other three pass: a segment that puts the friction on a part the preload never
+   reaches has no detailed loop through the heat, but the coarse bearing closes one.
+
+The result also lists the functions hidden, forgotten, and left out, harmful and excessive ones
+apart; `detailedLoops`, each detailed harm loop as seen from the coarse model (`image`, `hidden`
+inside one box, `forgotten`, `outside`, or `broken` by a forgotten function); and
+`reachability`: when nothing is forgotten, whatever a mapped box reaches in the detailed model,
+its image reaches in the coarse one (`reach_map`). A coarse model that forgets or hides a harm
+says nothing about it, and the note names it.
+
+Where a coarse box with behaviour has exactly one detailed preimage with feasibility, its rows
+are read through the coarse carriers' levels and checked against the coarse behaviour, as in
+[Levels](#levels-numeric-to-qualitative) (`levels`). With several preimages the rows would have
+to be composed first, which this check does not do; the box is listed as skipped. Mapping
+`bearing-heat-feasibility.json` onto `bearing-heat-behavior.json` box by box, with the radial-load
+levels above on the coarse carrier, is an abstraction, and it reports the housing's 400 N row.
+
+The map is checked as data. Whether the coarse boxes' rows are true of their preimages, and
+whether forgetting a function is safe, stays with you.
 
 ## Principle constructions
 
@@ -1003,7 +1130,18 @@ example cohort churn against fee changes. Name it only from that evidence.
 - `harmLoops` is exhaustive for the model as written. It cannot find a back-reaction the model
   omits.
 - A scalar ideality is produced only from explicit `weights` covering every cost dimension and
-  `harmful`. Otherwise, costs are reported per dimension and never summed.
+  `harmful`. Otherwise, costs are reported per dimension and never summed. `mpv_weights` sums
+  only the MPV axes the user weights, for the comparison; it never fills in a weight.
+- An abstraction verdict is about the two models and the map as data. Lean proves that a typed
+  map keeps typing (`typed_map`), that reachability passes along a map whose functions each stay
+  in one coarse box or map to a coarse function (`reach_map`), and that a detailed cycle maps to
+  a coarse one (`cycle_map`). The checks themselves are finite scans, tested (including a
+  property test over collapses of random models), not extracted. A harm loop is backed when one
+  detailed loop maps onto it; that the detailed loop is the same mechanism is your claim.
+  Feasibility rows are not composed across several preimages.
+- Levels read amounts into values; they do not say that the values mean what the behaviour rows
+  assume. The consistency check compares a row's named ports only, at the exact values its
+  amounts read as. It does not apply the monotone reading to behaviour rows, which have no order.
 - Not adopted: 9 windows as a fibration, evolution lines other than the three above as rules
   (the table gives each reason), and the principles classified parametric or analogy only above
   as transformations. The formal-methods analogies are recorded in [sources.md](sources.md);

@@ -32,7 +32,7 @@
  * hosted Worker bundles it.
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
-import { plan as behaviorPlan, portVariables, weaknessRanking } from "./act-behavior.js";
+import { plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable } from "./act-behavior.js";
 import { boundedDynamics, type DynamicsSpec } from "./act-dynamics.js";
 
 /** Cap on cells × demands × values per contradiction; at the cap `decide` takes about ten seconds. */
@@ -508,7 +508,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
  * rows are the data, in its own namespace. Fails closed when no pair is strictly ordered, and past
  * MAX_CERT_ROWS: deciding enumerates every valuation of each concept's ports.
  */
-export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Array<{ box: string; port: string; values: string[] }>, opts: { namespace?: string; maxStates?: number } = {}): Certificate {
+export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { namespace?: string; maxStates?: number } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
   const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates });
@@ -550,6 +550,9 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     if (work > MAX_CERT_ROWS) return { ok: false, errors: [`concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`] };
   }
 
+  // The acceptable values the ranking used: derived from a threshold (listed in the result), else given for the port, else for its carrier.
+  const accepted = (d: { box: string; port: string; carrier: string }) => (r.acceptable?.find(same(d))?.values
+    ?? (acceptable.find((a) => a.box === d.box && a.port === d.port) ?? acceptable.find((a) => a.carrier === d.carrier))?.values ?? []);
   const relation = (i: number) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
   const lines = [
     "/-! ## The situations and the deliverables -/",
@@ -564,7 +567,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     "/-- The situations: each input at one of its declared values. -/",
     `def inputDomain : Input → Value → Bool := ${nested(inputValues.map((n) => Array.from({ length: values }, (_, v) => v < n.length)), String)}`,
     "/-- The acceptable values of each deliverable. -/",
-    `def acceptable : Deliverable → Value → Bool := ${nested(deliverables.map((d, i) => Array.from({ length: values }, (_, v) => v < deliverableValues[i].length && acceptable.find(same(d))!.values.includes(deliverableValues[i][v]))), String)}`,
+    `def acceptable : Deliverable → Value → Bool := ${nested(deliverables.map((d, i) => Array.from({ length: values }, (_, v) => v < deliverableValues[i].length && accepted(d).includes(deliverableValues[i][v]))), String)}`,
     "",
   ];
   encoded.forEach((e, i) => {

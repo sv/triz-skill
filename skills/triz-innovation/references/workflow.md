@@ -64,6 +64,32 @@ parameter → contradiction — is the backbone of problem identification. When 
 variants, ideality can be computed over the MPV set with explicit weights and normalization
 per parameter (functional over cost parameters, in the formalization of current TRIZfest work).
 
+The same chain fixes what counts as acceptable when modelled concepts are judged. Write it down
+link by link, with the evidence for each:
+
+1. **Value driver.** The MPV a stakeholder judges, e.g. "the shaft runs true under rated
+   load".
+2. **Threshold.** The amount at which it is met, in the carrier's unit, e.g. at least 2500 N of
+   radial support. A threshold is an empirical claim like the classification above: cite the
+   requirement, test, or interview it comes from.
+3. **Acceptable set.** Declare the threshold as a level on the carrier (`levels`:
+   `unsupported` from 0, `supported` from 2500), and pass the requirement, not a hand-picked
+   list, to `triz_weakness`: `acceptable: [{ carrier: "radial-load", at_least: 2500 }]`. The
+   kernel derives the acceptable values from the levels and lists them, and a requirement that is
+   not a declared threshold fails closed instead of being rounded. Use `below` for a
+   lower-is-better MPV such as latency or leakage.
+
+The same levels let `triz_feasibility` and `triz_abstraction` check that the numeric rows
+(feasibility, from the structural model) and the qualitative rows (behaviour) agree on which
+side of the threshold each component sits (categorical-model.md, Levels).
+
+To compare two concepts over the MPVs only, pass `mpv_weights` to `triz_function_model` with
+`compare_to`: each MPV that is a cost dimension (or `harmful`) with its explicit weight. The
+comparison reports the MPV axes componentwise and by the weighted sum, and lists the other axes
+on which the concepts differ, which the MPV view ignores. Weights are never invented: an MPV
+with no weight you can defend stays out of the sum, and a componentwise trade-off stays
+reported as one.
+
 ## Model
 
 ```text
