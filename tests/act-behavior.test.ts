@@ -15,6 +15,7 @@ import { FunctionModel, checkModel } from "../src/act.js";
 import { externalBehavior, trimPreservesBehavior, compareBehavior, deliverablePorts, MAX_STATES } from "../src/act-behavior.js";
 import { segment, interpose, takeOut, splitBehavior } from "../src/act-rewrite.js";
 import { findIsomorphism } from "../src/act-iso.js";
+import { cheapCopy } from "../src/act-principles.js";
 import { toolSpecs } from "../src/tools.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -287,6 +288,18 @@ test("segment, then compare through box_map: deliverables and boundary inputs ma
   const apart = compareBehavior(copier(), src.model);
   assert.ok(apart.ok && apart.verdict === "changed" && apart.reason === "counterexample", "without the map the parts' inputs are new ports, ranging apart from the baseline's");
   assert.deepEqual(apart.inputsOnlyIn.concept.map((q) => `${q.box}.${q.port}`), ["s1.a", "s2.b"]);
+});
+
+test("a cheap copy of a product under a new id keeps its behaviour and compares through its boxMap", () => {
+  const m = bearing();
+  box(m, "shaft").cost = { usd_unit: 30 };
+  const copy = cheapCopy(m, { box: "shaft", copy: { id: "hollow-shaft", cost: { usd_unit: 20 } } });
+  assert.ok(copy.ok, errors(copy));
+  assert.deepEqual(box(copy.model, "hollow-shaft").behavior, box(m, "shaft").behavior);
+  const r = compareBehavior(m, copy.model, { boxMap: copy.boxMap });
+  assert.ok(r.ok && r.verdict === "preserved");
+  const unmapped = compareBehavior(m, copy.model);
+  assert.ok(unmapped.ok && unmapped.verdict === "changed" && unmapped.reason === "lost-deliverables");
 });
 
 test("a mismatched, ambiguous, or unknown box_map is rejected, and so are inputs whose values differ", () => {

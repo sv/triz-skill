@@ -168,8 +168,8 @@ with no `sorry`:
 - a relation is the product of its projections iff it is a product at all, for two parts and
   for any family of parts.
 
-Verdicts cite only the statements they use exactly; the others are labelled semantic sanity
-lemmas in categorical-model.md.
+Verdicts cite only the statements they use exactly; categorical-model.md marks the others as
+never cited, and why.
 
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite, or
 behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
