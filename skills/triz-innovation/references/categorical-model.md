@@ -33,7 +33,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Components in series along a flow; flow analysis | `flows`: an ordered path of the boxes a carrier passes through, optionally with the `medium` box that stands for what flows | `triz_flow`: bottleneck, accumulation, and leak candidates, loops; `merge` treats boxes consecutive on a flow as adjacent | `edge_on_cycle` (loops), `flow_merge_typed`, `flow_merge_reach`; definitions `flowStep`, `mergedStep`, `mergeInto` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
-| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics`; the upstream scope against the whole, never cited: `sub`, `restrict_mem_steadyStates_sub`, `external_sub_of_external`, `external_sub_iff_of_extends`, `external_sub_univ`, `extends_of_accepts` |
 | What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation; for two such boxes, the maximal pairs of relations that stay inside (formal concepts of the safe row pairs) and cover it | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; for two boxes, `safe_iff_le_concept`, `concept_maximal`, `exists_eq₂_iff`; for two boxes with producible rows, `safe_feasible_iff`, `safe_feasible_iff_le_concept`, `concept_feasible_maximal`, `exists_eq₂_feasible_iff`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq`; for two boxes, never cited: `PreservesUnions₂.mono`, `le_safeRows_iff`, `concept_safe`, `PreservesUnions₂.cut`, `safeRows_cut` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `incomparable_of_witnesses`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_incomparable`, `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
@@ -616,11 +616,16 @@ and filters it. The test then checks that `externalBehavior` agrees with the ref
 - **Repository examples.** Every example. The bearing with declared behaviour has a decided
   relation, as given and trimmed. The others must read undecided, naming the same boxes.
 
-The test also checks the whole model against the upstream part. Every steady state of the whole
-model restricts to one of the upstream part, so the whole model relates no more on the upstream
-inputs. The two are equal when every box is upstream. A downstream negation loop and a downstream
-fan-in show that the whole model can relate strictly less while `partialDownstream` is empty.
-Lean does not state this restriction.
+The test also checks the whole model against the upstream part, and Lean states the restriction.
+The upstream part is a part of the diagram (`sub`): its boxes and ports, with each wire whose two
+ends it keeps. Every steady state of the whole model restricts to one of the upstream part
+(`restrict_mem_steadyStates_sub`), so the whole model relates no more on the upstream inputs
+(`external_sub_of_external`). The two are equal when every steady state of the part extends to one
+of the whole (`external_sub_iff_of_extends`): when every box is upstream (`external_sub_univ`), or
+when the downstream boxes and wires accept whatever the part does, as the upstream scope's
+`assumption` says (`extends_of_accepts`). A downstream negation loop and a downstream fan-in show
+that the whole model can relate strictly less while `partialDownstream` is empty. No verdict
+compares the two scopes, so no verdict cites these theorems.
 
 ## Behaviour through the constructions
 
@@ -1446,13 +1451,14 @@ The implemented guarantees are separated from future work in
   No verdict cites these theorems. The evaluator is not extracted from them. A brute-force
   transcription of the Lean definition agrees with it on 400 seeded random models and on the
   examples. That agreement is evidence on those models, not a proof about the evaluator. The
-  agreement is with the semantics of the upstream part the evaluator composes; Lean does not
-  relate that part to the whole model. `scope: "whole"` composes every box instead (tested, not
-  proved, against the same semantics). `preserved` and `changed` are certified per instance.
-  The weakness and behaviour certificates restate composition from the declared rows
-  (`Rows.relation`) and decide it there; they do not certify the evaluator either. Lean relates
-  those row tables to open diagrams (`rowsDiagram`, `rows_steady_iff`,
-  `rows_relation_iff_external`); that does not prove the TypeScript encoder.
+  agreement is with the semantics of the upstream part the evaluator composes. Lean relates that
+  part to the whole model: the whole relates no more on the upstream inputs, and the same when the
+  rest accepts whatever the part does (`external_sub_of_external`, `extends_of_accepts`).
+  `scope: "whole"` composes every box instead (tested, not proved, against the same semantics).
+  `preserved` and `changed` are certified per instance. The weakness and behaviour certificates
+  restate composition from the declared rows (`Rows.relation`) and decide it there; they do not
+  certify the evaluator either. Lean relates those row tables to open diagrams (`rowsDiagram`,
+  `rows_steady_iff`, `rows_relation_iff_external`); that does not prove the TypeScript encoder.
 - The weakest specification is decided for one or two boxes without behaviour. With three or
   more, none is computed: Lean states nothing for them, and n-adic concepts are not in Mathlib.
   - For two boxes, the safe relations are not a product of per-box residuals. Lean proves what

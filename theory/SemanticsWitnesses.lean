@@ -7,7 +7,9 @@ For each theorem of `Semantics`, a concrete diagram over `Bool` on which its hyp
 its external relation relates something, so the theorem is not vacuous. For each hypothesis of
 `external_glueAlong`, `external_feedbackAlong`, and `external_mono`, a counterexample: drop it,
 and the conclusion fails. For `holeContext_preservesUnions`, a counterexample to what it assumes
-of the hole, that it occurs once: the same relation in two holes does not preserve unions. The diagrams are generic; the loops are the identity and negation loops
+of the hole, that it occurs once: the same relation in two holes does not preserve unions. For
+`external_sub_iff_of_extends`, a part that relates strictly more than the whole, because a
+downstream box rules a steady state out. The diagrams are generic; the loops are the identity and negation loops
 of `tests/act-behavior.test.ts`.
 -/
 
@@ -432,5 +434,58 @@ example : (rowsDiagram copyTable (fun _ : Unit => false) (fun _ : Unit => true))
      ⟨fun _ => rfl, (fun _ => true), ⟨fun w => w.elim, fun _ => ⟨true, rfl, fun _ _ => rfl⟩⟩,
       fun _ _ h => by cases h; rfl, fun _ => rfl⟩).2
 
+/-! ## A part: `external_sub_of_external`, `external_sub_iff_of_extends`, `extends_of_accepts`
+
+A copy whose output (port 1, the deliverable) is wired to a downstream box (port 2) that admits only
+`false`. The upstream part is the copy on ports 0 and 1; it drops the wire. The whole relates
+`false` to `false`, so the part does (`external_sub_of_external`). The part also relates `true` to
+`true`, and the whole relates `true` to nothing: the downstream box rules it out. So the extension
+hypothesis of `external_sub_iff_of_extends` is needed, and so is `hrest` of `extends_of_accepts`.
+With every box and port kept, the part relates what the whole does (`external_sub_univ`). -/
+
+/-- Port 0 is the input, port 1 the copy's output and the deliverable, port 2 the downstream box's
+input. Box `false` copies, box `true` admits only `false`, and the one wire joins port 1 to 2. -/
+abbrev withDownstream : OpenDiagram Bool Unit Unit where
+  Port := Fin 3
+  Box := Bool
+  Wire := Unit
+  values _ := Set.univ
+  behavior b := cond b {s | s 2 = false} {s | s 1 = s 0}
+  src _ := 1
+  tgt _ := 2
+  input _ := 0
+  output _ := 1
+
+/-- The upstream part: ports 0 and 1, and the copy box. -/
+abbrev upstream : OpenDiagram Bool Unit Unit :=
+  withDownstream.sub {p : Fin 3 | p ≠ 2} {false} (fun _ => ⟨0, by decide⟩) (fun _ => ⟨1, by decide⟩)
+
+/-- The whole relates `false` to `false`, so the part does. -/
+example : upstream.external (fun _ => false) (fun _ => false) := by
+  have h : withDownstream.external (fun _ => false) (fun _ => false) :=
+    ⟨fun _ => false, ⟨fun _ => trivial, fun b => by cases b <;> rfl, fun _ => rfl⟩, rfl, rfl⟩
+  exact external_sub_of_external (fI := _root_.id) (fO := _root_.id) (fun _ => rfl) (fun _ => rfl) h
+
+/-- The part relates `true` to `true`, and the whole relates `true` to nothing. -/
+example : upstream.external (fun _ => true) (fun _ => true) ∧
+    ∀ y, ¬ withDownstream.external (fun _ => true) y := by
+  refine ⟨⟨fun _ => true, ⟨fun _ => trivial, fun ⟨b, hb⟩ => ⟨fun _ => true, ?_, rfl⟩,
+    fun w => (w.2.2 rfl).elim⟩, rfl, rfl⟩, ?_⟩
+  · rw [Set.mem_singleton_iff] at hb
+    subst hb
+    rfl
+  · rintro y ⟨s, ⟨-, hb, hw⟩, hx, -⟩
+    have h₀ : s 0 = true := congrFun hx ()
+    have h₁ : s 1 = s 0 := hb false
+    have h₂ : s 2 = false := hb true
+    have h₃ : s 1 = s 2 := hw ()
+    rw [h₁, h₀, h₂] at h₃
+    exact Bool.noConfusion h₃
+
+/-- Every box and port kept: the part relates `false` to `false`, as the whole does. -/
+example : (withDownstream.sub (I' := Unit) (O' := Unit) Set.univ Set.univ (fun _ => ⟨0, trivial⟩)
+    (fun _ => ⟨1, trivial⟩)).external (fun _ => false) (fun _ => false) := by
+  rw [external_sub_univ]
+  exact ⟨fun _ => false, ⟨fun _ => trivial, fun b => by cases b <;> rfl, fun _ => rfl⟩, rfl, rfl⟩
 
 end CategoricalTriz.SemanticsWitnesses

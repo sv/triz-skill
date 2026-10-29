@@ -12,9 +12,10 @@
  * The evaluator composes only the boxes that can reach a deliverable, so the reference is applied
  * to that upstream part, re-derived here from the wires. On the whole model, every steady state
  * restricts to one of the upstream part, so the evaluator relates at least what the whole model
- * relates on the upstream inputs; the two are equal when every box is upstream. Lean does not
- * state this restriction; the test checks it, and gives total downstream boxes that make the
- * whole model relate strictly less.
+ * relates on the upstream inputs; the two are equal when every box is upstream. Lean states this
+ * restriction for a part of a diagram (`restrict_mem_steadyStates_sub`, `external_sub_of_external`,
+ * `external_sub_univ`); the test checks it on the evaluator, and gives total downstream boxes that
+ * make the whole model relate strictly less.
  *
  * Checked on seeded random models (feedback loops, fan-out, fan-in, partial and several-valued
  * relations, missing behaviour) and on the repository's example that declares behaviour, as given
