@@ -2,8 +2,12 @@ node_modules/
 /data/
 dist/
 .pnpm-store/
+.wrangler/
 *.log
 .DS_Store
 
 # eval runner output (scripts/run-evals.mjs)
 /evals/results/
+
+# Lean build output (theory/)
+/theory/.lake/

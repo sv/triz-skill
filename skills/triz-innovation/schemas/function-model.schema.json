@@ -1,0 +1,397 @@
+{
+  "$id": "https://github.com/sv/triz-skill/skills/triz-innovation/schemas/function-model.schema.json",
+  "title": "FunctionModel",
+  "description": "TRIZ function model as a typed open wiring diagram: boxes with typed ports, wires carrying one carrier and a polarity. Generated from src/act.ts; do not edit by hand.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "domain": {
+      "type": "string",
+      "enum": [
+        "physical",
+        "software",
+        "business",
+        "cyber-physical"
+      ]
+    },
+    "system": {
+      "type": "string"
+    },
+    "carriers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Carrier"
+      }
+    },
+    "boxes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Box"
+      }
+    },
+    "wires": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Wire"
+      }
+    },
+    "budget": {
+      "description": "Resource limit per cost dimension",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!__proto__$)"
+      },
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "weights": {
+      "description": "Explicit normalization to a scalar ideality: one weight per cost dimension plus 'harmful'",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!__proto__$)"
+      },
+      "additionalProperties": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PhysicalContradiction"
+      }
+    }
+  },
+  "required": [
+    "domain",
+    "carriers",
+    "boxes",
+    "wires"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Carrier": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layer": {
+          "type": "string",
+          "enum": [
+            "material",
+            "energy",
+            "information",
+            "financial",
+            "legal",
+            "temporal"
+          ]
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"
+        }
+      },
+      "required": [
+        "id",
+        "layer",
+        "dimension"
+      ],
+      "additionalProperties": false
+    },
+    "Box": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "tool",
+            "product",
+            "mediator",
+            "environment",
+            "supersystem"
+          ],
+          "description": "Function-analysis role; environment and supersystem boxes are resources outside the engineered system"
+        },
+        "action": {
+          "description": "Main action verb, e.g. 'support', 'route', 'monetize'",
+          "type": "string"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Port"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Port"
+          }
+        },
+        "cost": {
+          "description": "Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "Port": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique within its box"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier id"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "carrier"
+      ],
+      "additionalProperties": false
+    },
+    "Wire": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "description": "Output port of the box performing the function",
+          "$ref": "#/$defs/Endpoint"
+        },
+        "to": {
+          "description": "Input port of the box the function acts on",
+          "$ref": "#/$defs/Endpoint"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier id; must equal both port carriers"
+        },
+        "polarity": {
+          "type": "string",
+          "enum": [
+            "useful",
+            "insufficient",
+            "excessive",
+            "harmful"
+          ],
+          "description": "TRIZ function rating: useful at the right level, useful but insufficient, useful but excessive, or harmful"
+        },
+        "verb": {
+          "description": "Function verb in base form, e.g. 'heat', 'cache', 'charge'",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "carrier",
+        "polarity"
+      ],
+      "additionalProperties": false,
+      "description": "A TRIZ function: a typed wire from an output port of the performing box to an input port of the box acted on"
+    },
+    "Endpoint": {
+      "type": "object",
+      "properties": {
+        "box": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "box",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "PhysicalContradiction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameter": {
+          "type": "string",
+          "minLength": 1
+        },
+        "axes": {
+          "description": "Declared cells per axis; defaults to the cells the demands name",
+          "type": "object",
+          "properties": {
+            "space": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "time": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "condition": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "direction": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "level": {
+              "minItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "demands": {
+          "minItems": 2,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Demand"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "parameter",
+        "demands"
+      ],
+      "additionalProperties": false
+    },
+    "Demand": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "values": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Admissible values of the parameter for this demand"
+        },
+        "because": {
+          "description": "The outcome the demand protects",
+          "type": "string"
+        },
+        "space": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "time": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "condition": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "direction": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "level": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "id",
+        "values"
+      ],
+      "additionalProperties": false,
+      "description": "One requirement on the parameter; where a demand omits an axis it applies across that whole axis"
+    }
+  }
+}

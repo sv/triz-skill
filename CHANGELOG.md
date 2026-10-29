@@ -6,6 +6,45 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Categorical systems kernel (`src/act.ts`): TRIZ function models as typed open wiring
+  diagrams. It is pure and shared by the stdio and hosted entries. Three new tools:
+  - `triz_function_model`: wiring type-check, harm loops, ideality profile, separation, and
+    baseline comparison.
+    - The type-check fails closed on dangling, mis-directed, or mistyped wires.
+    - Harm loops come from strongly connected components, with one witness cycle per harmful
+      or excessive function. Useful-only feedback is not reported.
+    - The ideality profile keeps each cost dimension separate. It gives a scalar ratio only
+      under explicit weights.
+    - The baseline-vs-concept comparison is componentwise, and a lost deliverable is never
+      counted as a trade-off.
+  - `triz_trim`: screens a trimming by MATRIZ rules A/B/C on carrier type and returns one
+    trimming problem per absorber. Orphaned functions block the trim.
+  - `triz_separate`: treats a physical contradiction as gluing over a finite space × time ×
+    condition × direction × level base. It returns the separating axes per pair of demands
+    and the conflict cells.
+- `function-model.schema.json` (JSON Schema 2020-12), generated from the zod model by
+  `pnpm schema`, with a drift test.
+- Physical, software, and business example models in `examples/function-models/`.
+- `theory/`: a Lean 4 / Mathlib (v4.32.2) package that proves the statements behind the
+  checks, with no `sorry`. It also states trimming as a left Kan extension, which the kernel
+  does not decide. A path-filtered `Lean` CI workflow builds it.
+- `references/categorical-model.md`: the modelling protocol, the domain working translations,
+  and what is not claimed. `sources.md` gains MATRIZ grounding for trimming rules, function
+  rating, and the five separation types, plus verified applied-category-theory references.
+- 21 kernel tests; the MCP smoke test now exercises nested-model tool input over stdio.
+
+### Changed
+
+- `workflow.md` lists all five MATRIZ separation types, adding direction.
+
+### Documented (not adopted)
+
+- 9 windows as Grothendieck fibrations, evolution trends as double-pushout rewriting, and the
+  40 principles as diagram transformations. These are recorded as analogies with sources; none
+  is implemented.
+
 ## [0.3.0] - 2026-08-18
 
 ### Added

@@ -4,6 +4,7 @@
   "mcpName": "io.github.sv/triz",
   "description": "The triz-innovation agent skill plus a deterministic, read-only MCP server for TRIZ parameters, principles, the contradiction matrix, and stage routing.",
   "type": "module",
+  "packageManager": "pnpm@12.14.0",
   "bin": {
     "triz-mcp": "dist/server.js"
   },
@@ -13,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "smoke:mcp": "node scripts/smoke-mcp.mjs",
+    "schema": "node --import tsx scripts/gen-schema.mjs",
     "evals": "node --import tsx scripts/run-evals.mjs",
     "evals:dry": "node --import tsx scripts/run-evals.mjs --suite no-recall --limit 5 --dry-run",
     "prepublishOnly": "pnpm build && pnpm typecheck && pnpm test && node scripts/smoke-mcp.mjs dist/server.js"

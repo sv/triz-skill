@@ -20,6 +20,9 @@ recalling principle numbers or matrix cells.
 | `triz_effects(query?, category?)` | Search the curated effects database by required function |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
+| `triz_function_model(model, compare_to?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison |
+| `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it |
+| `triz_separate(contradiction)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

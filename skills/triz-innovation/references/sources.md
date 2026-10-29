@@ -78,6 +78,87 @@ by mean position, full per-cell detail, fail-closed when every cell is blank. Po
 schemes (e.g. 100/90/80 points by in-cell position) exist in some prompt tools but the classical
 sources do not document in-cell ordering as a preference rank, so none is used here.
 
+## Categorical function models
+
+### TRIZ grounding
+
+The kernel behind `triz_function_model`, `triz_trim`, and `triz_separate` follows the MATRIZ
+knowledge base. Pages were checked on 2026-10-29.
+
+- [Trimming rules](https://wiki.matriz.org/docs/triz/problem-solving-tools-5807/trimming-6398/trimming-rules-6730/)
+  define three rules:
+  - Rule A: the object of the useful function is removed too.
+  - Rule B, self-service: the object performs the function itself.
+  - Rule C: another component performs it.
+
+  The page prescribes no order. It calls A the most radical, B less radical, and C the most
+  frequently used. The kernel lists absorbers by that radicality, and puts supersystem
+  resources last within rule C.
+- [Function](https://wiki.matriz.org/docs/triz/problem-solving-tools-5807/function-cost-analysis-7189/function-analysis-5611/function-modeling-5810/function-5674/)
+  rates a function useful or harmful. Only useful functions have a performance level: normal,
+  insufficient, or excessive. The kernel's `polarity` is that rating.
+- [Algorithm for resolving physical contradictions](https://wiki.matriz.org/docs/triz/problem-solving-tools-5890/contradictions/physical-contradiction-6056/algorithm-for-resolving-physical-contradictions/)
+  lists five separation types: in space, in time, in relation (conditions), in direction, and
+  at the system level. The kernel's axes are those five. Older secondary lists name four.
+
+### Formal-methods analogies (not TRIZ methodology)
+
+Applied category theory supplies the vocabulary and the shape of each check. It does not
+validate any TRIZ concept, and no result below is computed by the kernel beyond what
+[categorical-model.md](categorical-model.md) states. Each entry gives the reference, then what
+it supports here.
+
+- **Spivak (2013)**, *The operad of wiring diagrams: formalizing a graphical language for
+  databases, recursion, and plug-and-play circuits*,
+  [arXiv:1305.0297](https://arxiv.org/abs/1305.0297).
+  Typed ports and wires: the model's shape.
+- **Fong (2015)**, *Decorated cospans*, Theory and Applications of Categories 30(33), 1096–1120,
+  [arXiv:1502.00872](https://arxiv.org/abs/1502.00872).
+  Open systems that compose along their boundaries.
+- **Fong & Spivak (2019)**, *An Invitation to Applied Category Theory: Seven Sketches in
+  Compositionality*, Cambridge University Press, doi:10.1017/9781108668804.
+  Monoidal preorders, resource theories, co-design, wiring diagrams.
+- **Mac Lane**, *Categories for the Working Mathematician*, 2nd ed., Springer GTM 5 (1998),
+  chapter "Kan Extensions".
+  The trimming statement `Recoverable` in `theory/`.
+- **Fritz (2017)**, *Resource convertibility and ordered commutative monoids*, Mathematical
+  Structures in Computer Science 27(6), 850–938, doi:10.1017/S0960129515000444.
+  **Censi (2015)**, *A mathematical theory of co-design*,
+  [arXiv:1512.08055](https://arxiv.org/abs/1512.08055).
+  Resources ordered componentwise. This is why ideality here is a comparison per dimension,
+  not a sum.
+- **Abramsky & Brandenburger (2011)**, *The sheaf-theoretic structure of non-locality and
+  contextuality*, New Journal of Physics 13, 113036.
+  **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,
+  EPTCS 95, 1–14.
+  Obstructions to global sections. The separation check is the finite discrete case: a global
+  section exists iff every cell's admissible set is non-empty, so no cohomology is needed.
+- **Clarke, Elkins, Gibbons, Loregian, Milewski, Pillmore & Román (2024)**, *Profunctor optics,
+  a categorical update*, Compositionality 6, doi:10.32408/compositionality-6-1.
+  **Ghani, Hedges, Winschel & Zahn (2018)**, *Compositional game theory*, LICS '18, 472–481,
+  doi:10.1145/3209108.3209165.
+  Bidirectional composition, with forward action and back-reaction. The kernel models
+  back-reaction as reverse wires instead.
+- **Myers**, *Categorical Systems Theory*, book draft last updated 2023-09-03,
+  [davidjaz.com](https://www.davidjaz.com/Papers/DynamicalBook.pdf).
+  Open dynamical systems.
+
+Considered and not adopted:
+
+- **Baez & Master (2020)**, *Open Petri nets*, MSCS 30(3), 314–341.
+  **Baez & Pollard (2017)**, *A compositional framework for reaction networks*, Rev. Math.
+  Phys. 29, 1750028.
+  Candidates for process trimming.
+- **Grothendieck & Raynaud**, SGA 1, Springer LNM 224 (1971), Exposé VI.
+  **Spivak (2009)**, *Simplicial databases*, [arXiv:0904.2012](https://arxiv.org/abs/0904.2012).
+  9 windows as a fibration.
+- **Ehrig, Ehrig, Prange & Taentzer (2006)**, *Fundamentals of Algebraic Graph
+  Transformation*, Springer.
+  **Corradini, Montanari, Rossi, Ehrig, Heckel & Löwe (1997)**, *Algebraic approaches to graph
+  transformation, Part I*, in *Handbook of Graph Grammars and Computing by Graph
+  Transformation*, Vol. 1, World Scientific.
+  Evolution trends as double-pushout rewriting.
+
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 
 Darrell Mann's Matrix 2003 (48 parameters, rebuilt from post-Altshuller patent analysis;

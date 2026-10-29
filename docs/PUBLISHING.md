@@ -7,9 +7,22 @@ npm comes first.
 
 ## Prerequisites (one-time)
 
-- npm account: run `npm login` locally (needed for the manual path) or store an access token as
-  the `NPM_TOKEN` repo secret (needed for the Release workflow path). GitHub Actions billing
-  must be active for the workflow path.
+- **npm trusted publishing.** The Release workflow publishes with `pnpm publish` and no token:
+  pnpm exchanges the workflow's GitHub OIDC identity with npm, which attaches provenance
+  automatically. Set this up once on
+  npmjs.com:
+  1. Open `triz-mcp` → **Settings** → **Trusted publishing**, then choose **GitHub Actions**.
+  2. Enter user `sv`, repository `triz-skill`, and workflow `release.yml`. Leave the environment
+     blank and allow `npm publish`.
+  3. After the first tokenless release succeeds, set **Publishing access** to require 2FA and
+     disallow tokens. Trusted publishing keeps working, because it uses OIDC, not tokens.
+
+  The CLI equivalent is `npm trust github` (npm >= 11.15 and account 2FA required); see
+  `npm trust github --help` for its flags. Only one trusted-publisher configuration exists per
+  package. For the manual path, authenticate with `npm login` locally; pnpm reads the same
+  `~/.npmrc`.
+- **MCP Registry.** Nothing to set up: the workflow's `mcp-publisher login github-oidc` proves
+  it runs in `sv/triz-skill`, which owns the `io.github.sv/` namespace.
 - The npm name `triz-mcp` is verified free; if you ever rename it, update `server.json`
   (`packages[0].identifier`) to match.
 - `package.json` carries `mcpName: "io.github.sv/triz"` — the ownership marker the MCP Registry
@@ -25,15 +38,22 @@ npm comes first.
 
 Release flow:
 
-```bash
-# 1. land changes on main, update CHANGELOG.md
-# 2. tag
-git tag v0.2.0 && git push origin v0.2.0
-# 3. the Release workflow verifies (version==tag, typecheck, build, tests, smoke) and publishes
-#    with --provenance, then creates the GitHub release
-```
+1. On a branch, bump `package.json` `version` and both version fields in `server.json`. Then
+   move CHANGELOG `[Unreleased]` to the new version and merge through a PR; the `main` ruleset
+   requires a PR and green CI.
+2. Tag the merge commit on `main` and push the tag:
 
-Manual fallback: `npm publish --provenance --access public` after running the same gates
+   ```bash
+   git tag v0.4.0 && git push origin v0.4.0
+   ```
+
+3. The Release workflow runs two jobs:
+   - `publish` checks that all three versions match the tag, runs typecheck, build, tests, and
+     the smoke test, then runs `pnpm publish` via OIDC and creates the GitHub release.
+   - `mcp-registry` then publishes `server.json`, using a pinned, Sigstore-verified
+     `mcp-publisher`. Re-run this job on its own if the registry hiccups.
+
+Manual fallback: `pnpm publish --access public` (no provenance outside CI) after running the same gates
 locally (`pnpm build && pnpm typecheck && pnpm test && node scripts/smoke-mcp.mjs dist/server.js`).
 
 Consumers then get the one-liner: `npx -y triz-mcp`.
@@ -49,8 +69,9 @@ The registry moved from PRs to an official CLI. The prepared entry is [`server.j
 at the repo root — current format: reverse-DNS name `io.github.sv/triz`, camelCase fields,
 `transport` as an object, no tool list (the registry discovers tools at runtime).
 
-Publish after the npm package is live (the registry reads `mcpName` from the published
-package.json to verify ownership):
+The Release workflow does this automatically after npm (job `mcp-registry`). Manual fallback,
+after the npm package is live (the registry reads `mcpName` from the published package.json to
+verify ownership):
 
 ```bash
 # one-time: install the CLI (or brew install mcp-publisher)

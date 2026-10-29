@@ -1,0 +1,32 @@
+name: Lean
+
+on:
+  push:
+    branches: [main]
+    paths: ["theory/**", ".github/workflows/lean.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["theory/**", ".github/workflows/lean.yml"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    name: Build theory (no sorry)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # Mathlib oleans come from `lake exe cache get`; --wfail turns any `sorry` warning into a failure.
+      - uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: theory
+          use-mathlib-cache: true
+          use-github-cache: false
+          build: true
+          build-args: "--wfail"
+          test: false
+          lint: false
