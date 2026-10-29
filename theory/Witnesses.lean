@@ -545,7 +545,7 @@ kernel's context: a composite pair needs exactly one row of the unknown box, so 
 unions. On it, the residual covers a target the box can reach, and is empty on a target that
 depends on an input the box cannot see: there the empty relation stays inside the target while no
 relation achieves it. A monotone context that does not preserve unions breaks `le_residual_iff`,
-so `hC` is needed. -/
+and, into `SetRel Unit Bool`, `covers_iff_exists_eq` and `not_covers_iff`: `hC` is needed. -/
 
 /-- Each composite pair is produced by one row of the box. -/
 def deliver {α β γ δ : Type*} (Φ : α × β → γ × δ → Prop) (R : SetRel α β) : SetRel γ δ :=
@@ -620,6 +620,33 @@ example : Monotone allOrNothing ∧
   · have hu : (Set.univ : SetRel Unit Bool) ⊆ residual allOrNothing ∅ := fun p _ => by
       simp only [residual, allOrNothing, Set.mem_setOf_eq, if_neg (single p), subset_rfl]
     exact h.1 hu (show ((), ()) ∈ allOrNothing Set.univ by simp [allOrNothing])
+
+/-- The same shape into `SetRel Unit Bool`: the context takes only the values ∅ and everything. -/
+noncomputable def allOrNothingBool (R : SetRel Unit Bool) : SetRel Unit Bool :=
+  open Classical in if R = Set.univ then Set.univ else ∅
+
+/-- Without `hC`, `covers_iff_exists_eq` and `not_covers_iff` fail as well: the residual of
+`{((), true)}` is everything and its composite covers the target, yet no relation gives it. -/
+example : ¬ ((∃ R, allOrNothingBool R = {((), true)}) ↔
+      {((), true)} ⊆ allOrNothingBool (residual allOrNothingBool {((), true)})) ∧
+    ¬ (¬ {((), true)} ⊆ allOrNothingBool (residual allOrNothingBool {((), true)}) ↔
+      ∀ R, allOrNothingBool R ≠ {((), true)}) := by
+  have single : ∀ p : Unit × Bool, ({p} : SetRel Unit Bool) ≠ Set.univ := fun p h => by
+    have := h ▸ Set.mem_univ ((), !p.2)
+    simp [Prod.ext_iff] at this
+  have hW : residual allOrNothingBool {((), true)} = Set.univ := Set.eq_univ_of_forall fun p => by
+    simp only [residual, allOrNothingBool, Set.mem_setOf_eq, if_neg (single p), Set.empty_subset]
+  have hcov : ({((), true)} : SetRel Unit Bool) ⊆
+      allOrNothingBool (residual allOrNothingBool {((), true)}) := by
+    rw [hW]
+    simp [allOrNothingBool]
+  have hne : ∀ R, allOrNothingBool R ≠ {((), true)} := fun R h => by
+    unfold allOrNothingBool at h
+    split_ifs at h
+    · have := (Set.ext_iff.mp h ((), false)).1 trivial
+      simp at this
+    · exact (Set.ext_iff.mp h ((), true)).2 rfl
+  exact ⟨fun h => let ⟨R, hR⟩ := h.2 hcov; hne R hR, fun h => h.2 hne hcov⟩
 
 /-! ## Weakness ranking
 
