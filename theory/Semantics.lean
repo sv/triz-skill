@@ -13,16 +13,23 @@ proves that it is compositional:
 - a diagram's steady states are the valuations of all its ports that every box relation, every
   wire equality, and every port's declared values admit (`steadyStates`); its external relation
   is their projection onto the input and output interfaces (`external`);
-- gluing two diagrams in series along their matching interface gives the relational composite of
-  their external relations (`external_glueAlong`, `external_seq`); a disjoint union gives the
-  product (`external_par`); feeding outputs back to inputs gives the relational trace
-  (`external_feedbackAlong`, `external_feedback`); widening a box's relation widens the external
-  relation (`external_mono`);
+- gluing two diagrams in series gives the relational composite of their external relations when
+  the interface is fully exposed: the cross wires join exactly the matching interface ports
+  (`external_glueAlong`). `seq` glues that way by construction (`external_seq`, no hypothesis);
+- a disjoint union gives the product relation (`external_par`);
+- feeding outputs back to inputs gives the relational trace of the open relation when the loop
+  wires join exactly the matching loop ports (`external_feedbackAlong`); `feedback` does so by
+  construction (`external_feedback`);
+- widening a box's relation widens the external relation (`external_mono`);
 - series composition and the identity make open diagrams, identified when their external relations
-  agree, a category with a faithful functor to Mathlib's `RelCat` (`semantics`), and the disjoint
-  union is sent to the product of relations (`semantics_tensorHom`). The functor laws are
-  `external_seq` and `external_id`. No monoidal category structure is built: associators,
-  unitors, and their coherence are not stated.
+  agree, a category, with a faithful functor to Mathlib's `RelCat` (`semantics`). The functor laws
+  are `external_seq` and `external_id`. Diagrams side by side are sent to the product of relations
+  (`semantics_tensorHom`). No monoidal category is built: associators, unitors, and their
+  coherence are not stated.
+
+None of these needs a restriction on the diagram: fan-in, fan-out, loops, and partial or
+several-valued relations are all covered, since a wire is an equality and a box a set of
+valuations.
 
 The kernel's evaluator is not extracted from these definitions. `tests/act-semantics.test.ts`
 transcribes `steadyStates` and `external` into a brute-force reference and checks
@@ -33,9 +40,11 @@ declares `behavior` admits a valuation iff its own ports read one of its rows (`
 equates its two ports, so a port on several wires needs them all to agree (fan-in and fan-out need
 no special case); `values` are the carriers' declared values. The inputs are the unwired input
 ports and the outputs the deliverables. The evaluator composes only the boxes that can reach a
-deliverable: it computes `external` of that upstream part, not of the whole model (see
-`external_mono` for how the two compare). Nothing here needs the diagram to be finite; the
-kernel's diagrams are.
+deliverable, with their ports, the deliverables, and the wires into those ports: it computes
+`external` of that upstream part, not of the whole model. That the whole model relates no more on
+the upstream inputs is tested, not stated here; it can relate less, through a partial downstream
+box, a downstream loop, or a downstream port fed by several wires. Nothing here needs the diagram
+to be finite; the kernel's diagrams are.
 -/
 
 namespace CategoricalTriz.Semantics
@@ -299,9 +308,7 @@ def withBehavior (d : OpenDiagram V I O) (A : d.Box → Set (d.Port → V)) : Op
   { d with behavior := A }
 
 /-- Widening box relations widens the external relation: more admissible rows never remove a
-related pair. Dropping a box is widening its relation to every valuation, so the evaluator's
-upstream part, which drops every box that cannot reach a deliverable, relates at least what the
-whole diagram does on the same interface. -/
+related pair. Dropping a box's constraint is widening its relation to every valuation. -/
 theorem external_mono (d : OpenDiagram V I O) {A A' : d.Box → Set (d.Port → V)}
     (h : ∀ b, A b ⊆ A' b) : (d.withBehavior A).external ≤ (d.withBehavior A').external := by
   rintro x y ⟨s, ⟨hv, hb, hw⟩, hx, hy⟩

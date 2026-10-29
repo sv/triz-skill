@@ -191,6 +191,12 @@ with no `sorry`:
   sets;
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
   trace is monotone and yanks a swap to the identity;
+- declared behaviour has a compositional steady-state semantics (`theory/Semantics.lean`):
+  gluing open diagrams in series, with the interface fully exposed, composes their external
+  relations; a disjoint union gives the product; feedback gives the relational trace; widening a
+  box widens the relation. Diagrams up to their relations form a category with a faithful
+  functor to `RelCat`. `externalBehavior` is checked against a brute-force transcription of this
+  semantics on seeded random models and the examples, not extracted from it;
 - a relation is the product of its projections iff it is a product at all, for two parts and
   for any family of parts, and for two parts iff it is a rectangle: rows (a, b) and (c, d) give
   the row (a, d);
@@ -213,7 +219,8 @@ never cited, and why.
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite,
 behaviour-monotonicity, residual, weakness, co-design, or dynamics lemmas is vacuous. For each, a
 concrete diagram, relation, or step relation meets all its hypotheses, and a counterexample shows
-each hypothesis is needed.
+each hypothesis is needed. `theory/SemanticsWitnesses.lean` does the same for the compositional
+semantics.
 
 Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
 relational check, and its verdict depends on the absorber chosen. `theory/` does not state

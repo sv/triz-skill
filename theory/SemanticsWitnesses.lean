@@ -127,6 +127,13 @@ Copy beside negate relates `(a, b)` to `(a, !b)`. -/
 example : (par (boxOf copy) (boxOf negate)).external (fun _ => true) (Sum.elim (fun _ => true) fun _ => false) :=
   (external_par _ _ _ _).mpr ⟨(external_boxOf _ _ _).mpr rfl, (external_boxOf _ _ _).mpr rfl⟩
 
+/-! ## `external_id`
+
+The identity relates a valuation to itself. -/
+
+example : (OpenDiagram.id (V := Bool) Unit).external (fun _ => true) (fun _ => true) := by
+  rw [external_id]
+
 /-! ## `external_feedbackAlong`, `external_feedback`
 
 One box with loop input `0`, loop output `1`, and delivered port `2`, which copies the loop input:

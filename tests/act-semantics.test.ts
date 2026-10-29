@@ -10,9 +10,11 @@
  *    outputs (the deliverables).
  *
  * The evaluator composes only the boxes that can reach a deliverable, so the reference is applied
- * to that upstream part, re-derived here from the wires. On the whole model the evaluator relates
- * at least what the whole diagram relates (Lean `external_mono`: dropping a box widens its
- * relation to every valuation), and the two are equal when every box is upstream.
+ * to that upstream part, re-derived here from the wires. On the whole model, every steady state
+ * restricts to one of the upstream part, so the evaluator relates at least what the whole model
+ * relates on the upstream inputs; the two are equal when every box is upstream. Lean does not
+ * state this restriction; the test checks it, and gives total downstream boxes that make the
+ * whole model relate strictly less.
  *
  * Checked on seeded random models (feedback loops, fan-out, fan-in, partial and several-valued
  * relations, missing behaviour) and on the repository's example that declares behaviour, as given
@@ -289,8 +291,8 @@ test("externalBehavior equals the Lean semantics of its upstream part on seeded 
     if (out.noSteadyState.length) seen.empty++;
 
     // The whole model: the evaluator relates at least what the whole diagram does on the upstream
-    // inputs (external_mono). When every box is upstream the two diagrams are the same, so the
-    // agreement above is with the whole model's semantics.
+    // inputs. When every box is upstream the two diagrams are the same, so the agreement above is
+    // with the whole model's semantics.
     if (keep.size === m.boxes.length) { seen.allUpstream++; continue; }
     if (m.boxes.some((b) => !b.behavior)) continue;
     seen.downstream++;
