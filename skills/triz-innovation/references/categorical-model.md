@@ -209,13 +209,16 @@ another row of the box dominates.
 The verdict compares the minimal resource vectors with the model's `budget`. Each vector comes
 with one witness: a row per composed box, and the level demanded per output port.
 
-- `feasible`: some minimal vector is within budget on every dimension (`withinBudget`).
+- `feasible`: some minimal vector is within budget on every dimension. Those vectors are
+  listed first: `withinBudget` gives their positions in `minimal`, and `withinBudgetCount` how
+  many there are. At most 50 vectors are listed; `minimalCount` gives the total.
 - `infeasible`, reason `over-budget`: every minimal vector exceeds the budget somewhere.
   `binding` lists the dimensions that every one of them exceeds. It is empty when they exceed
   different dimensions; relaxing one dimension alone may then not help.
 - `infeasible`, reason `unprovidable`: some box has no row for what is demanded of it, so the
-  ascent ends empty, whatever the budget. The output names the box, the port, the level
-  demanded, and the most any row provides.
+  ascent ends empty, whatever the budget. The output names the box and the levels demanded of
+  it together (`demanded`). `ports` lists each port no row reaches even alone, with the most any
+  row provides there. It is empty when some row reaches each level but no row reaches them all.
 - `undecided`: reason `missing-feasibility` (a composed box declares none), `no-budget` (the
   minimal vectors are listed), or `unbudgeted` (a vector fits every budgeted dimension but
   spends on one the budget does not name).
@@ -240,8 +243,8 @@ solved by its steady states, the trace, and not by iterating up from a least val
 `triz_feasibility` asks how much is needed: levels are ordered, and requirements are monotone.
 Iterating up from nothing demanded therefore reaches the least fixpoint, and that is the answer.
 
-The antichain per step (`max_antichain`, at most 1000), the Kleene steps (`max_iterations`, at
-most 1000), and the row selections tried (1,000,000 per solve) are capped. Past a cap the call
+The antichain (`max_antichain`, at most 1000, checked at every insertion), the Kleene steps
+(`max_iterations`, at most 1000), and the row selections tried (1,000,000 per solve) are capped. Past a cap the call
 fails closed. The ascent always ends, because every coordinate takes values in a finite set:
 the declared levels, and the sums of one row per box closed under max. The antichains can still
 grow exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi

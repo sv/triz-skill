@@ -115,6 +115,11 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
 
 const leq = (a: Config, b: Config) => a.f.every((x, i) => x <= b.f[i]) && a.c.every((x, i) => x <= b.c[i]);
 const configKey = (a: Config) => JSON.stringify([a.c, a.f]);
+/** Numeric order on configurations, cost first: the order in which minimal vectors are listed. */
+const compareConfig = (a: Config, b: Config) => {
+  for (const [x, y] of [[a.c, b.c], [a.f, b.f]]) for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+};
 
 /** Add `x` to the antichain `list` unless an element already lies below it; drop the elements above it. */
 function insertMin(list: Config[], x: Config): Config[] {
@@ -124,7 +129,8 @@ function insertMin(list: Config[], x: Config): Config[] {
   return kept;
 }
 
-interface Blocked { box: string; ports: Array<{ port: string; demanded: number; provided: number }> }
+/** A box with no row for what is demanded: the joint demand, and the ports no row reaches even alone (possibly none). */
+interface Blocked { box: string; demanded: Array<{ port: string; level: number }>; ports: Array<{ port: string; demanded: number; provided: number }> }
 type Expansion = { ok: true; xs: Config[] } | { ok: true; blocked: Blocked } | Failure;
 
 /**
@@ -137,11 +143,13 @@ function expand(p: Problem, s: Config, caps: Required<Caps>, work: { candidates:
   for (const [k, box] of p.composed.entries()) {
     const eligible = p.rows[k].filter((r) => r.provide.every(([i, level]) => level >= s.f[i]));
     if (!eligible.length) {
-      const ports = p.rows[k][0].provide.flatMap(([i]) => {
+      const outs = p.rows[k][0].provide.map(([i]) => i);
+      const demanded = outs.filter((i) => s.f[i] > 0).map((i) => ({ port: p.ports[i].port, level: s.f[i] }));
+      const ports = outs.flatMap((i) => {
         const provided = Math.max(...p.rows[k].map((r) => r.provide.find(([j]) => j === i)![1]));
         return provided < s.f[i] ? [{ port: p.ports[i].port, demanded: s.f[i], provided }] : [];
       });
-      return { ok: true, blocked: { box: box.id, ports } };
+      return { ok: true, blocked: { box: box.id, demanded, ports } };
     }
     let next: Config[] = [];
     for (const a of acc) for (const r of eligible) {
@@ -149,8 +157,8 @@ function expand(p: Problem, s: Config, caps: Required<Caps>, work: { candidates:
       const f = [...a.f];
       for (const [i, level] of r.demand) f[i] = Math.max(f[i], level);
       next = insertMin(next, { f, c: a.c.map((x, i) => x + r.cost[i]), rows: [...a.rows, r.index] });
+      if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} partial selections while composing box '${box.id}'. Declare fewer rows or split the model`] };
     }
-    if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} partial selections while composing box '${box.id}'. Declare fewer rows or split the model`] };
     acc = next;
   }
   return { ok: true, xs: acc };
@@ -173,8 +181,10 @@ function solve(p: Problem, caps: Required<Caps>): Solution {
       const e = expand(p, s, caps, work);
       if (!e.ok) return e;
       if ("blocked" in e) { blocked ??= e.blocked; continue; }
-      for (const x of e.xs) next = insertMin(next, { f: x.f.map((v, i) => Math.max(v, s.f[i])), c: x.c.map((v, i) => Math.max(v, s.c[i])), rows: [] });
-      if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} configurations at step ${k}. Declare fewer rows or split the model`] };
+      for (const x of e.xs) {
+        next = insertMin(next, { f: x.f.map((v, i) => Math.max(v, s.f[i])), c: x.c.map((v, i) => Math.max(v, s.c[i])), rows: [] });
+        if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} configurations at step ${k}. Declare fewer rows or split the model`] };
+      }
     }
     peak = Math.max(peak, next.length);
     if (!next.length) return { ok: true, blocked: blocked!, iterations: k, peak, candidates: work.candidates };
@@ -184,7 +194,7 @@ function solve(p: Problem, caps: Required<Caps>): Solution {
     // A fixpoint: each minimal configuration has a row selection that fits under it (codesign_lfp).
     // Project onto the cost dimensions and keep the minimal vectors, one configuration each.
     const minimal: Array<{ s: Config; witness: Config }> = [];
-    for (const s of [...S].sort((a, b) => configKey(a).localeCompare(configKey(b)))) {
+    for (const s of [...S].sort(compareConfig)) {
       if (S.some((t) => t.c.every((x, i) => x <= s.c[i]) && t.c.some((x, i) => x < s.c[i]))) continue;
       if (minimal.some((m) => m.s.c.every((x, i) => x === s.c[i]))) continue;
       const e = expand(p, s, caps, work);
@@ -205,20 +215,20 @@ function judge(model: FunctionModel, dims: string[], vectors: number[][]) {
   const budget = model.budget;
   const over = vectors.map((v) => dims.filter((d, i) => budget && own(budget, d) !== undefined && v[i] > own(budget, d)!));
   const unbudgeted = vectors.map((v) => dims.filter((d, i) => budget && own(budget, d) === undefined && v[i] > 0));
-  if (!budget) return { verdict: "undecided" as const, reason: "no-budget" as const, over, note: "The model declares no budget: the minimal resource vectors are listed, but nothing decides whether they are affordable." };
+  if (!budget) return { verdict: "undecided" as const, reason: "no-budget" as const, over, within: [] as number[], note: "The model declares no budget: the minimal resource vectors are listed, but nothing decides whether they are affordable." };
   const within = vectors.flatMap((_, i) => (!over[i].length && !unbudgeted[i].length ? [i] : []));
-  if (within.length) return { verdict: "feasible" as const, over, withinBudget: within, note: "At least one minimal resource vector is within budget on every dimension (withinBudget lists them)." };
+  if (within.length) return { verdict: "feasible" as const, over, within, note: "At least one minimal resource vector is within budget on every dimension. Those are listed first; withinBudget gives their positions in minimal, and withinBudgetCount how many there are." };
   if (over.every((o) => o.length)) {
     const binding = dims.filter((d) => over.every((o) => o.includes(d)));
     return {
-      verdict: "infeasible" as const, reason: "over-budget" as const, over, binding,
+      verdict: "infeasible" as const, reason: "over-budget" as const, over, within, binding,
       note: binding.length
         ? `Every minimal resource vector exceeds the budget on ${binding.map((d) => `'${d}'`).join(", ")}: no configuration of the declared rows fits.`
         : "Every minimal resource vector exceeds the budget, but on different dimensions: no single dimension binds (binding is empty). Relaxing one dimension alone may not help; see each vector's overBudget.",
     };
   }
   const dimsUsed = [...new Set(unbudgeted.flatMap((u, i) => (over[i].length ? [] : u)))].sort();
-  return { verdict: "undecided" as const, reason: "unbudgeted" as const, over, unbudgeted: dimsUsed, note: `A minimal resource vector fits every budgeted dimension but uses ${dimsUsed.map((d) => `'${d}'`).join(", ")}, which the budget does not limit.` };
+  return { verdict: "undecided" as const, reason: "unbudgeted" as const, over, within, unbudgeted: dimsUsed, note: `A minimal resource vector fits every budgeted dimension but uses ${dimsUsed.map((d) => `'${d}'`).join(", ")}, which the budget does not limit.` };
 }
 
 /** The model's minimal resource vectors and their verdict against its budget. */
@@ -238,21 +248,28 @@ export function feasibility(model: FunctionModel, caps: Caps = {}) {
   if (!s.ok) return s;
   const stats = { composed, fixed, iterations: s.iterations, antichainPeak: s.peak, candidates: s.candidates, basis: SOLUTION };
   if ("blocked" in s) {
+    const b = s.blocked;
     return {
-      ok: true as const, verdict: "infeasible" as const, reason: "unprovidable" as const, unprovidable: s.blocked, ...stats,
-      note: `No row of '${s.blocked.box}' provides what the requirements demand of it (${s.blocked.ports.map((q) => `'${q.port}': ${q.demanded} demanded, at most ${q.provided} provided`).join("; ")}), so no configuration of the declared rows works, whatever the budget.`,
+      ok: true as const, verdict: "infeasible" as const, reason: "unprovidable" as const, unprovidable: b, ...stats,
+      note: (b.ports.length
+        ? `No row of '${b.box}' provides what the requirements demand of it (${b.ports.map((q) => `'${q.port}': ${q.demanded} demanded, at most ${q.provided} provided`).join("; ")})`
+        : `No single row of '${b.box}' provides the demanded levels together (${b.demanded.map((q) => `'${q.port}': ${q.level}`).join(", ")}), though some row reaches each of them alone`)
+        + ", so no configuration of the declared rows works, whatever the budget.",
     };
   }
   const totals = s.minimal.map(({ s: x }) => x.c.map((v, i) => v + p.fixed[i]));
-  const { over, ...verdict } = judge(model, p.dims, totals);
-  const minimal = s.minimal.map(({ s: x, witness }, i) => ({
+  const { over, within, ...verdict } = judge(model, p.dims, totals);
+  const all = s.minimal.map(({ s: x, witness }, i) => ({
     resources: record(p.dims, totals[i]),
     operating: record(p.dims, x.c),
     overBudget: over[i],
     rows: p.composed.map((b, k) => ({ box: b.id, row: witness.rows[k] })),
     levels: p.ports.flatMap((e, k) => (x.f[k] > 0 ? [{ ...e, level: x.f[k] }] : [])),
   }));
-  return { ok: true as const, ...verdict, minimal: minimal.slice(0, LISTED), minimalCount: minimal.length, ...stats };
+  // Affordable vectors first, so every withinBudget position resolves to a listed witness.
+  const order = [...within, ...all.map((_, i) => i).filter((i) => !within.includes(i))];
+  const affordable = verdict.verdict === "feasible" ? { withinBudget: within.slice(0, LISTED).map((_, k) => k), withinBudgetCount: within.length } : {};
+  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, LISTED).map((i) => all[i]), minimalCount: all.length, ...stats };
 }
 
 type Result = ReturnType<typeof feasibility>;

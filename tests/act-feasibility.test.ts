@@ -134,8 +134,56 @@ test("unprovidable: no housing row carries the shaft's load, whatever the budget
   box(weak, "housing").feasibility![1].provides = { bore: 2000 };
   const r = trimFeasibility(weak, { trim: ["bearing"] });
   assert.ok(r.ok && r.verdict === "infeasible" && r.reason === "unprovidable");
-  assert.deepEqual(r.unprovidable, { box: "housing", ports: [{ port: "bore", demanded: 2500, provided: 2000 }] });
+  assert.deepEqual(r.unprovidable, { box: "housing", demanded: [{ port: "bore", level: 2500 }], ports: [{ port: "bore", demanded: 2500, provided: 2000 }] });
   assert.match(r.absorbers[0].addedUnavailable!, /trimmed model has no minimal resource vector/);
+});
+
+/** One supplier box per entry, each with rows `rows(output)`, feeding product P one input each. */
+function suppliers(rows: Record<string, (out: string) => FeasibilityRow[]>, budget: Record<string, number>, outputs: string[] = ["o"]): FunctionModel {
+  const ids = Object.keys(rows);
+  return {
+    domain: "software",
+    carriers: [{ id: "c", layer: "information", dimension: "unit" }],
+    boxes: [
+      ...ids.map((id) => ({ id, name: id, role: "tool" as const, outputs: outputs.map((o) => ({ id: o, carrier: "c" })), feasibility: rows[id](outputs[0]) })),
+      { id: "P", name: "P", role: "product", inputs: ids.flatMap((id) => outputs.map((o) => ({ id: `${id}.${o}`, carrier: "c" }))),
+        feasibility: [{ requires: Object.fromEntries(ids.flatMap((id) => outputs.map((o) => [`${id}.${o}`, 1]))) }] },
+    ],
+    wires: ids.flatMap((id) => outputs.map((o) => ({ id: `w-${id}-${o}`, from: { box: id, port: o }, to: { box: "P", port: `${id}.${o}` }, carrier: "c", polarity: "useful" as const }))),
+    budget,
+  };
+}
+
+test("unprovidable jointly: some row reaches each demanded level, but no row reaches them together", () => {
+  const m = suppliers({ A: (): FeasibilityRow[] => [{ provides: { x: 1 } }, { provides: { y: 1 } }] }, {}, ["x", "y"]);
+  const r = feasibility(m);
+  assert.ok(r.ok && r.verdict === "infeasible" && r.reason === "unprovidable");
+  assert.deepEqual(r.unprovidable, { box: "A", demanded: [{ port: "x", level: 1 }, { port: "y", level: 1 }], ports: [] });
+  assert.match(r.note, /No single row of 'A' provides the demanded levels together \('x': 1, 'y': 1\), though some row reaches each of them alone/);
+  assert.doesNotMatch(r.note, /\(\)/);
+});
+
+test("affordable vectors are listed first, so withinBudget resolves past the listing limit", () => {
+  // 51 incomparable rows; only row 9, costing { a: 9, b: 41 }, fits the budget.
+  const m = suppliers({ S: (o) => Array.from({ length: 51 }, (_, i) => ({ provides: { [o]: 1 }, cost: { a: i, b: 50 - i } })) }, { a: 9, b: 41 });
+  const r = feasibility(m);
+  assert.ok(r.ok && r.verdict === "feasible");
+  assert.deepEqual([r.minimalCount, r.minimal.length, r.withinBudget, r.withinBudgetCount], [51, 50, [0], 1]);
+  assert.deepEqual([r.minimal[0].resources, r.minimal[0].overBudget, r.minimal[0].rows], [{ a: 9, b: 41 }, [], [{ box: "S", row: 9 }, { box: "P", row: 0 }]]);
+  assert.ok(r.minimal.slice(1).every((v) => v.overBudget.length), "every other listed vector is over budget");
+  assert.deepEqual(r.minimal.slice(1, 4).map((v) => v.resources.a), [0, 1, 2], "the rest follow in numeric order");
+});
+
+test("the antichain cap holds at every insertion, before two fronts multiply", () => {
+  // Two suppliers with 20 incomparable rows each on disjoint dimensions: their product has 400 minimal elements.
+  const front = (d: [string, string]) => (o: string) => Array.from({ length: 20 }, (_, i) => ({ provides: { [o]: 1 }, cost: { [d[0]]: i, [d[1]]: 19 - i } }));
+  const m = suppliers({ A: front(["a", "b"]), B: front(["c", "d"]) }, {});
+  // Failing on the antichain within 100 candidates means the cap fired at insertion 21 of box B, not after all 400.
+  assert.match(errors(feasibility(m, { maxAntichain: 20, maxCandidates: 100 })), /the antichain passed 20 partial selections while composing box 'B'/);
+  const small = suppliers({ A: front(["a", "b"]), B: (o) => [{ provides: { [o]: 1 } }] }, {});
+  assert.match(errors(feasibility(small, { maxAntichain: 19 })), /the antichain passed 19 partial selections while composing box 'A'/);
+  const fits = feasibility(small, { maxAntichain: 20 });
+  assert.ok(fits.ok && fits.verdict === "undecided" && fits.reason === "unbudgeted" && fits.minimalCount === 20);
 });
 
 test("undecided: missing feasibility, no budget, an unbudgeted dimension in use; the trimmed box needs none", () => {
@@ -207,7 +255,7 @@ test("resource loops: Kleene's ascent escalates the loop to its least fixpoint, 
   // A generator that needs more flow than the pump can give: the demand runs past every row.
   const runaway = feasibility(pumpLoop(18, [[6, 8, 2], [12, 25, 4]]));
   assert.ok(runaway.ok && runaway.verdict === "infeasible" && runaway.reason === "unprovidable");
-  assert.deepEqual(runaway.unprovidable, { box: "pump", ports: [{ port: "flow-out", demanded: 25, provided: 20 }] });
+  assert.deepEqual(runaway.unprovidable, { box: "pump", demanded: [{ port: "flow-out", level: 25 }], ports: [{ port: "flow-out", demanded: 25, provided: 20 }] });
   assert.equal(runaway.iterations, 4);
 });
 
