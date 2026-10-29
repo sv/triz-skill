@@ -186,7 +186,8 @@ decides a concept against a baseline instead of only screening it: `preserved`, 
 a counterexample input, or `undecided` (boxes that need behaviour, or no steady state in either
 model). The concept can be a trim or any `triz_transform` result; a segment's `boxMap` maps its
 parts back. Segmentation gives each part its projection of the box's relation when that relation
-is the product of the projections, and Intermediary's mediator can declare an identity relation.
+is the product of the projections, and suggests the finest partition of the box's ports for
+which it is; Intermediary's mediator can declare an identity relation.
 The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
 weakest specification for the one box without behaviour, such as an absorber: every row that
 keeps the relation inside the target. The verdict is `spec` when that specification also covers
@@ -406,6 +407,13 @@ construction.
 - The code in this repository is MIT licensed (`LICENSE`). That license covers the code and the
   original prose, not third-party data noted above.
 
+
+## Roadmap
+
+The ranked backlog of the categorical-model work — certificates for the verdicts that have
+none, properties to promote from tested to proved, and the larger categorical closures — lives
+in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in
+categorical-model.md's "What is not claimed".
 
 ## Publishing and distribution
 

@@ -155,7 +155,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
     "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
     "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
-    "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff",
+    "IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -168,7 +169,8 @@ test("lemmas no verdict uses exactly are proved but never listed as a verdict ba
   const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
     "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans",
     // Helpers of the two-box statements the kernel cites, and dynamics read as behaviour, which the kernel does not compute.
-    "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed"];
+    "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed",
+    "Factors.inf", "Factors.mono", "Factors.onPorts", "exists_isFinest", "IsFinest.unique", "IsFinest.rel_iff", "factors_bot_iff", "factors_empty", "isFinest_onPorts_empty"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
     assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);
@@ -236,7 +238,7 @@ test("a pure trim cites trim_lowers_cost for its cost relief, and only when a tr
   assert.deepEqual([none.costRelief, none.costBound], [{}, undefined]);
 });
 
-test("behaviour constructions cite what they use: comp_eq for an identity mediator, the product characterisations for a split", async () => {
+test("behaviour constructions cite what they use: comp_eq for an identity mediator, the product characterisations for a split, the finest factorisation for its suggestion", async () => {
   const behaving = example("bearing-heat-behavior");
   const via = (behavior: unknown) => call("triz_transform", { model: behaving, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior } } });
   assert.deepEqual((await via("identity")).behavior.basis, ["Relation.comp_eq"]);
@@ -249,4 +251,6 @@ test("behaviour constructions cite what they use: comp_eq for an identity mediat
   assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff_rectangle"]);
   assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_prod_iff"]);
   assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_pi_iff"]);
+  const suggested = (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: [{ id: "a", ports: ["preload-in"] }, { id: "b", ports: ["race", "friction"] }] } })).behavior.finest;
+  assert.deepEqual(suggested.basis, ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"]);
 });
