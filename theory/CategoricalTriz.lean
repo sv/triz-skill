@@ -107,6 +107,19 @@ theorem edge_on_cycle {u v : β} (huv : r u v) (hvu : Relation.ReflTransGen r v 
     Relation.TransGen r u u :=
   Relation.TransGen.head' huv hvu
 
+/-- Reachability passes to a quotient: when every edge maps to an edge or into one class, every
+path maps to a path. `merge` (Principle 5) is such a quotient of the boxes; it can close new
+loops, which is why the kernel lists them. -/
+theorem reach_quotient {γ : Type*} {s : γ → γ → Prop} (q : β → γ)
+    (h : ∀ a b, r a b → q a = q b ∨ s (q a) (q b)) {u v : β} (huv : Relation.ReflTransGen r u v) :
+    Relation.ReflTransGen s (q u) (q v) := by
+  induction huv with
+  | refl => exact .refl
+  | tail _ hbc ih =>
+    rcases h _ _ hbc with heq | hs
+    · exact heq ▸ ih
+    · exact ih.tail hs
+
 end Loops
 
 /-! ## Label blindness
@@ -230,6 +243,48 @@ theorem typed_reroute [DecidableEq W] {w₀ : W} {a : B} {q : P} (h : d.Typed) (
     exact ⟨ha, ht, hq, hi⟩
   · simp only [reroute, Function.update_of_ne hw₀]
     exact ⟨hs, ht, ho, hi⟩
+
+/-- Re-attach wire `w₀` to input port `q` of box `a`: the other end of `reroute`. -/
+def retarget [DecidableEq W] (w₀ : W) (a : B) (q : P) : Wiring B P W C :=
+  { d with tgt := Function.update d.tgt w₀ (a, q) }
+
+/-- Typing survives moving a wire's target to a present box whose input port carries the wire's
+carrier (`retarget`, Principle 22). -/
+theorem typed_retarget [DecidableEq W] {w₀ : W} {a : B} {q : P} (h : d.Typed) (ha : a ∈ d.boxes)
+    (hq : d.inp a q = some (d.carrier w₀)) : (d.retarget w₀ a q).Typed := by
+  intro w hw
+  obtain ⟨hs, ht, ho, hi⟩ := h w hw
+  by_cases hw₀ : w = w₀
+  · subst hw₀
+    simp only [retarget, Function.update_self]
+    exact ⟨hs, ha, ho, hq⟩
+  · simp only [retarget, Function.update_of_ne hw₀]
+    exact ⟨hs, ht, ho, hi⟩
+
+/-- Reversing a wire (`reverse`, Principle 13): its source moves to output `q` of its old target
+box and its target to input `p` of its old source box. Typing survives when both ports carry the
+wire's carrier. -/
+theorem typed_reverse [DecidableEq W] {w₀ : W} {p q : P} (h : d.Typed)
+    (hq : d.out (d.tgt w₀).1 q = some (d.carrier w₀))
+    (hp : d.inp (d.src w₀).1 p = some (d.carrier w₀)) :
+    ((d.reroute w₀ (d.tgt w₀).1 q).retarget w₀ (d.src w₀).1 p).Typed := by
+  by_cases hw₀ : w₀ ∈ d.wires
+  · obtain ⟨hs, ht, -, -⟩ := h w₀ hw₀
+    exact (d.reroute w₀ (d.tgt w₀).1 q).typed_retarget (d.typed_reroute h ht hq) hs hp
+  · intro w hw
+    have hne : w ≠ w₀ := fun e => hw₀ (e ▸ hw)
+    simp only [retarget, reroute, Function.update_of_ne hne]
+    exact h w hw
+
+/-- Declaring more ports keeps typing: every port a wire uses keeps its carrier (`reverse` adding
+a named port). -/
+theorem typed_extend {out' inp' : B → P → Option C}
+    (ho : ∀ b p c, d.out b p = some c → out' b p = some c)
+    (hi : ∀ b p c, d.inp b p = some c → inp' b p = some c) (h : d.Typed) :
+    ({ d with out := out', inp := inp' } : Wiring B P W C).Typed := by
+  intro w hw
+  obtain ⟨hs, ht, hso, hti⟩ := h w hw
+  exact ⟨hs, ht, ho _ _ _ hso, hi _ _ _ hti⟩
 
 /-- The subsystem view on boxes `A`: wires with both ends in `A`. -/
 def restrict (A : Set B) : Wiring B P W C :=
@@ -438,6 +493,16 @@ variable {ι D : Type*}
 theorem trim_lowers_cost (cost : ι → D → ℝ) (hc : ∀ i, 0 ≤ cost i) {kept all : Finset ι}
     (h : kept ⊆ all) : ∑ i ∈ kept, cost i ≤ ∑ i ∈ all, cost i :=
   Finset.sum_le_sum_of_subset_of_nonneg h fun i _ _ => hc i
+
+/-- Replacing one part's cost vector by a componentwise lower one raises no dimension of the
+total (`cheap_copy`, Principles 26 and 27). -/
+theorem cheaper_part_lowers_cost [DecidableEq ι] (cost : ι → D → ℝ) (s : Finset ι) {i₀ : ι}
+    {c : D → ℝ} (hc : c ≤ cost i₀) : ∑ i ∈ s, Function.update cost i₀ c i ≤ ∑ i ∈ s, cost i :=
+  Finset.sum_le_sum fun i _ => by
+    by_cases hi : i = i₀
+    · subst hi
+      simpa using hc
+    · simp [Function.update_of_ne hi]
 
 /-- A trade-off: two cost vectors neither of which dominates the other (Mathlib's `IncompRel`),
 which `compareIdeality` reports as `trade-off`. -/

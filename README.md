@@ -90,7 +90,7 @@ missing.
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
-| `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
+| `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
@@ -117,7 +117,9 @@ Any dangling, mis-directed, or mistyped wire fails closed. The checks cover:
 Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
 typed moves. Each returns a model that type-checks, or fails closed:
 
-- Segmentation, Taking out, and Intermediary, each matched to its principle text;
+- constructions for the 13 principles whose looked-up text describes a structural move, such
+  as Segmentation, Merging, Inversion, Feedback, and Intermediary; categorical-model.md
+  classifies all 40 and says why the others are parametric or analogies;
 - an applied trim;
 - a raw rewrite.
 
