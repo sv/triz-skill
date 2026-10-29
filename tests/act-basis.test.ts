@@ -49,6 +49,21 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     if (m.wires.length) collect(await call("triz_transform", { model: m, transformation: { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } } }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
+  const bearing = example("bearing-heat"), cache = example("software-cache");
+  for (const [model, transformation] of [
+    [bearing, { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } }],
+    [cache, { op: "rerate", wire: "w-rows", polarity: "excessive" }],
+    [cache, { op: "feedback", wire: { id: "w-back", from: { box: "app", port: "lookup" }, to: { box: "postgres", port: "sql" }, carrier: "query", polarity: "useful" } }],
+    [bearing, { op: "retarget", wire: "w-heat", to: { box: "air", port: "sink" } }],
+    [cache, { op: "reverse", wire: "w-lookup", ports: { from: "push", to: "pushed" } }],
+    [cache, { op: "standby", box: "postgres", standby: { id: "replica", name: "Replica" } }],
+    [bearing, { op: "cheap_copy", box: "bearing", copy: { id: "bushing", cost: { usd_unit: 5 } } }],
+  ] as const) {
+    const r = await call("triz_transform", { model, transformation });
+    assert.equal(r.ok, true, `${transformation.op}: ${r.errors}`);
+    collect(r);
+  }
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   for (const n of cited) assert.ok((THEOREMS as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });

@@ -14,12 +14,14 @@ import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
+import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
 type GraphModule = typeof import("./graph.js");
 
 const Id = z.string().min(1);
+const Cost = z.record(z.string(), z.number().nonnegative());
 const Transformation = z.discriminatedUnion("op", [
   z.strictObject({
     op: z.literal("segment"),
@@ -46,7 +48,48 @@ const Transformation = z.discriminatedUnion("op", [
     op: z.literal("trim"),
     trim: z.array(Id).min(1),
     absorb: z.record(z.string(), act.Endpoint).optional().describe("Function wire id → absorber output port; default: the first absorber triz_trim lists"),
-  }).describe("Apply a typed-feasible trim: delete the boxes and re-attach each kept function to an absorber"),
+  }).describe("Apply a typed-feasible trim: delete the boxes and re-attach each kept function to an absorber. A rule-B absorber is Principle 25 (Self-service); one box absorbing every function is Principle 6 (Universality)"),
+  z.strictObject({
+    op: z.literal("merge"),
+    boxes: z.array(Id).min(2),
+    into: z.strictObject({ id: Id, name: z.string().min(1), role: act.Role.optional(), action: z.string().optional() })
+      .describe("The merged box; role defaults to the boxes' shared role"),
+    reading: z.enum(["adjacent", "identical"]).optional().describe("'adjacent' (default): functions inside the group join every box; 'identical': same role and the same carriers on each side"),
+  }).describe("Principle 5 (Merging): collapse adjacent or identical boxes into one; functions inside are hidden and listed, and harms the merge closes into a loop are listed"),
+  z.strictObject({
+    op: z.literal("rerate"),
+    wire: Id,
+    polarity: act.Polarity,
+    reading: z.enum(["partial", "feedback"]).optional().describe("'partial' (default, Principle 16): a useful function becomes insufficient or excessive; 'feedback' (Principle 23): a function on a cycle changes level among useful, insufficient, excessive"),
+    cost: Cost.optional().describe("The performing box's cost after the change; default: unchanged"),
+  }).describe("Principles 16 (Partial or excessive action) and 23 (Feedback, magnitude): change a function's rating; reports the harm loops created and removed"),
+  z.strictObject({
+    op: z.literal("feedback"),
+    wire: act.Wire.describe("The new function; its object must already reach its performer"),
+  }).describe("Principle 23 (Feedback): add a function that closes a loop; reports whether it is a control loop or a harm loop"),
+  z.strictObject({
+    op: z.literal("retarget"),
+    wire: Id.describe("A harmful function"),
+    to: act.Endpoint.describe("An input port of the same carrier that the factor should act on usefully"),
+    keep_harm: z.boolean().optional().describe("Keep the harmful function and add the useful one beside it; default: redirect the factor"),
+    id: Id.optional().describe("Id of the useful function; default: the wire's id, or '<wire>/used' with keep_harm"),
+  }).describe("Principle 22 (Blessing in disguise): the harmful function's source port feeds a useful function"),
+  z.strictObject({
+    op: z.literal("reverse"),
+    wire: Id,
+    ports: z.strictObject({ from: Id.optional(), to: Id.optional() }).optional()
+      .describe("Output port on the old object and input port on the old performer; a named port the box lacks is added with the wire's carrier"),
+  }).describe("Principle 13 (The other way round): swap a function's performer and object"),
+  z.strictObject({
+    op: z.literal("standby"),
+    box: Id.describe("The box whose loss is to be cushioned"),
+    standby: z.strictObject({ id: Id, name: z.string().min(1), role: act.Role.optional(), action: z.string().optional(), cost: Cost.optional() }),
+  }).describe("Principle 11 (Beforehand cushioning): add an unwired box that is a typed absorber of every useful function the box performs"),
+  z.strictObject({
+    op: z.literal("cheap_copy"),
+    box: Id,
+    copy: z.strictObject({ id: Id.optional(), name: z.string().optional(), cost: Cost.describe("Lower on at least one dimension, higher on none") }),
+  }).describe("Principles 26 (Copying) and 27 (Cheap short-living objects): replace a box by a copy with the same ports and a lower cost"),
   z.strictObject({
     op: z.literal("rewrite"),
     delete: z.strictObject({ boxes: z.array(Id).optional(), wires: z.array(Id).optional() }).optional(),
@@ -77,6 +120,13 @@ function transform(model: act.FunctionModel, t: Transformation) {
     case "interpose": return interpose(model, { wire: t.wire, mediator: t.mediator, polarity: t.polarity, ids: t.ids });
     case "trim": return applyTrim(model, { trim: t.trim, absorb: t.absorb });
     case "rewrite": return rewrite(model, { delete: t.delete, add: t.add });
+    case "merge": return merge(model, { boxes: t.boxes, into: t.into, reading: t.reading });
+    case "rerate": return rerate(model, { wire: t.wire, polarity: t.polarity, reading: t.reading, cost: t.cost });
+    case "feedback": return feedback(model, { wire: t.wire });
+    case "retarget": return retarget(model, { wire: t.wire, to: t.to, keepHarm: t.keep_harm, id: t.id });
+    case "reverse": return reverse(model, { wire: t.wire, ports: t.ports });
+    case "standby": return standby(model, { box: t.box, standby: t.standby });
+    case "cheap_copy": return cheapCopy(model, { box: t.box, copy: t.copy });
   }
 }
 
@@ -203,7 +253,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_transform",
-      description: "Apply one typed model transformation and return the new model: segment (Principle 1: divide a box into parts whose ports partition its ports), take_out (Principle 2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), interpose (Principle 24: route a function through a new mediator box), trim (perform a typed-feasible trim, re-attaching each kept function to an absorber), or rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing segment's or take_out's boxMap as box_map.",
+      description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing a returned boxMap as box_map.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
     },

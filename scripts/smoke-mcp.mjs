@@ -91,6 +91,9 @@ if (badExport.ok !== false) fail("mistyped export did not fail closed");
 const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
 console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);
 if (!trimmed.ok || trimmed.chosen[0].box !== "housing") fail("applied trim wrong");
+const merged = await json("triz_transform", { model, transformation: { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } } });
+console.log(`triz_transform merge bearing+shaft -> hidden harms ${merged.hiddenHarms}`);
+if (!merged.ok || merged.hiddenHarms.join() !== "w-heat") fail("merge wrong");
 const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
 if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
 
