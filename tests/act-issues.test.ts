@@ -312,6 +312,8 @@ const cases: Case[] = [
   { code: "carrier-mismatch", tool: "triz_abstraction", args: { detailed: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }), coarse: bh(), map: { boxes: { motor: "motor" } } }, path: "$.detailed.wires[0].carrier" },
   // triz_export and certificates
   { code: "carrier-mismatch", tool: "triz_export", args: { format: "lean", model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) }, path: "$.model.wires[0].carrier" },
+  // The shared specs carry no layout engine, as on the hosted server.
+  { code: "format-unavailable", tool: "triz_export", args: { format: "svg", model: bh() }, path: "$.format", hint: /format 'dot' .*'mermaid'/ },
   { code: "invalid-namespace", kernel: () => modelCertificate(bh(), { namespace: "end x" }), input: { model: bh(), namespace: "end x" }, path: "$.namespace" },
   // producible rows and dynamics and weakness certificates
   { code: "producible-with-rows", tool: "triz_function_model", args: { model: edit("bearing-heat-behavior", (m) => { box(m, "housing").producible = box(m, "housing").behavior; }) },

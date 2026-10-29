@@ -41,6 +41,7 @@ export const ISSUE_CODES = {
   "unknown-cost-dimension": "A cost dimension is not one the box declares",
   "cap-exceeded": "A search or encoding passed its cap",
   "internal-error": "An invariant of the kernel failed; the input is not at fault",
+  "format-unavailable": "The export format needs a layout engine this server does not have",
   // Tool argument combinations
   "box-map-without-compare-to": "box_map was passed without compare_to",
   "absorb-without-trim": "absorb was passed without trim",

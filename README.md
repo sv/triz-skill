@@ -93,7 +93,7 @@ missing.
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
-| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, an open hypergraph, or a Lean certificate of its verdicts |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
@@ -202,6 +202,19 @@ it with `dot -Tsvg`. Format `mermaid` renders as is in GitHub and GitLab markdow
 chat clients; Mermaid has no ports, so each edge names its ports and carrier instead.
 
 ![A function model drawn by triz_export format dot](docs/img/function-model-dot.svg)
+
+Format `svg` returns the picture itself, with no Graphviz needed. The server lays the model out
+with [elkjs](https://github.com/kieler/elkjs): boxes left to right, ports fixed on the box sides,
+and orthogonal edges. It then writes a self-contained SVG with the same conventions as `dot`.
+Hover a box or edge to see its id. Text widths are estimated from Helvetica and Arial metrics,
+so a much wider font may run past a box. elkjs (about 1.6 MB) is an optional dependency: it is
+installed with `triz-mcp` unless optional dependencies are omitted (`--omit=optional`), and
+without it the format answers `ok: false` with `format-unavailable`. The hosted Worker does not
+offer the format. elkjs would more than double the script, it does not start on workerd as
+published, and a first layout costs more CPU than a Free-plan request allows (see
+`src/worker.ts`).
+
+![The same model drawn by triz_export format svg](docs/img/function-model-svg.svg)
  Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
