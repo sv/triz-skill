@@ -429,10 +429,13 @@ blocked, and past the cap on table reads.
 
 Check a certificate with `node scripts/certify.mjs <file>`:
 
-- **Locally**, when `theory/` is built: `lake env lean` against it, at the repo's Mathlib pin.
-- **Remotely** otherwise: the theory and the certificate go to the AXLE service (environment
-  `lean-4.32.2`, no key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own
-  revision, which may differ from the pin. The MCP server and the Worker never call AXLE.
+- **Locally**, the default: `lake env lean` against `theory/`, at the repo's Mathlib pin. If
+  `theory/` is not built, the script stops and names both options; it never falls back to the
+  network.
+- **Remotely**, only with `--remote`: the certificate, which holds the model's ids and tables,
+  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.32.2`, no
+  key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own revision, which
+  may differ from the pin. The MCP server and the Worker never call AXLE.
 
 A certificate is accepted only if all of these hold:
 
@@ -895,7 +898,10 @@ another row of the box dominates.
   on a port that only harmful functions feed fails closed.
 - **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
   upstream of them along non-harmful wires are composed, and each must declare feasibility.
-  Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
+  So a box that declares feasibility joins the solve wherever it sits, even off the product's
+  chain: one of its rows is chosen in every selection, so that row's demand and operating cost
+  count in every minimal vector, an unsupplied requirement fails the call, and an unprovidable
+  one makes the verdict `infeasible`. Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
   build new boxes without feasibility, as without behaviour.
 - **Resources.** A resource vector is every box's fixed `cost` plus the operating cost of the
   rows chosen, per cost dimension. Dimensions are never summed together.

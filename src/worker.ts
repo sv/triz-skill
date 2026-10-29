@@ -7,6 +7,11 @@
  * and installed into the pure core via useProvider. The fs-backed graph tools
  * (triz_graph / triz_purpose) are intentionally not registered here.
  *
+ * No authentication and `access-control-allow-origin: *`, by choice: this is a stateless,
+ * read-only public utility with no storage bindings and no secrets, so any origin may drive it.
+ * An operator who wants it private can check a token below before `handler`, list allowed
+ * origins in CORS instead of `*`, or put the route behind Cloudflare Access or a rate limit.
+ *
  * Deploy: npx wrangler deploy   (wrangler.jsonc at repo root)
  * Endpoint: https://triz-mcp.<account-subdomain>.workers.dev/mcp
  */
