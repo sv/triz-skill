@@ -854,7 +854,7 @@ export function laggingSubsystem(model: FunctionModel) {
     const b = byId.get(id)!;
     const operating = (dim: string) => minimal.some((v) => {
       const k = v.rows.find((r) => r.box === id)?.row;
-      return k !== undefined && (get(b.feasibility![k].cost, dim) ?? 0) > 0;
+      return k !== undefined && (get(b.feasibility?.[k]?.cost, dim) ?? 0) > 0;
     });
     const dims = binding.filter((dim) => (get(b.cost, dim) ?? 0) > 0 || operating(dim));
     const limits = model.wires.filter((w) => w.from.box === id && products.has(w.to.box) && w.polarity === "insufficient").map((w) => w.id).sort();
