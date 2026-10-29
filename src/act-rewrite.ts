@@ -22,6 +22,7 @@
  * structural part of a principle checkable. It does not show that the principle solves anything.
  */
 import { checkModel, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
+import { REWRITE, type Theorem } from "./act-basis.js";
 
 type Box = FunctionModel["boxes"][number];
 type Wire = FunctionModel["wires"][number];
@@ -41,7 +42,7 @@ export interface RewriteStep {
 }
 
 /** Apply one rewrite step at an occurrence named by id. Fails closed on every condition. */
-export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; model: FunctionModel } | Failure {
+export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; model: FunctionModel; basis: Theorem[] } | Failure {
   const check = checkModel(model);
   if (!check.ok) return { ok: false, errors: check.errors };
   const errors: string[] = [];
@@ -68,7 +69,7 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
   if (errors.length) return { ok: false, errors };
   const result: FunctionModel = { ...model, boxes: [...keptBoxes, ...addBoxes], wires: [...keptWires, ...addWires] };
   const after = checkModel(result);
-  return after.ok ? { ok: true, model: result } : { ok: false, errors: after.errors.map((e) => `result: ${e}`) };
+  return after.ok ? { ok: true, model: result, basis: REWRITE } : { ok: false, errors: after.errors.map((e) => `result: ${e}`) };
 }
 
 export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports: string[]; }
@@ -131,6 +132,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
     boxMap: Object.fromEntries(partIds.map((p) => [p, box.id])),
     independent: between.length === 0,
     between,
+    basis: r.basis,
     note: "Typing is preserved; whether the parts can really work apart is a design question to substantiate.",
   };
 }
@@ -218,6 +220,7 @@ export function interpose(model: FunctionModel, spec: {
     ok: true as const,
     model: r.model,
     legs: legs.map((l) => l.id),
+    basis: r.basis,
     note: "The mediator's cost and any new harms it brings are modelled only if you add them; legs inherit the original rating unless overridden.",
   };
 }
@@ -264,6 +267,7 @@ export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?:
     noLongerNeeded: screen.functions.filter((f) => f.rule === "A").map((f) => f.wire),
     dropped: screen.dropped,
     removedHarms: screen.removedHarms,
+    basis: [...r.basis, "typed_reroute"] as Theorem[],
     note: "Compare with the baseline via triz_function_model compare_to. Each absorber is a trimming problem to solve; its added cost and new harms are not modelled.",
   };
 }

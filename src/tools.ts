@@ -11,6 +11,7 @@ import * as triz from "./core.js";
 import * as act from "./act.js";
 import { exportModel } from "./act-export.js";
 import { findIsomorphism } from "./act-iso.js";
+import { analysisBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -53,6 +54,16 @@ const Transformation = z.discriminatedUnion("op", [
   }).describe("General rewrite at an occurrence named by id: no-dangling condition, fresh ids, typed result"),
 ]);
 type Transformation = z.infer<typeof Transformation>;
+
+/**
+ * Analysis with each verdict's Lean basis. Given a baseline, the comparison also says whether the
+ * two models share a wiring shape, ignoring ids and labels.
+ */
+function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel) {
+  const r = analysisBasis(act.analyseModel(model, compareTo));
+  if (!r.ok || !compareTo || !r.comparison) return r;
+  return { ...r, comparison: { ...r.comparison, isomorphism: findIsomorphism(compareTo, model) } };
+}
 
 function transform(model: act.FunctionModel, t: Transformation) {
   switch (t.op) {
@@ -145,12 +156,12 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_function_model",
-      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison. Any dangling, mis-directed, or mistyped wire, or an invalid embedded contradiction, fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
+      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison plus an isomorphism check: whether the two models share a wiring shape ignoring every id and label (a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs; decided:false if the bounded search runs out). Each verdict cites the theorem in theory/CategoricalTriz.lean it relies on (basis). Any dangling, mis-directed, or mistyped wire, or an invalid embedded contradiction, fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
       shape: {
         model: act.FunctionModel.describe("The model to analyse (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),
       },
-      handler: async ({ model, compare_to }: { model: act.FunctionModel; compare_to?: act.FunctionModel }) => text(act.analyseModel(model, compare_to)),
+      handler: async ({ model, compare_to }: { model: act.FunctionModel; compare_to?: act.FunctionModel }) => text(functionModel(model, compare_to)),
     },
     {
       name: "triz_trim",
@@ -159,7 +170,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         model: act.FunctionModel,
         trim: z.array(z.string().min(1)).min(1).describe("Ids of the boxes to remove"),
       },
-      handler: async ({ model, trim }: { model: act.FunctionModel; trim: string[] }) => text(act.trimCandidates(model, trim)),
+      handler: async ({ model, trim }: { model: act.FunctionModel; trim: string[] }) => text(trimBasis(act.trimCandidates(model, trim))),
     },
     {
       name: "triz_separate",
@@ -169,8 +180,8 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         along: act.Axis.optional().describe("Axis to index the parameter by, e.g. 'time' for stages"),
       },
       handler: async ({ contradiction, along }: { contradiction: act.PhysicalContradiction; along?: act.Axis }) => {
-        const result = act.separationCheck(contradiction);
-        return text(along && result.ok ? { ...result, along: act.dynamize(contradiction, along) } : result);
+        const result = separationBasis(act.separationCheck(contradiction));
+        return text(along && result.ok ? { ...result, along: dynamizeBasis(act.dynamize(contradiction, along)) } : result);
       },
     },
     {
@@ -181,12 +192,6 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         format: z.enum(["dot", "hypergraph"]),
       },
       handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" }) => text(exportModel(model, format)),
-    },
-    {
-      name: "triz_isomorphic",
-      description: "Decide whether two function models have the same wiring shape, ignoring every id and label (names, verbs, domain, carrier layer and dimension): a bijection preserving box roles, port sides, shared carriers, wiring, polarities, and cost values per dimension. Returns the mapping when found. Isomorphic models get the same kernel verdicts; that says the kernel reads only shape, not that a TRIZ solution transfers between domains. Answers decided:false if the bounded search runs out.",
-      shape: { a: act.FunctionModel, b: act.FunctionModel },
-      handler: async ({ a, b }: { a: act.FunctionModel; b: act.FunctionModel }) => text(findIsomorphism(a, b)),
     },
     {
       name: "triz_transform",

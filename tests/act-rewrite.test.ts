@@ -272,8 +272,9 @@ test("kernel construction tools answer over the shared spec", async () => {
   assert.deepEqual(trim.chosen.map((c: { box: string }) => c.box), ["app"]);
   const bad = await call("triz_transform", { model: example("bearing-heat"), transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
   assert.equal(bad.ok, false);
-  const iso = await call("triz_isomorphic", { a: example("bearing-heat"), b: example("connection-pool") });
-  assert.equal(iso.isomorphic, true);
+  const compared = await call("triz_function_model", { model: example("connection-pool"), compare_to: example("bearing-heat") });
+  assert.equal(compared.comparison.isomorphism.isomorphic, true);
+  assert.equal(specs.triz_isomorphic, undefined);
   const grid = await call("triz_nine_windows", { present: example("software-cache"), subsystem: ["app", "redis"] });
   assert.equal(grid.ok, true);
   const sep = await call("triz_separate", { contradiction: example("bearing-heat").contradictions![0], along: "time" });

@@ -13,6 +13,7 @@
  *                       `decided: false`, never "not isomorphic".
  */
 import { checkModel, type FunctionModel } from "./act.js";
+import type { Theorem } from "./act-basis.js";
 
 export interface ModelMapping {
   boxes: Record<string, string>;
@@ -228,5 +229,6 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
   };
   const verified = checkIsomorphism(a, b, mapping);
   if (!verified.ok) throw new Error(`internal: search returned an unverified mapping: ${verified.errors.join("; ")}`);
-  return { ok: true as const, decided: true as const, isomorphic: true as const, mapping };
+  // Isomorphic models get the same verdicts: typing and harm cycles transport along the bijection.
+  return { ok: true as const, decided: true as const, isomorphic: true as const, mapping, basis: ["typed_rename", "transGen_equiv"] as Theorem[] };
 }

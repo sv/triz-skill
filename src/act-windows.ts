@@ -18,6 +18,10 @@
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { rewrite } from "./act-rewrite.js";
+import type { Theorem } from "./act-basis.js";
+
+/** A restriction keeps typing, and zooming twice is zooming once. */
+const RESTRICT: Theorem[] = ["typed_restrict", "restrict_restrict"];
 
 type Box = FunctionModel["boxes"][number];
 type Wire = FunctionModel["wires"][number];
@@ -52,6 +56,7 @@ export function restrict(model: FunctionModel, boxes: string[]) {
       entering: model.wires.filter((w) => !keep.has(w.from.box) && keep.has(w.to.box)).map((w) => w.id),
       leaving: model.wires.filter((w) => keep.has(w.from.box) && !keep.has(w.to.box)).map((w) => w.id),
     },
+    basis: RESTRICT,
   };
 }
 
@@ -101,6 +106,7 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     model: r.model,
     hidden: hidden.map((w) => w.id),
     hiddenHarms: hidden.filter((w) => w.polarity === "harmful" || w.polarity === "excessive").map((w) => w.id),
+    basis: r.basis,
   };
 }
 
@@ -144,11 +150,11 @@ export function nineWindows(spec: {
       time,
       status: "ok" as const,
       subsystem: sub?.ok
-        ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)) }
+        ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)), basis: sub.basis }
         : { empty: true, absent: spec.subsystem },
       system: summary(m),
       supersystem: sup?.ok
-        ? { ...summary(sup.model), collapsed: group, hidden: sup.hidden, hiddenHarms: sup.hiddenHarms, model: sup.model }
+        ? { ...summary(sup.model), collapsed: group, hidden: sup.hidden, hiddenHarms: sup.hiddenHarms, model: sup.model, basis: sup.basis }
         : { empty: true, reason: "no box to collapse into the system" },
     };
   });

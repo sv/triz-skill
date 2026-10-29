@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_isomorphic", "triz_transform", "triz_nine_windows"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -73,6 +73,11 @@ console.log(`triz_trim bearing -> ${trim.verdict} via ${trim.functions?.[0]?.abs
 if (trim.verdict !== "typed-feasible" || trim.functions[0].absorbers[0].box !== "housing") fail("trim screen wrong");
 const mistyped = await json("triz_function_model", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] } });
 if (mistyped.ok !== false) fail("mistyped wire did not fail closed");
+
+const compared = await json("triz_function_model", { model, compare_to: model });
+console.log(`triz_function_model compare_to self -> isomorphic=${compared.comparison?.isomorphism?.isomorphic}, basis=${compared.comparison?.isomorphism?.basis}`);
+if (compared.comparison?.isomorphism?.isomorphic !== true) fail("compare_to isomorphism missing");
+if (names.includes("triz_isomorphic")) fail("triz_isomorphic should be folded into triz_function_model");
 
 const dot = await json("triz_export", { model, format: "dot" });
 console.log(`triz_export dot -> ${dot.content?.split("\n").length} lines`);
