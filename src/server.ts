@@ -17,10 +17,11 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import "./data.js"; // installs the fs-backed provider (side effect)
 import { toolSpecs, bindV1 } from "./tools.js";
 import * as graph from "./graph.js";
+import { loadElk } from "./elk.js";
 import { version } from "./version.js";
 
 const server = new McpServer({ name: "triz-mcp", version });
-bindV1(server, toolSpecs({ graph }));
+bindV1(server, toolSpecs({ graph, layout: loadElk }));
 
 async function main() {
   await server.connect(new StdioServerTransport());
