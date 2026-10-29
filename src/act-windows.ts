@@ -167,15 +167,18 @@ function differing<X extends { id: string }>(a: X[], b: X[]): string[] {
   return [...new Set([...ka.keys(), ...kb.keys()])].filter((id) => ka.get(id) !== kb.get(id)).sort();
 }
 
-/** Two models agree on boxes, wires, and carriers as data (array order ignored). */
+/** Two models agree on boxes, wires, carriers, and flows as data (array order ignored). */
 function sameStructure(a: FunctionModel, b: FunctionModel) {
-  const diff = { boxes: differing(a.boxes, b.boxes), wires: differing(a.wires, b.wires), carriers: differing(a.carriers, b.carriers) };
-  return { same: !diff.boxes.length && !diff.wires.length && !diff.carriers.length, diff };
+  const diff = { boxes: differing(a.boxes, b.boxes), wires: differing(a.wires, b.wires), carriers: differing(a.carriers, b.carriers), flows: differing(a.flows ?? [], b.flows ?? []) };
+  return { same: Object.values(diff).every((d) => !d.length), diff };
 }
 
-/** Boxes in `keep` and wires with both ends in it; unlike restrict, an empty or partial set is fine. */
+/**
+ * Boxes in `keep` and wires with both ends in it; unlike restrict, an empty or partial set is fine.
+ * Flows are dropped: the subsystem part of a step, and restrict_rewrite, concern boxes and wires.
+ */
 function within(model: FunctionModel, keep: Set<string>): FunctionModel {
-  const { budget: _budget, contradictions: _contradictions, ...rest } = model;
+  const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
   return { ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter((w) => keep.has(w.from.box) && keep.has(w.to.box)) };
 }
 
@@ -190,9 +193,16 @@ function netStep(a: FunctionModel, b: FunctionModel) {
   const changedWires = new Set(differing(a.wires, b.wires));
   const kept = (w: Wire) => !changedWires.has(w.id) && keptBoxes.has(w.from.box) && keptBoxes.has(w.to.box);
   const keptWires = new Set(a.wires.filter(kept).map((w) => w.id));
+  const changedFlows = new Set(differing(a.flows ?? [], b.flows ?? []));
   const step: RewriteStep = {
-    delete: { boxes: a.boxes.filter((x) => !keptBoxes.has(x.id)).map((x) => x.id), wires: a.wires.filter((w) => !keptWires.has(w.id)).map((w) => w.id) },
-    add: { boxes: b.boxes.filter((x) => !keptBoxes.has(x.id)), wires: b.wires.filter((w) => !keptWires.has(w.id)) },
+    delete: {
+      boxes: a.boxes.filter((x) => !keptBoxes.has(x.id)).map((x) => x.id), wires: a.wires.filter((w) => !keptWires.has(w.id)).map((w) => w.id),
+      ...(changedFlows.size ? { flows: (a.flows ?? []).filter((f) => changedFlows.has(f.id)).map((f) => f.id) } : {}),
+    },
+    add: {
+      boxes: b.boxes.filter((x) => !keptBoxes.has(x.id)), wires: b.wires.filter((w) => !keptWires.has(w.id)),
+      ...(changedFlows.size ? { flows: (b.flows ?? []).filter((f) => changedFlows.has(f.id)) } : {}),
+    },
   };
   const replay = rewrite(a, step);
   return replay.ok && sameStructure(replay.model, b).same ? { ok: true as const, step } : { ok: false as const };
@@ -260,11 +270,13 @@ function transition<T extends { op: string }>(
   if (!net.ok) return invalid([`${key}: internal: the net step does not replay; please report`]);
   const sub = stepInSubsystem(start, model, net.step, keep);
   if (!sub) return invalid([`${key}: internal: restriction does not commute with the step; please report`]);
+  const flowsChanged = differing(start.flows ?? [], model.flows ?? []);
   return {
     from, to, status: "ok" as const,
     snapshot: target ? "reached" as const : "derived" as const,
     applied,
     step: ids(net.step),
+    ...(flowsChanged.length ? { flowsChanged } : {}),
     subsystem: sub,
     ...(target ? {} : { model }),
   };
@@ -275,8 +287,8 @@ function transition<T extends { op: string }>(
  * stable box ids. `transitions` links them by transformation sequences, applied in order with
  * `apply` (triz_transform's operations at the tool boundary): `past_to_present` needs `past` and
  * must reach `present`; `present_to_future` must reach `future` if one is given, and otherwise
- * derives it. A sequence that fails, or that does not reach the snapshot (boxes, wires, and
- * carriers compared by id and content; array order ignored; other fields not compared), fails
+ * derives it. A sequence that fails, or that does not reach the snapshot (boxes, wires, carriers,
+ * and flows compared by id and content; array order ignored; other fields not compared), fails
  * closed. Each transition is reported as one net step and as its part inside the subsystem.
  *
  * `subsystem` names the boxes to zoom into (ids absent from a snapshot are listed, not invented).

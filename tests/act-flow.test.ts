@@ -209,7 +209,13 @@ test("every construction carries flows: each result type-checks, and flows follo
   assert.deepEqual(flow(typed(restated, "restated"), "bleed"), ["valve-b", "ground"]);
 
   const windows = await call("triz_nine_windows", { present: m, subsystem: ["pump", "valve-a", "valve-b"], transitions: { present_to_future: [{ op: "trim", trim: ["valve-a"] }] } });
-  assert.ok(windows.windows.every((w: { errors?: string[] }) => !w.errors), JSON.stringify(windows.windows.filter((w: { errors?: string[] }) => w.errors)));
+  assert.equal(windows.ok, true, JSON.stringify(windows.transitions));
+  const [step] = windows.transitions;
+  assert.deepEqual([step.status, step.step.delete.boxes, step.flowsChanged], ["ok", ["valve-a"], ["loop"]]);
+  const reached = await call("triz_nine_windows", { present: m, future: trimmed.model, subsystem: ["pump"], transitions: { present_to_future: [{ op: "trim", trim: ["valve-a"] }] } });
+  assert.equal(reached.transitions[0].snapshot, "reached");
+  const missed = await call("triz_nine_windows", { present: m, future: { ...trimmed.model, flows: m.flows!.slice(1) }, subsystem: ["pump"], transitions: { present_to_future: [{ op: "trim", trim: ["valve-a"] }] } });
+  assert.match(missed.transitions[0].errors.join(), /differ at flows \[loop\]/);
 });
 
 test("a rule may not delete a box a flow passes (no-dangling)", () => {
