@@ -5,6 +5,7 @@ import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
@@ -154,7 +155,7 @@ target `(box, port)`, and a carrier. `out b p = some c` says box `b` has an outp
 carrier `c`; `inp` does the same for input ports. `Typed` is `checkModel`'s condition. The
 statements below say that typing does not depend on labels, and that the rewrite steps the
 constructions are built from keep it. The TypeScript is checked against them by tests, not by
-extraction. -/
+extraction; a single `checkModel` verdict can also be certified (see Certificates below). -/
 
 structure Wiring (B P W C : Type*) where
   boxes : Set B
@@ -400,6 +401,9 @@ theorem boundary_rewrite (r : Rule B W) (A : Set B) :
   simp only [boundary, rewrite, glue, delete, Set.mem_setOf_eq, Set.mem_union, Set.mem_sdiff]
   tauto
 
+/-- Box `a` acts on box `b`: some wire runs from `a` to `b`. `harmLoops` searches this graph. -/
+def Acts (a b : B) : Prop := ∃ w ∈ d.wires, (d.src w).1 = a ∧ (d.tgt w).1 = b
+
 end Wiring
 
 /-! ## The level axis as a presheaf, and the restriction rows over time as a functor
@@ -480,6 +484,34 @@ def Wiring.restrictionGrid (r₁ r₂ : Wiring.Rule B W) : Fin 3 × (Set B)ᵒ�
     (ComposableArrows.mk₂ (Wiring.rewriteOn (P := P) (C := C) r₁) (Wiring.rewriteOn r₂))
 
 end Presheaf
+
+/-! ## Certificates
+
+`triz_export` format `lean` writes one model's verdicts as a Lean file that imports this one.
+The file encodes the model as finite tables and states each verdict about them in the terms
+above: `Wiring.Typed`, `Wiring.Acts` with `edge_on_cycle`, and `IsSection` with
+`exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`. Lean checks each
+verdict for that one instance; nothing is extracted. The vocabulary those files share is here,
+so a certificate defines data, not meaning. -/
+
+section Certificates
+
+/-- The set a Bool table picks out: how a certificate writes a region or a set of values. -/
+def ofTable {α : Type*} (t : α → Bool) : Set α := {a | t a = true}
+
+instance {α : Type*} (t : α → Bool) : DecidablePred (· ∈ ofTable t) :=
+  fun a => inferInstanceAs (Decidable (t a = true))
+
+/-- A TRIZ function rating, as in the model's `polarity`. -/
+inductive Rating | useful | insufficient | excessive | harmful
+  deriving DecidableEq
+
+/-- Harmful and excessive functions are the ones `harmLoops` reports. -/
+def Rating.Negative (r : Rating) : Prop := r = .harmful ∨ r = .excessive
+
+instance : DecidablePred Rating.Negative := fun _ => inferInstanceAs (Decidable (_ ∨ _))
+
+end Certificates
 
 /-! ## Ideality as a componentwise comparison (`idealityProfile`, `compareIdeality`)
 

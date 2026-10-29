@@ -92,7 +92,7 @@ missing.
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
-| `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
@@ -131,7 +131,11 @@ is steady state; it says nothing about dynamics.
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
-on; a test checks that every cited name is a theorem there. The structured verdicts of the
+on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
+separation verdicts can also be certified per instance: `triz_export` format `lean` (or
+`triz_separate` with `certificate: true`) writes a Lean file that states them about the model
+and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
+AXLE service. Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
@@ -166,6 +170,7 @@ trimming as a Kan extension; categorical-model.md says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
+node scripts/certify.mjs --tamper theory/Certificates/*.lean   # check certificates; tampered copies must fail
 cd theory && lake exe cache get && lake build --wfail
 ```
 

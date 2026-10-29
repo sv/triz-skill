@@ -9,7 +9,8 @@
 import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
-import { exportModel } from "./act-export.js";
+import { exportModel, CERTIFICATE_NOTE } from "./act-export.js";
+import { separationCertificate } from "./act-cert.js";
 import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
@@ -235,24 +236,32 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_separate",
-      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand. With `along`, also returns the parameter as a function of that axis alone: the admissible values per cell and whether it must change along the axis (with 'time', the checkable part of Principle 15, Dynamics).",
+      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand. With `along`, also returns the parameter as a function of that axis alone: the admissible values per cell and whether it must change along the axis (with 'time', the checkable part of Principle 15, Dynamics). With `certificate: true`, also returns a Lean file that states these separation verdicts about this contradiction and proves them against theory/CategoricalTriz.lean, so Lean can check this one result.",
       shape: {
         contradiction: act.PhysicalContradiction,
         along: act.Axis.optional().describe("Axis to index the parameter by, e.g. 'time' for stages"),
+        certificate: z.boolean().optional().describe("Also return a Lean certificate of the separation verdicts (check it with scripts/certify.mjs)"),
       },
-      handler: async ({ contradiction, along }: { contradiction: act.PhysicalContradiction; along?: act.Axis }) => {
+      handler: async ({ contradiction, along, certificate }: { contradiction: act.PhysicalContradiction; along?: act.Axis; certificate?: boolean }) => {
         const result = separationBasis(act.separationCheck(contradiction));
-        return text(along && result.ok ? { ...result, along: dynamizeBasis(act.dynamize(contradiction, along)) } : result);
+        if (!result.ok) return text(result);
+        const cert = certificate ? separationCertificate(contradiction) : undefined;
+        if (cert && !cert.ok) return text(cert);
+        return text({
+          ...result,
+          ...(along ? { along: dynamizeBasis(act.dynamize(contradiction, along)) } : {}),
+          ...(cert ? { certificate: { format: "lean", content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } } : {}),
+        });
       },
     },
     {
       name: "triz_export",
-      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (boxes as record nodes with input and output port fields, functions as edges; harmful red, insufficient dashed, excessive bold), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface). A model that fails the type-check is not exported (ok:false with the errors).",
+      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (boxes as record nodes with input and output port fields, functions as edges; harmful red, insufficient dashed, excessive bold), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
       shape: {
         model: act.FunctionModel,
-        format: z.enum(["dot", "hypergraph"]),
+        format: z.enum(["dot", "hypergraph", "lean"]),
       },
-      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" }) => text(exportModel(model, format)),
+      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" | "lean" }) => text(exportModel(model, format)),
     },
     {
       name: "triz_transform",

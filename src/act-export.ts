@@ -1,6 +1,7 @@
 /**
- * Exports of a checked function model (src/act.ts). Both fail closed: a model that does not
- * pass checkModel is never drawn or encoded.
+ * Exports of a checked function model (src/act.ts). All fail closed: a model that does not
+ * pass checkModel is never drawn or encoded. Format `lean` is the per-instance certificate of
+ * src/act-cert.ts.
  *
  *  - toDot          — Graphviz DOT: boxes as record nodes (inputs | name | outputs), wires as
  *                     edges between port fields, styled by polarity.
@@ -15,11 +16,12 @@
  * Pure: no filesystem, so the hosted Worker entry can bundle it.
  */
 import { checkModel, type FunctionModel, type Polarity } from "./act.js";
+import { modelCertificate } from "./act-cert.js";
 
 type Box = FunctionModel["boxes"][number];
 type Port = NonNullable<Box["inputs"]>[number];
 
-export type ExportFormat = "dot" | "hypergraph";
+export type ExportFormat = "dot" | "hypergraph" | "lean";
 
 /** Record-label text: backslash-escape the characters records treat as structure. */
 const recordText = (s: string) => s.replace(/\s+/g, " ").replace(/[\\{}|<>"]/g, "\\$&");
@@ -213,10 +215,16 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
   return check.ok ? { ok: true, model } : { ok: false, errors: check.errors };
 }
 
+export const CERTIFICATE_NOTE = "Lean checks these verdicts for this one instance; nothing is extracted. Save as a .lean file and, in a checkout of github.com/sv/triz-skill, run `node scripts/certify.mjs <file>`: Lean against theory/ when it is built, otherwise the AXLE service (which you then trust). The id tables are the encoding; read them to see that the data is your model.";
+
 /** Export after type-checking; fails closed with the checkModel errors. */
 export function exportModel(model: FunctionModel, format: ExportFormat) {
   const check = checkModel(model);
   if (!check.ok) return { ok: false as const, errors: check.errors };
+  if (format === "lean") {
+    const cert = modelCertificate(model);
+    return cert.ok ? { ok: true as const, format, content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } : cert;
+  }
   return format === "dot"
     ? { ok: true as const, format, content: toDot(model), note: "Render with Graphviz: dot -Tsvg model.dot > model.svg. Harmful functions are red, insufficient dashed, excessive bold." }
     : { ok: true as const, format, content: toHypergraph(model), note: "Vertices are ports typed by carrier; hyperedges are boxes and functions; interface = unwired input and output ports." };

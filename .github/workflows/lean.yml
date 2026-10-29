@@ -3,10 +3,10 @@ name: Lean
 on:
   push:
     branches: [main]
-    paths: ["theory/**", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.mjs", ".github/workflows/lean.yml"]
   pull_request:
     branches: [main]
-    paths: ["theory/**", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.mjs", ".github/workflows/lean.yml"]
   # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
   workflow_dispatch:
 
@@ -32,3 +32,12 @@ jobs:
           build-args: "--wfail"
           test: false
           lint: false
+
+      # The certificate fixtures were built above; this applies the acceptance rule (no warning,
+      # every theorem elaborated, standard axioms only) and checks that tampered copies fail.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Certificates (acceptance + tamper)
+        run: node scripts/certify.mjs --local --tamper theory/Certificates/*.lean

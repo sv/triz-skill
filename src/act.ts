@@ -462,7 +462,7 @@ const MAX_CELLS = 10_000;
  * principles that apply; a pair overlapping on every axis is irreducible at this resolution.
  */
 /** The finite base of a contradiction: declared (or named) cells per axis. Fails closed on undeclared cells. */
-function baseOf(pc: PhysicalContradiction) {
+export function baseOf(pc: PhysicalContradiction) {
   const errors: string[] = [];
   for (const id of duplicates(pc.demands.map((d) => d.id))) errors.push(`duplicate demand id '${id}'`);
   const universe = {} as Record<Axis, string[]>;
