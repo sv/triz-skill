@@ -17,13 +17,14 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Flow (substance, energy, data, money) | carrier with `layer` and `dimension` | — | — |
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
-| Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
+| Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated over abstract functors, `recoverable_id`; not linked to the kernel, not decided |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute` |
-| System operator (9 windows), level axis | restriction to a subsystem; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset` |
+| System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
+| System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
 Ratings follow the MATRIZ function definition. A function is useful or harmful. Only useful
 functions have a performance level: normal, insufficient, or excessive. A back-reaction is
@@ -72,6 +73,18 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
    window is returned as a prompt to fill.
+
+   To say how one time becomes the next, give `transitions`: `past_to_present`, or
+   `present_to_future`, as a list of `triz_transform` operations. The kernel applies them in
+   order. If the later snapshot is given, the result must equal it; otherwise the result
+   becomes the future. A step that fails, or a result that misses the snapshot, fails closed.
+   Each transition reports:
+   - `step`: the net rewrite, as deleted and added box and wire ids;
+   - `subsystem.step`: its part inside the subsystem, which takes the earlier subsystem view to
+     the later one;
+   - `subsystem.withinSubsystem`: the transition is its own part, so it touches nothing outside;
+   - `subsystem.interiorUnchanged`: the part is empty;
+   - `subsystem.boundary`: the crossing functions the transition cuts and adds.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape.
 
@@ -120,9 +133,19 @@ example cohort churn against fee changes. Name it only from that evidence.
 
 ## What is not claimed
 
-- Nothing computes a Kan extension, an optic or lens, sheaf cohomology, or a Grothendieck
-  fibration. The categorical names identify the structure each check is a necessary condition
-  of. Of those statements, only the trimming one is stated in Lean, and it is not decided.
+- Nothing computes a Kan extension, an optic or lens, or a Grothendieck fibration.
+  - Trimming as a Kan extension: `Recoverable` states it over abstract functors, and its one
+    theorem, `recoverable_id`, is the case where nothing is trimmed. No theorem links it to
+    `Wiring`, `triz_trim`, or the applied trim, and nothing decides it.
+  - The system operator is not claimed to be a fibration. What is proved is a functor from the
+    time chain times the opposite poset of box sets to sets (`Wiring.restrictionGrid`). It
+    covers the subsystem and system rows, not the supersystem collapse, and no Grothendieck
+    construction is built.
+- Sheaf cohomology is not computed, and none is needed on the base the separation check uses.
+  That base is a finite set of cells with no further structure. On it, a global assignment
+  exists exactly when every cell admits a value (`exists_section_iff`). So the only obstruction
+  to gluing is a cell with no admissible value, and the cell scan finds every such cell. Nothing
+  is claimed for a base whose regions carry more structure.
 - Rewrites are not a double-pushout rewriting system.
   - A rewrite is applied at an occurrence named by id, and the kernel checks the no-dangling
     condition.
@@ -144,8 +167,29 @@ example cohort churn against fee changes. Name it only from that evidence.
   with ordered sources and targets, plus an interface. The encoding is this kernel's own choice.
   Ports are the vertices, and one port may carry several functions: fan-out, or a useful and a
   harmful function on the same pair of ports.
-- The 9-windows time axis is the snapshots the caller writes; no transition between times is
-  computed. The system operator as a fibration stays an analogy.
+- The 9 windows, as proved in `theory/`:
+  - The level axis is a presheaf. `supportedOn` sends a set of boxes to the diagrams it
+    supports, and an inclusion to restriction. Typed diagrams form a sub-presheaf, `typedOn`.
+  - Restriction commutes with every rewrite step once the step is restricted too
+    (`restrict_rewrite`, no hypothesis). A step that adds nothing outside the subsystem applies
+    to it unchanged (`restrict_rewrite_of_inside`). The boundary changes by exactly the crossing
+    wires the step cuts and adds (`boundary_rewrite`). `withinSubsystem` is stricter: the step
+    deletes nothing outside the subsystem either.
+  - With two steps, the subsystem and system rows form a functor from time × (box sets)ᵒᵖ to
+    sets (`Wiring.restrictionGrid`). The supersystem row is a collapse, not a restriction, and is
+    outside it. The functor's sets hold typed and untyped diagrams alike: a step keeps typing
+    only under its no-dangling and gluing conditions, which the kernel checks on the model
+    given.
+- 9 windows, in the kernel:
+  - A transition reaches a snapshot when boxes, wires, and carriers agree by id and content,
+    ignoring array order. `domain`, `system`, `budget`, `weights`, and `contradictions` are not
+    compared.
+  - Lean wires have fixed endpoints, so a step never moves one. A function re-attached under the
+    same id, as an applied trim does, counts as one function deleted and another glued.
+    `reroute` alone does not commute with restriction when it moves an endpoint across the
+    boundary; `theory/Witnesses.lean` has the counterexample.
+  - Transitions are not inferred. Between snapshots given without one, only the box ids added
+    and removed are listed. The supersystem collapse is not checked against transitions.
 - A carrier match is necessary for an absorber, not sufficient. Each absorber's added cost and
   its new harms are not modelled.
 - `harmLoops` is exhaustive for the model as written. It cannot find a back-reaction the model

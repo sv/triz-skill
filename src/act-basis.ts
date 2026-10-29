@@ -17,6 +17,7 @@ export const THEOREMS = [
   "exists_section_iff", "glue_of_disjoint_regions", "no_section_of_overlap", "separated_iff_axis",
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
   "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict", "restrict_restrict",
+  "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
 ] as const;
 export type Theorem = (typeof THEOREMS)[number];
 
