@@ -11,7 +11,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { FunctionModel, checkModel, harmLoops, idealityProfile, compareIdeality, trimCandidates } from "../src/act.js";
-import { applyTrim, mapBoxes } from "../src/act-rewrite.js";
+import { applyTrim, mapBoxes, rewrite } from "../src/act-rewrite.js";
 import { restrict } from "../src/act-windows.js";
 import { findIsomorphism } from "../src/act-iso.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "../src/act-principles.js";
@@ -92,6 +92,30 @@ test("merge (Principle 5): adjacent boxes collapse, internal harms are hidden an
   assert.match(errors(merge(m, { boxes: ["bearing"], into: { id: "x", name: "X" } })), /at least two boxes/);
   assert.match(errors(merge(m, { boxes: ["bearing", "ghost", "bearing"], into: { id: "x", name: "X" } })), /unknown box 'ghost'; box 'bearing' listed twice/);
   assert.match(errors(merge(m, { boxes: ["bearing", "shaft"], into: { id: "motor", name: "X", role: "tool" } })), /box id 'motor' is not fresh/);
+});
+
+test("merge then compare: a merged product's deliverables read as lost and regained, others keep their keys", async () => {
+  const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
+  const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
+  const m = example("bearing-heat");
+  const r = merge(m, { boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } });
+  assert.ok(r.ok);
+  assert.equal("boxMap" in r, false);
+  assert.match(r.note, /no box_map recovers them/);
+  const c = await call("triz_function_model", { model: r.model, compare_to: m });
+  assert.equal(c.comparison.verdict, "concept-loses-functions");
+  assert.deepEqual(c.comparison.lostDeliverables, keys(m));
+  assert.deepEqual(c.comparison.gainedDeliverables, keys(r.model));
+  assert.ok(keys(r.model).every((k: string) => JSON.parse(k)[1].startsWith("shaft.")));
+  // Even naming the original product in a hand-built map cannot match the renamed ports.
+  const byHand = await call("triz_function_model", { model: r.model, compare_to: m, box_map: { rotor: "shaft" } });
+  assert.equal(byHand.comparison.verdict, "concept-loses-functions");
+
+  const pool = merge(workers, { boxes: ["worker-a", "worker-b"], into: { id: "pool", name: "Worker pool" }, reading: "identical" });
+  assert.ok(pool.ok);
+  assert.match(pool.note, /no product box is merged, so deliverables keep their keys/);
+  const kept = await call("triz_function_model", { model: pool.model, compare_to: workers });
+  assert.deepEqual([kept.comparison.lostDeliverables, kept.comparison.gainedDeliverables], [[], []]);
 });
 
 test("declared behaviour: merge lists what it drops, cheap_copy keeps it, reverse will not add an unnamed port", () => {
@@ -345,6 +369,15 @@ test("reverse (Principle 13): performer and object swap, and reversing back undo
   assert.deepEqual([w.from, w.to, w.polarity], [{ box: "redis", port: "push" }, { box: "app", port: "pushed" }, "useful"]);
   assert.deepEqual(r.basis, ["typed_delete", "typed_glue", "typed_reverse", "typed_extend"]);
   assert.equal(r.model.wires.length, m.wires.length);
+  // Reversing back onto the original ports restores the wire but keeps the added ports; undo removes them.
+  const wireBack = reverse(r.model, { wire: "w-lookup", ports: r.ports.original });
+  assert.ok(wireBack.ok);
+  assert.notDeepEqual(normal(wireBack.model), normal(m));
+  assert.equal(r.undo.op, "rewrite");
+  const undone = rewrite(r.model, r.undo);
+  assert.ok(undone.ok, errors(undone));
+  assert.deepEqual(normal(undone.model), normal(m));
+  assert.match(r.note, /apply undo with triz_transform/);
 
   const moving: FunctionModel = {
     domain: "physical",
@@ -363,6 +396,9 @@ test("reverse (Principle 13): performer and object swap, and reversing back undo
   const twice = reverse(once.model, { wire: "w-move", ports: once.ports.original });
   assert.ok(twice.ok);
   assert.deepEqual(normal(twice.model), normal(moving));
+  const onceUndone = rewrite(once.model, once.undo);
+  assert.ok(onceUndone.ok);
+  assert.deepEqual(normal(onceUndone.model), normal(moving));
 
   assert.match(errors(reverse(moving, { wire: "w-move", ports: { from: "in" } })), /ports.from: port 'part.in' is not an output/);
   const selfLoop = structuredClone(moving);
@@ -395,6 +431,13 @@ test("property: a reversal is the converse of one edge, and reversing back with 
     const back = reverse(x.model, { wire: w.id, ports: x.ports.original });
     assert.ok(back.ok);
     assert.deepEqual(normal(back.model), normal(m), `seed ${seed}`);
+    // Onto new ports, undo removes them again.
+    const fresh = reverse(m, { wire: w.id, ports: { from: "out ⟨new⟩", to: "in ⟨new⟩" } });
+    assert.ok(fresh.ok, `seed ${seed}: ${errors(fresh)}`);
+    assert.equal(fresh.addedPorts.length, 2);
+    const undone = rewrite(fresh.model, fresh.undo);
+    assert.ok(undone.ok);
+    assert.deepEqual(normal(undone.model), normal(m), `seed ${seed}`);
     reversed++;
   }
   assert.ok(reversed > 50, `only ${reversed} reversals exercised`);
@@ -511,11 +554,23 @@ test("principle constructions answer over the shared triz_transform spec", async
     call(cache, { op: "standby", box: "postgres", standby: { id: "replica", name: "Replica" } }),
     call(bearing, { op: "cheap_copy", box: "bearing", copy: { id: "bushing", cost: { usd_unit: 5 } } }),
   ]);
-  for (const r of results) assert.equal(r.ok, true, JSON.stringify(r.errors));
+  for (const r of results) {
+    assert.equal(r.ok, true, JSON.stringify(r.errors));
+    assert.ok(FunctionModel.safeParse(r.model).success, `${JSON.stringify(r.errors)}: result is not a FunctionModel`);
+  }
+  // reverse's undo is itself a transformation the tool accepts, and it restores the baseline.
+  const undone = await call(results[4].model, results[4].undo);
+  assert.ok(undone.ok);
+  assert.deepEqual(normal(undone.model), normal(cache));
   assert.equal(results[3].used, "w-heat/used");
   assert.deepEqual(results[6].boxMap, { bushing: "bearing" });
   assert.throws(() => input.parse({ model: bearing, transformation: { op: "cheap_copy", box: "bearing", copy: { cost: { usd_unit: -1 } } } }));
   assert.throws(() => input.parse({ model: bearing, transformation: { op: "merge", boxes: ["bearing"], into: { id: "x", name: "X" } } }));
+  // Names and costs are checked as the model checks them: no empty name, no empty dimension.
+  assert.throws(() => input.parse({ model: bearing, transformation: { op: "cheap_copy", box: "bearing", copy: { name: "", cost: { usd_unit: 1 } } } }));
+  assert.throws(() => input.parse({ model: bearing, transformation: { op: "rerate", wire: "w-support", polarity: "excessive", cost: { "": 1 } } }));
+  assert.throws(() => input.parse({ model: bearing, transformation: { op: "standby", box: "bearing", standby: { id: "s", name: "S", cost: { "": 1 } } } }));
+  assert.throws(() => input.parse({ model: bearing, transformation: { op: "segment", box: "bearing", parts: [{ id: "a", name: "", ports: ["race", "preload-in"] }, { id: "b", ports: ["friction"] }] } }));
 });
 
 /** Rows of the classification table in categorical-model.md. */

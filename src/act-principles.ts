@@ -67,6 +67,18 @@ function cycleThrough(model: FunctionModel, w: Wire): string[] {
   return back.length ? [w.from.box, ...back] : [];
 }
 
+/**
+ * The inverse of a `replace` step, as a step on its result: delete the same ids and add back the
+ * original boxes and wires.
+ */
+function restore(model: FunctionModel, step: RewriteStep): RewriteStep {
+  const boxes = new Set(step.delete?.boxes ?? []), wires = new Set(step.delete?.wires ?? []);
+  return {
+    delete: { boxes: [...boxes], wires: [...wires] },
+    add: { boxes: model.boxes.filter((b) => boxes.has(b.id)), wires: model.wires.filter((w) => wires.has(w.id)) },
+  };
+}
+
 /** Negative functions that lie on a harm loop. */
 const looped = (model: FunctionModel) => new Set(harmLoops(model).flatMap((l) => l.negative));
 
@@ -91,7 +103,9 @@ function replace(model: FunctionModel, spec: { boxes?: Box[]; wires?: Wire[] }):
  * actions are labels and are not compared. Every path between boxes maps to a path between their
  * images, but merging can close new loops: negative functions newly on a harm loop are listed, and
  * functions inside the group are hidden and listed. The merged box declares no behavior, so the
- * boxes whose declared behavior it drops are listed too. "In space or time" is not modelled.
+ * boxes whose declared behavior it drops are listed too. There is no box map: the merged ports are
+ * renamed '<box>.<port>', so a merged product's deliverables get new keys whatever box id a map
+ * names, and compare_to reads them as lost and regained. "In space or time" is not modelled.
  */
 export function merge(model: FunctionModel, spec: {
   boxes: string[]; into: { id: string; name: string; role?: Box["role"]; action?: string }; reading?: "adjacent" | "identical";
@@ -140,7 +154,9 @@ export function merge(model: FunctionModel, spec: {
     droppedBehavior: group.filter((b) => b.behavior).map((b) => b.id),
     deliverableKeysChanged: group.some((b) => b.role === "product"),
     basis: [...c.basis, "reach_quotient"] as Theorem[],
-    note: "Merged ports are renamed '<box>.<port>'. Functions inside the group are hidden, and newlyLooped lists harms the merge closes into a loop: substantiate that the merged box can really perform every operation.",
+    note: group.some((b) => b.role === "product")
+      ? "Merged ports are renamed '<box>.<port>', so compare_to reads the merged product's deliverables as lost and regained, and no box_map recovers them: merge non-product boxes, or compare the deliverables by hand. Substantiate that the merged box can really perform every operation."
+      : "Merged ports are renamed '<box>.<port>'; no product box is merged, so deliverables keep their keys. Functions inside the group are hidden, and newlyLooped lists harms the merge closes into a loop: substantiate that the merged box can really perform every operation.",
   };
 }
 
@@ -260,8 +276,8 @@ export function retarget(model: FunctionModel, spec: { wire: string; to: Endpoin
  * of the carrier on u. `ports.from` / `ports.to` name them; a named port the box lacks is added
  * with the carrier. Unnamed, the box's only port of that carrier and side is used, and none or
  * several fail closed. A box that declares behavior cannot gain a port here, since its rows would
- * not name it. Reversing again with the original ports gives back the original model. "Movable"
- * and "fixed" are not modelled.
+ * not name it. `undo` is a rewrite that restores the original boxes and function, removing any
+ * added port. "Movable" and "fixed" are not modelled.
  */
 export function reverse(model: FunctionModel, spec: { wire: string; ports?: { from?: string; to?: string } }) {
   const bad = typed(model);
@@ -299,7 +315,8 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   if (src.added) add(performer, "outputs", src.port);
   if (tgt.added) add(object, "inputs", tgt.port);
   const reversed: Wire = { ...w, from: { box: performer.id, port: src.port }, to: { box: object.id, port: tgt.port } };
-  const r = rewrite(model, replace(model, { boxes: [...extended.values()], wires: [reversed] }));
+  const step = replace(model, { boxes: [...extended.values()], wires: [reversed] });
+  const r = rewrite(model, step);
   if (!r.ok) return r;
   return {
     ok: true as const,
@@ -307,8 +324,9 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
     reversed: w.id,
     ports: { from: src.port, to: tgt.port, original: { from: w.from.port, to: w.to.port } },
     addedPorts: [...(src.added ? [`${performer.id}.${src.port}`] : []), ...(tgt.added ? [`${object.id}.${tgt.port}`] : [])],
+    undo: { op: "rewrite" as const, ...restore(model, step) },
     basis: [...r.basis, "typed_reverse", ...(src.added || tgt.added ? ["typed_extend"] : [])] as Theorem[],
-    note: "The former object now performs the function, with its rating unchanged: whether it can is the design question. Reverse again with ports.original to undo.",
+    note: "The former object now performs the function, with its rating unchanged: whether it can is the design question. To go back, apply undo with triz_transform: it restores the original model, added ports included.",
   };
 }
 
