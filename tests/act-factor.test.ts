@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel } from "../src/act.js";
 import { finestFactorisation, segment, splitBehavior, takeOut } from "../src/act-rewrite.js";
-import { externalBehavior } from "../src/act-behavior.js";
+import { externalBehavior, factorisationsOf } from "../src/act-behavior.js";
 import { rng, int, shuffle, type Rng } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -169,24 +169,24 @@ test("segment reports the suggested partition: the blocks the given parts cut, a
   };
   const coupled = seg([["preload-in", "race"], ["friction"]]);
   assert.equal(coupled.behaviourallyIndependent, false);
-  assert.deepEqual(coupled.behavior?.suggested, {
+  assert.deepEqual(coupled.behavior?.finest, {
     decided: true, parts: [["preload-in", "friction"], ["race"]], basis: ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"],
     cut: [["preload-in", "friction"]], splitsFurther: [],
     note: "The parts cut the suggested blocks ['preload-in', 'friction']; a split holds iff each part is a union of suggested blocks. Segment into ['preload-in', 'friction'], ['race'], or unions of them, and each part keeps its projection.",
   });
   const finest = seg([["preload-in", "friction"], ["race"]]);
   assert.ok(finest.behaviourallyIndependent);
-  assert.deepEqual([finest.behavior?.suggested?.decided && finest.behavior.suggested.cut, finest.behavior?.suggested?.decided && finest.behavior.suggested.splitsFurther], [[], []]);
-  assert.match(finest.behavior?.suggested?.decided ? finest.behavior.suggested.note : "", /^The parts are the finest split/);
+  assert.deepEqual([finest.behavior?.finest?.decided && finest.behavior.finest.cut, finest.behavior?.finest?.decided && finest.behavior.finest.splitsFurther], [[], []]);
+  assert.match(finest.behavior?.finest?.decided ? finest.behavior.finest.note : "", /^The parts are the finest split/);
   // The shaft's suggestion is finer than a two-part split that holds.
   const shaft = segment(bearing, { box: "shaft", parts: [{ id: "load", ports: ["drive", "support"] }, { id: "thermal", ports: ["heat-in", "expansion"] }] });
-  assert.ok(shaft.ok && shaft.behaviourallyIndependent && shaft.behavior?.suggested?.decided);
-  assert.deepEqual([shaft.behavior.suggested.parts, shaft.behavior.suggested.cut, shaft.behavior.suggested.splitsFurther], [[["drive"], ["support"], ["heat-in", "expansion"]], [], ["load"]]);
-  assert.match(shaft.behavior.suggested.note, /'load' could split further/);
+  assert.ok(shaft.ok && shaft.behaviourallyIndependent && shaft.behavior?.finest?.decided);
+  assert.deepEqual([shaft.behavior.finest.parts, shaft.behavior.finest.cut, shaft.behavior.finest.splitsFurther], [[["drive"], ["support"], ["heat-in", "expansion"]], [], ["load"]]);
+  assert.match(shaft.behavior.finest.note, /'load' could split further/);
   // take_out runs segment, so it reports the same suggestion.
   const out = takeOut(bearing, { box: "bearing", ports: ["friction"], part: { id: "rolling" } });
   assert.ok(out.ok);
-  assert.deepEqual(out.behavior?.suggested?.decided && out.behavior.suggested.parts, [["preload-in", "friction"], ["race"]]);
+  assert.deepEqual(out.behavior?.finest?.decided && out.behavior.finest.parts, [["preload-in", "friction"], ["race"]]);
   const plain = segment(example("bearing-heat"), { box: "bearing", parts: [{ id: "a", ports: ["preload-in"] }, { id: "b", ports: ["race", "friction"] }] });
   assert.ok(plain.ok && !("behavior" in plain), "a box without behaviour gets no suggestion");
 });
@@ -203,7 +203,7 @@ test("property: segment's split holds exactly when it cuts no suggested block", 
     const res = segment(single(rowsBox(ids.slice(0, inputs), ids.slice(inputs), rows), ["0", "1"]),
       { box: "r", parts: p.map((b, j) => ({ id: `q${j}`, ports: b.map((i) => ids[i]) })) });
     assert.ok(res.ok, `trial ${trial}`);
-    const s = res.behavior?.suggested;
+    const s = res.behavior?.finest;
     assert.ok(s?.decided, `trial ${trial}`);
     assert.equal(res.behaviourallyIndependent, s.cut.length === 0, `trial ${trial}`);
     if (!res.behaviourallyIndependent) assert.ok(s.cut.every((b) => b.length >= 2), `trial ${trial}: a cut block has ports in two parts`);
@@ -224,4 +224,15 @@ test("triz_behavior lists the composed boxes whose relation splits into several 
     assert.deepEqual(f.basis, ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"]);
     assert.match(f.note, /triz_transform segment into these groups/);
   }
+});
+
+test("the triz_behavior hint is capped per box, in box order: a box past its cap is listed undecided", () => {
+  const boxes = example("bearing-heat-behavior").boxes.filter((b) => b.behavior);
+  const hints = factorisationsOf(boxes, { maxSteps: 40 });
+  assert.deepEqual(hints.map((h) => [h.box, h.decided]), boxes.flatMap((b) => {
+    const f = finestFactorisation(b, { maxSteps: 40 });
+    return !f.decided ? [[b.id, false]] : f.parts.length > 1 ? [[b.id, true]] : [];
+  }));
+  assert.ok(hints.some((h) => !h.decided && h.reason === "step-cap"), "some box passes the small cap");
+  assert.ok(hints.every((h) => h.decided || /more than 40 cell reads/.test(h.note)));
 });

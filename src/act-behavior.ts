@@ -290,10 +290,10 @@ function summary(e: Evaluation, p: Plan) {
  * the box into them, or unions of them, gives each part its projection. A box past the cap is
  * listed undecided.
  */
-function factorisationsOf(boxes: Box[]) {
+export function factorisationsOf(boxes: Box[], opts: { maxSteps?: number } = {}) {
   type Entry = { box: string } & Factorisation & { note: string };
   return boxes.flatMap((b): Entry[] => {
-    const f = finestFactorisation(b);
+    const f = finestFactorisation(b, opts);
     if (!f.decided) return [{ box: b.id, ...f }];
     return f.parts.length > 1 ? [{ box: b.id, ...f, note: `'${b.id}''s relation is the product of its projections onto ${f.parts.map((g) => `[${g.join(", ")}]`).join(", ")}: triz_transform segment into these groups, or unions of them, and each part keeps its projection.` }] : [];
   });

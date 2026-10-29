@@ -333,7 +333,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
   if (issues.length) return fail(issues);
 
   const split = box.behavior ? splitBehavior(box, spec.parts) : undefined;
-  const suggested = box.behavior ? suggestParts(box, spec.parts) : undefined;
+  const finest = box.behavior ? suggestParts(box, spec.parts) : undefined;
   const parts: Box[] = spec.parts.map((part, i) => {
     const pick = (list: Port[] | undefined) => (list ?? []).filter((p) => owner.get(p.id) === part.id);
     const cost = Object.fromEntries(Object.entries(box.cost ?? {}).filter(([dim]) => (Object.hasOwn(costTo, dim) ? costTo[dim] : partIds[0]) === part.id));
@@ -368,7 +368,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
       behavior: {
         coupled: split.coupled,
         witnesses: split.witnesses,
-        suggested,
+        finest,
         basis: split.basis,
         note: split.independent
           ? "The declared relation is the product of its projections onto the parts, so each part carries its projection and together they compose back to it."

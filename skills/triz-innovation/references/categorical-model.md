@@ -39,7 +39,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | A subsystem that lags (uneven development) | a box of the largest harm-loop region that is on a binding feasibility dimension or limits a deliverable | `triz_rule_apply` `uneven-development`: lagging, none, or undecided | `edge_on_cycle`; the feasibility verdict's basis |
 | Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
-| Which ports of a box are independent | the finest partition of a box's ports over which its declared relation is the product of its block projections: unique, and a partition splits iff each part is a union of its blocks | `triz_transform` segment and take_out (`behavior.suggested`), `triz_behavior` (`factorisations`) | `IsFinest.addPort`, `factors_split_iff`, `IsFinest.factors_iff`; never cited: `Factors.inf`, `Factors.mono`, `Factors.onPorts`, `exists_isFinest`, `IsFinest.unique`, `IsFinest.rel_iff`, `factors_bot_iff`, `factors_empty`, `isFinest_onPorts_empty` |
+| Which ports of a box are independent | the finest partition of a box's ports over which its declared relation is the product of its block projections: unique, and a partition splits iff each part is a union of its blocks | `triz_transform` segment and take_out (`behavior.finest`), `triz_behavior` (`factorisations`) | `IsFinest.addPort`, `factors_split_iff`, `IsFinest.factors_iff`; never cited: `Factors.inf`, `Factors.mono`, `Factors.onPorts`, `exists_isFinest`, `IsFinest.unique`, `IsFinest.rel_iff`, `factors_bot_iff`, `factors_empty`, `isFinest_onPorts_empty` |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`; `supportedOn`, `typedOn`; used by those, never cited: `restrict_restrict`, `restrict_of_subset` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem; with declared rows, the verdicts per time and how they change | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot; `system.verdicts` and `changes[].verdicts` | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
@@ -635,7 +635,7 @@ is fixed by what was declared:
   pair with rows in lexicographic order of their values (ports in box order, inputs then
   outputs; values compared by code unit). That order is the one tie-break, and it reads value
   names and port order, so a witness is label-blind only up to it.
-- **Suggested partition.** Whichever parts are given, `behavior.suggested` gives the finest
+- **Suggested partition.** Whichever parts are given, `behavior.finest` gives the finest
   partition of the box's ports over which R is the product of its block projections (`parts`,
   port ids in box order). Lean proves that it exists and is unique, for a box with at least one
   port (`exists_isFinest`, `IsFinest.unique`): if R factors over two partitions, it factors over
@@ -655,9 +655,11 @@ is fixed by what was declared:
   single ports. Tests compare the result with a brute force over every partition of random
   boxes with up to five ports.
 - **Which boxes split.** In a plain `triz_behavior` composition, `factorisations` lists each
-  composed box whose relation splits into two or more groups of ports, with the groups:
-  segmenting the box into them, or unions of them, gives each part its projection. A box past
-  the cap is listed undecided.
+  composed box whose relation splits into two or more groups of ports, with the groups, in the
+  model's box order: segmenting the box into them, or unions of them, gives each part its
+  projection. Each box has its own cap; a box past it is listed with `decided: false` and reason
+  `step-cap`. The hint describes the declared rows, not a physical split, and it changes no
+  verdict and no other field of the result.
 - **Intermediary.** The mediator may declare `behavior`: rows over its ports `in` and `out`, or
   `identity`, one row per declared value of the wire's carrier with in = out. A relation equal
   to the identity cites Mathlib's `Relation.comp_eq` (r composed with equality is r): with the
@@ -1141,7 +1143,7 @@ one and why.
 
 | Principle | Text (`triz_principle`) | Construction | Checked |
 |---|---|---|---|
-| 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts, and, for a box that declares behaviour, whether its relation is the product of its projections onto the parts (`behaviourallyIndependent`), and the finest such partition of its ports as a suggestion (`behavior.suggested`). For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
+| 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts, and, for a box that declares behaviour, whether its relation is the product of its projections onto the parts (`behaviourallyIndependent`), and the finest such partition of its ports as a suggestion (`behavior.finest`). For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
 | 2 Taking out | "Separate an interfering part or isolate the only needed part." | `take_out`: split the given ports off into a new box. | Reading `interfering`: the split-off ports touch a harmful or excessive function. Reading `needed`: they carry every useful function, so the remainder is a trimming candidate. |
 | 5 Merging | "Bring identical or adjacent operations together in space or time." | `merge`: `collapse` the boxes into one. | Reading `adjacent` (default): functions inside the group, or consecutive positions on a declared flow, join every box; boxes with a box between them on a flow are refused. Reading `identical`: the same role and the same carriers on each side; names and actions are labels and are not compared. Every path maps to a path (`reach_quotient`), and every flow passes the merged box (`flow_merge_typed`, `flow_merge_reach`), but a merge can close loops: harms newly on a harm loop are listed, as are flows newly looped, the hidden internal functions, and flows hidden inside the merged box. |
 | 6 Universality | "Make an object perform multiple functions and eliminate other parts." | `trim` with every `absorb` choice on one box. No new operation. | As for `trim`: each re-attached function goes to a typed absorber. The result shows the box performing its own and the absorbed functions. |
@@ -1436,7 +1438,7 @@ example cohort churn against fee changes. Name it only from that evidence.
   deliverable is not composed. `behavior.coupled` tests each part against all the others. A
   coupling witness depends on value names and port order through its tie-break; whether a part
   is coupled does not.
-- The suggested partition (`behavior.suggested`, `factorisations`) is the finest one for the
+- The suggested partition (`behavior.finest`, `factorisations`) is the finest one for the
   declared rows. Lean proves that it exists, is unique, and is what adding ports one at a time
   computes (`IsFinest.addPort`); the TypeScript is checked against that by a brute force over
   partitions, not extracted. Independence of ports is read off the rows as declared: an

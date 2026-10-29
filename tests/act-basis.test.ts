@@ -238,6 +238,6 @@ test("behaviour constructions cite what they use: comp_eq for an identity mediat
   assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff_rectangle"]);
   assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_prod_iff"]);
   assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_pi_iff"]);
-  const suggested = (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: [{ id: "a", ports: ["preload-in"] }, { id: "b", ports: ["race", "friction"] }] } })).behavior.suggested;
+  const suggested = (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: [{ id: "a", ports: ["preload-in"] }, { id: "b", ports: ["race", "friction"] }] } })).behavior.finest;
   assert.deepEqual(suggested.basis, ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"]);
 });
