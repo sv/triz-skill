@@ -8,6 +8,7 @@ carry one flow type and a rating. The checks are finite and deterministic, and t
 Schema: [function-model.schema.json](../schemas/function-model.schema.json). The repository's
 `examples/function-models/` holds worked models of a bearing, a cached API read path, a
 marketplace, and a connection pool. The connection pool has the bearing's wiring shape.
+`bearing-heat-behavior.json` is the bearing with declared behaviour.
 
 ## What each piece means
 
@@ -18,9 +19,10 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
-| Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
+| Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute` |
 | System operator (9 windows), level axis | restriction to a subsystem; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset` |
@@ -46,6 +48,11 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    Treat every trimming problem as a new problem to solve. Still generate at least three
    mechanisms (SKILL.md). Model the chosen concept and compare it with `compare_to`. A concept
    that drops a deliverable loses a function, whatever it saves.
+
+   When the boxes that matter declare behaviour, call `triz_behavior` with the same `trim` and
+   `absorb`. It decides whether the trim preserves the input→deliverable relation (see
+   [Declared behaviour](#declared-behaviour)). A `preserved` verdict holds for the relations as
+   declared; substantiate each of them, the absorber's first.
 4. **Separate.** For a physical contradiction, give each demand its admissible values and the
    cells where it applies on each axis. Use `space`, `time`, `condition`, `direction`, and
    `level`, which are MATRIZ's five separation types; `condition` is MATRIZ's "relation
@@ -76,10 +83,66 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    `triz_function_model` also reports whether the two models have the same wiring shape.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
-as in the last column above. A test checks that every cited name is a theorem in that file.
+as in the last column above, or a Mathlib lemma a proof in that file uses. A test checks that
+every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
 extracted from Lean. A basis never means the TRIZ reading of a verdict is proved. A verdict that
 needs no theorem, such as a compatible pair, cites none.
+
+## Declared behaviour
+
+A carrier may list its finite `values`. A box may declare `behavior`: rows that each give every
+input port and every output port one declared value. The rows are a relation, not a function:
+an input tuple with no row cannot occur, and several rows for one input tuple are alternatives.
+Every row is type-checked, and an undeclared port or value fails closed.
+
+`triz_behavior` composes the declared relations:
+
+- **Ports are variables.** A wire says its two ports carry the same value. A port fed by
+  several wires therefore needs them all to agree. Model a sum or a merge as a box.
+- **Interface.** The boundary inputs are the unwired input ports. The deliverables are the
+  input ports of product boxes fed by a non-harmful function, as in the ideality profile.
+- **Upstream only.** Only the boxes that can reach a deliverable are composed, and each of them
+  must declare behaviour. Every other box is assumed to accept whatever it receives. The output
+  lists downstream boxes whose declared relation is partial (`partialDownstream`): in the full
+  relational composite they would rule out steady states.
+- **Steady states.** A steady state is a valuation of the composed ports that every relation
+  and every wire admits. The external relation is the set of steady states projected onto the
+  inputs and the deliverables. A feedback loop composes by the relational trace: an input and an
+  output are related iff some loop value is consistent. The output lists the steady states.
+  Several steady states at one input are all kept. An input with no steady state is listed in
+  `noSteadyState`, since it may signal a runaway loop. In `theory/`, `relTrace R a b` is, by
+  definition, `(loopStates R a b).Nonempty`: a pair is related iff it has a steady state. The
+  relation cites Mathlib's `Relation.comp_assoc`: composing the relations along the wiring does
+  not depend on bracketing.
+
+With `trim`, the trim is applied as `triz_transform` does, and the verdict is one of:
+
+- `changed`, reason `lost-deliverables`: a deliverable port has no non-harmful function after
+  the trim. No behaviour is needed for this.
+- `undecided`, reason `missing-behavior`: a box that can reach a deliverable, in the baseline
+  or in the trimmed model, declares no behaviour. The output names those boxes. Segmentation,
+  Taking out, and Intermediary build new boxes without behaviour, so their results stay
+  undecided until you declare it.
+- `undecided`, reason `no-steady-state`: neither model has a steady state at any compared
+  input, so both relations are empty and their equality says nothing about the trim.
+- `preserved`: the baseline and trimmed input→deliverable relations are equal, and at least
+  one of them is non-empty.
+- `changed`, reason `counterexample`: the relations differ. The output gives the first input
+  where they differ, the outputs of each model there, and the `direction`: the trimmed relation
+  strictly contains the baseline, the baseline strictly contains it, or neither.
+
+The two relations are compared over the union of their boundary inputs. A port that only one
+model reads, such as an input the trim leaves unwired, ranges over every declared value in both
+models (`inputsOnlyIn`). A counterexample that sets such a port follows from the model, not
+from the physics. The result counts, per model, the input valuations with no steady state
+(`noSteadyState`), and the compared inputs where neither model has one (`emptyInBoth`). Two
+relations that are empty everywhere read `undecided`, never `preserved`. When only some inputs
+are empty in both, those inputs agree and are counted. `preserved` then also rests on the
+inputs where both models have steady states. If one model has steady states at an input and
+the other has none, the verdict is `changed`, and the counterexample says which side is empty.
+Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
+the call fails closed.
 
 ## Principle constructions
 
@@ -123,6 +186,23 @@ example cohort churn against fee changes. Name it only from that evidence.
 - Nothing computes a Kan extension, an optic or lens, sheaf cohomology, or a Grothendieck
   fibration. The categorical names identify the structure each check is a necessary condition
   of. Of those statements, only the trimming one is stated in Lean, and it is not decided.
+- For models that declare behaviour, `triz_behavior` decides a finite relational question
+  instead: whether the trimmed model's input→deliverable relation equals the baseline's. It is
+  not proved equivalent to `Recoverable`. Series composition is Mathlib's `Relation.Comp`, and
+  its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
+  that the trace is monotone, that the trace of a swap is the identity, that every value is a
+  steady state of an identity loop, and that a negation loop has none. The evaluator is checked
+  by tests, not extracted from these statements.
+- Declared behaviour is steady-state semantics. The relational trace says nothing about
+  dynamics, convergence, or which steady state the system reaches. A least fixpoint (iteration
+  from no value) is not used: it needs initial loop values the model does not declare, and on an
+  unseeded loop it delivers nothing.
+- `preserved` means equal relations, not equal non-empty outputs at every input. An input with
+  no steady state in either model agrees vacuously; only relations empty everywhere are
+  refused (`undecided`, `no-steady-state`).
+- A `preserved` verdict holds for the relations as declared. Whether they are true, the
+  absorber's above all, is outside the kernel, and so are the absorber's added cost and new
+  harms. Downstream boxes are not composed; see `partialDownstream`.
 - Rewrites are not a double-pushout rewriting system.
   - A rewrite is applied at an occurrence named by id, and the kernel checks the no-dangling
     condition.
@@ -133,21 +213,23 @@ example cohort churn against fee changes. Name it only from that evidence.
 - "Domain invariance" is claimed in one sense only: the structured verdicts are label-blind.
   They depend on the wiring shape, not on ids, names, verbs, domain, or carrier layer and
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
-  `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize`.
+  `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize`. The isomorphism check
+  (`comparison.isomorphism`) does not compare carrier values or declared behaviour, so
+  isomorphic models can get different `triz_behavior` verdicts.
   - Property tests check this over 200 seeded random models with every array permuted.
   - Excluded by design: free text, witness-cycle tie-breaks (which follow id order), absorber
     port tie-breaks (which follow port order), and the truncated conflict-cell list.
-  - The bearing and connection-pool examples are isomorphic and get the same verdicts. That
-    shows the kernel ignores domain meaning. It does not show that a TRIZ solution transfers
-    between domains.
+  - The bearing and connection-pool examples are isomorphic and get the same wiring
+    verdicts. That shows the kernel ignores domain meaning. It does not show that a TRIZ
+    solution transfers between domains.
 - The hypergraph export uses the hypergraph form of Bonchi et al. (2022, Def. 3.1): hyperedges
   with ordered sources and targets, plus an interface. The encoding is this kernel's own choice.
   Ports are the vertices, and one port may carry several functions: fan-out, or a useful and a
   harmful function on the same pair of ports.
 - The 9-windows time axis is the snapshots the caller writes; no transition between times is
   computed. The system operator as a fibration stays an analogy.
-- A carrier match is necessary for an absorber, not sufficient. Each absorber's added cost and
-  its new harms are not modelled.
+- Without declared behaviour, a carrier match is necessary for an absorber, not sufficient.
+  Each absorber's added cost and its new harms are not modelled.
 - `harmLoops` is exhaustive for the model as written. It cannot find a back-reaction the model
   omits.
 - A scalar ideality is produced only from explicit `weights` covering every cost dimension and

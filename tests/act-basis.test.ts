@@ -1,5 +1,6 @@
 /**
- * Every verdict's `basis` names a theorem that exists in theory/CategoricalTriz.lean, and each
+ * Every verdict's `basis` names a theorem that exists in theory/CategoricalTriz.lean (or a Mathlib
+ * lemma a proof there uses), and each
  * verdict cites the statement its reasoning uses. Basis names are collected from tool outputs
  * across every example and every tool that cites one.
  */
@@ -9,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel } from "../src/act.js";
-import { THEOREMS, THEORY_FILE } from "../src/act-basis.js";
+import { THEOREMS, MATHLIB_THEOREMS, THEORY_FILE } from "../src/act-basis.js";
 import { toolSpecs } from "../src/tools.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -34,6 +35,8 @@ function bases(x: unknown, out: string[][] = []): string[][] {
 
 test("every citable theorem is proved in the Lean file", () => {
   for (const name of THEOREMS) assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
+  // A cited Mathlib lemma must close a proof in the Lean file, so lake build checks it exists.
+  for (const name of MATHLIB_THEOREMS) assert.match(lean, new RegExp(`:= ${name.replace(".", "\\.")}$`, "m"), name);
 });
 
 test("every basis cited by any tool output names a listed theorem", async () => {
@@ -46,10 +49,11 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const b of m.boxes) collect(await call("triz_trim", { model: m, trim: [b.id] }));
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
+    collect(await call("triz_behavior", { model: m }));
     if (m.wires.length) collect(await call("triz_transform", { model: m, transformation: { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } } }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
-  for (const n of cited) assert.ok((THEOREMS as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
+  for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 

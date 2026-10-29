@@ -1,6 +1,6 @@
 /**
  * The Lean theorem behind each verdict. A `basis` names the statement in
- * theory/CategoricalTriz.lean that a verdict's reasoning rests on. That theorem proves the
+ * theory/CategoricalTriz.lean, or a Mathlib lemma that file uses, that a verdict's reasoning rests on. That theorem proves the
  * abstract fact, and tests check the TypeScript against it; nothing is extracted from Lean. A
  * basis never means the TRIZ reading of a verdict is proved. Verdicts that need no theorem, such
  * as a shared value that satisfies both demands, cite none.
@@ -18,7 +18,9 @@ export const THEOREMS = [
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
   "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict", "restrict_restrict",
 ] as const;
-export type Theorem = (typeof THEOREMS)[number];
+/** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */
+export const MATHLIB_THEOREMS = ["Relation.comp_assoc"] as const;
+export type Theorem = (typeof THEOREMS)[number] | (typeof MATHLIB_THEOREMS)[number];
 
 /** Cells glue iff every cell's active demands share a value. */
 const GLUING: Theorem[] = ["exists_section_iff"];
