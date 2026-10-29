@@ -1,8 +1,9 @@
 # Categorical assurance and finite analysis
 
 This change implements bounded capabilities across the eight workstreams in the reviewed plan.
-It does not remove a limitation merely because a related theorem exists. The remaining work,
-acceptance criteria, and bibliography are in [the separate future plan](categorical-future-plan.md).
+It does not remove a limitation merely because a related theorem exists. The remaining work and
+acceptance criteria are in [the separate future plan](categorical-future-plan.md); the bibliography
+is in [theory/REFERENCES.md](../theory/REFERENCES.md).
 The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 
 ## Delivered scope

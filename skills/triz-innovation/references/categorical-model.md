@@ -2,8 +2,9 @@
 
 The finite assurance extensions, their exact implemented scope, and examples of the new APIs are
 summarized in [categorical-assurance.md](../../../docs/categorical-assurance.md). Deferred work,
-acceptance criteria, adopted suggestions, and primary research references are recorded separately
-in [categorical-future-plan.md](../../../docs/categorical-future-plan.md).
+acceptance criteria and adopted suggestions are recorded separately in
+[categorical-future-plan.md](../../../docs/categorical-future-plan.md). Literature is collected in
+[theory/REFERENCES.md](../../../theory/REFERENCES.md).
 
 `triz_behavior` defaults to `scope: "upstream"` for compatibility; `scope: "whole"` composes every
 box constraint. Use `triz_adequacy` to require nonempty acceptable outputs at every operating

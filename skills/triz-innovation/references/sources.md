@@ -275,7 +275,8 @@ a source of your own choosing with the importer if needed.
 The implemented finite capabilities and exact limitations are recorded in
 [categorical-assurance.md](../../../docs/categorical-assurance.md). The separate
 [categorical-future-plan.md](../../../docs/categorical-future-plan.md) preserves the eight-workstream
-roadmap, decisions on all eighteen supplied suggestions, falsifying cases and primary references.
+roadmap, decisions on all eighteen supplied suggestions, and falsifying cases. Primary references
+are maintained in [theory/REFERENCES.md](../../../theory/REFERENCES.md).
 It distinguishes implementation from research analogies: certifying model checking (Namjoshi),
 verified checkers (Alkassar et al.), implementation-aware co-design (Censi), bounded component
 synthesis (Iannopollo et al.), sound abstraction/refinement, exact global-section constraints,

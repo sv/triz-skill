@@ -109,8 +109,8 @@ The eight-workstream assurance extension adds whole-model behavior, operational 
 input-bound Lean certificates, semantic isomorphism/refinement, joint implementation and finite
 synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
 and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
-[Future work, acceptance criteria and primary references](docs/categorical-future-plan.md) are
-kept separately; these bounded capabilities do not close every research exclusion.
+[Future work and acceptance criteria](docs/categorical-future-plan.md) and
+[literature references](theory/REFERENCES.md) are kept in separate files; these bounded capabilities do not close every research exclusion.
 
 
 `triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function

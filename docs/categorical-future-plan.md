@@ -2,6 +2,7 @@
 
 This is the separate future-work record requested during the eight-workstream review.
 Implemented scope and current restrictions are in [categorical-assurance.md](categorical-assurance.md).
+Literature is maintained separately in [theory/REFERENCES.md](../theory/REFERENCES.md).
 The baseline reviewed was `82d87a6a7a124481afa33194679807561bb6358c`.
 A roadmap entry is not an implemented guarantee. A paper supplying a method is not a proof that
 this kernel satisfies that method's hypotheses.
@@ -16,8 +17,8 @@ separately trusted remote service.
 **Acceptance:** a dropped row, wrong index, changed target, altered scope or forged digest cannot
 validate against the source request. Prove the correspondence beyond testing/regeneration.
 
-**Foundation:** translation validation and verified certificate checkers [R1, R2]; Lean's
-separation of proof validity from statement meaning [R3].
+**Foundation:** translation validation and verified certificate checkers [R1](../theory/REFERENCES.md#r1), [R2](../theory/REFERENCES.md#r2); Lean's
+separation of proof validity from statement meaning [R3](../theory/REFERENCES.md#r3).
 
 ## 2. Invariance and semantic comparison
 
@@ -48,7 +49,7 @@ state/successor invalidates a proof; one machine state with safe and unsafe valu
 one favorable output cannot establish universal acceptability; possible return is not inevitable
 recurrence. No `sorry`, unsafe axioms or skipped kernel validation.
 
-**Foundation:** certifying model checking [R1] and independent verified checkers [R2].
+**Foundation:** certifying model checking [R1](../theory/REFERENCES.md#r1) and independent verified checkers [R2](../theory/REFERENCES.md#r2).
 
 ## 4. Whole-system semantics and adequacy
 
@@ -62,7 +63,7 @@ components cannot be pruned without justification. Equal partial relations may s
 nonblocking. Keep relational steady states, viable/infinite runs and temporal least/greatest
 fixpoints as different questions.
 
-**Foundation:** sound abstraction and counterexample-guided refinement [R4]. A greatest-fixpoint
+**Foundation:** sound abstraction and counterexample-guided refinement [R4](../theory/REFERENCES.md#r4). A greatest-fixpoint
 reformulation over sets of complete valuations is possible but does not remove global search.
 Local domain consistency alone is not a complete solver.
 
@@ -79,9 +80,9 @@ a passing implementation. Shared costs and new declared harms are checked togeth
 uncertainty can turn a robust conclusion into unresolved. A provenance count is not a
 probability that a model is true.
 
-**Foundation:** co-design with functionality, implementation and resource spaces [R5], and its
-uncertainty treatment [R6]. Weighted operating-situation coverage does not extend the theorem
-about a uniform distribution over tasks [R7].
+**Foundation:** co-design with functionality, implementation and resource spaces [R5](../theory/REFERENCES.md#r5), and its
+uncertainty treatment [R6](../theory/REFERENCES.md#r6). Weighted operating-situation coverage does not extend the theorem
+about a uniform distribution over tasks [R7](../theory/REFERENCES.md#r7).
 
 ## 6. Synthesis and abstraction
 
@@ -102,8 +103,8 @@ by independently implementing its projections. Same wiring with incompatible row
 behavioral refinement. Coarse counterexamples are checked against the detailed model. Search
 exhaustion means impossible only inside the declared finite candidate space.
 
-**Foundation:** bounded library synthesis [R8], CEGAR [R4], and abstraction/refinement methods
-whose hypotheses explicitly support the desired transferred property [R9].
+**Foundation:** bounded library synthesis [R8](../theory/REFERENCES.md#r8), CEGAR [R4](../theory/REFERENCES.md#r4), and abstraction/refinement methods
+whose hypotheses explicitly support the desired transferred property [R9](../theory/REFERENCES.md#r9).
 
 ## 7. Engineering models and overlapping contexts
 
@@ -117,10 +118,10 @@ supply two simultaneous four-unit branches; a closed lossless model cannot gener
 quantity. An upper bound above capacity does not prove that overflow actually occurs.
 Local tables `x=y`, `y=z`, `x!=z` must fail global compatibility.
 
-**Foundation:** network calculus [R10], compositional passive networks [R11], and global-section
-semantics [R12]. Chosen compatible sections of a sheaf glue; choosing mutually compatible
+**Foundation:** network calculus [R10](../theory/REFERENCES.md#r10), compositional passive networks [R11](../theory/REFERENCES.md#r11), and global-section
+semantics [R12](../theory/REFERENCES.md#r12). Chosen compatible sections of a sheaf glue; choosing mutually compatible
 sections from allowed local relations is a global constraint problem. Cohomological obstructions
-are not a complete replacement for exact compatibility decisions [R13].
+are not a complete replacement for exact compatibility decisions [R13](../theory/REFERENCES.md#r13).
 
 ## 8. Rewriting and optional categorical completion
 
@@ -148,8 +149,8 @@ are not a complete replacement for exact compatibility decisions [R13].
 nonconfluence, all required critical pairs are covered, and every stated termination measure
 decreases. No global guarantee is inferred for unrestricted invention rules.
 
-**Foundation:** DPO with interfaces [R14], AGREE [R15], PBPO+ [R16], Mathlib's actual elements
-construction [R17], and the definition/universal property of Kan extensions [R18].
+**Foundation:** DPO with interfaces [R14](../theory/REFERENCES.md#r14), AGREE [R15](../theory/REFERENCES.md#r15), PBPO+ [R16](../theory/REFERENCES.md#r16), Mathlib's actual elements
+construction [R17](../theory/REFERENCES.md#r17), and the definition/universal property of Kan extensions [R18](../theory/REFERENCES.md#r18).
 
 ## Suggestions adopted and corrected
 
@@ -173,24 +174,3 @@ construction [R17], and the definition/universal property of Kan extensions [R18
 | 16 overlapping separation | Exact global finite joins delivered; a pairwise scan was rejected as insufficient. |
 | 17 critical pairs | Termination measure and occurrence commutation delivered; global critical-pair obligations remain §8. |
 | 18 small features | Exact behavioral summaries/refinement delivered; group search, numeric preimages and transition inference remain §§6/8. |
-
-## References
-
-- **R1:** K. S. Namjoshi, *Certifying Model Checkers*, CAV 2001. [Author's paper](https://kedar-namjoshi.github.io/papers/Namjoshi-CAV-2001.pdf).
-- **R2:** E. Alkassar, S. Böhme, K. Mehlhorn and C. Rizkallah, *A Framework for the Verification of Certifying Computations*. [arXiv:1301.7462](https://arxiv.org/abs/1301.7462).
-- **R3:** Lean Language Reference, *Validating a Lean Proof*. [Official reference](https://lean-lang.org/doc/reference/latest/ValidatingProofs/).
-- **R4:** E. Clarke, O. Grumberg, S. Jha, Y. Lu and H. Veith, *Counterexample-Guided Abstraction Refinement*. [Authors' CAV paper](https://www.cs.cmu.edu/~emc/papers/Conference%20Papers/Counterexample-guided%20Abstraction%20Refinement.pdf).
-- **R5:** A. Censi, *A Mathematical Theory of Co-Design*, version 7. [arXiv:1512.08055](https://arxiv.org/abs/1512.08055).
-- **R6:** A. Censi, *Uncertainty in Monotone Co-Design Problems*. [arXiv:1609.03103](https://arxiv.org/abs/1609.03103).
-- **R7:** M. T. Bennett, *The Optimal Choice of Hypothesis Is the Weakest, Not the Shortest*. [arXiv:2301.12987](https://arxiv.org/abs/2301.12987).
-- **R8:** A. Iannopollo, S. Tripakis and A. Sangiovanni-Vincentelli, *Constrained Synthesis from Component Libraries*, Science of Computer Programming 171 (2019). [University record and open paper](https://research.aalto.fi/en/publications/constrained-synthesis-from-component-libraries/).
-- **R9:** G. Reissig, A. Weber and M. Rungger, *Feedback Refinement Relations for the Synthesis of Symbolic Controllers*. [arXiv:1503.03715](https://arxiv.org/abs/1503.03715).
-- **R10:** J.-Y. Le Boudec and P. Thiran, *Network Calculus*. [Authors' book](https://leboudec.github.io/netcal/latex/netCalBook.pdf).
-- **R11:** J. C. Baez and B. Fong, *A Compositional Framework for Passive Linear Networks*. [arXiv:1504.05625](https://arxiv.org/abs/1504.05625).
-- **R12:** S. Abramsky and A. Brandenburger, *The Sheaf-Theoretic Structure of Non-Locality and Contextuality*. [arXiv:1102.0264](https://arxiv.org/abs/1102.0264); [Stacks Project, sheaf definition](https://stacks.math.columbia.edu/tag/006S).
-- **R13:** S. Abramsky, S. Mansfield and R. S. Barbosa, *The Cohomology of Non-Locality and Contextuality*. [arXiv:1111.3620](https://arxiv.org/abs/1111.3620).
-- **R14:** F. Bonchi et al., *String Diagram Rewrite Theory III: Confluence with and without Frobenius*. [arXiv:2109.06049](https://arxiv.org/abs/2109.06049).
-- **R15:** A. Corradini et al., *AGREE — Algebraic Graph Rewriting with Controlled Embedding*. [arXiv:1411.4597](https://arxiv.org/abs/1411.4597).
-- **R16:** R. Overbeek, J. Endrullis and A. Rosset, *Graph Rewriting and Relabeling with PBPO+: A Unifying Theory for Quasitoposes*. [arXiv:2203.01032](https://arxiv.org/abs/2203.01032); [PBPO+ tutorial](https://arxiv.org/abs/2301.12912).
-- **R17:** Mathlib, `Mathlib.CategoryTheory.Elements`. [API and source](https://leanprover-community.github.io/mathlib4_docs/Mathlib/CategoryTheory/Elements.html).
-- **R18:** E. Riehl, *Category Theory in Context*, §6.2. [Author's book](https://emilyriehl.github.io/files/context.pdf).
