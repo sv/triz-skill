@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -96,6 +96,15 @@ console.log(`triz_transform merge bearing+shaft -> hidden harms ${merged.hiddenH
 if (!merged.ok || merged.hiddenHarms.join() !== "w-heat") fail("merge wrong");
 const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
 if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
+
+const listed = await json("triz_rule_apply", { model, rule_id: "mono-bi", at: { wires: { f: "w-support" } } });
+console.log(`triz_rule_apply mono-bi at w-support -> ${listed.matches?.length} match`);
+if (!listed.ok || listed.matches.length !== 1 || !listed.matches[0].applicable) fail("rule match listing wrong");
+const bi = await json("triz_rule_apply", { model, rule_id: "mono-bi", match: listed.matches[0].match });
+console.log(`triz_rule_apply mono-bi -> ${bi.model?.boxes.map((b) => b.id)}`);
+if (!bi.ok || !bi.model.boxes.some((b) => b.id === "bearing-2")) fail("rule application wrong");
+const fed = await json("triz_rule_apply", { model, rule_id: "feedback", match: listed.matches[0].match });
+if (fed.ok !== false) fail("unbound right-side carrier did not fail closed");
 
 const grid = await json("triz_nine_windows", { present: model, subsystem: ["bearing", "shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
 const step = grid.transitions?.[0];

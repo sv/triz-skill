@@ -91,6 +91,7 @@ missing.
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
+| `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
@@ -122,6 +123,12 @@ typed moves. Each returns a model that type-checks, or fails closed:
   classifies all 40 and says why the others are parametric or analogies;
 - an applied trim;
 - a raw rewrite.
+
+`triz_rule_apply` takes a rule as data, a span L ← K → R of patterns
+([`rule.schema.json`](skills/triz-innovation/schemas/rule.schema.json)). It lists the rule's
+matches in a model, then applies one by double pushout after checking the no-identification and
+no-dangling conditions. Two built-in rules encode evolution lines whose text describes a
+structural move: mono → bi, and self-adjusting feedback.
 
 When boxes declare behaviour (finite carrier `values` and relation rows), `triz_behavior`
 decides a trim instead of only screening it: `preserved`, `changed` with a counterexample input,

@@ -82,8 +82,8 @@ sources do not document in-cell ordering as a preference rank, so none is used h
 
 ### TRIZ grounding
 
-The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, and `triz_transform`
-follows the MATRIZ knowledge base. Pages were checked on 2026-10-29.
+The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, `triz_transform`, and
+`triz_rule_apply` follows the MATRIZ knowledge base. Pages were checked on 2026-10-29.
 
 - [Trimming rules](https://wiki.matriz.org/docs/triz/problem-solving-tools-5807/trimming-6398/trimming-rules-6730/)
   define three rules:
@@ -145,13 +145,15 @@ it supports here.
   [arXiv:2012.01847](https://arxiv.org/abs/2012.01847). Checked on 2026-10-29: Def. 3.1
   (hypergraphs with ordered source and target lists), Def. 3.16 (the no-dangling and
   no-identification conditions), and Prop. 3.17 (a pushout complement exists iff both hold).
-  Two uses here:
+  Three uses here:
   - `triz_export`'s open-hypergraph form: hyperedges with ordered sources and targets, plus an
     interface;
   - the no-dangling check in `triz_transform`, where occurrences named by id make the
-    no-identification condition trivial.
+    no-identification condition trivial;
+  - `triz_rule_apply`, which reads a model as a labelled hypergraph for matching and checks both
+    conditions before each double-pushout application.
 
-  Neither use makes the kernel a DPO rewriting system.
+  The encoding of models as hypergraphs is this kernel's own; categorical-model.md gives it.
 
 Considered and not adopted:
 
@@ -181,7 +183,10 @@ Considered and not adopted:
   Evolution trends as double-pushout rewriting systems.
   - Adopted: trimming as a single rewrite at a named occurrence (`triz_transform` `trim`). It is
     checked by the no-dangling condition, cited from Bonchi et al. (2022) above.
-  - Not adopted: rules as reusable patterns, occurrence search, and the other evolution lines.
+  - Adopted: rules as data, occurrence search, and double-pushout application
+    (`triz_rule_apply`), with two more evolution lines as rules: mono → bi, and self-adjusting
+    feedback.
+  - Not adopted: the other evolution lines. categorical-model.md gives the reason for each.
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 

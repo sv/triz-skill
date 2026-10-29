@@ -25,6 +25,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
+| Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
@@ -71,6 +72,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `trim`, which performs a trim `triz_trim` screened as typed-feasible: the trimmed boxes go,
      and each function they performed on a remaining box is re-attached to a chosen absorber;
    - `rewrite`, which deletes and adds boxes and wires directly.
+
+   For a move that recurs, write a rule or use a built-in evolution-line rule with
+   `triz_rule_apply` (see Rules below). Without `match` it lists the occurrences. Pass one back
+   as `match` to apply it. An occurrence marked not applicable names the condition it breaks.
 
    A transformation is a move to evaluate, not a result. Compare the new model with
    `triz_function_model` and `compare_to`. Segmenting a product box, taking a part out of one, or
@@ -192,6 +197,7 @@ that move is `interpose`.
 Trimming as a rewrite is the evolution-line move named in
 [evolution-trends.md](evolution-trends.md): "the function remains, the component disappears".
 `trim` builds that rewrite and checks it. It does not show that a trend applies to the system.
+Two other lines are rules; see below.
 
 ### All 40 principles
 
@@ -257,6 +263,71 @@ the original.
 A test checks this table against `data/principles.json`: all 40 rows, each with the looked-up
 name and text, and each structural row naming a `triz_transform` operation.
 
+## Rules (double pushout)
+
+A rule is data, defined by [rule.schema.json](../schemas/rule.schema.json). It has three
+patterns: L, what must be present; K, what is kept; and R, what is there afterwards. K's
+elements appear in L and R with the same ids. Pattern ports are typed by carrier variables. A
+match binds the variables used in L; the caller binds those used only in R.
+
+For matching, a model is read as a hypergraph in the sense of Bonchi et al. (2022, Def. 3.1).
+Boxes and ports are vertices. Each port has a `port-of` hyperedge to its box, labelled by side
+and carrier. Each wire is a hyperedge from its source port to its target port, labelled by
+carrier and rating. A match instantiates the rule: it binds the carrier variables, takes any role
+or rating the pattern leaves out from the matched element, and resolves `like` copies. On the
+instantiated rule, the match is a label-preserving homomorphism, and the conditions below are
+that rule's. So a pattern box matches any box that has at least the pattern's ports.
+
+`triz_rule_apply` applies a rule at a match in steps that each fail closed:
+
+1. The match must be a typed homomorphism.
+2. No-identification: two pattern elements with the same image must both be kept.
+3. No-dangling: every port of a deleted box must be in L, and every wire on a deleted port must
+   be deleted. Bonchi et al. (2022, Def. 3.16 and Prop. 3.17) show that these two conditions
+   are exactly what the pushout complement needs.
+4. Behaviour: a kept box that declares `behavior` must keep its ports, because its rows name
+   every port once. A rule that adds or deletes one of its ports fails with `behaviour:`; restate
+   or remove the behaviour first. A `like` copy does not copy behaviour.
+5. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
+6. The result must pass the type check of `triz_function_model`.
+
+`typed_dpo` in `theory/` states that the result is typed when four things hold: the model is
+typed, R is typed, no surviving wire touches a deleted box, and R gives no port a carrier other
+than the model's. Rule validation checks R's typing. Step 1 and fresh box and port ids give the
+carrier condition. The Lean statement leaves two things out:
+
+- It types ports by partial maps, so it does not model deleting a port. The dangling check in
+  step 3 covers that.
+- Typing does not need no-identification, which is what makes the result a pushout. A witness
+  in `Witnesses.lean` gives a typed result that breaks it.
+
+A property test applies four rules at every match in 200 generated models. Every applicable
+match gives a typed model. Every other match fails on a named condition, never at step 6. A
+test on the bearing model with declared behaviour checks step 4.
+
+The search is bounded. Past the step budget the list is `decided: false`, and past the match
+limit it is `complete: false`. Every listed match is verified before it is returned.
+
+## Evolution lines as rules
+
+A line is encoded only where its text in [evolution-trends.md](evolution-trends.md) describes a
+move on the wiring. The rule encodes that move and no more, and cites the line; a test checks
+that the quoted text is on that line.
+
+| Line | Text | Decision |
+|---|---|---|
+| Transition to supersystem | "mono → bi → poly → system with its supersystem" | Rule `mono-bi`: a second performer of a matched function. The copy takes the performer's role, name, action, and cost, so its cost counts, and the function's rating. Apply it again for poly. The supersystem step is not encoded. |
+| Increasing controllability | "fixed → adjustable → self-adjusting with feedback" | Rule `feedback`: one useful function from the object back to the tool, on a carrier the caller binds. The text names no sensor or controller, so the rule adds no box. The earlier steps are not encoded. `triz_transform` `feedback` (Principle 23) adds a function between boxes you name instead of searching for an occurrence. |
+| Increasing ideality | "function preserved while parts and cost vanish" | Trimming, already `triz_transform` `trim`. |
+| Dynamization | "rigid → jointed → flexible → field" | Not encoded: the steps change how rigid a component is, which the wiring does not represent. |
+| Increasing coordination | "parts synchronize rhythm and parameters" | Not encoded: it changes parameters, not structure. |
+| Uneven development of subsystems | "one subsystem lags and becomes the limiter" | Not encoded: a diagnosis, not a move. |
+| Transition to microlevel | "mechanism shrinks toward particle and field interactions" | Not encoded: scale is not in the wiring. |
+| Decreasing human involvement | "human does → machine does → system decides" | Not encoded: a machine performing the function in place of a human leaves the wiring as it was, and no role tells them apart. |
+| Changing the working field | "mechanical → thermal → chemical → electric → magnetic → electromagnetic" | Not encoded. A field would be a carrier, but the kernel reads a carrier's layer and dimension as labels, so it cannot order fields. It also identifies a delivered function by its carrier, so "the same function in another field" has no structural reading. |
+
+A rule application is a move to evaluate, not evidence that the trend applies.
+
 ## Domain working translations
 
 These are working translations, not isomorphisms. SKILL.md rule 4 and the "conflict between
@@ -311,13 +382,12 @@ example cohort churn against fee changes. Name it only from that evidence.
 - A `preserved` verdict holds for the relations as declared. Whether they are true, the
   absorber's above all, is outside the kernel, and so are the absorber's added cost and new
   harms. Downstream boxes are not composed; see `partialDownstream`.
-- Rewrites are not a double-pushout rewriting system.
-  - A rewrite is applied at an occurrence named by id, and the kernel checks the no-dangling
-    condition.
-  - Occurrences named by id are injective, so the no-identification condition holds trivially.
-    Bonchi et al. (2022), Prop. 3.17, show the two conditions are exactly what the pushout
-    complement needs.
-  - Rules as reusable patterns, and searching for their occurrences, are not implemented.
+- Double-pushout rewriting is claimed for `triz_rule_apply` only, in the hypergraph encoding
+  above.
+  - `triz_transform`'s moves are single rewrites at occurrences named by id. They check
+    no-dangling; ids are injective, so no-identification holds trivially.
+  - Nothing is claimed about sets of rules: neither confluence nor termination.
+  - The match search is exponential in the worst case. That is why it has a step budget.
 - "Domain invariance" is claimed in one sense only: the structured verdicts are label-blind.
   They depend on the wiring shape, not on ids, names, verbs, domain, or carrier layer and
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
@@ -363,8 +433,9 @@ example cohort churn against fee changes. Name it only from that evidence.
   omits.
 - A scalar ideality is produced only from explicit `weights` covering every cost dimension and
   `harmful`. Otherwise, costs are reported per dimension and never summed.
-- Not adopted: 9 windows as a fibration, evolution trends other than trimming as rewrite rules,
-  and the principles classified parametric or analogy only above as transformations. The
-  formal-methods analogies are recorded in [sources.md](sources.md); none is implemented.
+- Not adopted: 9 windows as a fibration, evolution lines other than the three above as rules
+  (the table gives each reason), and the principles classified parametric or analogy only above
+  as transformations. The formal-methods analogies are recorded in [sources.md](sources.md);
+  none is implemented.
 - The principle constructions check structure only. The label-blindness property tests do not
   cover them.
