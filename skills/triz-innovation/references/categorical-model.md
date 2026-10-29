@@ -24,7 +24,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
-| Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute` |
+| Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
@@ -67,7 +67,8 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
 
 5. **Transform.** Use `triz_transform` to apply one structural move and get the new model back.
    Every result type-checks, or the call fails closed:
-   - `segment`, `take_out`, and `interpose`, the principle constructions below;
+   - the principle constructions below: `segment`, `take_out`, `merge`, `standby`, `reverse`,
+     `rerate`, `retarget`, `feedback`, `interpose`, and `cheap_copy`;
    - `trim`, which performs a trim `triz_trim` screened as typed-feasible: the trimmed boxes go,
      and each function they performed on a remaining box is re-attached to a chosen absorber;
    - `rewrite`, which deletes and adds boxes and wires directly.
@@ -77,10 +78,11 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    as `match` to apply it. An occurrence marked not applicable names the condition it breaks.
 
    A transformation is a move to evaluate, not a result. Compare the new model with
-   `triz_function_model` and `compare_to`. Segmenting a product box, or taking a part out of one,
-   moves its deliverables to new box ids, and the result reports `deliverableKeysChanged`. Pass
-   the returned `boxMap` as `box_map` so the comparison renames the parts back before matching
-   deliverables. Without it, the moved deliverables read as lost and regained.
+   `triz_function_model` and `compare_to`. Segmenting a product box, taking a part out of one, or
+   copying one under a new id moves its deliverables to new box ids, and the result reports
+   `deliverableKeysChanged`. Pass the returned `boxMap` as `box_map` so the comparison renames
+   the parts back before matching deliverables. Without it, the moved deliverables read as lost
+   and regained. `merge` renames the merged ports as well, so no box map recovers them.
 6. **Windows.** Use `triz_nine_windows` with the present model, any past or future snapshots
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
@@ -140,8 +142,10 @@ With `trim`, the trim is applied as `triz_transform` does, and the verdict is on
   the trim. No behaviour is needed for this.
 - `undecided`, reason `missing-behavior`: a box that can reach a deliverable, in the baseline
   or in the trimmed model, declares no behaviour. The output names those boxes. Segmentation,
-  Taking out, and Intermediary build new boxes without behaviour, so their results stay
-  undecided until you declare it.
+  Taking out, Intermediary, and Merging build new boxes without behaviour, so their results stay
+  undecided until you declare it; `merge` lists the boxes whose behaviour it drops
+  (`droppedBehavior`). `cheap_copy` keeps the box's behaviour, and `reverse` refuses to add a
+  port to a box that declares behaviour.
 - `undecided`, reason `no-steady-state`: neither model has a steady state at any compared
   input, so both relations are empty and their equality says nothing about the trim.
 - `preserved`: the baseline and trimmed input→deliverable relations are equal, and at least
@@ -165,16 +169,26 @@ the call fails closed.
 ## Principle constructions
 
 A construction is listed here only when the principle's text, looked up in
-`data/principles.json` (`triz_principle`), describes a structural move the kernel can make and
-check. Each row makes the structural part of the principle checkable. That does not show the
-principle solves the problem. Every other principle stays an analogy.
+`data/principles.json` (`triz_principle`), describes a move the kernel can make and check: a
+structural one, or for Principle 15 a parametric one. Each row makes the structural part of the principle checkable. That does not show the
+principle solves the problem. [All 40 principles](#all-40-principles) gives the class of each
+one and why.
 
 | Principle | Text (`triz_principle`) | Construction | Checked |
 |---|---|---|---|
 | 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts. For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
 | 2 Taking out | "Separate an interfering part or isolate the only needed part." | `take_out`: split the given ports off into a new box. | Reading `interfering`: the split-off ports touch a harmful or excessive function. Reading `needed`: they carry every useful function, so the remainder is a trimming candidate. |
+| 5 Merging | "Bring identical or adjacent operations together in space or time." | `merge`: `collapse` the boxes into one. | Reading `adjacent` (default): functions inside the group join every box. Reading `identical`: the same role and the same carriers on each side; names and actions are labels and are not compared. Every path maps to a path (`reach_quotient`), but a merge can close loops: harms newly on a harm loop are listed, as are the hidden internal functions. |
+| 6 Universality | "Make an object perform multiple functions and eliminate other parts." | `trim` with every `absorb` choice on one box. No new operation. | As for `trim`: each re-attached function goes to a typed absorber. The result shows the box performing its own and the absorbed functions. |
+| 11 Beforehand cushioning | "Prepare emergency means beforehand to offset low reliability." | `standby`: an unwired box with an output port for each port through which the box performs a useful function on another box. | Harm loops, deliverables, and every existing function are unchanged; only cost is added. Losing the box is modelled as trimming it: afterwards `triz_trim` lists the standby as an absorber of each such function, and `newlyCovered` lists those that had none. |
+| 13 The other way round | "Invert the action; make movable parts fixed and fixed parts movable." | `reverse`: u → v becomes v → u with the same id, carrier, and rating. | Needs an output of the carrier on v and an input on u; a named port the box lacks is added (`typed_extend`), and none or several unnamed ones fail closed. The edge set changes by exactly that converse. The returned `undo`, a `rewrite`, gives back the original model, added ports included. |
 | 15 Dynamics | "Allow characteristics to change so they are optimal at each stage." | `triz_separate` with `along: "time"`: the parameter as a function of time cells alone. | `dynamizable` only when every stage has an admissible value and no single value meets all stages. A constant that works is reported as `constant-suffices`, not as Principle 15. Values are admissible, not optimised. |
+| 16 Partial or excessive action | "If the full action is difficult, do slightly less or slightly more." | `rerate`: a useful function becomes insufficient or excessive; `cost` may set the performer's new cost. | Deliverables are unchanged. Insufficient never creates a harm loop; excessive creates one exactly when the function is on a cycle that had no harmful or excessive function. Without a cost change, `compare_to` reports the concept worse on `defective`. |
+| 22 Blessing in disguise | "Use a harmful factor to achieve a positive effect." | `retarget`: the harmful function's source port feeds a useful function at another input of the same carrier. | By default the factor is redirected: one harmful function fewer, one useful one more. With `keep_harm`, the harm stays and the useful function is added. The harm's own object port is refused, since rating it useful there is not using the factor elsewhere. |
+| 23 Feedback | "Introduce feedback, or change the magnitude and influence of existing feedback." | `feedback` adds a function; `rerate` with `reading: "feedback"` changes the level of one. | `feedback`: the new function's object already reaches its performer, so it lies on the returned witness cycle (`edge_on_cycle`), reported as a control loop or a harm loop. `rerate`: the function is on a cycle, and the harm loops created and removed are listed. |
 | 24 Intermediary | "Use an intermediary carrier or process, temporarily or permanently." | `interpose`: a function u → v becomes u → m → v through a new mediator box. | Both legs keep the carrier, and keep the rating unless it is overridden. Reachability among the original boxes is unchanged. With inherited ratings, harm-loop membership is unchanged too. "Temporarily" is not modelled. |
+| 25 Self-service | "Make an object serve or repair itself and use waste resources." | `trim` with a rule-B absorber. No new operation. | As for `trim`; `chosen` reports rule B. |
+| 26 Copying, 27 Cheap short-living objects | "Use inexpensive copies instead of an unavailable, expensive, or fragile original." "Replace an expensive durable object with inexpensive short-lived ones." | `cheap_copy`: a box with the same role, action, and ports, and a new cost. | The cost is no higher on any dimension and lower on at least one, so no total rises (`cheaper_part_lowers_cost`). Every function re-attaches with its rating, so the wiring shape is the original's. |
 
 The original design suggested "factor a function through a new sub-box" for Principle 2. The
 looked-up text of Principle 2 does not describe that move; the text of Principle 24 does, so
@@ -184,6 +198,70 @@ Trimming as a rewrite is the evolution-line move named in
 [evolution-trends.md](evolution-trends.md): "the function remains, the component disappears".
 `trim` builds that rewrite and checks it. It does not show that a trend applies to the system.
 Two other lines are rules; see below.
+
+### All 40 principles
+
+Each principle's text, looked up with `triz_principle`, is classified against what the kernel
+can make and check:
+
+- **structural**: a move on boxes, ports, wires, carriers, ratings, cost dimensions, or
+  separation cells that the kernel can make and type-check. Each has a `triz_transform`
+  operation.
+- **parametric**: expressible only as a separation (`triz_separate`) or a behaviour change.
+  There is no wiring move to make.
+- **analogy only**: everything else. The text names geometry, materials, physics, speed, or the
+  order of events, none of which the model contains.
+
+Two facts decide most borderline rows. Time cells are an unordered set, so "before", "in
+advance", oscillation, and frequency cannot be stated. And every verdict ignores names, verbs,
+and carrier layers and dimensions, so a move that changes only those cannot be told apart from
+the original.
+
+| # | Principle | Text (`triz_principle`) | Class | Construction, or why not |
+|---|---|---|---|---|
+| 1 | Segmentation | "Divide an object into independent parts; make it sectional or modular." | structural | `segment`: "Divide an object into independent parts" — the parts' ports partition the box's ports, and independence (no wire between parts) is reported. |
+| 2 | Taking out / Extraction | "Separate an interfering part or isolate the only needed part." | structural | `take_out`: "an interfering part" touches a harmful or excessive function; "the only needed part" carries every useful one. |
+| 3 | Local quality | "Make each part fulfill a different, locally optimal function." | parametric | "a different, locally optimal function" for "each part" reads as a parameter whose value differs by location: `triz_separate` with `along: "space"`, after `segment` makes the parts. "Optimal" is not checked. |
+| 4 | Asymmetry | "Replace symmetric forms with asymmetric ones." | analogy only | "symmetric forms" are geometry; the model has none. |
+| 5 | Merging / Consolidation | "Bring identical or adjacent operations together in space or time." | structural | `merge`, which is `collapse`: "identical" boxes share role and port carriers, "adjacent" ones are joined by functions. "In space or time" is not modelled. |
+| 6 | Universality | "Make an object perform multiple functions and eliminate other parts." | structural | `trim` with every `absorb` choice on one box: the trim does "eliminate other parts", and that box comes to "perform multiple functions". No new operation. |
+| 7 | Nested doll / Nesting | "Place one object inside another; use layered containment." | analogy only | "Place one object inside another": the model has no containment. `collapse` is a view of a group, not a placement. |
+| 8 | Anti-weight / Counterweight | "Compensate an object's weight by coupling it to a lifting force." | analogy only | "Compensate an object's weight": no forces or balance. Adding the lifting function is a plain `rewrite`, and nothing checks that it compensates. |
+| 9 | Preliminary anti-action | "Preload an opposing action before a harmful one occurs." | analogy only | "before a harmful one occurs": time cells are unordered, and the model has no opposing actions. |
+| 10 | Preliminary action / Prior action | "Perform a required change fully or partly in advance." | analogy only | "in advance": time cells are unordered, so "before" has no checkable content. |
+| 11 | Beforehand cushioning | "Prepare emergency means beforehand to offset low reliability." | structural | `standby`: the "emergency means" is an unwired box that is a typed absorber of every useful function of the unreliable box, so losing that box (a trim) orphans none. Reliability and timing are not modelled. |
+| 12 | Equipotentiality | "Remove the need to raise or lower in a potential field." | analogy only | "in a potential field": physics, not wiring. |
+| 13 | The other way round / Inversion | "Invert the action; make movable parts fixed and fixed parts movable." | structural | `reverse`: "Invert the action" swaps the function's performer and object. "Movable" and "fixed" are not modelled. |
+| 14 | Spheroidality / Curvature | "Use curves or rollers instead of straight lines or planes." | analogy only | "curves or rollers": geometry. |
+| 15 | Dynamics | "Allow characteristics to change so they are optimal at each stage." | parametric | `triz_separate` with `along: "time"`: "optimal at each stage" is checked as an admissible value per time cell that no constant matches. |
+| 16 | Partial or excessive action | "If the full action is difficult, do slightly less or slightly more." | structural | `rerate`: "slightly less or slightly more" is a useful function rated insufficient or excessive. |
+| 17 | Another dimension | "Move into another dimension, tilt the object, or use multi-level arrangements." | analogy only | "another dimension, tilt": geometry. Its "multi-level arrangements" are spatial, not system levels. |
+| 18 | Mechanical vibration / Oscillation | "Oscillate or increase the frequency of an action." | analogy only | "Oscillate or increase the frequency": time cells are unordered and have no duration. What remains, change along time, is Principle 15's check. |
+| 19 | Periodic action | "Replace continuous action with periodic or pulsed action." | parametric | "continuous" versus "pulsed" is `triz_separate` with `along: "time"` on the action's level: `dynamizable` means no constant level meets every stage. "Periodic" is not modelled. |
+| 20 | Continuity of useful action | "Work continuously and remove idle intervals." | parametric | "remove idle intervals": `triz_separate` with `along: "time"`. `constant-suffices` with the working value means no time cell needs idling. |
+| 21 | Skipping / Rushing through | "Conduct a harmful or hazardous operation at very high speed." | analogy only | "at very high speed": the model has no speed or duration. |
+| 22 | Blessing in disguise / Turn harm into benefit | "Use a harmful factor to achieve a positive effect." | structural | `retarget`: the "harmful factor" is the harmful function's source port, and the "positive effect" a useful function it feeds on another input of the same carrier, optionally keeping the harm. |
+| 23 | Feedback | "Introduce feedback, or change the magnitude and influence of existing feedback." | structural | `feedback` ("Introduce feedback": the new function's object already reaches its performer) and `rerate` with `reading: "feedback"` ("change the magnitude": a level change on a cycle). "Influence" beyond the rating is not modelled. |
+| 24 | Intermediary / Mediator | "Use an intermediary carrier or process, temporarily or permanently." | structural | `interpose`: "an intermediary carrier or process" is a new mediator box on the function. "Temporarily" is not modelled. |
+| 25 | Self-service | "Make an object serve or repair itself and use waste resources." | structural | `trim` with a rule-B absorber, the trimming rule MATRIZ calls self-service: "Make an object serve … itself". "Repair" and "waste resources" are not modelled. No new operation. |
+| 26 | Copying | "Use inexpensive copies instead of an unavailable, expensive, or fragile original." | structural | `cheap_copy`: "inexpensive copies instead of an … expensive … original" have the original's ports and a componentwise lower cost. "Unavailable" and "fragile" are not modelled. |
+| 27 | Cheap short-living objects | "Replace an expensive durable object with inexpensive short-lived ones." | structural | `cheap_copy`, the same move: "expensive durable" to "inexpensive". "Durable", "short-lived", and the plural are not modelled. |
+| 28 | Mechanics substitution | "Replace a mechanical means with a field, sensory, or other interaction." | analogy only | "mechanical means" to "field": a carrier change is a plain `rewrite`, and verdicts ignore carrier layer and dimension, so nothing tells a mechanical carrier from a field. |
+| 29 | Pneumatics and hydraulics | "Use gas or liquid parts instead of solid parts." | analogy only | "gas or liquid parts": the model has no material phase. |
+| 30 | Flexible shells and thin films | "Use flexible shells, thin films, or isolating membranes." | analogy only | "flexible shells, thin films": materials. An isolating mediator is Principle 24's move and checks nothing about membranes. |
+| 31 | Porous materials | "Make an object porous or add porous elements." | analogy only | "porous": the model has no materials or pore structure. |
+| 32 | Color changes | "Change the color or transparency of an object or its environment." | parametric | "Change the color or transparency" is a parameter's value: `triz_separate` decides whether one value meets every demand or the value must vary along an axis. |
+| 33 | Homogeneity | "Make interacting objects of the same material or compatible behavior." | parametric | "compatible behavior" is what interacting boxes do: declared `behavior` relations, not wiring. `triz_behavior` composes them and lists inputs with no steady state (`noSteadyState`). "Same material" is not modelled. |
+| 34 | Discarding and recovering | "Discard or modify used parts and restore consumables during operation." | analogy only | "during operation": discarding and restoring needs transitions between times; `triz_nine_windows` snapshots compute none. |
+| 35 | Parameter changes | "Change physical state, concentration, flexibility, temperature, or another parameter." | parametric | "Change … another parameter" is a parameter's value, as for Principle 32. |
+| 36 | Phase transitions | "Use phenomena accompanying phase transitions." | analogy only | "phenomena accompanying phase transitions": an effect. Look it up with `triz_effects`. |
+| 37 | Thermal expansion | "Use thermal expansion or contraction of materials." | analogy only | "thermal expansion": an effect (`triz_effects`). |
+| 38 | Strong oxidants / Boosted interactions | "Replace a normal medium with an enriched or activated one to intensify interaction." | analogy only | "enriched or activated" medium: verdicts are label-blind, so a medium swapped for a relabelled one is indistinguishable. |
+| 39 | Inert atmosphere | "Replace a normal environment with an inert one." | analogy only | "inert" environment: deleting its harmful functions would stipulate the result, not check a move. |
+| 40 | Composite materials | "Replace homogeneous materials with composite or multi-property ones." | analogy only | "composite" materials: the model has no materials. |
+
+A test checks this table against `data/principles.json`: all 40 rows, each with the looked-up
+name and text, and each structural row naming a `triz_transform` operation.
 
 ## Rules (double pushout)
 
@@ -239,7 +317,7 @@ that the quoted text is on that line.
 | Line | Text | Decision |
 |---|---|---|
 | Transition to supersystem | "mono → bi → poly → system with its supersystem" | Rule `mono-bi`: a second performer of a matched function. The copy takes the performer's role, name, action, and cost, so its cost counts, and the function's rating. Apply it again for poly. The supersystem step is not encoded. |
-| Increasing controllability | "fixed → adjustable → self-adjusting with feedback" | Rule `feedback`: one useful function from the object back to the tool, on a carrier the caller binds. The text names no sensor or controller, so the rule adds no box. The earlier steps are not encoded. |
+| Increasing controllability | "fixed → adjustable → self-adjusting with feedback" | Rule `feedback`: one useful function from the object back to the tool, on a carrier the caller binds. The text names no sensor or controller, so the rule adds no box. The earlier steps are not encoded. `triz_transform` `feedback` (Principle 23) adds a function between boxes you name instead of searching for an occurrence. |
 | Increasing ideality | "function preserved while parts and cost vanish" | Trimming, already `triz_transform` `trim`. |
 | Dynamization | "rigid → jointed → flexible → field" | Not encoded: the steps change how rigid a component is, which the wiring does not represent. |
 | Increasing coordination | "parts synchronize rhythm and parameters" | Not encoded: it changes parameters, not structure. |
@@ -356,5 +434,8 @@ example cohort churn against fee changes. Name it only from that evidence.
 - A scalar ideality is produced only from explicit `weights` covering every cost dimension and
   `harmful`. Otherwise, costs are reported per dimension and never summed.
 - Not adopted: 9 windows as a fibration, evolution lines other than the three above as rules
-  (the table gives each reason), and principles other than 1, 2, 15, and 24 as transformations.
-  The analogies are recorded in [sources.md](sources.md); none is implemented.
+  (the table gives each reason), and the principles classified parametric or analogy only above
+  as transformations. The formal-methods analogies are recorded in [sources.md](sources.md);
+  none is implemented.
+- The principle constructions check structure only. The label-blindness property tests do not
+  cover them.
