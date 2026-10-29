@@ -1,6 +1,8 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Pi
-import Mathlib.CategoryTheory.Functor.KanExtension.Basic
+import Mathlib.CategoryTheory.ComposableArrows.Basic
+import Mathlib.CategoryTheory.Functor.Currying
+import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Set.Prod
@@ -14,8 +16,7 @@ import Mathlib.Order.Comparable
 
 Each section states, over Mathlib, the fact that one check in `src/act*.ts` relies on. This is
 not a formal model of TRIZ: it pins down what the deterministic checks decide and why they are
-sound, and names the one statement (trimming as a Kan extension) the kernel does *not* decide.
-See `skills/triz-innovation/references/categorical-model.md`.
+sound. See `skills/triz-innovation/references/categorical-model.md`.
 
 No `sorry`: `lake build --wfail` in `theory/` checks every proof and fails on any `sorry`.
 -/
@@ -105,6 +106,19 @@ variable {β : Type*} {r : β → β → Prop}
 theorem edge_on_cycle {u v : β} (huv : r u v) (hvu : Relation.ReflTransGen r v u) :
     Relation.TransGen r u u :=
   Relation.TransGen.head' huv hvu
+
+/-- Reachability passes to a quotient: when every edge maps to an edge or into one class, every
+path maps to a path. `merge` (Principle 5) is such a quotient of the boxes; it can close new
+loops, which is why the kernel lists them. -/
+theorem reach_quotient {γ : Type*} {s : γ → γ → Prop} (q : β → γ)
+    (h : ∀ a b, r a b → q a = q b ∨ s (q a) (q b)) {u v : β} (huv : Relation.ReflTransGen r u v) :
+    Relation.ReflTransGen s (q u) (q v) := by
+  induction huv with
+  | refl => exact .refl
+  | tail _ hbc ih =>
+    rcases h _ _ hbc with heq | hs
+    · exact heq ▸ ih
+    · exact ih.tail hs
 
 end Loops
 
@@ -230,6 +244,48 @@ theorem typed_reroute [DecidableEq W] {w₀ : W} {a : B} {q : P} (h : d.Typed) (
   · simp only [reroute, Function.update_of_ne hw₀]
     exact ⟨hs, ht, ho, hi⟩
 
+/-- Re-attach wire `w₀` to input port `q` of box `a`: the other end of `reroute`. -/
+def retarget [DecidableEq W] (w₀ : W) (a : B) (q : P) : Wiring B P W C :=
+  { d with tgt := Function.update d.tgt w₀ (a, q) }
+
+/-- Typing survives moving a wire's target to a present box whose input port carries the wire's
+carrier (`retarget`, Principle 22). -/
+theorem typed_retarget [DecidableEq W] {w₀ : W} {a : B} {q : P} (h : d.Typed) (ha : a ∈ d.boxes)
+    (hq : d.inp a q = some (d.carrier w₀)) : (d.retarget w₀ a q).Typed := by
+  intro w hw
+  obtain ⟨hs, ht, ho, hi⟩ := h w hw
+  by_cases hw₀ : w = w₀
+  · subst hw₀
+    simp only [retarget, Function.update_self]
+    exact ⟨hs, ha, ho, hq⟩
+  · simp only [retarget, Function.update_of_ne hw₀]
+    exact ⟨hs, ht, ho, hi⟩
+
+/-- Reversing a wire (`reverse`, Principle 13): its source moves to output `q` of its old target
+box and its target to input `p` of its old source box. Typing survives when both ports carry the
+wire's carrier. -/
+theorem typed_reverse [DecidableEq W] {w₀ : W} {p q : P} (h : d.Typed)
+    (hq : d.out (d.tgt w₀).1 q = some (d.carrier w₀))
+    (hp : d.inp (d.src w₀).1 p = some (d.carrier w₀)) :
+    ((d.reroute w₀ (d.tgt w₀).1 q).retarget w₀ (d.src w₀).1 p).Typed := by
+  by_cases hw₀ : w₀ ∈ d.wires
+  · obtain ⟨hs, ht, -, -⟩ := h w₀ hw₀
+    exact (d.reroute w₀ (d.tgt w₀).1 q).typed_retarget (d.typed_reroute h ht hq) hs hp
+  · intro w hw
+    have hne : w ≠ w₀ := fun e => hw₀ (e ▸ hw)
+    simp only [retarget, reroute, Function.update_of_ne hne]
+    exact h w hw
+
+/-- Declaring more ports keeps typing: every port a wire uses keeps its carrier (`reverse` adding
+a named port). -/
+theorem typed_extend {out' inp' : B → P → Option C}
+    (ho : ∀ b p c, d.out b p = some c → out' b p = some c)
+    (hi : ∀ b p c, d.inp b p = some c → inp' b p = some c) (h : d.Typed) :
+    ({ d with out := out', inp := inp' } : Wiring B P W C).Typed := by
+  intro w hw
+  obtain ⟨hs, ht, hso, hti⟩ := h w hw
+  exact ⟨hs, ht, ho _ _ _ hso, hi _ _ _ hti⟩
+
 /-- The subsystem view on boxes `A`: wires with both ends in `A`. -/
 def restrict (A : Set B) : Wiring B P W C :=
   { d with boxes := d.boxes ∩ A, wires := {w | w ∈ d.wires ∧ (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A} }
@@ -250,7 +306,180 @@ theorem restrict_restrict (A A' : Set B) : (d.restrict A).restrict A' = d.restri
 theorem restrict_of_subset {A A' : Set B} (hA : A' ⊆ A) : (d.restrict A).restrict A' = d.restrict A' := by
   rw [restrict_restrict, Set.inter_eq_right.mpr hA]
 
+/-- Every diagram is supported on all boxes. -/
+theorem restrict_univ : d.restrict Set.univ = d := by
+  simp only [restrict, Set.inter_univ, Set.mem_univ, and_self, and_true, Set.setOf_mem_eq]
+
+/-- A typed diagram whose boxes lie in `A` is its own restriction to `A`. Typing is needed: an
+untyped wire may leave the boxes, and restriction drops it. -/
+theorem restrict_eq_self {A : Set B} (h : d.Typed) (hA : d.boxes ⊆ A) : d.restrict A = d := by
+  simp only [restrict, Set.inter_eq_left.mpr hA]
+  congr 1
+  ext w
+  exact ⟨fun hw => hw.1, fun hw => ⟨hw, hA (h w hw).1, hA (h w hw).2.1⟩⟩
+
+/-! ### Rewrites along the level axis (the 9 windows' time steps)
+
+A rewrite step deletes boxes `del` and wires `cut`, then glues boxes `new` and wires `add`, as
+`rewrite` in `src/act-rewrite.ts`. Restriction commutes with every such step once the step is
+restricted too: its additions outside `A` or across `A`'s boundary are dropped. No hypothesis is
+needed. When its additions lie inside `A`, the step applies to the subsystem verbatim.
+
+Wires here have fixed endpoints, so a step never moves one. The kernel encodes a wire re-added
+under the same id with new endpoints, or a box re-added with new ports, as a deleted element and
+a glued one: its ids are labels, not elements. -/
+
+/-- A rewrite step's data. -/
+structure Rule (B W : Type*) where
+  del : Set B
+  cut : Set W
+  new : Set B
+  add : Set W
+
+/-- Delete, then glue. -/
+def rewrite (r : Rule B W) : Wiring B P W C := (d.delete r.del r.cut).glue r.new r.add
+
+/-- The part of a step inside `A`: boxes in `A`, and wires with both ends in `A`. -/
+def restrictRule (r : Rule B W) (A : Set B) : Rule B W where
+  del := r.del ∩ A
+  cut := {w | w ∈ r.cut ∧ (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A}
+  new := r.new ∩ A
+  add := {w | w ∈ r.add ∧ (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A}
+
+theorem restrict_delete (D : Set B) (E : Set W) (A : Set B) :
+    (d.delete D E).restrict A = (d.restrict A).delete D E := by
+  simp only [restrict, delete, mk.injEq, and_true]
+  constructor
+  · ext b
+    simp only [Set.mem_inter_iff, Set.mem_sdiff]
+    tauto
+  · ext w
+    simp only [Set.mem_setOf_eq, Set.mem_sdiff]
+    tauto
+
+theorem restrict_glue (N : Set B) (F : Set W) (A : Set B) :
+    (d.glue N F).restrict A =
+      (d.restrict A).glue (N ∩ A) {w | w ∈ F ∧ (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A} := by
+  simp only [restrict, glue, mk.injEq, and_true]
+  constructor
+  · exact Set.union_inter_distrib_right _ _ _
+  · ext w
+    simp only [Set.mem_setOf_eq, Set.mem_union]
+    tauto
+
+/-- The commuting square: restricting after a step is stepping the restriction by the step's
+part inside `A`. -/
+theorem restrict_rewrite (r : Rule B W) (A : Set B) :
+    (d.rewrite r).restrict A = (d.restrict A).rewrite (d.restrictRule r A) := by
+  simp only [rewrite, restrictRule, delete, glue, restrict, mk.injEq, and_true]
+  constructor
+  · ext b
+    simp only [Set.mem_union, Set.mem_sdiff, Set.mem_inter_iff]
+    tauto
+  · ext w
+    simp only [Set.mem_union, Set.mem_sdiff, Set.mem_setOf_eq]
+    tauto
+
+/-- A step whose additions lie inside `A` applies verbatim to the subsystem. -/
+theorem restrict_rewrite_of_inside {r : Rule B W} {A : Set B} (hN : r.new ⊆ A)
+    (hF : ∀ w ∈ r.add, (d.src w).1 ∈ A ∧ (d.tgt w).1 ∈ A) :
+    (d.rewrite r).restrict A = (d.restrict A).rewrite r := by
+  simp only [rewrite, restrict_glue, restrict_delete, Set.inter_eq_left.mpr hN]
+  congr 2
+  ext w
+  exact ⟨fun hw => hw.1, fun hw => ⟨hw, hF w hw⟩⟩
+
+/-- Wires with exactly one end in `A`: the subsystem view's boundary. -/
+def boundary (A : Set B) : Set W := {w | w ∈ d.wires ∧ ¬((d.src w).1 ∈ A ↔ (d.tgt w).1 ∈ A)}
+
+/-- A step changes the boundary by the boundary wires it cuts and the crossing wires it adds. -/
+theorem boundary_rewrite (r : Rule B W) (A : Set B) :
+    (d.rewrite r).boundary A =
+      d.boundary A \ r.cut ∪ {w | w ∈ r.add ∧ ¬((d.src w).1 ∈ A ↔ (d.tgt w).1 ∈ A)} := by
+  ext w
+  simp only [boundary, rewrite, glue, delete, Set.mem_setOf_eq, Set.mem_union, Set.mem_sdiff]
+  tauto
+
 end Wiring
+
+/-! ## The level axis as a presheaf, and the restriction rows over time as a functor
+
+The box subsets form a poset, hence a category (Mathlib's `Preorder.smallCategory`). Restriction
+makes diagrams a presheaf on it: `supportedOn` sends `A` to the diagrams that `restrict A`
+fixes, and `A' ⊆ A` to `restrict A'`. Typed diagrams form a sub-presheaf, `typedOn`. A rewrite
+step acts on every level as "rewrite, then restrict back", and `restrict_rewrite` makes that
+natural in the level. Two steps (past → present → future) then give a functor from the time
+chain `Fin 3` times the opposite subset poset to sets. It holds the 9 windows' subsystem rows
+(restriction to `A`) and system row (restriction to all boxes, `restrict_univ`) with their
+transitions. The supersystem row is a collapse, a quotient rather than a restriction, and is not
+part of it.
+
+Typing is not part of that functor along time. A step keeps typing only under its no-dangling and
+typed-gluing conditions (`typed_delete`, `typed_glue`), which hold for one diagram, not for all;
+the kernel checks them on the model it is given. No Grothendieck construction is built here. -/
+
+section Presheaf
+
+open CategoryTheory Opposite
+
+universe uB uP uW uC
+
+variable (B : Type uB) (P : Type uP) (W : Type uW) (C : Type uC)
+
+/-- The level axis: diagrams supported on `A` (fixed by `restrict A`), restricted along `A' ⊆ A`. -/
+def Wiring.supportedOn : (Set B)ᵒᵖ ⥤ Type (max uB uP uW uC) where
+  obj A := {d : Wiring B P W C // d.restrict A.unop = d}
+  map {_ A'} _ := TypeCat.ofHom fun d =>
+    ⟨d.1.restrict A'.unop, by rw [Wiring.restrict_restrict, Set.inter_self]⟩
+  map_id _ := by
+    ext d
+    exact d.2
+  map_comp _ g := by
+    ext d
+    exact (d.1.restrict_of_subset g.unop.le).symm
+
+/-- Restriction keeps typing, so typed diagrams form a sub-presheaf. -/
+def Wiring.typedOn : Subfunctor (Wiring.supportedOn B P W C) where
+  obj _ := {d | d.1.Typed}
+  map _ d h := d.1.typed_restrict h _
+
+/-- A typed diagram is supported on `A` exactly when its boxes lie in `A`. -/
+theorem Wiring.supported_iff_of_typed {d : Wiring B P W C} (h : d.Typed) {A : Set B} :
+    d.restrict A = d ↔ d.boxes ⊆ A := by
+  refine ⟨fun hA => ?_, d.restrict_eq_self h⟩
+  rw [← hA]
+  exact Set.inter_subset_right
+
+variable {B P W C}
+
+/-- A rewrite step on every level: rewrite, then restrict back to the level. -/
+def Wiring.rewriteOn (r : Wiring.Rule B W) :
+    Wiring.supportedOn B P W C ⟶ Wiring.supportedOn B P W C where
+  app A := TypeCat.ofHom fun d =>
+    ⟨(d.1.rewrite r).restrict A.unop, by rw [Wiring.restrict_restrict, Set.inter_self]⟩
+  naturality A A' f := by
+    ext d
+    apply Subtype.ext
+    change ((d.1.restrict A'.unop).rewrite r).restrict A'.unop =
+      ((d.1.rewrite r).restrict A.unop).restrict A'.unop
+    rw [Wiring.restrict_of_subset _ f.unop.le, Wiring.restrict_rewrite, Wiring.restrict_rewrite,
+      Wiring.restrict_restrict, Set.inter_self]
+    rfl
+
+/-- On level `A` the step is the step's part inside `A` (`restrict_rewrite`). -/
+theorem Wiring.rewriteOn_app (r : Wiring.Rule B W) (A : (Set B)ᵒᵖ)
+    (d : (Wiring.supportedOn B P W C).obj A) :
+    ((Wiring.rewriteOn r).app A d).1 = d.1.rewrite (d.1.restrictRule r A.unop) := by
+  change (d.1.rewrite r).restrict A.unop = _
+  rw [Wiring.restrict_rewrite, d.2]
+
+/-- The restriction rows of the 9 windows over time: past → present → future by steps `r₁` and
+`r₂` along `Fin 3`, and restriction along the opposite subset poset. -/
+def Wiring.restrictionGrid (r₁ r₂ : Wiring.Rule B W) : Fin 3 × (Set B)ᵒᵖ ⥤ Type (max uB uP uW uC) :=
+  Functor.uncurry.obj
+    (ComposableArrows.mk₂ (Wiring.rewriteOn (P := P) (C := C) r₁) (Wiring.rewriteOn r₂))
+
+end Presheaf
 
 /-! ## Ideality as a componentwise comparison (`idealityProfile`, `compareIdeality`)
 
@@ -264,6 +493,16 @@ variable {ι D : Type*}
 theorem trim_lowers_cost (cost : ι → D → ℝ) (hc : ∀ i, 0 ≤ cost i) {kept all : Finset ι}
     (h : kept ⊆ all) : ∑ i ∈ kept, cost i ≤ ∑ i ∈ all, cost i :=
   Finset.sum_le_sum_of_subset_of_nonneg h fun i _ _ => hc i
+
+/-- Replacing one part's cost vector by a componentwise lower one raises no dimension of the
+total (`cheap_copy`, Principles 26 and 27). -/
+theorem cheaper_part_lowers_cost [DecidableEq ι] (cost : ι → D → ℝ) (s : Finset ι) {i₀ : ι}
+    {c : D → ℝ} (hc : c ≤ cost i₀) : ∑ i ∈ s, Function.update cost i₀ c i ≤ ∑ i ∈ s, cost i :=
+  Finset.sum_le_sum fun i _ => by
+    by_cases hi : i = i₀
+    · subst hi
+      simpa using hc
+    · simp [Function.update_of_ne hi]
 
 /-- A trade-off: two cost vectors neither of which dominates the other (Mathlib's `IncompRel`),
 which `compareIdeality` reports as `trade-off`. -/
@@ -289,7 +528,12 @@ Mathlib's `Relation.Comp` (some middle value links the two relations), which can
 either way (`Relation.comp_assoc`, which verdicts cite). The statements below add that series
 composition is monotone, that adding rows never removes a steady state, and they pin down the
 trace on the loops the tests check. The TypeScript evaluator is checked against them by tests,
-not by extraction. -/
+not by extraction.
+
+For a model that declares behaviour, `trimPreservesBehavior` decides whether a trim keeps the
+input→deliverable relation equal to the baseline's. Its verdict depends on the absorber chosen,
+not only on the boxes trimmed, so no statement about what remains after deleting the trimmed
+boxes can stand for it. -/
 
 section Behaviour
 
@@ -474,31 +718,5 @@ theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc 
   · omega
 
 end Dynamics
-
-/-! ## Trimming as a Kan extension (stated, not decided)
-
-Let `ι : J' ⥤ J` include the shape of the trimmed diagram into the original and `D : J ⥤ C` be
-the original system. The system is recoverable from what remains when `D` is a left Kan
-extension of its restriction `ι ⋙ D` along `ι`, with identity unit. `trimCandidates` does not
-decide this: it checks only the carrier-typing condition any such factorization needs. For a
-model that declares behaviour, `trimPreservesBehavior` decides a finite relational question
-instead: whether the trimmed model's input→deliverable relation (above) equals the baseline's.
-That is not proved equivalent to `Recoverable`. -/
-
-section Trimming
-
-open CategoryTheory
-
-variable {J' J C : Type*} [Category J'] [Category J] [Category C]
-
-/-- `D` is recoverable from its restriction along `ι`. -/
-abbrev Recoverable (ι : J' ⥤ J) (D : J ⥤ C) : Prop :=
-  D.IsLeftKanExtension (𝟙 (ι ⋙ D))
-
-/-- Sanity check: trimming nothing loses nothing. -/
-theorem recoverable_id (D : J ⥤ C) : Recoverable (𝟭 J) D :=
-  Functor.isLeftKanExtensionId D
-
-end Trimming
 
 end CategoricalTriz

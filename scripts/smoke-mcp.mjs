@@ -91,8 +91,18 @@ if (badExport.ok !== false) fail("mistyped export did not fail closed");
 const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
 console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);
 if (!trimmed.ok || trimmed.chosen[0].box !== "housing") fail("applied trim wrong");
+const merged = await json("triz_transform", { model, transformation: { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } } });
+console.log(`triz_transform merge bearing+shaft -> hidden harms ${merged.hiddenHarms}`);
+if (!merged.ok || merged.hiddenHarms.join() !== "w-heat") fail("merge wrong");
 const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
 if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
+
+const grid = await json("triz_nine_windows", { present: model, subsystem: ["bearing", "shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
+const step = grid.transitions?.[0];
+console.log(`triz_nine_windows present_to_future trim -> future ${step?.snapshot}, boundary added [${step?.subsystem?.boundary?.added}]`);
+if (!grid.ok || step.snapshot !== "derived" || grid.windows[2].status !== "ok" || step.subsystem.boundary.added.join() !== "w-support") fail("9-windows transition wrong");
+const unreached = await json("triz_nine_windows", { present: model, future: model, subsystem: ["shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
+if (unreached.ok !== false) fail("unreachable future snapshot did not fail closed");
 
 const behaving = {
   ...model,
