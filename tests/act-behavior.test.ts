@@ -323,3 +323,28 @@ test("triz_behavior answers over the shared tool spec and fails closed", async (
   assert.equal((await call({ model: bad, trim: ["bearing"] })).ok, false);
   assert.equal(spec.shape.max_states.safeParse(MAX_STATES + 1).success, false);
 });
+
+/**
+ * Why trimming is not stated as a Kan extension of what remains: with the same box trimmed, the
+ * decided verdict changes with the absorber, which a statement about the remaining boxes cannot see.
+ */
+test("the decided trim depends on the absorber, not only on the trimmed boxes", () => {
+  const source = (id: string, value: string) => ({ id, name: id, role: "mediator" as const, outputs: [{ id: "o", carrier: "c" }], behavior: [{ in: {}, out: { o: value } }] });
+  const m: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "c", layer: "energy", dimension: "W", values: ["a", "b"] }],
+    boxes: [
+      source("trimmed", "a"), source("same", "a"), source("other", "b"),
+      { id: "product", name: "Product", role: "product", inputs: [{ id: "in", carrier: "c" }], behavior: [{ in: { in: "a" }, out: {} }, { in: { in: "b" }, out: {} }] },
+    ],
+    wires: [{ id: "w", from: { box: "trimmed", port: "o" }, to: { box: "product", port: "in" }, carrier: "c", polarity: "useful" }],
+  };
+  assert.ok(checkModel(m).ok);
+  const keep = trimPreservesBehavior(m, { trim: ["trimmed"], absorb: { w: { box: "same", port: "o" } } });
+  const lose = trimPreservesBehavior(m, { trim: ["trimmed"], absorb: { w: { box: "other", port: "o" } } });
+  assert.ok(keep.ok && lose.ok);
+  assert.equal(keep.verdict, "preserved");
+  assert.equal(lose.verdict, "changed");
+  assert.ok(lose.verdict === "changed" && lose.reason === "counterexample");
+  assert.deepEqual(lose.counterexample.onlyBaseline, [["a"]]);
+});

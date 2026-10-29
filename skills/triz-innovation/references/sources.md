@@ -118,9 +118,6 @@ it supports here.
 - **Fong & Spivak (2019)**, *An Invitation to Applied Category Theory: Seven Sketches in
   Compositionality*, Cambridge University Press, doi:10.1017/9781108668804.
   Monoidal preorders, resource theories, co-design, wiring diagrams.
-- **Mac Lane**, *Categories for the Working Mathematician*, 2nd ed., Springer GTM 5 (1998),
-  chapter "Kan Extensions".
-  The trimming statement `Recoverable` in `theory/`.
 - **Fritz (2017)**, *Resource convertibility and ordered commutative monoids*, Mathematical
   Structures in Computer Science 27(6), 850–938, doi:10.1017/S0960129515000444.
   **Censi (2015)**, *A mathematical theory of co-design*,
@@ -138,7 +135,8 @@ it supports here.
   **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,
   EPTCS 95, 1–14.
   Obstructions to global sections. The separation check is the finite discrete case: a global
-  section exists iff every cell's admissible set is non-empty, so no cohomology is needed.
+  section exists iff every cell's admissible set is non-empty (`exists_section_iff`), so no
+  cohomology is needed.
 - **Clarke, Elkins, Gibbons, Loregian, Milewski, Pillmore & Román (2024)**, *Profunctor optics,
   a categorical update*, Compositionality 6, doi:10.32408/compositionality-6-1.
   **Ghani, Hedges, Winschel & Zahn (2018)**, *Compositional game theory*, LICS '18, 472–481,
@@ -163,6 +161,12 @@ it supports here.
 
 Considered and not adopted:
 
+- **Mac Lane**, *Categories for the Working Mathematician*, 2nd ed., Springer GTM 5 (1998),
+  chapter "Kan Extensions".
+  Trimming as a left Kan extension of what remains. It was stated in `theory/`, never decided,
+  and then removed. The decided trim (`triz_behavior`) depends on the absorber chosen, a trim
+  that re-attaches a function is not an inclusion of the trimmed model, and no functor from a
+  function model was defined (categorical-model.md).
 - **Baez & Master (2020)**, *Open Petri nets*, MSCS 30(3), 314–341.
   **Baez & Pollard (2017)**, *A compositional framework for reaction networks*, Rev. Math.
   Phys. 29, 1750028.
@@ -170,8 +174,11 @@ Considered and not adopted:
 - **Grothendieck & Raynaud**, SGA 1, Springer LNM 224 (1971), Exposé VI.
   **Spivak (2009)**, *Simplicial databases*, [arXiv:0904.2012](https://arxiv.org/abs/0904.2012).
   9 windows as a fibration.
-  - Adopted: the level axis as typed restriction and collapse (`triz_nine_windows`).
-  - Not adopted: the fibration itself, and any computed transition between times.
+  - Adopted: the level axis as typed restriction and collapse (`triz_nine_windows`), proved a
+    presheaf on the poset of box sets; transitions as checked transformation sequences; and,
+    in `theory/`, the subsystem and system rows as a functor from time × (box sets)ᵒᵖ to sets.
+  - Not adopted: the fibration itself, and the supersystem row in that functor. No Grothendieck
+    construction is built.
 - **Ehrig, Ehrig, Prange & Taentzer (2006)**, *Fundamentals of Algebraic Graph
   Transformation*, Springer.
   **Corradini, Montanari, Rossi, Ehrig, Heckel & Löwe (1997)**, *Algebraic approaches to graph

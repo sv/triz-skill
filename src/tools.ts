@@ -242,7 +242,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_nine_windows",
-      description: "System operator (9 windows) over function models: for each snapshot you supply (present required; past and future optional, with stable box ids), the subsystem view (restriction to the boxes you name, with crossing functions as its boundary), the system view, and the supersystem view (the tool and mediator boxes, or the boxes you list, collapsed into one black box; hidden harmful functions are listed). Each view reports its boxes, function counts, and harm loops. No transition between times is computed; missing windows are reported as prompts.",
+      description: "System operator (9 windows) over function models: for past, present, and future, the subsystem view (restriction to the boxes you name, with crossing functions as its boundary), the system view, and the supersystem view (the tool and mediator boxes, or the boxes you list, collapsed into one black box; hidden harmful functions are listed). Each view reports its boxes, function counts, and harm loops. Present is required. Past and future are snapshots with stable box ids, or transitions: triz_transform operations applied in order (past_to_present needs past and must reach present; present_to_future must reach future if given, or derives it). A transition that fails or does not reach its snapshot fails closed. Each transition is reported as one net rewrite step, its part inside the subsystem (which takes the earlier subsystem view to the later one), whether it stays within the subsystem, and the boundary functions it cuts and adds. Missing windows are reported as prompts.",
       shape: {
         present: act.FunctionModel,
         past: act.FunctionModel.optional(),
@@ -250,8 +250,12 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         subsystem: z.array(Id).min(1).describe("Box ids to zoom into for the subsystem row"),
         system: z.strictObject({ id: Id.optional(), name: z.string().optional(), boxes: z.array(Id).optional() }).optional()
           .describe("The collapsed system box for the supersystem row; default boxes: every tool and mediator"),
+        transitions: z.strictObject({
+          past_to_present: z.array(Transformation).min(1).optional().describe("Applied to past in order; the result must equal present"),
+          present_to_future: z.array(Transformation).min(1).optional().describe("Applied to present in order; the result must equal future if given, otherwise it is the future"),
+        }).optional().describe("Transformation sequences linking the times, as triz_transform operations"),
       },
-      handler: async (args: Parameters<typeof nineWindows>[0]) => text(nineWindows(args)),
+      handler: async (args: Parameters<typeof nineWindows<Transformation>>[0]) => text(nineWindows(args, transform)),
     },
     {
       name: "triz_evals",
