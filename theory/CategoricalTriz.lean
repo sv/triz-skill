@@ -10,6 +10,9 @@ import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
 import Mathlib.Order.Comparable
+import Mathlib.Data.Rel
+import Mathlib.Data.Finset.Card
+import Mathlib.Order.GaloisConnection.Basic
 
 /-!
 # Categorical TRIZ: the statements behind the kernel's checks
@@ -684,5 +687,140 @@ theorem eq_projections_pi_iff {ι : Type*} {X : ι → Type*} (R : Set (∀ i, X
   exact hgi ▸ hg i (Set.mem_univ i)
 
 end Behaviour
+
+/-! ## Weakest box specification (`weakestSpec`): the residual in Rel
+
+Fix every box of a model but one, `m`, and a target relation `T`. The context `C` sends a relation
+for `m` to the model's input→deliverable relation. Series composition and the trace preserve
+unions in each argument, so a context in which `m` occurs once sends a union of rows to the union
+of their composites (`PreservesUnions`). Then the rows whose composite stays inside `T` form the
+largest relation that keeps the composite inside `T` (`le_residual_iff`, a Galois connection).
+Every relation achieving `T` is contained in it, so it commits to the fewest constraints. The
+empty relation is always inside (its composite is empty), so staying inside `T` is not enough:
+`T` is achievable iff the residual's composite covers `T` (`covers_iff_exists_eq`). The kernel
+computes every row's composite in one search, grouping steady states by `m`'s row. That grouping
+is union preservation; tests check it, nothing is extracted. Two unknown boxes do not split into
+two such problems: the residual for one depends on the relation chosen for the other. -/
+
+section Residual
+
+variable {α β γ δ υ : Type*} {ι : Sort*}
+
+/-- Series composition preserves unions in its first argument. -/
+theorem relation_comp_iSup_left (R : ι → α → β → Prop) (S : β → γ → Prop) :
+    Relation.Comp (⨆ i, R i) S = ⨆ i, Relation.Comp (R i) S := by
+  funext a c
+  simp only [Relation.Comp, iSup_apply, iSup_Prop_eq]
+  exact propext ⟨fun ⟨b, ⟨i, h⟩, hs⟩ => ⟨i, b, h, hs⟩, fun ⟨i, b, h, hs⟩ => ⟨b, ⟨i, h⟩, hs⟩⟩
+
+/-- Series composition preserves unions in its second argument. -/
+theorem relation_comp_iSup_right (R : α → β → Prop) (S : ι → β → γ → Prop) :
+    Relation.Comp R (⨆ i, S i) = ⨆ i, Relation.Comp R (S i) := by
+  funext a c
+  simp only [Relation.Comp, iSup_apply, iSup_Prop_eq]
+  exact propext ⟨fun ⟨b, h, ⟨i, hs⟩⟩ => ⟨i, b, h, hs⟩, fun ⟨i, b, h, hs⟩ => ⟨b, h, ⟨i, hs⟩⟩⟩
+
+/-- The relational trace preserves unions. -/
+theorem relTrace_iSup (R : ι → α × υ → β × υ → Prop) : relTrace (⨆ i, R i) = ⨆ i, relTrace (R i) := by
+  funext a b
+  simp only [relTrace, iSup_apply, iSup_Prop_eq]
+  exact propext ⟨fun ⟨u, i, h⟩ => ⟨i, u, h⟩, fun ⟨i, u, h⟩ => ⟨u, i, h⟩⟩
+
+/-- A context sends every relation to the union of its rows' composites. -/
+def PreservesUnions (C : SetRel α β → SetRel γ δ) : Prop := ∀ R, C R = ⋃ p ∈ R, C {p}
+
+/-- The weakest specification for the unknown box: every row whose composite stays inside `T`. -/
+def residual (C : SetRel α β → SetRel γ δ) (T : SetRel γ δ) : SetRel α β := {p | C {p} ⊆ T}
+
+variable {C : SetRel α β → SetRel γ δ}
+
+/-- A relation keeps the composite inside `T` iff it is contained in the residual. -/
+theorem le_residual_iff (hC : PreservesUnions C) {R : SetRel α β} {T : SetRel γ δ} :
+    R ⊆ residual C T ↔ C R ⊆ T := by
+  rw [hC R, Set.iUnion₂_subset_iff]
+  rfl
+
+/-- The context and the residual form a Galois connection. -/
+theorem gc_residual (hC : PreservesUnions C) : GaloisConnection C (residual C) :=
+  fun _ _ => (le_residual_iff hC).symm
+
+/-- The residual's composite stays inside `T`. -/
+theorem map_residual_subset (hC : PreservesUnions C) (T : SetRel γ δ) : C (residual C T) ⊆ T :=
+  (gc_residual hC).l_u_le T
+
+/-- The empty relation's composite is empty, so it is always inside the target. -/
+theorem map_empty (hC : PreservesUnions C) : C ∅ = ∅ := by
+  rw [hC ∅]
+  simp
+
+/-- Every relation achieving `T` is contained in the residual: the residual is the weakest. -/
+theorem subset_residual_of_eq (hC : PreservesUnions C) {R : SetRel α β} {T : SetRel γ δ}
+    (h : C R = T) : R ⊆ residual C T :=
+  (le_residual_iff hC).2 h.le
+
+/-- Some relation achieves `T` iff the residual's composite covers `T`. -/
+theorem covers_iff_exists_eq (hC : PreservesUnions C) {T : SetRel γ δ} :
+    (∃ R, C R = T) ↔ T ⊆ C (residual C T) := by
+  refine ⟨fun ⟨R, h⟩ => ?_, fun h => ⟨_, (map_residual_subset hC T).antisymm h⟩⟩
+  rw [← h]
+  exact (gc_residual hC).monotone_l (subset_residual_of_eq hC rfl)
+
+/-- When the residual's composite misses part of `T`, no relation for the box achieves `T`. -/
+theorem not_covers_iff (hC : PreservesUnions C) {T : SetRel γ δ} :
+    ¬ T ⊆ C (residual C T) ↔ ∀ R, C R ≠ T := by
+  rw [← covers_iff_exists_eq hC, not_exists]
+
+end Residual
+
+/-! ## Weakness ranking (`weaknessRanking`)
+
+A concept admits a situation (a valuation of the boundary inputs) when it has a steady state there
+and every deliverable output there is acceptable. Concepts are ordered by inclusion of what they
+admit (`AtLeastAsWeak`, a preorder). The order is not total (`admits_incomparable`). A strict
+inclusion of finite admitted sets gives a strictly larger count (`card_lt_of_strictly_weaker`),
+but a larger count does not give an inclusion, so the count is a secondary figure. -/
+
+section Weakness
+
+variable {α β : Type*}
+
+/-- The situations a concept admits: some steady state, and every output there is acceptable. -/
+def admits (R : α → β → Prop) (ok : β → Prop) : Set α := {u | (∃ y, R u y) ∧ ∀ y, R u y → ok y}
+
+/-- `R` is at least as weak as `S`: it admits every situation `S` admits. -/
+def AtLeastAsWeak (ok : β → Prop) (R S : α → β → Prop) : Prop := admits S ok ⊆ admits R ok
+
+theorem atLeastAsWeak_refl (ok : β → Prop) (R : α → β → Prop) : AtLeastAsWeak ok R R :=
+  subset_rfl
+
+theorem atLeastAsWeak_trans {ok : β → Prop} {R S U : α → β → Prop}
+    (h₁ : AtLeastAsWeak ok R S) (h₂ : AtLeastAsWeak ok S U) : AtLeastAsWeak ok R U :=
+  h₂.trans h₁
+
+/-- A concept with no steady state admits nothing: an empty concept is not weak by vacuity. -/
+theorem admits_bot (ok : β → Prop) : admits (⊥ : α → β → Prop) ok = ∅ :=
+  Set.eq_empty_of_forall_notMem fun _ ⟨⟨_, h⟩, _⟩ => h
+
+/-- A more permissive acceptability predicate never removes an admitted situation. -/
+theorem admits_mono_ok {R : α → β → Prop} {ok ok' : β → Prop} (h : ∀ y, ok y → ok' y) :
+    admits R ok ⊆ admits R ok' :=
+  fun _ ⟨hu, hy⟩ => ⟨hu, fun y hr => h y (hy y hr)⟩
+
+/-- Delivering the input and delivering its negation, with `true` acceptable: each concept admits
+a situation the other rejects, so the inclusion order is not total. -/
+theorem admits_incomparable :
+    ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) ∧
+      ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = !u) (fun u y => y = u) := by
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · have := (h (a := false) ⟨⟨true, rfl⟩, fun y hy => by simp [hy]⟩).2 false rfl
+    exact Bool.false_ne_true this
+  · have := (h (a := true) ⟨⟨true, rfl⟩, fun y hy => hy⟩).2 false rfl
+    exact Bool.false_ne_true this
+
+/-- Strictly more admitted situations, of finitely many, is a strictly larger count. -/
+theorem card_lt_of_strictly_weaker {s t : Finset α} (h : s ⊂ t) : s.card < t.card :=
+  Finset.card_lt_card h
+
+end Weakness
 
 end CategoricalTriz

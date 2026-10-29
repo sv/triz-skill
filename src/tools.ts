@@ -16,7 +16,7 @@ import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act
 import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
-import { compareBehavior, externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
+import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES } from "./act-behavior.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -121,18 +121,27 @@ function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, 
   return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
 }
 
+type BehaviorArgs = {
+  model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[];
+  absorb?: Record<string, { box: string; port: string }>; max_states?: number; weakest_spec?: boolean;
+};
+
 /**
  * triz_behavior's modes: with compare_to, decide the model (the concept) against the baseline,
  * as triz_function_model orients them; with trim, decide the model's own trim; else compose it.
+ * With weakest_spec, the target is the same (the baseline's relation, or the untrimmed model's),
+ * and the one box without behaviour is specified instead.
  */
-function behavior(args: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_states?: number }) {
-  const { model, compare_to, box_map, trim, absorb, max_states: maxStates } = args;
+function behavior(args: BehaviorArgs) {
+  const { model, compare_to, box_map, trim, absorb, max_states: maxStates, weakest_spec } = args;
   const errors = [
     ...(trim && compare_to ? ["trim and compare_to are exclusive: trim compares the model with its own trim; to compare a trimmed concept, pass it as model"] : []),
     ...(box_map && !compare_to ? ["box_map needs compare_to"] : []),
     ...(absorb && !trim ? ["absorb needs trim"] : []),
+    ...(weakest_spec && !trim && !compare_to ? ["weakest_spec needs compare_to (the baseline whose relation is the target) or trim (the untrimmed model is the target)"] : []),
   ];
   if (errors.length) return { ok: false as const, errors };
+  if (weakest_spec) return compare_to ? weakestSpec(model, compare_to, { boxMap: box_map, maxStates }) : weakestTrimSpec(model, { trim: trim!, absorb, maxStates });
   if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates });
   return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates }) : externalBehavior(model, { maxStates });
 }
@@ -317,7 +326,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_behavior",
-      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). With `weakest_spec` (and compare_to or trim), give the weakest box specification (residual in Rel) for the one box of the concept that can reach a deliverable and declares no behaviour, against the same target: spec, every row of that box whose composite stays inside the target, with preserves:true when declaring it gives exactly the target (any behaviour that does is contained in it); impossible, when the spec's composite misses part of the target (an uncovered input is given; no behaviour of that box gives the target, and the empty relation, which always stays inside, is never read as preserving) or a deliverable is lost; undecided for several boxes without behaviour (several-holes), missing baseline behaviour, an empty target, or past the cap (state-cap). Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
       shape: {
         model: act.FunctionModel.describe("The model to compose (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model; with it, decide whether the model preserves the baseline's input→deliverable relation"),
@@ -326,8 +335,21 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
+        weakest_spec: z.boolean().optional().describe("With compare_to or trim: give the weakest specification for the one box that can reach a deliverable and declares no behaviour, against the same target"),
       },
       handler: async (args: Parameters<typeof behavior>[0]) => text(behavior(args)),
+    },
+    {
+      name: "triz_weakness",
+      description: "Rank candidate concepts that declare behaviour by the operating situations they admit (references/weakness.md). A situation is a valuation of the concepts' boundary inputs (unwired input ports, matched by box and port id) over their carriers' declared values: the declared input space is weakness.md's list of operating situations. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable (`acceptable`: per deliverable port, the values that are; required for every deliverable). Ranked by set inclusion: weakest (admits everything any other admits), maximal, and every pair as equal, first-weaker, second-weaker, or incomparable, with a situation only one admits each way. The admitted count is a secondary figure: it depends on how finely carrier values are declared. Fails closed when the concepts deliver different ports, an input several read ranges over different values, or acceptable misses a deliverable or names an undeclared value; undecided on missing behaviour or past the state cap. Filter concepts for adequacy first; for safety, integrity, or authorisation decisions admitting more is the wrong direction.",
+      shape: {
+        concepts: z.array(z.strictObject({ id: Id, model: act.FunctionModel })).min(2).describe("Candidate concepts, each a model that declares behaviour for every box that can reach a deliverable"),
+        acceptable: z.array(z.strictObject({ box: Id, port: Id, values: z.array(Id).min(1) })).min(1)
+          .describe("Per deliverable port (a product input port), the declared values that are acceptable; an output is acceptable when every deliverable's value is"),
+        max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on situations and search states per concept (default and maximum ${MAX_STATES})`),
+      },
+      handler: async ({ concepts, acceptable, max_states }: { concepts: Array<{ id: string; model: act.FunctionModel }>; acceptable: Array<{ box: string; port: string; values: string[] }>; max_states?: number }) =>
+        text(weaknessRanking(concepts, acceptable, { maxStates: max_states })),
     },
     {
       name: "triz_nine_windows",

@@ -78,6 +78,30 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   for (const parts of [[["preload-in", "friction"], ["race"]], [["preload-in", "race"], ["friction"]], [["preload-in"], ["race"], ["friction"]]]) {
     collect(await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } }));
   }
+  // The weakest specification (spec and impossible) and the weakness ranking (strict and incomparable pairs).
+  const open = example("bearing-heat-behavior");
+  delete open.boxes.find((b) => b.id === "housing")!.behavior;
+  collect(await call("triz_behavior", { model: open, trim: ["bearing"], weakest_spec: true }));
+  const dry = structuredClone(open);
+  dry.carriers.push({ id: "lube", layer: "material", dimension: "film", values: ["ok", "dry"] });
+  const bearingBox = dry.boxes.find((b) => b.id === "bearing")!;
+  bearingBox.inputs!.push({ id: "lube", carrier: "lube" });
+  bearingBox.behavior = bearingBox.behavior!.flatMap((r) => [{ in: { ...r.in, lube: "ok" }, out: r.out }, { in: { ...r.in, lube: "dry" }, out: { ...r.out, race: "unsupported" } }]);
+  const impossible = await call("triz_behavior", { model: dry, trim: ["bearing"], weakest_spec: true });
+  assert.equal(impossible.verdict, "impossible");
+  collect(impossible);
+  const variant = (keep: (lube: string) => boolean) => {
+    const m = structuredClone(dry);
+    const b = m.boxes.find((x) => x.id === "bearing")!;
+    b.behavior = b.behavior!.map((r) => ({ in: r.in, out: { ...r.out, race: keep(r.in.lube) ? "supported" : "unsupported" } }));
+    return m;
+  };
+  const ranked = await call("triz_weakness", {
+    concepts: [{ id: "any", model: variant(() => true) }, { id: "oiled", model: variant((l) => l === "ok") }, { id: "dry-only", model: variant((l) => l === "dry") }],
+    acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }, { box: "shaft", port: "support", values: ["supported"] }],
+  });
+  assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
+  collect(ranked);
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
