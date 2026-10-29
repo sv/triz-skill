@@ -6,6 +6,7 @@ import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
+import Mathlib.Order.Comparable
 
 /-!
 # Categorical TRIZ: the statements behind the kernel's checks
@@ -119,15 +120,17 @@ theorem trim_lowers_cost (cost : ι → D → ℝ) (hc : ∀ i, 0 ≤ cost i) {k
     (h : kept ⊆ all) : ∑ i ∈ kept, cost i ≤ ∑ i ∈ all, cost i :=
   Finset.sum_le_sum_of_subset_of_nonneg h fun i _ _ => hc i
 
-/-- The componentwise order is not total: some concepts are trade-offs, so a scalar ideality
-needs weights the user chooses. -/
-theorem pareto_not_total : ¬ ∀ x y : Fin 2 → ℝ, x ≤ y ∨ y ≤ x := by
-  intro h
-  rcases h ![0, 1] ![1, 0] with h | h
-  · have := h 1
-    simp at this
-    exact absurd this (not_le.mpr zero_lt_one)
-  · exact absurd (h 0) (by simp)
+/-- A trade-off: two cost vectors neither of which dominates the other (Mathlib's `IncompRel`),
+which `compareIdeality` reports as `trade-off`. -/
+theorem pareto_incomparable : IncompRel (· ≤ ·) (![0, 1] : Fin 2 → ℝ) ![1, 0] := by
+  refine ⟨fun h => ?_, fun h => absurd (h 0) (by simp)⟩
+  have := h 1
+  simp at this
+  exact absurd this (not_le.mpr zero_lt_one)
+
+/-- The componentwise order is not total, so a scalar ideality needs weights the user chooses. -/
+theorem pareto_not_total : ¬ ∀ x y : Fin 2 → ℝ, x ≤ y ∨ y ≤ x := fun h =>
+  (h ![0, 1] ![1, 0]).elim pareto_incomparable.1 pareto_incomparable.2
 
 end Resources
 
