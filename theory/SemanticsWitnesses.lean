@@ -441,7 +441,9 @@ A copy whose output (port 1, the deliverable) is wired to a downstream box (port
 `false` to `false`, so the part does (`external_sub_of_external`). The part also relates `true` to
 `true`, and the whole relates `true` to nothing: the downstream box rules it out. So the extension
 hypothesis of `external_sub_iff_of_extends` is needed, and so is `hrest` of `extends_of_accepts`.
-With every box and port kept, the part relates what the whole does (`external_sub_univ`). -/
+With every box and port kept, the part relates what the whole does (`external_sub_univ`). With a
+downstream box that accepts whatever reaches it, both hypotheses of `extends_of_accepts` hold, and
+the part's pair `true` to `true` is one the whole relates. -/
 
 /-- Port 0 is the input, port 1 the copy's output and the deliverable, port 2 the downstream box's
 input. Box `false` copies, box `true` admits only `false`, and the one wire joins port 1 to 2. -/
@@ -487,5 +489,60 @@ example : (withDownstream.sub (I' := Unit) (O' := Unit) Set.univ Set.univ (fun _
     (fun _ => ⟨1, trivial⟩)).external (fun _ => false) (fun _ => false) := by
   rw [external_sub_univ]
   exact ⟨fun _ => false, ⟨fun _ => trivial, fun b => by cases b <;> rfl, fun _ => rfl⟩, rfl, rfl⟩
+
+/-- The same copy, its downstream box accepting whatever reaches it. -/
+abbrev withAccepting : OpenDiagram Bool Unit Unit where
+  Port := Fin 3
+  Box := Bool
+  Wire := Unit
+  values _ := Set.univ
+  behavior b := cond b Set.univ {s | s 1 = s 0}
+  src _ := 1
+  tgt _ := 2
+  input _ := 0
+  output _ := 1
+
+/-- Its upstream part: ports 0 and 1, and the copy box. -/
+abbrev acceptingUpstream : OpenDiagram Bool Unit Unit :=
+  withAccepting.sub {p : Fin 3 | p ≠ 2} {false} (fun _ => ⟨0, by decide⟩) (fun _ => ⟨1, by decide⟩)
+
+/-- `extends_of_accepts`: the copy reads only kept ports, and the rest accepts whatever the part
+does, so the part's pair `true` to `true` is one the whole relates
+(`external_sub_iff_of_extends`). -/
+example : withAccepting.external (fun _ => true) (fun _ => true) := by
+  have hext : ∀ t ∈ acceptingUpstream.steadyStates, ∃ s ∈ withAccepting.steadyStates,
+      s ∘ Subtype.val = t := by
+    apply extends_of_accepts
+    · intro b hb s s' h hs
+      rw [Set.mem_singleton_iff] at hb
+      subst hb
+      have h₀ : s 0 = s' 0 := congrFun h ⟨0, by decide⟩
+      have h₁ : s 1 = s' 1 := congrFun h ⟨1, by decide⟩
+      have hs' : s 1 = s 0 := hs
+      show s' 1 = s' 0
+      rw [← h₀, ← h₁, hs']
+    · intro t _
+      refine ⟨fun p => if h : p = 2 then t ⟨1, by decide⟩ else t ⟨p, h⟩, ?_, fun _ => trivial,
+        fun b hb => ?_, fun _ _ => ?_⟩
+      · funext ⟨p, hp⟩
+        exact dif_neg hp
+      · cases b
+        · exact absurd rfl hb
+        · trivial
+      · show (if h : (1 : Fin 3) = 2 then t ⟨1, by decide⟩ else t ⟨1, h⟩) =
+          (if h : (2 : Fin 3) = 2 then t ⟨1, by decide⟩ else t ⟨2, h⟩)
+        rw [dif_neg (by decide), dif_pos rfl]
+  have hpart : acceptingUpstream.external (fun _ => true) (fun _ => true) := by
+    refine ⟨fun _ => true, ⟨fun _ => trivial, fun ⟨b, hb⟩ => ⟨fun _ => true, ?_, rfl⟩,
+      fun w => (w.2.2 rfl).elim⟩, rfl, rfl⟩
+    rw [Set.mem_singleton_iff] at hb
+    subst hb
+    rfl
+  obtain ⟨x, y, h, hx, hy⟩ := (external_sub_iff_of_extends (fI := _root_.id) (fO := _root_.id)
+    (fun _ => rfl) (fun _ => rfl) hext).1 hpart
+  have hx' : x = fun _ => true := hx
+  have hy' : y = fun _ => true := hy
+  subst hx' hy'
+  exact h
 
 end CategoricalTriz.SemanticsWitnesses
