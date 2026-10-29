@@ -107,6 +107,97 @@ example : (d3.restrict {0}).restrict {0, 1} ≠ d3.restrict {0, 1} := by
   have := congrArg (fun d => (1 : Fin 3) ∈ d.boxes) h
   simp [Wiring.restrict, d3] at this
 
+/-! ## `typed_overlay`, `typed_dpo`
+
+The host `gh` has one function 0 → 1 and an idle box 3. A rule deletes box 3 and, like
+"mono → bi", adds box 2 with a second function 2 → 1 (`rhs`, already renamed into the host's
+ids). The result is typed, has the new function, and has lost box 3. Each hypothesis is needed;
+in each counterexample below, the hypotheses not under test hold. -/
+
+/-- Host: wire `false` from box 0 to box 1, carrier `false`; box 3 is present and unwired. -/
+def gh : Wiring (Fin 4) Unit Bool Bool where
+  boxes := {0, 1, 3}
+  wires := {false}
+  src _ := (0, ())
+  tgt _ := (1, ())
+  carrier _ := false
+  out b _ := if b = 0 then some false else none
+  inp b _ := if b = 1 then some false else none
+
+theorem gh_typed : gh.Typed := by
+  intro w hw
+  simp [gh] at hw ⊢
+
+/-- Renamed right-hand side: interface boxes 0 and 1 with wire `false`, and the new box 2 with
+wire `true` from 2 to 1. -/
+def rhs : Wiring (Fin 4) Unit Bool Bool where
+  boxes := {0, 1, 2}
+  wires := Set.univ
+  src w := if w then (2, ()) else (0, ())
+  tgt _ := (1, ())
+  carrier _ := false
+  out b _ := if b = 0 ∨ b = 2 then some false else none
+  inp b _ := if b = 1 then some false else none
+
+theorem rhs_typed : rhs.Typed := by
+  rintro (_ | _) _ <;> simp [rhs]
+
+/-- `rhs` and `gh` give every port they both type the same carrier. -/
+theorem rhs_gh_out : ∀ b p c c', rhs.out b p = some c → gh.out b p = some c' → c = c' := by
+  intro b _ c c' h₁ h₂
+  simp [rhs] at h₁
+  simp [gh] at h₂
+  rw [h₁.2, h₂.2]
+
+theorem rhs_gh_inp : ∀ b p c c', rhs.inp b p = some c → gh.inp b p = some c' → c = c' := by
+  intro b _ c c' h₁ h₂
+  simp [rhs] at h₁
+  simp [gh] at h₂
+  rw [h₁.2, h₂.2]
+
+example : ((gh.delete {3} ∅).overlay rhs).Typed ∧ true ∈ ((gh.delete {3} ∅).overlay rhs).wires ∧
+    (3 : Fin 4) ∉ ((gh.delete {3} ∅).overlay rhs).boxes :=
+  ⟨gh.typed_dpo gh_typed rhs_typed (by intro w hw _; simp [gh] at hw ⊢)
+    rhs_gh_out rhs_gh_inp,
+   by simp [Wiring.overlay, rhs], by simp [Wiring.overlay, Wiring.delete, gh, rhs]⟩
+
+/-- Typing does not need the no-identification condition. This application deletes box 1, which
+`rhs` keeps as interface, and the overlay restores it. The result is typed but is not a
+pushout. -/
+example : ((gh.delete {1} {false}).overlay rhs).Typed :=
+  gh.typed_dpo gh_typed rhs_typed (by intro w hw hE; simp [gh] at hw; simp [hw] at hE)
+    rhs_gh_out rhs_gh_inp
+
+/-- `hR` is needed: `rhs` with the new wire drawn from box 1, which has no output. -/
+def rhsBad : Wiring (Fin 4) Unit Bool Bool := { rhs with src := fun w => if w then (1, ()) else (0, ()) }
+
+example : ¬ ((gh.delete {3} ∅).overlay rhsBad).Typed := by
+  intro h
+  have := (h true (by simp [Wiring.overlay, rhsBad, rhs])).2.2.1
+  simp [Wiring.overlay, Wiring.delete, rhsBad, rhs, gh] at this
+
+/-- The empty right-hand side: typed, and it types no port. -/
+def rnone : Wiring (Fin 4) Unit Bool Bool :=
+  { gh with boxes := ∅, wires := ∅, out := fun _ _ => none, inp := fun _ _ => none }
+
+/-- `hd` is needed: deleting box 1, the surviving wire's target. -/
+example : ¬ ((gh.delete {1} ∅).overlay rnone).Typed := by
+  intro h
+  have := (h false (by simp [Wiring.overlay, Wiring.delete, rnone, gh])).2.1
+  simp [Wiring.overlay, Wiring.delete, rnone, gh] at this
+
+/-- `hout` is needed: the right-hand side gives box 0's output port carrier `true`. -/
+example : ¬ ((gh.delete ∅ ∅).overlay { rnone with boxes := {0}, out := fun b _ => if b = 0 then some true else none }).Typed := by
+  intro h
+  have := (h false (by simp [Wiring.overlay, Wiring.delete, rnone, gh])).2.2.1
+  simp [Wiring.overlay, Wiring.delete, rnone, gh] at this
+
+/-- `hinp` is needed: the right-hand side gives box 1's input port carrier `true`. -/
+example : ¬ ((gh.delete ∅ ∅).overlay { rnone with boxes := {1}, inp := fun b _ => if b = 1 then some true else none }).Typed := by
+  intro h
+  have := (h false (by simp [Wiring.overlay, Wiring.delete, rnone, gh])).2.2.2
+  simp [Wiring.overlay, Wiring.delete, rnone, gh] at this
+
 /-! ## `typed_rename`
 
 The lemma applies to a non-trivial relabelling: swapping the wire's source and target boxes. -/

@@ -14,7 +14,7 @@
     { "id": 7, "source_code": "SFA", "name": "Su-Field analysis", "stages": ["modeling"], "signals": ["harmful interaction", "missing interaction", "insufficient interaction"] },
     { "id": 8, "source_code": "IA", "name": "Inversion analysis", "stages": ["analysis", "modeling"], "signals": ["assumption", "reverse action", "fixed relation"] },
     { "id": 9, "source_code": "DA", "name": "Diagnostic analysis", "stages": ["analysis", "modeling"], "signals": ["unknown mechanism", "localize cause", "intermittent failure"] },
-    { "id": 10, "source_code": "TESE", "name": "Trends of engineering-system evolution", "stages": ["analysis"], "signals": ["evolution", "maturity", "next system"] },
+    { "id": 10, "source_code": "TESE", "name": "Trends of engineering-system evolution", "stages": ["analysis"], "signals": ["evolution", "maturity", "next system"], "mcp_tools": ["triz_rule_apply"] },
     { "id": 11, "source_code": "IFR", "name": "Ideal Final Result", "stages": ["modeling"], "signals": ["ideal target", "self-delivery", "minimal harm"] },
     { "id": 12, "source_code": "CA", "name": "Component analysis", "stages": ["analysis"], "signals": ["components", "system structure", "supersystem"] },
     { "id": 13, "source_code": "FT", "name": "Feature transfer", "stages": ["modeling", "synthesis"], "signals": ["transfer property", "alternative system", "missing capability"] },

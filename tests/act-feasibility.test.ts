@@ -306,6 +306,7 @@ test("a dominated feasibility row fails closed in every tool that takes a model"
     triz_transform: { model: bad, transformation: { op: "trim", trim: ["bearing"] } },
     triz_nine_windows: { present: bad, subsystem: ["bearing"] },
     triz_behavior: { model: bad },
+    triz_rule_apply: { model: bad, rule_id: "mono-bi" },
     triz_feasibility: { model: bad, trim: ["bearing"] },
   };
   const takesModel = toolSpecs().filter((s) => ["model", "present"].some((k) => k in s.shape));

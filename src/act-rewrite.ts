@@ -6,7 +6,7 @@
  *                 deleted box (Bonchi et al. 2022, Def. 3.16). Occurrences are named by id, so they
  *                 are injective and the no-identification condition holds trivially. Added ids must
  *                 be fresh, and the result must pass checkModel. Every failure fails closed.
- *                 Finding occurrences (pattern matching) is not implemented.
+ *                 Rules as patterns, with occurrence search, are in act-rule.ts.
  *  - segment    — divide a box into parts whose ports partition the box's ports.
  *                 Principle 1 reads "Divide an object into independent parts".
  *  - takeOut    — separate the part of a box that touches a harmful or excessive function, or
