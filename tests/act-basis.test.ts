@@ -50,7 +50,11 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
     collect(await call("triz_behavior", { model: m }));
-    if (m.wires.length) collect(await call("triz_transform", { model: m, transformation: { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } } }));
+    if (m.wires.length) {
+      const interpose = { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } };
+      collect(await call("triz_transform", { model: m, transformation: interpose }));
+      collect(await call("triz_nine_windows", { present: m, subsystem: [m.wires[0].from.box, m.wires[0].to.box, "mediator-x"], transitions: { present_to_future: [interpose] } }));
+    }
     const listed = await call("triz_rule_apply", { model: m, rule_id: "mono-bi" });
     if (listed.matches.length) collect(await call("triz_rule_apply", { model: m, rule_id: "mono-bi", match: listed.matches[0].match }));
   }

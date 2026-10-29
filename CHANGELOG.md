@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_transform`: typed model moves (segment, take out, interpose, apply a trim, rewrite); every result type-checks or fails closed.
 - `triz_nine_windows`: subsystem, system, and supersystem views for each time snapshot.
 - `triz_rule_apply`: double-pushout rewriting with rules as data (match search, gluing conditions, Lean `typed_dpo`); built-in mono → bi and feedback evolution-line rules.
+- `triz_nine_windows` `transitions`: `triz_transform` sequences linking the times, checked against the snapshots and restricted to the subsystem (`restrict_rewrite`).
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
 - `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.

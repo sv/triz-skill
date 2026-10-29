@@ -102,6 +102,14 @@ console.log(`triz_rule_apply mono-bi -> ${bi.model?.boxes.map((b) => b.id)}`);
 if (!bi.ok || !bi.model.boxes.some((b) => b.id === "bearing-2")) fail("rule application wrong");
 const fed = await json("triz_rule_apply", { model, rule_id: "feedback", match: listed.matches[0].match });
 if (fed.ok !== false) fail("unbound right-side carrier did not fail closed");
+
+const grid = await json("triz_nine_windows", { present: model, subsystem: ["bearing", "shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
+const step = grid.transitions?.[0];
+console.log(`triz_nine_windows present_to_future trim -> future ${step?.snapshot}, boundary added [${step?.subsystem?.boundary?.added}]`);
+if (!grid.ok || step.snapshot !== "derived" || grid.windows[2].status !== "ok" || step.subsystem.boundary.added.join() !== "w-support") fail("9-windows transition wrong");
+const unreached = await json("triz_nine_windows", { present: model, future: model, subsystem: ["shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
+if (unreached.ok !== false) fail("unreachable future snapshot did not fail closed");
+
 const behaving = {
   ...model,
   carriers: [{ ...model.carriers[0], values: ["held", "loose"] }, { ...model.carriers[1], values: ["low", "high"] }],
