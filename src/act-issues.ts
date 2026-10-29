@@ -96,6 +96,7 @@ export const ISSUE_CODES = {
   "unbound-carrier-variable": "A carrier variable used only on the right side is not bound",
   "not-right-only-variable": "carriers binds a variable that is not used only on the right side",
   "distinct-carriers": "Carrier variables the rule declares distinct bind the same carrier",
+  "forbid-violated": "A rule's forbid condition holds: the match extends to an occurrence of it, or the check could not be decided within its budget",
   // Behaviour and weakness
   "no-deliverables": "No product box receives a non-harmful function",
   "box-map-unknown-box": "box_map names a box the concept or baseline does not have",
@@ -109,6 +110,7 @@ export const ISSUE_CODES = {
   "acceptable-entry-malformed": "An acceptable entry names neither or both of a port and a carrier, or of values and a threshold",
   "invalid-threshold": "A threshold cannot be read through the carrier's levels, or reads as no value",
   "levels-differ": "A threshold reads as different values in different concepts",
+  "invalid-prior": "A weakness prior is malformed: names neither or both of a port and a carrier, an input that is not a situation input, an undeclared value, a duplicate, or a weight that is not a nonnegative number",
   // Abstraction
   "unmapped-box": "map.ports names a box that map.boxes does not map",
   // Dynamics

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `triz_rule_apply` rules take `forbid`: negative application conditions (Habel–Pennemann). Each pattern extends `left` by id and may add elements; a match that extends to an occurrence of one is not applicable (listed as a violation, and refused on application), and a condition its own step budget cannot decide also refuses it.
+- `triz_weakness` `priors`: a real prior over the operating situations (weakness.md) — per situation input, or per carrier, a nonnegative weight per declared value; each concept carries the total admitted mass (`weightedAdmitted`, ranked in `byWeight`). Inclusions, pairs, and `weakest` never move under weights; the uniform count stays the default.
+- Label-blindness property tests for the verdicts that read declared rows and for the principle constructions: `triz_feasibility` over generated antichain rows (relabelled and permuted, ids mapped back) and every construction giving isomorphic results on a model and its relabelling, closing the two gaps "What is not claimed" recorded for feasibility verdicts and principle constructions.
 - README: a tool map by workflow stage, and why the hosted Worker is unauthenticated with open CORS (and what an operator can change).
 
 ### Changed

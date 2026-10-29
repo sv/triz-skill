@@ -325,6 +325,38 @@ const cases: Case[] = [
     pick: (r) => r.certificate, path: "$.unsafe", hint: /Raise horizon/ },
   { code: "not-certifiable", tool: "triz_weakness", args: { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true }, pick: (r) => r.certificate, path: "$.concepts" },
   { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
+  // rule negative application conditions and weakness priors
+  { code: "forbid-violated", tool: "triz_rule_apply", args: {
+    model: {
+      domain: "physical",
+      carriers: [{ id: "c", layer: "energy", dimension: "W" }],
+      boxes: [
+        { id: "A", name: "A", role: "tool", outputs: [{ id: "p", carrier: "c" }] },
+        { id: "P", name: "P", role: "product", inputs: [{ id: "q", carrier: "c" }] },
+        { id: "X", name: "X", role: "tool", outputs: [{ id: "r", carrier: "c" }] },
+      ],
+      wires: [
+        { id: "w", from: { box: "A", port: "p" }, to: { box: "P", port: "q" }, carrier: "c", polarity: "useful" },
+        { id: "w2", from: { box: "X", port: "r" }, to: { box: "P", port: "q" }, carrier: "c", polarity: "useful" },
+      ],
+    },
+    rule: {
+      id: "replace-once",
+      carriers: ["c"],
+      left: { boxes: [{ id: "old", outputs: [{ id: "out", carrier: "c" }] }, { id: "object", inputs: [{ id: "in", carrier: "c" }] }], wires: [{ id: "f", from: { box: "old", port: "out" }, to: { box: "object", port: "in" }, carrier: "c" }] },
+      interface: { boxes: [{ id: "object", inputs: [{ id: "in", carrier: "c" }] }] },
+      right: {
+        boxes: [{ id: "object", inputs: [{ id: "in", carrier: "c" }] }, { id: "new", role: "tool", name: "New", outputs: [{ id: "out", carrier: "c" }] }],
+        wires: [{ id: "g", from: { box: "new", port: "out" }, to: { box: "object", port: "in" }, carrier: "c", polarity: "useful" }],
+      },
+      forbid: [{
+        boxes: [{ id: "old", outputs: [{ id: "out", carrier: "c" }] }, { id: "object", inputs: [{ id: "in", carrier: "c" }] }, { id: "other", outputs: [{ id: "o", carrier: "c" }] }],
+        wires: [{ id: "f", from: { box: "old", port: "out" }, to: { box: "object", port: "in" }, carrier: "c" }, { id: "h", from: { box: "other", port: "o" }, to: { box: "object", port: "in" }, carrier: "c" }],
+      }],
+    },
+    match: { boxes: { old: "A", object: "P" }, ports: { old: { out: "p" }, object: { in: "q" } }, wires: { f: "w" }, carriers: { c: "c" } },
+  }, path: "$.rule.forbid[0]" },
+  { code: "invalid-prior", tool: "triz_weakness", args: { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE, priors: [{ box: "support", port: "nope", weights: { oiled: 1 } }] }, path: "$.priors[0]" },
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;

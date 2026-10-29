@@ -36,7 +36,7 @@
           "$ref": "#/$defs/Pattern"
         },
         "distinct": {
-          "description": "Pairs of carrier variables that must bind to different carriers: an application condition, checked with the gluing conditions",
+          "description": "Pairs of carrier variables that must bind different carriers: an application condition, checked with the gluing conditions",
           "type": "array",
           "items": {
             "type": "array",
@@ -53,6 +53,13 @@
             "items": false,
             "minItems": 2,
             "maxItems": 2
+          }
+        },
+        "forbid": {
+          "description": "Negative application conditions (Habel–Pennemann): each pattern extends `left` by id with the same constraints, and a match that extends to an occurrence of it — including any elements the pattern adds — is not applicable. An undecided condition (its own step budget) also refuses the application",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Pattern"
           }
         },
         "source": {

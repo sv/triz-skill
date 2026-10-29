@@ -403,6 +403,13 @@ construction.
   original prose, not third-party data noted above.
 
 
+## Roadmap
+
+The ranked backlog of the categorical-model work — certificates for the verdicts that have
+none, properties to promote from tested to proved, and the larger categorical closures — lives
+in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in
+categorical-model.md's "What is not claimed".
+
 ## Publishing and distribution
 
 The full runbook — npm release flow, the MCP Registry PR, Smithery/Glama/PulseMCP, skill

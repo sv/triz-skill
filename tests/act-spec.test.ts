@@ -13,7 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel } from "../src/act.js";
 import { fromHypergraph, toHypergraph } from "../src/act-export.js";
-import { externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking } from "../src/act-behavior.js";
+import { externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, type Prior } from "../src/act-behavior.js";
 import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
 import { supportConcept, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
@@ -450,6 +450,41 @@ test("weakness ranking: inclusion first, incomparable pairs with a witness each 
   const twins = weaknessRanking([{ id: "ball", model: ball }, { id: "again", model: ball }], acceptable);
   assert.ok(twins.ok && twins.verdict === "ranked");
   assert.deepEqual([twins.weakest, twins.maximal, twins.pairs[0].order, "basis" in twins.pairs[0]], [["ball", "again"], ["ball", "again"], "equal", false]);
+});
+
+test("weakness ranking with priors: the weighted mass ranks, and no inclusion moves", () => {
+  const rank = (priors: Prior[]) => weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }, { id: "tight", model: tight }], acceptable, { priors });
+  // Oiled situations are three times as likely: ball 3+3, bushing 3+1, tight 3; the counts stay 2, 2, 1.
+  const skewed = rank([{ box: "support", port: "lube", weights: { oiled: 3, dry: 1 } }]);
+  assert.ok(skewed.ok && skewed.verdict === "ranked");
+  assert.deepEqual(skewed.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 6], ["bushing", 2, 4], ["tight", 1, 3]]);
+  assert.deepEqual(skewed.byWeight, [{ id: "ball", weightedAdmitted: 6 }, { id: "bushing", weightedAdmitted: 4 }, { id: "tight", weightedAdmitted: 3 }]);
+  assert.deepEqual(skewed.pairs.map((p) => p.order), ["incomparable", "first-weaker", "first-weaker"], "weights change no inclusion");
+  assert.match(skewed.note, /byWeight ranks by it/);
+  // A weight of 0 rules a value out of the mass, and out of the ranking's counts it does not go.
+  const ruled = rank([{ box: "support", port: "lube", weights: { oiled: 1, dry: 0 } }]);
+  assert.ok(ruled.ok && ruled.verdict === "ranked");
+  assert.deepEqual(ruled.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 1], ["tight", 1, 1]]);
+  // All weights 1 is the uniform measure: the count again.
+  const uniform = rank([{ carrier: "lube", weights: { oiled: 1, dry: 1 } }, { carrier: "temp", weights: { normal: 1, hot: 1 } }]);
+  assert.ok(uniform.ok && uniform.verdict === "ranked");
+  assert.deepEqual(uniform.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 2], ["tight", 1, 1]]);
+  assert.deepEqual(uniform.byWeight, uniform.byCount.map((c) => ({ id: c.id, weightedAdmitted: c.admitted })));
+});
+
+test("weakness priors fail closed on a bad entry", () => {
+  const one = (priors: Prior[]) => weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }], acceptable, { priors });
+  assert.match(errors(one([{ box: "support", weights: { oiled: 1 } }])), /priors: an entry that names a port gives both box and port/);
+  assert.match(errors(one([{ weights: { oiled: 1 } }])), /priors: each entry names a situation input port \(box and port\) or a carrier, not both or neither/);
+  assert.match(errors(one([{ box: "support", port: "nope", weights: { oiled: 1 } }])), /'support.nope' is not a situation input/);
+  assert.match(errors(one([{ carrier: "ghost", weights: { oiled: 1 } }])), /carrier 'ghost' is the carrier of no situation input/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { wet: 1 } }])), /value 'wet' of 'support.lube' is not declared/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { oiled: -1 } }])), /the weight of value 'oiled' of 'support.lube' is not a nonnegative number/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { oiled: 1 } }, { box: "support", port: "lube", weights: { dry: 2 } }])), /'support.lube' is listed twice/);
+  // A port entry takes precedence over a carrier entry, as with acceptable: the port's table applies.
+  const both = weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }], acceptable, { priors: [{ carrier: "lube", weights: { oiled: 5, dry: 5 } }, { box: "support", port: "lube", weights: { oiled: 1, dry: 1 } }] });
+  assert.ok(both.ok && both.verdict === "ranked");
+  assert.deepEqual(both.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 2]]);
 });
 
 test("weakness ranking: a condition read under different box ids is two situations, and is flagged", () => {
