@@ -2,7 +2,9 @@
 
 This is the separate future-work record requested during the eight-workstream review.
 Implemented scope and current restrictions are in [categorical-assurance.md](categorical-assurance.md).
-Literature is maintained separately in [theory/REFERENCES.md](../theory/REFERENCES.md).
+The full research bibliography is maintained separately in
+[theory/REFERENCES.md](../theory/REFERENCES.md), including current foundations, deferred
+alternatives and supporting TRIZ/AI sources; it is not limited to this future plan.
 The baseline reviewed was `82d87a6a7a124481afa33194679807561bb6358c`.
 A roadmap entry is not an implemented guarantee. A paper supplying a method is not a proof that
 this kernel satisfies that method's hypotheses.
@@ -17,7 +19,8 @@ separately trusted remote service.
 **Acceptance:** a dropped row, wrong index, changed target, altered scope or forged digest cannot
 validate against the source request. Prove the correspondence beyond testing/regeneration.
 
-**Foundation:** translation validation and verified certificate checkers [R1](../theory/REFERENCES.md#r1), [R2](../theory/REFERENCES.md#r2); Lean's
+**Foundation:** translation validation [R20](../theory/REFERENCES.md#r20), certifying algorithms
+[R19](../theory/REFERENCES.md#r19), and verified certificate checkers [R1](../theory/REFERENCES.md#r1), [R2](../theory/REFERENCES.md#r2); Lean's
 separation of proof validity from statement meaning [R3](../theory/REFERENCES.md#r3).
 
 ## 2. Invariance and semantic comparison
@@ -65,9 +68,10 @@ components cannot be pruned without justification. Equal partial relations may s
 nonblocking. Keep relational steady states, viable/infinite runs and temporal least/greatest
 fixpoints as different questions.
 
-**Foundation:** sound abstraction and counterexample-guided refinement [R4](../theory/REFERENCES.md#r4). A greatest-fixpoint
+**Foundation:** abstract interpretation [R21](../theory/REFERENCES.md#r21),
+[R22](../theory/REFERENCES.md#r22), and counterexample-guided refinement [R4](../theory/REFERENCES.md#r4). A greatest-fixpoint
 reformulation over sets of complete valuations is possible but does not remove global search.
-Local domain consistency alone is not a complete solver.
+Local domain consistency alone is not a complete solver [R25](../theory/REFERENCES.md#r25).
 
 ## 5. Fine-grained implementation/evidence contracts
 
@@ -153,6 +157,10 @@ decreases. No global guarantee is inferred for unrestricted invention rules.
 
 **Foundation:** DPO with interfaces [R14](../theory/REFERENCES.md#r14), AGREE [R15](../theory/REFERENCES.md#r15), PBPO+ [R16](../theory/REFERENCES.md#r16), Mathlib's actual elements
 construction [R17](../theory/REFERENCES.md#r17), and the definition/universal property of Kan extensions [R18](../theory/REFERENCES.md#r18).
+Restricted critical-pair algorithms [R44](../theory/REFERENCES.md#r44),
+[R47](../theory/REFERENCES.md#r47), [R82](../theory/REFERENCES.md#r82) must be distinguished from
+the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
+[R46](../theory/REFERENCES.md#r46), [R83](../theory/REFERENCES.md#r83).
 
 ## Suggestions adopted and corrected
 
