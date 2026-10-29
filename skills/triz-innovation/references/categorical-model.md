@@ -124,10 +124,11 @@ The chaining rules agents get wrong:
   receives (the result's `assumption`). `scope: "whole"` composes every box constraint:
   downstream boxes, disconnected ones, fan-in, and loops. `triz_adequacy` defaults to `"whole"`,
   and `triz_behavior_refinement` and the contracts always compose the whole model. A certificate
-  encodes the scope requested. Pass `"whole"` when a downstream box can refuse what the upstream
-  part delivers, or `partialDownstream` is not empty: the whole relates no more than the upstream
-  part, and can relate strictly less.
-- **`priors` versus `joint_prior`.** Give one or neither (`invalid-prior`). `priors` weighs each
+  encodes the scope requested. Pass `"whole"` before saying anything about the whole system, such
+  as "the system behaves as before": the whole relates no more than the upstream part, and can
+  relate strictly less. An empty `partialDownstream` does not show they are equal, since total
+  downstream boxes can still rule out steady states through a loop or a disagreeing fan-in.
+- **`priors` versus `joint_prior`.** Give one or neither; giving both fails with `invalid-prior`. `priors` weighs each
   situation input (box and port), or every input of a carrier, independently, with a
   nonnegative weight per declared value: an unlisted input or value counts 1, and 0 rules a value
   out. `joint_prior` weighs every complete situation explicitly, zero
