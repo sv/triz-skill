@@ -299,6 +299,6 @@ export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?:
     dropped: screen.dropped,
     removedHarms: screen.removedHarms,
     basis: [...r.basis, "typed_reroute"] as Theorem[],
-    note: "Compare with the baseline via triz_function_model compare_to. Each absorber is a trimming problem to solve; its added cost and new harms are not modelled.",
+    note: "Compare with the baseline via triz_function_model compare_to. Each absorber is a trimming problem to solve; its new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility).",
   };
 }

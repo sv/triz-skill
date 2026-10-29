@@ -50,6 +50,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
     collect(await call("triz_behavior", { model: m }));
+    collect(await call("triz_feasibility", { model: m }));
     if (m.wires.length) {
       const interpose = { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } };
       collect(await call("triz_transform", { model: m, transformation: interpose }));
@@ -59,6 +60,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     if (listed.matches.length) collect(await call("triz_rule_apply", { model: m, rule_id: "mono-bi", match: listed.matches[0].match }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
+  collect(await call("triz_feasibility", { model: example("bearing-heat-feasibility"), trim: ["bearing"] }));
   const bearing = example("bearing-heat"), cache = example("software-cache");
   for (const [model, transformation] of [
     [bearing, { op: "merge", boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } }],

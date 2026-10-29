@@ -326,7 +326,7 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
   if (!counterexample) {
     return {
       ok: true as const, verdict: "preserved" as const, ...common,
-      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, the absorber's first; its added cost and new harms are not modelled." + runaway,
+      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, the absorber's first; its new harms are not modelled here, and its added cost is triz_feasibility's question." + runaway,
     };
   }
   const direction = onlyBaseline && onlyTrimmed ? "incomparable" as const : onlyTrimmed ? "trimmed-contains-baseline" as const : "baseline-contains-trimmed" as const;

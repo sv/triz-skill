@@ -95,6 +95,7 @@ missing.
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
+| `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -135,6 +136,14 @@ decides a trim instead of only screening it: `preserved`, `changed` with a count
 or `undecided` (boxes that need behaviour, or no steady state in either model). The semantics
 is steady state; it says nothing about dynamics.
 
+When boxes declare feasibility (minimal rows of levels provided against levels required and
+operating cost), `triz_feasibility` finds the minimal resource vectors by Kleene's ascent to the
+least fixpoint, loops included, and judges them against the budget: `feasible`, `infeasible`
+(over budget with the binding dimension, or a level no row provides), or `undecided`. With
+`trim`, it decides whether the remaining boxes provide what the trim leaves them within budget,
+and reports each absorber's added resources. No polynomial bound is claimed; past its caps the
+call fails closed.
+
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
@@ -145,8 +154,8 @@ in categorical-model.md. That shows the kernel reads only the wiring shape, not 
 transfer between domains.
 [categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
 what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
-software models. One software model has the physical model's wiring shape. A copy of the
-physical model declares box behaviour, so its trim can be decided.
+software models. One software model has the physical model's wiring shape. Two copies of the
+physical model declare box behaviour and box feasibility, so their trims can be decided.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
@@ -161,11 +170,14 @@ with no `sorry`:
   and system rows of the 9 windows, with two steps, form a functor from time × (box sets)ᵒᵖ to
   sets;
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
-  trace is monotone and yanks a swap to the identity.
+  trace is monotone and yanks a swap to the identity;
+- series, parallel, and feedback composition keep feasibility monotone, Kleene's ascent reaches
+  the least fixpoint of a finite lattice, and the co-design fixpoint is the upward closure of the
+  feasible configurations.
 
-`theory/Witnesses.lean` checks that none of the typing, restriction, rewrite, or
-behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
-hypotheses, and a counterexample shows each hypothesis is needed.
+`theory/Witnesses.lean` checks that none of the typing, restriction, rewrite,
+behaviour-monotonicity, or co-design lemmas is vacuous. For each, a concrete diagram or relation
+meets all its hypotheses, and a counterexample shows each hypothesis is needed.
 
 Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
 relational check, and its verdict depends on the absorber chosen. `theory/` does not state

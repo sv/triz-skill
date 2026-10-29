@@ -79,7 +79,7 @@ export function toDot(model: FunctionModel): string {
 
 export interface HyperVertex { box: string; port: string; side: "in" | "out"; carrier: string; label?: string; }
 export type HyperEdge =
-  | { kind: "box"; id: string; name: string; role: Box["role"]; action?: string; cost?: Record<string, number>; behavior?: Box["behavior"]; sources: number[]; targets: number[] }
+  | { kind: "box"; id: string; name: string; role: Box["role"]; action?: string; cost?: Record<string, number>; behavior?: Box["behavior"]; feasibility?: Box["feasibility"]; sources: number[]; targets: number[] }
   | { kind: "function"; id: string; carrier: string; polarity: Polarity; verb?: string; sources: [number]; targets: [number] };
 export interface OpenHypergraph {
   format: "triz-open-hypergraph/1";
@@ -116,6 +116,7 @@ export function toHypergraph(model: FunctionModel): OpenHypergraph {
     ...(b.action !== undefined ? { action: b.action } : {}),
     ...(b.cost !== undefined ? { cost: b.cost } : {}),
     ...(b.behavior !== undefined ? { behavior: b.behavior } : {}),
+    ...(b.feasibility !== undefined ? { feasibility: b.feasibility } : {}),
     sources: (b.inputs ?? []).map((p) => vertex(b, "in", p)),
     targets: (b.outputs ?? []).map((p) => vertex(b, "out", p)),
   }));
@@ -178,6 +179,7 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
         ...(outputs.length ? { outputs } : {}),
         ...(e.cost !== undefined ? { cost: e.cost } : {}),
         ...(e.behavior !== undefined ? { behavior: e.behavior } : {}),
+        ...(e.feasibility !== undefined ? { feasibility: e.feasibility } : {}),
       });
     } else {
       if (e.sources.length !== 1 || e.targets.length !== 1) { errors.push(`function '${e.id}' must have one source and one target vertex`); continue; }

@@ -1,0 +1,263 @@
+{
+  "format": "triz-open-hypergraph/1",
+  "domain": "physical",
+  "system": "Motor shaft on a rolling-element bearing, with declared co-design feasibility",
+  "carriers": [
+    {
+      "id": "torque",
+      "layer": "energy",
+      "dimension": "N·m"
+    },
+    {
+      "id": "radial-load",
+      "layer": "energy",
+      "dimension": "N radial support"
+    },
+    {
+      "id": "heat",
+      "layer": "energy",
+      "dimension": "W thermal"
+    },
+    {
+      "id": "preload",
+      "layer": "energy",
+      "dimension": "N axial preload from thermal expansion"
+    }
+  ],
+  "vertices": [
+    {
+      "box": "motor",
+      "port": "shaft-out",
+      "side": "out",
+      "carrier": "torque"
+    },
+    {
+      "box": "shaft",
+      "port": "drive",
+      "side": "in",
+      "carrier": "torque"
+    },
+    {
+      "box": "shaft",
+      "port": "support",
+      "side": "in",
+      "carrier": "radial-load"
+    },
+    {
+      "box": "shaft",
+      "port": "heat-in",
+      "side": "in",
+      "carrier": "heat"
+    },
+    {
+      "box": "shaft",
+      "port": "expansion",
+      "side": "out",
+      "carrier": "preload"
+    },
+    {
+      "box": "bearing",
+      "port": "preload-in",
+      "side": "in",
+      "carrier": "preload"
+    },
+    {
+      "box": "bearing",
+      "port": "race",
+      "side": "out",
+      "carrier": "radial-load"
+    },
+    {
+      "box": "bearing",
+      "port": "friction",
+      "side": "out",
+      "carrier": "heat"
+    },
+    {
+      "box": "housing",
+      "port": "bore",
+      "side": "out",
+      "carrier": "radial-load"
+    },
+    {
+      "box": "air",
+      "port": "sink",
+      "side": "in",
+      "carrier": "heat"
+    }
+  ],
+  "hyperedges": [
+    {
+      "kind": "box",
+      "id": "motor",
+      "name": "Drive motor",
+      "role": "tool",
+      "action": "rotate",
+      "cost": {
+        "usd_unit": 120
+      },
+      "feasibility": [
+        {
+          "provides": {
+            "shaft-out": 12
+          }
+        }
+      ],
+      "sources": [],
+      "targets": [
+        0
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "shaft",
+      "name": "Shaft",
+      "role": "product",
+      "feasibility": [
+        {
+          "requires": {
+            "drive": 10,
+            "support": 2500
+          }
+        }
+      ],
+      "sources": [
+        1,
+        2,
+        3
+      ],
+      "targets": [
+        4
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "bearing",
+      "name": "Ball bearing",
+      "role": "mediator",
+      "action": "support",
+      "cost": {
+        "usd_unit": 18,
+        "service_h_year": 2
+      },
+      "feasibility": [
+        {
+          "provides": {
+            "race": 3000
+          }
+        }
+      ],
+      "sources": [
+        5
+      ],
+      "targets": [
+        6,
+        7
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "housing",
+      "name": "Housing",
+      "role": "mediator",
+      "action": "hold",
+      "cost": {
+        "usd_unit": 40
+      },
+      "feasibility": [
+        {
+          "provides": {
+            "bore": 400
+          }
+        },
+        {
+          "provides": {
+            "bore": 3000
+          },
+          "cost": {
+            "usd_unit": 22,
+            "service_h_year": 1
+          }
+        }
+      ],
+      "sources": [],
+      "targets": [
+        8
+      ]
+    },
+    {
+      "kind": "box",
+      "id": "air",
+      "name": "Ambient air",
+      "role": "environment",
+      "sources": [
+        9
+      ],
+      "targets": []
+    },
+    {
+      "kind": "function",
+      "id": "w-drive",
+      "carrier": "torque",
+      "polarity": "useful",
+      "verb": "rotate",
+      "sources": [
+        0
+      ],
+      "targets": [
+        1
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-support",
+      "carrier": "radial-load",
+      "polarity": "useful",
+      "verb": "support",
+      "sources": [
+        6
+      ],
+      "targets": [
+        2
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-heat",
+      "carrier": "heat",
+      "polarity": "harmful",
+      "verb": "heat",
+      "sources": [
+        7
+      ],
+      "targets": [
+        3
+      ]
+    },
+    {
+      "kind": "function",
+      "id": "w-preload",
+      "carrier": "preload",
+      "polarity": "harmful",
+      "verb": "overload",
+      "sources": [
+        4
+      ],
+      "targets": [
+        5
+      ]
+    }
+  ],
+  "interface": {
+    "inputs": [
+      9
+    ],
+    "outputs": [
+      8
+    ]
+  },
+  "budget": {
+    "usd_unit": 200,
+    "service_h_year": 4
+  }
+}

@@ -17,6 +17,7 @@ import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
+import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -308,6 +309,23 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
           : absorb ? { ok: false, errors: ["absorb needs trim"] }
           : externalBehavior(model, { maxStates: max_states })),
+    },
+    {
+      name: "triz_feasibility",
+      description: "Monotone co-design feasibility (Censi 2015) from declared box `feasibility` rows: each row provides a level per output port against the levels it requires per input port and an operating cost, read monotonically (providing less never needs more; more resources never hurt). The product boxes' rows are the demand. Composes the rows along non-harmful functions, including feedback loops, by Kleene's ascent from nothing demanded to the least fixpoint, and returns the minimal resource vectors (fixed costs of every box plus the chosen rows' operating costs), each with its rows and demanded levels. Verdict against the model's budget: feasible; infeasible (reason over-budget, with the binding dimensions every minimal vector exceeds, or unprovidable, naming the port no row can serve); or undecided (missing-feasibility, no-budget, unbudgeted). With `trim` and `absorb` (as triz_behavior takes them), apply the trim and decide the trimmed model; the baseline is solved only to report each absorber's added resources. Fails closed on ill-typed or dominated rows, a requirement no non-harmful function supplies, and past the caps. No polynomial bound is claimed. The verdict holds for the rows as declared; the absorber's new harms are not modelled.",
+      shape: {
+        model: act.FunctionModel,
+        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the remaining boxes provide what the trim leaves them within budget"),
+        absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
+        max_antichain: z.number().int().positive().max(MAX_ANTICHAIN).optional().describe(`Cap on antichain elements per step (default and maximum ${MAX_ANTICHAIN})`),
+        max_iterations: z.number().int().positive().max(MAX_ITERATIONS).optional().describe(`Cap on Kleene steps (default and maximum ${MAX_ITERATIONS})`),
+      },
+      handler: async ({ model, trim, absorb, max_antichain, max_iterations }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_antichain?: number; max_iterations?: number }) => {
+        const caps = { maxAntichain: max_antichain, maxIterations: max_iterations };
+        return text(trim ? trimFeasibility(model, { trim, absorb, ...caps })
+          : absorb ? { ok: false, errors: ["absorb needs trim"] }
+          : feasibility(model, caps));
+      },
     },
     {
       name: "triz_nine_windows",

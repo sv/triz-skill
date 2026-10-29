@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_feasibility"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -127,6 +127,21 @@ console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
 if (decided.verdict !== "preserved") fail("decided trim wrong");
 const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
 if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
+
+const feasible = {
+  ...model,
+  boxes: [
+    { ...model.boxes[0], feasibility: [{ provides: { race: 3000 } }] },
+    { ...model.boxes[1], feasibility: [{ provides: { bore: 400 } }, { provides: { bore: 3000 }, cost: { usd_unit: 22 } }] },
+    { ...model.boxes[2], feasibility: [{ requires: { seat: 2500 } }] },
+  ],
+  budget: { usd_unit: 30 },
+};
+const absorbed = await json("triz_feasibility", { model: feasible, trim: ["bearing"] });
+console.log(`triz_feasibility trim bearing -> ${absorbed.verdict}, housing adds ${JSON.stringify(absorbed.absorbers?.[0]?.added)}`);
+if (absorbed.verdict !== "feasible" || absorbed.absorbers[0].added.usd_unit !== 22) fail("feasibility of the trim wrong");
+const over = await json("triz_feasibility", { model: { ...feasible, budget: { usd_unit: 20 } }, trim: ["bearing"] });
+if (over.verdict !== "infeasible" || over.binding.join() !== "usd_unit") fail("over-budget trim not infeasible");
 
 await client.close();
 console.log("SMOKE OK");
