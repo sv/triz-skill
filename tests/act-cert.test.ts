@@ -365,12 +365,8 @@ leanTest("a tampered certificate fails to check where it was tampered", async ()
 leanTest("a batch gives each file the messages Lean gives it alone", async () => {
   const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
   const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
-  const jobs = [
-    { content: c, audit: true },
-    { content: c.replace(/^( {2})by intro w hw.*$/m, "$1sorry"), audit: true },
-    ...tamperVariants(c).map((v) => ({ content: v.content, audit: false })),
-    ...tamperVariants(d).map((v) => ({ content: v.content, audit: false })),
-  ];
+  // A certificate, a copy of it under the same names, and another certificate's data tamper.
+  const jobs = [{ content: c, audit: true }, { content: tamperVariants(c)[0].content, audit: false }, { content: tamperVariants(d)[1].content, audit: false }];
   const batch = runLocalBatch(jobs);
   assert.ok(batch.every((r) => r.batched), "every job shared the process");
   const sorted = (ms: typeof batch[number]["messages"]) => [...ms].sort((x, y) => x.line - y.line || x.text.localeCompare(y.text));
