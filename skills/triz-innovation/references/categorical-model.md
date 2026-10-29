@@ -566,9 +566,14 @@ that rule's. So a pattern box matches any box that has at least the pattern's po
 3. No-dangling: every port of a deleted box must be in L, and every wire on a deleted port must
    be deleted. Bonchi et al. (2022, Def. 3.16 and Prop. 3.17) show that these two conditions
    are exactly what the pushout complement needs.
-4. Behaviour: a kept box that declares `behavior` must keep its ports, because its rows name
-   every port once. A rule that adds or deletes one of its ports fails with `behaviour:`; restate
-   or remove the behaviour first. A `like` copy does not copy behaviour.
+4. Declared rows:
+   - A kept box that declares `behavior` or `transition` must keep its ports, because its rows
+     name every port once. A rule that adds or deletes one of its ports fails with
+     `behaviour:`; restate or remove the rows first.
+   - A kept box that declares `feasibility` may gain ports, where its rows provide and need 0,
+     but must keep every port its rows name. A rule that deletes one fails with
+     `feasibility:`; restate or remove the rows first.
+   - A `like` copy copies none of these rows.
 5. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
 6. The result must pass the type check of `triz_function_model`.
 
