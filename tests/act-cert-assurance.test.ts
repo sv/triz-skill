@@ -42,6 +42,12 @@ test("request binding checks normalized row data independently of generator rege
   const weighted=weaknessCertificate(concepts,acceptable,{scope:"whole",jointPrior:prior}); assert.ok(weighted.ok);
   assert.deepEqual(checkCorrespondence(weighted.content,{...request,jointPrior:prior}),[]);
   assert.match(checkCorrespondence(weighted.content,request).join(";"),/manifest source/);
+  // Per-input priors bind the same way, and regeneration carries them.
+  const priors = [{ box: "f", port: "x", weights: { "0": 2 } }];
+  const perInput = weaknessCertificate(concepts, acceptable, { scope: "whole", priors }); assert.ok(perInput.ok);
+  assert.deepEqual(checkCorrespondence(perInput.content, { ...request, priors }), []);
+  assert.deepEqual(bindRequest(perInput.content, { ...request, priors }), []);
+  assert.match(checkCorrespondence(perInput.content, request).join(";"), /manifest source/);
   const hidden=c.replace(/^def rowValue : (.*)$/m,"/- def rowValue : $1 -/");
   assert.match(checkCorrespondence(hidden,request).join(";"),/rowValue/);
 });
