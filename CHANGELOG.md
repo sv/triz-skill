@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_transform`: typed model moves (segment, take out, interpose, apply a trim, rewrite); every result type-checks or fails closed.
 - `triz_transform` constructions for Principles 5, 11, 13, 16, 22, 23, 26, and 27 (`merge`, `standby`, `reverse`, `rerate`, `retarget`, `feedback`, `cheap_copy`), with all 40 principles classified in `categorical-model.md`.
 - `triz_nine_windows`: subsystem, system, and supersystem views for each time snapshot.
+- `triz_rule_apply`: double-pushout rewriting with rules as data (match search, gluing conditions, Lean `typed_dpo`); built-in mono → bi and feedback evolution-line rules.
 - `triz_nine_windows` `transitions`: `triz_transform` sequences linking the times, checked against the snapshots and restricted to the subsystem (`restrict_rewrite`).
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
 - `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
+- `triz_feasibility`: monotone co-design (Censi 2015) from box `feasibility` rows, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget (`feasible`, `infeasible` with the binding dimension, or `undecided`) and report the absorber's added resources.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
 - Per-instance Lean certificates: `triz_export` format `lean` and `triz_separate` `certificate: true` state typing, harm-loop witness, and separation verdicts as theorems about the model; `scripts/certify.mjs` checks them with local Lean or the AXLE service.
 - `theory/Witnesses.lean`: each typing lemma's and behaviour-monotonicity lemma's hypotheses hold on a concrete diagram or relation, and dropping any one breaks it.

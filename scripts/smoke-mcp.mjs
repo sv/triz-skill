@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_feasibility"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -100,6 +100,15 @@ if (!merged.ok || merged.hiddenHarms.join() !== "w-heat") fail("merge wrong");
 const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
 if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
 
+const listed = await json("triz_rule_apply", { model, rule_id: "mono-bi", at: { wires: { f: "w-support" } } });
+console.log(`triz_rule_apply mono-bi at w-support -> ${listed.matches?.length} match`);
+if (!listed.ok || listed.matches.length !== 1 || !listed.matches[0].applicable) fail("rule match listing wrong");
+const bi = await json("triz_rule_apply", { model, rule_id: "mono-bi", match: listed.matches[0].match });
+console.log(`triz_rule_apply mono-bi -> ${bi.model?.boxes.map((b) => b.id)}`);
+if (!bi.ok || !bi.model.boxes.some((b) => b.id === "bearing-2")) fail("rule application wrong");
+const fed = await json("triz_rule_apply", { model, rule_id: "feedback", match: listed.matches[0].match });
+if (fed.ok !== false) fail("unbound right-side carrier did not fail closed");
+
 const grid = await json("triz_nine_windows", { present: model, subsystem: ["bearing", "shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] } });
 const step = grid.transitions?.[0];
 console.log(`triz_nine_windows present_to_future trim -> future ${step?.snapshot}, boundary added [${step?.subsystem?.boundary?.added}]`);
@@ -121,6 +130,21 @@ console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
 if (decided.verdict !== "preserved") fail("decided trim wrong");
 const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
 if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
+
+const feasible = {
+  ...model,
+  boxes: [
+    { ...model.boxes[0], feasibility: [{ provides: { race: 3000 } }] },
+    { ...model.boxes[1], feasibility: [{ provides: { bore: 400 } }, { provides: { bore: 3000 }, cost: { usd_unit: 22 } }] },
+    { ...model.boxes[2], feasibility: [{ requires: { seat: 2500 } }] },
+  ],
+  budget: { usd_unit: 30 },
+};
+const absorbed = await json("triz_feasibility", { model: feasible, trim: ["bearing"] });
+console.log(`triz_feasibility trim bearing -> ${absorbed.verdict}, housing adds ${JSON.stringify(absorbed.absorbers?.[0]?.added)}`);
+if (absorbed.verdict !== "feasible" || absorbed.absorbers[0].added.usd_unit !== 22) fail("feasibility of the trim wrong");
+const over = await json("triz_feasibility", { model: { ...feasible, budget: { usd_unit: 20 } }, trim: ["bearing"] });
+if (over.verdict !== "infeasible" || over.binding.join() !== "usd_unit") fail("over-budget trim not infeasible");
 
 await client.close();
 console.log("SMOKE OK");

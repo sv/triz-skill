@@ -15,8 +15,10 @@ import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
+import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
+import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -132,6 +134,24 @@ function transform(model: act.FunctionModel, t: Transformation) {
     case "standby": return standby(model, { box: t.box, standby: t.standby });
     case "cheap_copy": return cheapCopy(model, { box: t.box, copy: t.copy });
   }
+}
+
+/** List the matches of a rule, or apply it at one. Exactly one of a built-in rule id and an inline rule. */
+function ruleApply(args: {
+  model: act.FunctionModel; rule_id?: string; rule?: Rule; at?: Partial<RuleMatch>; match?: RuleMatch;
+  carriers?: Record<string, string>; ids?: RuleIds; limit?: number; max_steps?: number;
+}) {
+  const errors = [
+    ...((args.rule === undefined) === (args.rule_id === undefined) ? ["give exactly one of rule_id and rule"] : []),
+    ...(args.match && args.at ? ["'at' seeds the search and 'match' applies: give one of them"] : []),
+    ...(!args.match && (args.carriers || args.ids) ? ["'carriers' and 'ids' are used only when applying, with 'match'"] : []),
+  ];
+  if (errors.length) return { ok: false as const, errors };
+  const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id);
+  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}`] };
+  return args.match
+    ? applyRule(args.model, rule, args.match, { carriers: args.carriers, ids: args.ids })
+    : matchRule(args.model, rule, { at: args.at, limit: args.limit, maxSteps: args.max_steps });
 }
 
 export interface ToolSpec {
@@ -270,6 +290,22 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
     },
     {
+      name: "triz_rule_apply",
+      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly) or 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`). Each built-in rule cites the evolution-trends.md line it encodes. Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match, both conditions, and that a kept box declaring behavior keeps its ports, then deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
+      shape: {
+        model: act.FunctionModel,
+        rule_id: z.enum(TREND_RULES.map((r) => r.id) as [string, ...string[]]).optional().describe("A built-in evolution-line rule"),
+        rule: Rule.optional().describe("An inline rule; give this or rule_id"),
+        at: RuleMatch.partial().optional().describe("Partial match that seeds the search, e.g. { wires: { f: 'w-drive' } }"),
+        match: RuleMatch.optional().describe("The match to apply at; omit to list matches"),
+        carriers: z.record(z.string(), Id).optional().describe("Carrier variable used only on the right side → model carrier id"),
+        ids: RuleIds.optional().describe("Ids for created elements; default: fresh ids based on the rule's or the copied element's"),
+        limit: z.number().int().min(1).max(200).optional().describe("Most matches to list (default 50)"),
+        max_steps: z.number().int().min(1).max(1_000_000).optional().describe("Search step budget (default 100000)"),
+      },
+      handler: async (args: Parameters<typeof ruleApply>[0]) => text(ruleApply(args)),
+    },
+    {
       name: "triz_behavior",
       description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `trim`, perform the trim as triz_transform does and decide whether the input→deliverable relation is unchanged: verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's first, is outside the kernel.",
       shape: {
@@ -282,6 +318,23 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
           : absorb ? { ok: false, errors: ["absorb needs trim"] }
           : externalBehavior(model, { maxStates: max_states })),
+    },
+    {
+      name: "triz_feasibility",
+      description: "Monotone co-design feasibility (Censi 2015) from declared box `feasibility` rows: each row provides a level per output port against the levels it requires per input port and an operating cost, read monotonically (providing less never needs more; more resources never hurt). The product boxes' rows are the demand. Composes the rows along non-harmful functions, including feedback loops, by Kleene's ascent from nothing demanded to the least fixpoint, and returns the minimal resource vectors (fixed costs of every box plus the chosen rows' operating costs), each with its rows and demanded levels. Verdict against the model's budget: feasible; infeasible (reason over-budget, with the binding dimensions every minimal vector exceeds, or unprovidable, naming the port no row can serve); or undecided (missing-feasibility, no-budget, unbudgeted). With `trim` and `absorb` (as triz_behavior takes them), apply the trim and decide the trimmed model; the baseline is solved only to report each absorber's added resources. Fails closed on ill-typed or dominated rows, a requirement no non-harmful function supplies, and past the caps. No polynomial bound is claimed. The verdict holds for the rows as declared; the absorber's new harms are not modelled.",
+      shape: {
+        model: act.FunctionModel,
+        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the remaining boxes provide what the trim leaves them within budget"),
+        absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
+        max_antichain: z.number().int().positive().max(MAX_ANTICHAIN).optional().describe(`Cap on antichain elements per step (default and maximum ${MAX_ANTICHAIN})`),
+        max_iterations: z.number().int().positive().max(MAX_ITERATIONS).optional().describe(`Cap on Kleene steps (default and maximum ${MAX_ITERATIONS})`),
+      },
+      handler: async ({ model, trim, absorb, max_antichain, max_iterations }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_antichain?: number; max_iterations?: number }) => {
+        const caps = { maxAntichain: max_antichain, maxIterations: max_iterations };
+        return text(trim ? trimFeasibility(model, { trim, absorb, ...caps })
+          : absorb ? { ok: false, errors: ["absorb needs trim"] }
+          : feasibility(model, caps));
+      },
     },
     {
       name: "triz_nine_windows",

@@ -82,8 +82,8 @@ sources do not document in-cell ordering as a preference rank, so none is used h
 
 ### TRIZ grounding
 
-The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, and `triz_transform`
-follows the MATRIZ knowledge base. Pages were checked on 2026-10-29.
+The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, `triz_transform`, and
+`triz_rule_apply` follows the MATRIZ knowledge base. Pages were checked on 2026-10-29.
 
 - [Trimming rules](https://wiki.matriz.org/docs/triz/problem-solving-tools-5807/trimming-6398/trimming-rules-6730/)
   define three rules:
@@ -124,6 +124,12 @@ it supports here.
   [arXiv:1512.08055](https://arxiv.org/abs/1512.08055).
   Resources ordered componentwise. This is why ideality here is a comparison per dimension,
   not a sum.
+  Censi also supplies `triz_feasibility`. Checked on 2026-10-29 against v7: Def. 13 (a monotone
+  design problem), Props. 2–4 (parallel, series, and loop composition keep monotonicity),
+  Def. 22 with eq. (26) (a loop's minimal resources as the least fixpoint of
+  R ↦ Min ⋃_{r ∈ R} h(f₁, r) ∩ ↑r on antichains, found by Kleene's ascent from ⊥), and Prop. 5
+  (memory O(width(R₀)) and work O(width(R₀) × height(A R₀) × c), where R₀ is the resource poset
+  of the loop, A R₀ its lattice of antichains, and c the cost of one evaluation of the inner h).
 - **Abramsky & Brandenburger (2011)**, *The sheaf-theoretic structure of non-locality and
   contextuality*, New Journal of Physics 13, 113036.
   **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,
@@ -145,13 +151,15 @@ it supports here.
   [arXiv:2012.01847](https://arxiv.org/abs/2012.01847). Checked on 2026-10-29: Def. 3.1
   (hypergraphs with ordered source and target lists), Def. 3.16 (the no-dangling and
   no-identification conditions), and Prop. 3.17 (a pushout complement exists iff both hold).
-  Two uses here:
+  Three uses here:
   - `triz_export`'s open-hypergraph form: hyperedges with ordered sources and targets, plus an
     interface;
   - the no-dangling check in `triz_transform`, where occurrences named by id make the
-    no-identification condition trivial.
+    no-identification condition trivial;
+  - `triz_rule_apply`, which reads a model as a labelled hypergraph for matching and checks both
+    conditions before each double-pushout application.
 
-  Neither use makes the kernel a DPO rewriting system.
+  The encoding of models as hypergraphs is this kernel's own; categorical-model.md gives it.
 
 Considered and not adopted:
 
@@ -181,7 +189,10 @@ Considered and not adopted:
   Evolution trends as double-pushout rewriting systems.
   - Adopted: trimming as a single rewrite at a named occurrence (`triz_transform` `trim`). It is
     checked by the no-dangling condition, cited from Bonchi et al. (2022) above.
-  - Not adopted: rules as reusable patterns, occurrence search, and the other evolution lines.
+  - Adopted: rules as data, occurrence search, and double-pushout application
+    (`triz_rule_apply`), with two more evolution lines as rules: mono → bi, and self-adjusting
+    feedback.
+  - Not adopted: the other evolution lines. categorical-model.md gives the reason for each.
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 

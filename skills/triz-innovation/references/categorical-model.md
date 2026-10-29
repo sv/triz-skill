@@ -8,7 +8,8 @@ carry one flow type and a rating. The checks are finite and deterministic, and t
 Schema: [function-model.schema.json](../schemas/function-model.schema.json). The repository's
 `examples/function-models/` holds worked models of a bearing, a cached API read path, a
 marketplace, and a connection pool. The connection pool has the bearing's wiring shape.
-`bearing-heat-behavior.json` is the bearing with declared behaviour.
+`bearing-heat-behavior.json` is the bearing with declared behaviour, and
+`bearing-heat-feasibility.json` the bearing with declared feasibility.
 
 ## What each piece means
 
@@ -20,12 +21,14 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
+| Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
@@ -55,6 +58,11 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    `absorb`. It decides whether the trim preserves the input→deliverable relation (see
    [Declared behaviour](#declared-behaviour)). A `preserved` verdict holds for the relations as
    declared; substantiate each of them, the absorber's first.
+
+   When the boxes that matter declare feasibility, call `triz_feasibility` with the same `trim`
+   and `absorb`. It decides whether the remaining boxes provide what the trim leaves them within
+   budget, and reports each absorber's added resources (see
+   [Co-design feasibility](#co-design-feasibility)).
 4. **Separate.** For a physical contradiction, give each demand its admissible values and the
    cells where it applies on each axis. Use `space`, `time`, `condition`, `direction`, and
    `level`, which are MATRIZ's five separation types; `condition` is MATRIZ's "relation
@@ -72,6 +80,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `trim`, which performs a trim `triz_trim` screened as typed-feasible: the trimmed boxes go,
      and each function they performed on a remaining box is re-attached to a chosen absorber;
    - `rewrite`, which deletes and adds boxes and wires directly.
+
+   For a move that recurs, write a rule or use a built-in evolution-line rule with
+   `triz_rule_apply` (see Rules below). Without `match` it lists the occurrences. Pass one back
+   as `match` to apply it. An occurrence marked not applicable names the condition it breaks.
 
    A transformation is a move to evaluate, not a result. Compare the new model with
    `triz_function_model` and `compare_to`. Segmenting a product box, taking a part out of one, or
@@ -221,6 +233,84 @@ the other has none, the verdict is `changed`, and the counterexample says which 
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
 
+## Co-design feasibility
+
+A box may declare `feasibility`: its minimal rows, after Censi (2015). A row gives a level
+provided at each output port, against the levels required at each input port and an operating
+cost per cost dimension. Levels are numbers in the carrier's `dimension`. Rows read
+monotonically: a row also covers providing less, receiving more, and spending more. An omitted
+port or dimension is 0. A row naming a port the box lacks fails closed, and so does a row that
+another row of the box dominates.
+
+`triz_feasibility` composes the rows:
+
+- **Demand.** The product boxes' rows state what they require at their input ports.
+- **Wires.** A non-harmful wire turns its input port's requirement into a demand on the output
+  port that feeds it. An output port feeding several functions must meet the largest demand: a
+  port has one level, like a voltage. An input port fed by several functions needs each of them
+  to meet the requirement. Additive sharing, such as a current split between two consumers, is
+  not modelled; model the split as a box. Harmful functions carry no demand, and a requirement
+  on a port that only harmful functions feed fails closed.
+- **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
+  upstream of them along non-harmful wires are composed, and each must declare feasibility.
+  Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
+  build new boxes without feasibility, as without behaviour.
+- **Resources.** A resource vector is every box's fixed `cost` plus the operating cost of the
+  rows chosen, per cost dimension. Dimensions are never summed together.
+- **Least fixpoint.** A configuration is a demanded level per output port and a cost vector.
+  Starting from nothing demanded, each step asks the boxes for rows that provide what a
+  configuration demands, adds the demand those rows place upstream and their cost, and keeps the
+  minimal results, an antichain. This is Kleene's ascent (Censi 2015, Def. 22, eq. 26). Feedback
+  loops need no special case: demands only grow along the ascent, and where they stop growing,
+  the minimal configurations are exactly the minimal feasible ones (`kleene_lfp`,
+  `kleeneStep_upperClosure`, `codesign_lfp`). A test checks the result against every row
+  selection of 300 random models.
+
+The verdict compares the minimal resource vectors with the model's `budget`. Each vector comes
+with one witness: a row per composed box, and the level demanded per output port.
+
+- `feasible`: some minimal vector is within budget on every dimension. Those vectors are
+  listed first: `withinBudget` gives their positions in `minimal`, and `withinBudgetCount` how
+  many there are. At most 50 vectors are listed; `minimalCount` gives the total.
+- `infeasible`, reason `over-budget`: every minimal vector exceeds the budget somewhere.
+  `binding` lists the dimensions that every one of them exceeds. It is empty when they exceed
+  different dimensions; relaxing one dimension alone may then not help.
+- `infeasible`, reason `unprovidable`: some box has no row for what is demanded of it, so the
+  ascent ends empty, whatever the budget. The output names the box and the levels demanded of
+  it together (`demanded`). `ports` lists each port no row reaches even alone, with the most any
+  row provides there. It is empty when some row reaches each level but no row reaches them all.
+- `undecided`: reason `missing-feasibility` (a composed box declares none), `no-budget` (the
+  minimal vectors are listed), or `unbudgeted` (a vector fits every budgeted dimension but
+  spends on one the budget does not name).
+
+With `trim` and `absorb`, the input `triz_behavior` takes, the trim is applied as
+`triz_transform` does. The verdict is the trimmed model's: can the remaining boxes provide what
+the trim leaves them, within budget? The trimmed boxes need no feasibility. The baseline is
+solved only to report each absorber's added resources: its chosen row's operating cost after the
+trim minus before it. `added` is given when each side has one minimal vector. With several,
+`trimmed` and `baseline` list the absorber's row per vector, and the pairing is the caller's.
+
+In `bearing-heat-feasibility.json`, the shaft needs 2500 N of radial support. The bearing
+provides 3000 N; the housing, as built, 400 N. Trimming the bearing re-attaches the support to the
+housing, whose second row carries 3000 N for 22 USD and 1 service hour a year more. The trimmed
+model needs 182 USD and 1 h/year against a budget of 200 and 4, so it is feasible, and the
+housing adds `{ usd_unit: 22, service_h_year: 1 }`. With a budget of 180 USD it is infeasible,
+and `usd_unit` binds.
+
+Feasibility and behaviour answer different questions about a loop. `triz_behavior` asks which
+values flow: a wire equates its ports' values, and values have no order. A loop is therefore
+solved by its steady states, the trace, and not by iterating up from a least value.
+`triz_feasibility` asks how much is needed: levels are ordered, and requirements are monotone.
+Iterating up from nothing demanded therefore reaches the least fixpoint, and that is the answer.
+
+The antichain (`max_antichain`, at most 1000, checked at every insertion), the Kleene steps
+(`max_iterations`, at most 1000), and the row selections tried (1,000,000 per solve) are capped. Past a cap the call
+fails closed. The ascent always ends, because every coordinate takes values in a finite set:
+the declared levels, and the sums of one row per box closed under max. The antichains can still
+grow exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi
+(2015, Prop. 5) bounds the work by the width of the loop's resource poset, the height of its
+lattice of antichains, and the cost of one evaluation, not by the size of the model.
+
 ## Principle constructions
 
 A construction is listed here only when the principle's text, looked up in
@@ -252,6 +342,7 @@ that move is `interpose`.
 Trimming as a rewrite is the evolution-line move named in
 [evolution-trends.md](evolution-trends.md): "the function remains, the component disappears".
 `trim` builds that rewrite and checks it. It does not show that a trend applies to the system.
+Two other lines are rules; see below.
 
 ### All 40 principles
 
@@ -317,6 +408,71 @@ the original.
 A test checks this table against `data/principles.json`: all 40 rows, each with the looked-up
 name and text, and each structural row naming a `triz_transform` operation.
 
+## Rules (double pushout)
+
+A rule is data, defined by [rule.schema.json](../schemas/rule.schema.json). It has three
+patterns: L, what must be present; K, what is kept; and R, what is there afterwards. K's
+elements appear in L and R with the same ids. Pattern ports are typed by carrier variables. A
+match binds the variables used in L; the caller binds those used only in R.
+
+For matching, a model is read as a hypergraph in the sense of Bonchi et al. (2022, Def. 3.1).
+Boxes and ports are vertices. Each port has a `port-of` hyperedge to its box, labelled by side
+and carrier. Each wire is a hyperedge from its source port to its target port, labelled by
+carrier and rating. A match instantiates the rule: it binds the carrier variables, takes any role
+or rating the pattern leaves out from the matched element, and resolves `like` copies. On the
+instantiated rule, the match is a label-preserving homomorphism, and the conditions below are
+that rule's. So a pattern box matches any box that has at least the pattern's ports.
+
+`triz_rule_apply` applies a rule at a match in steps that each fail closed:
+
+1. The match must be a typed homomorphism.
+2. No-identification: two pattern elements with the same image must both be kept.
+3. No-dangling: every port of a deleted box must be in L, and every wire on a deleted port must
+   be deleted. Bonchi et al. (2022, Def. 3.16 and Prop. 3.17) show that these two conditions
+   are exactly what the pushout complement needs.
+4. Behaviour: a kept box that declares `behavior` must keep its ports, because its rows name
+   every port once. A rule that adds or deletes one of its ports fails with `behaviour:`; restate
+   or remove the behaviour first. A `like` copy does not copy behaviour.
+5. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
+6. The result must pass the type check of `triz_function_model`.
+
+`typed_dpo` in `theory/` states that the result is typed when four things hold: the model is
+typed, R is typed, no surviving wire touches a deleted box, and R gives no port a carrier other
+than the model's. Rule validation checks R's typing. Step 1 and fresh box and port ids give the
+carrier condition. The Lean statement leaves two things out:
+
+- It types ports by partial maps, so it does not model deleting a port. The dangling check in
+  step 3 covers that.
+- Typing does not need no-identification, which is what makes the result a pushout. A witness
+  in `Witnesses.lean` gives a typed result that breaks it.
+
+A property test applies four rules at every match in 200 generated models. Every applicable
+match gives a typed model. Every other match fails on a named condition, never at step 6. A
+test on the bearing model with declared behaviour checks step 4.
+
+The search is bounded. Past the step budget the list is `decided: false`, and past the match
+limit it is `complete: false`. Every listed match is verified before it is returned.
+
+## Evolution lines as rules
+
+A line is encoded only where its text in [evolution-trends.md](evolution-trends.md) describes a
+move on the wiring. The rule encodes that move and no more, and cites the line; a test checks
+that the quoted text is on that line.
+
+| Line | Text | Decision |
+|---|---|---|
+| Transition to supersystem | "mono → bi → poly → system with its supersystem" | Rule `mono-bi`: a second performer of a matched function. The copy takes the performer's role, name, action, and cost, so its cost counts, and the function's rating. Apply it again for poly. The supersystem step is not encoded. |
+| Increasing controllability | "fixed → adjustable → self-adjusting with feedback" | Rule `feedback`: one useful function from the object back to the tool, on a carrier the caller binds. The text names no sensor or controller, so the rule adds no box. The earlier steps are not encoded. `triz_transform` `feedback` (Principle 23) adds a function between boxes you name instead of searching for an occurrence. |
+| Increasing ideality | "function preserved while parts and cost vanish" | Trimming, already `triz_transform` `trim`. |
+| Dynamization | "rigid → jointed → flexible → field" | Not encoded: the steps change how rigid a component is, which the wiring does not represent. |
+| Increasing coordination | "parts synchronize rhythm and parameters" | Not encoded: it changes parameters, not structure. |
+| Uneven development of subsystems | "one subsystem lags and becomes the limiter" | Not encoded: a diagnosis, not a move. |
+| Transition to microlevel | "mechanism shrinks toward particle and field interactions" | Not encoded: scale is not in the wiring. |
+| Decreasing human involvement | "human does → machine does → system decides" | Not encoded: a machine performing the function in place of a human leaves the wiring as it was, and no role tells them apart. |
+| Changing the working field | "mechanical → thermal → chemical → electric → magnetic → electromagnetic" | Not encoded. A field would be a carrier, but the kernel reads a carrier's layer and dimension as labels, so it cannot order fields. It also identifies a delivered function by its carrier, so "the same function in another field" has no structural reading. |
+
+A rule application is a move to evaluate, not evidence that the trend applies.
+
 ## Domain working translations
 
 These are working translations, not isomorphisms. SKILL.md rule 4 and the "conflict between
@@ -362,28 +518,42 @@ example cohort churn against fee changes. Name it only from that evidence.
   steady state of an identity loop, and that a negation loop has none. The evaluator is checked
   by tests, not extracted from these statements, and its verdicts are not certified per instance.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
-  dynamics, convergence, or which steady state the system reaches. A least fixpoint (iteration
-  from no value) is not used: it needs initial loop values the model does not declare, and on an
-  unseeded loop it delivers nothing.
+  dynamics, convergence, or which steady state the system reaches. Behaviour uses no least
+  fixpoint: its values are unordered, so there is no least value to iterate from, and iterating
+  from no value delivers nothing on an unseeded loop. Feasibility uses one because its levels are
+  ordered and its relations monotone ([Co-design feasibility](#co-design-feasibility)).
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are
   refused (`undecided`, `no-steady-state`).
 - A `preserved` verdict holds for the relations as declared. Whether they are true, the
-  absorber's above all, is outside the kernel, and so are the absorber's added cost and new
-  harms. Downstream boxes are not composed; see `partialDownstream`.
-- Rewrites are not a double-pushout rewriting system.
-  - A rewrite is applied at an occurrence named by id, and the kernel checks the no-dangling
-    condition.
-  - Occurrences named by id are injective, so the no-identification condition holds trivially.
-    Bonchi et al. (2022), Prop. 3.17, show the two conditions are exactly what the pushout
-    complement needs.
-  - Rules as reusable patterns, and searching for their occurrences, are not implemented.
+  absorber's above all, is outside the kernel, and so are the absorber's new harms. Its added
+  cost is `triz_feasibility`'s question. Downstream boxes are not composed; see
+  `partialDownstream`.
+- A `triz_feasibility` verdict holds for the rows as declared. Whether they are true, the
+  absorber's above all, is outside the kernel, and so are the absorber's new harms.
+  - Monotone reading is an assumption. A box that works worse with more input, which an
+    excessive function suggests, is outside it, and the ratings are not read.
+  - A loop is feasible whenever its rows are consistent. Losses and conservation must be in the
+    rows; the solver does not know physics.
+  - Lean proves that series, parallel, and feedback composition keep monotonicity, that Kleene's
+    ascent reaches the least fixpoint of a finite lattice, that a step can be computed on the
+    antichain when requirements are monotone, and that the least fixpoint is the upward closure
+    of the feasible configurations. The solver is checked against these by tests, including
+    the brute-force comparison, not extracted from them.
+  - Feasibility verdicts are not covered by the label-blindness property tests.
+- Double-pushout rewriting is claimed for `triz_rule_apply` only, in the hypergraph encoding
+  above.
+  - `triz_transform`'s moves are single rewrites at occurrences named by id. They check
+    no-dangling; ids are injective, so no-identification holds trivially.
+  - Nothing is claimed about sets of rules: neither confluence nor termination.
+  - The match search is exponential in the worst case. That is why it has a step budget.
 - "Domain invariance" is claimed in one sense only: the structured verdicts are label-blind.
   They depend on the wiring shape, not on ids, names, verbs, domain, or carrier layer and
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
   `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize`. The isomorphism check
-  (`comparison.isomorphism`) does not compare carrier values or declared behaviour, so
-  isomorphic models can get different `triz_behavior` verdicts.
+  (`comparison.isomorphism`) does not compare carrier values, declared behaviour, or
+  feasibility, so isomorphic models can get different `triz_behavior` and `triz_feasibility`
+  verdicts.
   - Property tests check this over 200 seeded random models with every array permuted.
   - Excluded by design: free text, witness-cycle tie-breaks (which follow id order), absorber
     port tie-breaks (which follow port order), and the truncated conflict-cell list.
@@ -418,13 +588,15 @@ example cohort churn against fee changes. Name it only from that evidence.
   - Transitions are not inferred. Between snapshots given without one, only the box ids added
     and removed are listed. The supersystem collapse is not checked against transitions.
 - Without declared behaviour, a carrier match is necessary for an absorber, not sufficient.
-  Each absorber's added cost and its new harms are not modelled.
+  Each absorber's new harms are not modelled. Its added cost is modelled only where the boxes
+  declare feasibility (`triz_feasibility`).
 - `harmLoops` is exhaustive for the model as written. It cannot find a back-reaction the model
   omits.
 - A scalar ideality is produced only from explicit `weights` covering every cost dimension and
   `harmful`. Otherwise, costs are reported per dimension and never summed.
-- Not adopted: 9 windows as a fibration, evolution trends other than trimming as rewrite rules,
-  and the principles classified parametric or analogy only above as transformations. The
-  formal-methods analogies are recorded in [sources.md](sources.md); none is implemented.
+- Not adopted: 9 windows as a fibration, evolution lines other than the three above as rules
+  (the table gives each reason), and the principles classified parametric or analogy only above
+  as transformations. The formal-methods analogies are recorded in [sources.md](sources.md);
+  none is implemented.
 - The principle constructions check structure only. The label-blindness property tests do not
   cover them.
