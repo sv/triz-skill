@@ -68,7 +68,7 @@ test("the bearing's absorber spec: the housing must support the shaft, and that 
   assert.deepEqual(r.spec, [{ in: {}, out: { bore: "supported" } }]);
   assert.deepEqual([r.specRows, r.candidateRows, r.unusedRows], [1, 2, 0]);
   assert.deepEqual(r.excluded, [{ row: { in: {}, out: { bore: "unsupported" } }, input: [], delivers: ["rated", "unsupported"], target: [["rated", "supported"]] }]);
-  assert.deepEqual(r.basis, ["relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "le_residual_iff", "covers_iff_exists_eq"]);
+  assert.deepEqual(r.basis, ["le_residual_iff", "covers_iff_exists_eq"]);
   assert.match(r.note, /weakest specification for 'housing' \(residual in Rel\)/);
   assert.doesNotMatch(JSON.stringify(r), /abduct/i);
   const achieving = bruteForce(r, [{ in: {}, out: { bore: "supported" } }, { in: {}, out: { bore: "unsupported" } }], byTrim(openHousing(), ["bearing"], "housing"));
@@ -160,7 +160,7 @@ test("impossible: the spec stays inside the target but cannot cover it, so no be
   assert.equal(r.preserves, false);
   assert.deepEqual(r.spec, [{ in: {}, out: { o: "a" } }]);
   assert.deepEqual(r.uncovered, { input: [], target: [["a", "a"], ["b", "b"]], delivered: [["a", "a"]], missing: [["b", "b"]] });
-  assert.deepEqual(r.basis, ["relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "not_covers_iff"]);
+  assert.deepEqual(r.basis, ["not_covers_iff"]);
   assert.match(r.note, /No behaviour of 'm' gives the target relation/);
 });
 
@@ -187,7 +187,9 @@ test("the empty-spec trap: when every row breaks the target, the empty relation 
   assert.deepEqual([r.spec, r.specRows, r.excluded.length], [[], 0, 2]);
   assert.deepEqual(r.uncovered, { input: [{ box: "bearing", port: "lube", value: "ok" }], target: [["rated", "supported"]], delivered: [], missing: [["rated", "supported"]] });
   assert.equal(r.uncoveredInputs, 2);
-  assert.ok(r.basis.includes("map_empty"));
+  assert.deepEqual(r.basis, ["not_covers_iff", "map_empty"]);
+  // Independently: no non-empty relation the housing could declare gives the target.
+  assert.deepEqual(bruteForce(r, [{ in: {}, out: { bore: "supported" } }, { in: {}, out: { bore: "unsupported" } }], byTrim(lubricated(), ["bearing"], "housing")), []);
   assert.match(r.note, /The spec is empty/);
   assert.match(r.note, /never read as preserving/);
 });
@@ -289,6 +291,9 @@ test("weakness ranking: inclusion first, incomparable pairs with a witness each 
   assert.ok(r.ok && r.verdict === "ranked");
   assert.deepEqual(r.situations.map((q) => `${q.box}.${q.port}`), ["support.lube", "support.temp"]);
   assert.equal(r.situationCount, 4);
+  assert.deepEqual(r.readByOne, []);
+  assert.ok(r.concepts.every((c) => c.reads.join() === "support.lube,support.temp"));
+  assert.doesNotMatch(r.note, /read by one concept only/);
   assert.deepEqual(r.concepts.map((c) => [c.id, c.admitted, c.admittedSituations]), [
     ["ball", 2, [["oiled", "normal"], ["oiled", "hot"]]],
     ["bushing", 2, [["oiled", "normal"], ["dry", "normal"]]],
@@ -315,6 +320,22 @@ test("weakness ranking: inclusion first, incomparable pairs with a witness each 
   const twins = weaknessRanking([{ id: "ball", model: ball }, { id: "again", model: ball }], acceptable);
   assert.ok(twins.ok && twins.verdict === "ranked");
   assert.deepEqual([twins.weakest, twins.maximal, twins.pairs[0].order, "basis" in twins.pairs[0]], [["ball", "again"], ["ball", "again"], "equal", false]);
+});
+
+test("weakness ranking: a condition read under different box ids is two situations, and is flagged", () => {
+  // The bushing reads the same lubrication and temperature, but on a box named 'bushing'.
+  const renamed = structuredClone(bushing);
+  box(renamed, "support").id = "bushing";
+  renamed.wires.find((w) => w.id === "w-support")!.from.box = "bushing";
+  const r = weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: renamed }], acceptable);
+  assert.ok(r.ok && r.verdict === "ranked");
+  assert.equal(r.situationCount, 16, "four independent inputs, not two shared ones");
+  assert.deepEqual(r.readByOne, [
+    { input: "support.lube", concept: "ball" }, { input: "support.temp", concept: "ball" },
+    { input: "bushing.lube", concept: "bushing" }, { input: "bushing.temp", concept: "bushing" },
+  ]);
+  assert.match(r.note, /4 situation input\(s\) are read by one concept only/);
+  assert.match(r.note, /give both the same box and port id/);
 });
 
 test("weakness ranking: a situation without a steady state is not admitted, so an empty concept is not weak by vacuity", () => {

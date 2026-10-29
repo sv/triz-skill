@@ -418,8 +418,6 @@ export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string
 }
 
 const LISTED_ROWS = 200;
-/** Composition and the trace preserve unions, so the context of one box preserves them too. */
-const UNIONS: Theorem[] = ["relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup"];
 const label = (e: Endpoint) => `${e.box}.${e.port}`;
 
 /** Every valuation of `inputs` over `domain`, first input fastest, as evaluate enumerates them. */
@@ -623,14 +621,14 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { b
   if (uncovered) {
     return {
       ok: true as const, verdict: "impossible" as const, reason: "not-covered" as const, preserves: false as const, ...common, uncovered, uncoveredInputs,
-      basis: [...UNIONS, "not_covers_iff", ...(spec.length ? [] : ["map_empty"])] as Theorem[],
+      basis: ["not_covers_iff", ...(spec.length ? [] : ["map_empty"])] as Theorem[],
       note: `No behaviour of '${hole.id}' gives the target relation. Every relation that keeps the composite inside the target is contained in the spec, and the spec's composite misses the outputs under uncovered (${uncoveredInputs} of ${valuations} input valuations). Change another box or the wiring.`
         + (spec.length ? "" : ` The spec is empty: every row of '${hole.id}' takes the composite outside the target. The empty relation stays inside trivially, since its composite is empty, so staying inside is never read as preserving.`),
     };
   }
   return {
     ok: true as const, verdict: "spec" as const, preserves: true as const, ...common,
-    basis: [...UNIONS, "le_residual_iff", "covers_iff_exists_eq"] as Theorem[],
+    basis: ["le_residual_iff", "covers_iff_exists_eq"] as Theorem[],
     note: `The weakest specification for '${hole.id}' (residual in Rel): every row whose composite stays inside the target, and with all of them declared the concept's relation equals the target. Any behaviour of '${hole.id}' that gives the target is contained in it, so declaring it commits '${hole.id}' to the fewest constraints. It holds for the other boxes' relations as declared; whether a physical '${hole.id}' can meet it, and at what cost, is outside the kernel.` + blockNote + unusedNote,
   };
 }
@@ -721,11 +719,13 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
     const out = [...outputsAt(e, e.inputs, space.at, u).values()];
     return out.length ? (out.every(ok) ? "admitted" as const : out.find((y) => !ok(y))!) : "no-steady-state" as const;
   }));
+  const reads = evals.map((e) => e.inputs.map(label));
+  const readByOne = space.inputs.filter((q) => reads.filter((r) => r.includes(label(q))).length === 1).map((q) => ({ input: label(q), concept: concepts[reads.findIndex((r) => r.includes(label(q)))].id }));
   const perConcept = concepts.map((c, i) => {
     const a = admits[i];
     const firstRejected = a.findIndex((x) => x !== "admitted");
     return {
-      id: c.id, admitted: a.filter((x) => x === "admitted").length,
+      id: c.id, reads: reads[i], admitted: a.filter((x) => x === "admitted").length,
       rejected: { noSteadyState: a.filter((x) => x === "no-steady-state").length, unacceptable: a.filter((x) => Array.isArray(x)).length },
       admittedSituations: all.filter((_, n) => a[n] === "admitted").slice(0, LISTED).map((u) => u),
       firstRejected: firstRejected < 0 ? null : {
@@ -749,11 +749,12 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
   const maximal = concepts.filter((_, i) => !concepts.some((__, j) => j !== i && contains(j, i) && !contains(i, j))).map((c) => c.id);
   const weakest = concepts.filter((_, i) => concepts.every((__, j) => contains(i, j))).map((c) => c.id);
   return {
-    ok: true as const, verdict: "ranked" as const, deliverables: target, situations: space.inputs, situationCount: valuations,
+    ok: true as const, verdict: "ranked" as const, deliverables: target, situations: space.inputs, situationCount: valuations, readByOne,
     weakest, maximal, pairs, concepts: perConcept,
     byCount: [...perConcept].sort((a, b) => b.admitted - a.admitted).map((c) => ({ id: c.id, admitted: c.admitted })),
     assumption: ASSUMPTION,
     note: (weakest.length ? `Weakest: ${weakest.map((id) => `'${id}'`).join(", ")} admits every situation any other concept admits.` : `No concept admits every situation the others admit: the maximal concepts ${maximal.map((id) => `'${id}'`).join(", ")} are incomparable (pairs).`)
+      + (readByOne.length ? ` ${readByOne.length} situation input(s) are read by one concept only (readByOne); the other concepts admit or reject regardless of them. If one names the same operating condition as another concept's input, give both the same box and port id (an environment box with an unwired input), or the ranking treats them as independent conditions.` : "")
       + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md).",
   };
 }

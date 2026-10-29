@@ -20,7 +20,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
-| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
@@ -128,8 +128,13 @@ semantic sanity lemmas: they pin the semantics down on the tests' own examples
 (`relation_comp_mono` and `relTrace_mono`, since a trim does not widen one relation;
 `separation_on_condition`, a Boolean split the condition axis does not use).
 `restrict_restrict` and `restrict_of_subset` are the presheaf's functor laws, used to build
-`supportedOn`; no view zooms inside a zoom, so no verdict uses them. A test keeps all of these
-out of the citable list.
+`supportedOn`; no view zooms inside a zoom, so no verdict uses them. `relation_comp_iSup_left`,
+`relation_comp_iSup_right`, and `relTrace_iSup` say why a context built from composition and the
+trace preserves unions, the hypothesis of the residual lemmas; that the kernel's join is such a
+context is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
+`subset_residual_of_eq`, `admits_bot`, `admits_mono_ok`, and `AtLeastAsWeak`'s reflexivity and
+transitivity serve the cited lemmas or the docs. A test keeps all of these out of the citable
+list.
 
 ## Declared behaviour
 
@@ -286,7 +291,11 @@ behaviour.
 - **Situations.** A situation is a valuation of the concepts' boundary inputs over their
   carriers' declared values. This declared input space is weakness.md's list of operating
   situations, its measuring instrument. Boundary inputs are matched across concepts by box and
-  port id. An input that several concepts read must range over the same values.
+  port id. An input that several concepts read must range over the same values. Concepts that
+  replace the component reading a condition would read it under different ids, which makes it
+  two independent situations. Put each operating condition on an environment box with an unwired
+  input, passing it on by an identity relation, under the same id in every concept.
+  `readByOne` lists the inputs only one concept reads, and each concept's `reads` lists its own.
 - **Admits.** A concept admits a situation when it has a steady state there and every
   deliverable output there is acceptable (`admits`). `acceptable` gives, per deliverable port,
   the acceptable values, and it is required. A situation with no steady state is not admitted

@@ -59,7 +59,9 @@ When each candidate is a function model that declares behaviour (see
 
 - **Step 1** is the declared input space. A situation is a valuation of the concepts' boundary
   inputs (unwired input ports, matched by box and port id) over their carriers' declared
-  `values`. Declaring the values is enumerating the situations.
+  `values`. Declaring the values is enumerating the situations. Give each operating condition
+  the same box and port id in every concept, such as an environment box with an unwired input;
+  `readByOne` lists the inputs only one concept reads.
 - **Step 2.** A concept admits a situation when it has a steady state there and every
   deliverable output there is acceptable. You give `acceptable`, per deliverable port, and it is
   required. A situation with no steady state is not admitted.
