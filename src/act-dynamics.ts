@@ -13,7 +13,10 @@
  *    its current state, and every wire admit, with the next state the picked rows name. A loop
  *    through stateless boxes resolves within the step by the relational trace.
  *  - Configuration at time t: the global state and the valuation of the step taken at t. A state
- *    with no consistent valuation blocks the run: the declared rows say nothing after it.
+ *    with no consistent valuation is a blocked configuration: it has no valuation and no
+ *    successor, since the declared rows say nothing after it. A target holds there if its state
+ *    conditions do and it names no port; with a port condition it is undetermined, and a verdict
+ *    it would decide is `undecided`, never safe.
  *  - boundedDynamics — breadth first from the initial states, over the boundary inputs allowed at
  *    each time, up to a horizon: the reachable configurations, the fixed points among them, the
  *    blocked runs, and three verdicts. Escalation: some run reaches an unsafe set (shortest
@@ -169,6 +172,8 @@ function specErrors(model: FunctionModel, spec: DynamicsSpec, horizon: number): 
 }
 
 type Predicate = (state: string[], values: string[]) => boolean;
+/** A target at a blocked configuration, which has no port values. */
+type Blocked = (state: string[]) => "holds" | "fails" | "undetermined";
 interface Table { box: Box; vars: number[]; rows: Binding[]; byState?: Map<string, { rows: Binding[]; next: string[] }>; }
 interface System {
   plan: Plan;
@@ -181,6 +186,7 @@ interface System {
   sequence: boolean;
   allowed: (t: number) => Map<number, Set<string>>;
   holds: (target: Condition[]) => Predicate;
+  atBlocked: (target: Condition[]) => Blocked;
 }
 type Compiled = { kind: "failure"; errors: string[] } | { kind: "undecided"; plan: Plan } | ({ kind: "system" } & System);
 
@@ -234,7 +240,12 @@ function compile(model: FunctionModel, spec: DynamicsSpec): Compiled {
       : { state: false, at: index(byId.get(c.box)!, c.port), ok: new Set(c.values) }));
     return (state, values) => atoms.every((a) => a.ok.has(a.state ? state[a.at] : values[a.at]));
   };
-  return { kind: "system", plan: p, vars, machines, initial, tables, slot, sequence: spec.inputs !== undefined, allowed, holds };
+  const atBlocked = (target: Condition[]): Blocked => {
+    const states = target.flatMap((c) => ("state" in c ? [{ at: machines.findIndex((m) => m.id === c.box), ok: new Set(c.state) }] : []));
+    const ports = states.length < target.length;
+    return (state) => (!states.every((a) => a.ok.has(state[a.at])) ? "fails" : ports ? "undetermined" : "holds");
+  };
+  return { kind: "system", plan: p, vars, machines, initial, tables, slot, sequence: spec.inputs !== undefined, allowed, holds, atBlocked };
 }
 
 const horizonOf = (spec: DynamicsSpec) => spec.horizon ?? (spec.inputs ? spec.inputs.length - 1 : DEFAULT_HORIZON);
@@ -393,18 +404,33 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
   const saturated = !s.sequence && !layer.length;
   const nodes = [...seen.values()];
   const deepest = nodes.reduce((t, n) => Math.max(t, n.time), -1);
+  const stops = [...blocked.values()];
+  const stopTrace = (b: (typeof stops)[number]) => verified([...(b.parent ? traceTo(b.parent) : []), { time: b.time, state: b.state }]);
+  /** The earliest of a configuration and a blocked configuration (the configuration on a tie). */
+  const earliest = (n: Node | undefined, b: (typeof stops)[number] | undefined) =>
+    (b && (!n || b.time < n.time) ? { time: b.time, trace: stopTrace(b) } : n ? { time: n.time, trace: verified(traceTo(n)) } : undefined);
+  const UNDETERMINED = (what: string, b: (typeof stops)[number]) => ({
+    verdict: "undecided" as const, reason: "blocked" as const, time: b.time, trace: stopTrace(b),
+    note: `A run blocks at time ${b.time} in a state that meets the ${what} set's state conditions; its port conditions have no value there. Declare the rows that state lacks.`,
+  });
+  const unsafeAt = spec.unsafe && s.atBlocked(spec.unsafe), safeAt = spec.safe && s.atBlocked(spec.safe);
+  const reached = unsafeAt && earliest(hit, stops.find((b) => unsafeAt(b.state) === "holds"));
+  const left = safeAt && earliest(violation, stops.find((b) => safeAt(b.state) === "fails"));
+  const unsure = { unsafe: unsafeAt && stops.find((b) => unsafeAt(b.state) === "undetermined"), safe: safeAt && stops.find((b) => safeAt(b.state) === "undetermined") };
 
-  const escalation = unsafe && (hit
-    ? { verdict: "reachable" as const, time: hit.time, trace: verified(traceTo(hit)), basis: TRACE,
-        note: `A run from the initial states reaches the unsafe set at time ${hit.time}; the trace is a shortest one. It is a candidate mechanism: substantiate every row on it.` }
+  const escalation = unsafe && (reached
+    ? { verdict: "reachable" as const, time: reached.time, trace: reached.trace, basis: TRACE,
+        note: `A run from the initial states reaches the unsafe set at time ${reached.time}; the trace is a shortest one${reached.trace[reached.trace.length - 1].values ? "" : ", and the run blocks there"}. It is a candidate mechanism: substantiate every row on it.` }
+    : unsure.unsafe ? UNDETERMINED("unsafe", unsure.unsafe)
     : saturated
       ? { verdict: "unreachable" as const, basis: SATURATED,
           note: `The reachable configurations stopped growing after time ${deepest}: no run from these initial states and inputs reaches the unsafe set, at any horizon.` }
       : { verdict: "unreachable-within-horizon" as const, horizon, basis: EXHAUSTED,
           note: `No run reaches the unsafe set within ${horizon} steps. Longer runs are not explored${s.sequence ? " (the inputs vary with time)" : ""}.` });
-  const invariance = safe && (violation
-    ? { verdict: "violated" as const, time: violation.time, trace: verified(traceTo(violation)), basis: TRACE,
-        note: `A run leaves the safe set at time ${violation.time}; the trace is a shortest one.` }
+  const invariance = safe && (left
+    ? { verdict: "violated" as const, time: left.time, trace: left.trace, basis: TRACE,
+        note: `A run leaves the safe set at time ${left.time}; the trace is a shortest one${left.trace[left.trace.length - 1].values ? "" : ", and the run blocks there"}.` }
+    : unsure.safe ? UNDETERMINED("safe", unsure.safe)
     : saturated
       ? { verdict: "invariant" as const, basis: SATURATED, note: "Every reachable configuration is in the safe set, at any horizon." }
       : { verdict: "invariant-within-horizon" as const, horizon, basis: EXHAUSTED, note: `Every configuration reachable within ${horizon} steps is in the safe set.` });
@@ -414,7 +440,6 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
 
   const states = new Map<string, string[]>();
   for (const n of nodes) states.set(tupleKey(n.state), n.state);
-  const firstBlocked = [...blocked.values()][0];
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
   return {
     ok: true as const, decided: true as const,
@@ -434,14 +459,14 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
     fixedPoints: { count: fixed.length, listed: fixed.slice(0, LISTED).map((n) => ({ time: n.time, state: n.state, values: n.values })) },
     blocked: {
       count: blocked.size,
-      ...(firstBlocked ? { first: verified([...(firstBlocked.parent ? traceTo(firstBlocked.parent) : []), { time: firstBlocked.time, state: firstBlocked.state }]) } : {}),
+      ...(stops.length ? { first: stopTrace(stops[0]) } : {}),
     },
     ...(escalation ? { escalation } : {}),
     ...(invariance ? { invariance } : {}),
     ...(separation ? { separation } : {}),
     statesExplored: budget.explored,
     assumption: ASSUMPTION,
-    note: SEMANTICS + (blocked.size ? ` ${blocked.size} runs block: a state with no row for its inputs. The declared rows say nothing after it, and targets are not checked there.` : ""),
+    note: SEMANTICS + (blocked.size ? ` ${blocked.size} runs block: a state with no row for its inputs. The declared rows say nothing after it; a target is checked there on its state conditions only.` : ""),
   };
 }
 
@@ -452,19 +477,33 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
  * Returns null past the cap.
  */
 function separate(s: System, demands: TimedDemand[], steps: ReturnType<typeof stepper>, budget: { explored: number; max: number }, verified: (t: RunStep[]) => RunStep[]) {
-  const tests = demands.map((d) => s.holds(d.where));
+  const tests = demands.map((d) => s.holds(d.where)), stops = demands.map((d) => s.atBlocked(d.where));
   const full = (1 << demands.length) - 1;
   const end = Math.max(...demands.map((d) => d.window.to));
   const met = demands.map(() => false);
   const seen = new Set<string>();
-  let goal: Node | undefined, overflow = false;
+  let goal: Node | undefined, blockedGoal: RunStep[] | undefined, unsure: RunStep[] | undefined, overflow = false;
+  const within = (d: TimedDemand, time: number) => time >= d.window.from && time <= d.window.to;
   const expand = (state: string[], time: number, parent: Node | undefined, into: Node[]) => {
     const out = steps(state, time);
     if (!out) { overflow = true; return; }
+    if (!out.length) {
+      // A blocked configuration ends its run: it can still meet a demand that names states only.
+      let mask = parent?.mask ?? 0, maybe = mask;
+      demands.forEach((d, i) => {
+        if (!within(d, time)) return;
+        const at = stops[i](state);
+        if (at === "holds") { met[i] = true; mask |= 1 << i; }
+        if (at !== "fails") maybe |= 1 << i;
+      });
+      const trace = () => verified([...(parent ? traceTo(parent) : []), { time, state }]);
+      if (mask === full) blockedGoal ??= trace();
+      else if (maybe === full) unsure ??= trace();
+    }
     for (const st of out) {
       let mask = parent?.mask ?? 0;
       demands.forEach((d, i) => {
-        if (time >= d.window.from && time <= d.window.to && tests[i](state, st.values)) { met[i] = true; mask |= 1 << i; }
+        if (within(d, time) && tests[i](state, st.values)) { met[i] = true; mask |= 1 << i; }
       });
       const k = tupleKey([time, mask, state, st.values]);
       if (seen.has(k)) continue;
@@ -476,21 +515,29 @@ function separate(s: System, demands: TimedDemand[], steps: ReturnType<typeof st
     }
   };
   let layer: Node[] = [];
-  for (const s0 of initialStates(s)) if (!goal && !overflow) expand(s0, 0, undefined, layer);
-  for (let t = 0; t < end && !goal && !overflow && layer.length; t++) {
+  const done = () => goal !== undefined || blockedGoal !== undefined || overflow;
+  for (const s0 of initialStates(s)) if (!done()) expand(s0, 0, undefined, layer);
+  for (let t = 0; t < end && !done() && layer.length; t++) {
     const next: Node[] = [];
-    for (const n of layer) for (const s1 of n.next) if (!goal && !overflow) expand(s1, t + 1, n, next);
+    for (const n of layer) for (const s1 of n.next) if (!done()) expand(s1, t + 1, n, next);
     layer = next;
   }
   if (overflow) return null;
   const windows = demands.map((d) => ({ id: d.id, window: d.window }));
-  if (goal) {
-    const trace = verified(traceTo(goal));
+  const meets = (i: number, st: RunStep) => within(demands[i], st.time) && (st.values ? tests[i](st.state, st.values) : stops[i](st.state) === "holds");
+  if (goal || blockedGoal) {
+    const trace = blockedGoal ?? verified(traceTo(goal!));
     return {
       verdict: "realizable" as const,
-      visits: demands.map((d, i) => ({ ...windows[i], time: trace.find((st) => st.time >= d.window.from && st.time <= d.window.to && tests[i](st.state, st.values!))!.time })),
+      visits: demands.map((_, i) => ({ ...windows[i], time: trace.find((st) => meets(i, st))!.time })),
       trace, basis: TIMED,
       note: "One run visits each demand's target set within its window: the declared dynamics carry the system from one demand to the other. Substantiate the rows on the trace.",
+    };
+  }
+  if (unsure) {
+    return {
+      verdict: "undecided" as const, reason: "blocked" as const, trace: unsure,
+      note: "A run that blocks might meet every demand: a demand it would meet at the blocked state names a port, which has no value there. Declare the rows that state lacks.",
     };
   }
   const each = met.every(Boolean);

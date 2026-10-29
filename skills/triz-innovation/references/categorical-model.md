@@ -177,8 +177,11 @@ claimed: no lens laws, no optic composition beyond the one below, no profunctor 
   its current state. The rows picked name the next state. A loop through stateless boxes
   resolves within the step by the relational trace. To model a delay, declare it as state.
 - **Configurations.** The configuration at time t is the global state and the valuation of the
-  step taken at t. A state with no consistent valuation blocks the run; the result counts
-  blocked runs and gives a shortest one. Targets are checked on configurations only.
+  step taken at t. A state with no consistent valuation is a blocked configuration: it has no
+  valuation and no successor. The result counts blocked runs and gives a shortest one. A target
+  holds at a blocked configuration when its state conditions hold and it names no port. If it
+  names a port, it is undetermined there, and a verdict it would decide is `undecided` (reason
+  `blocked`), never safe.
 - **Composed boxes.** Every box that declares `transition`, every box a target names, and every
   box upstream of them. Each must declare `behavior` or `transition`; otherwise the result is
   undecided and names the boxes. Every other box is assumed to accept whatever it receives, and
@@ -197,17 +200,19 @@ states of a stateful box, and `{ box, port, values }` names values of a port, su
 
 - **Escalation** (`unsafe`): `reachable`, with a shortest trace from an initial state into the
   set; `unreachable`, when the reachable configurations stopped growing within the horizon, so
-  no run reaches the set at any horizon; or `unreachable-within-horizon`. With `inputs`,
+  no run reaches the set at any horizon; `unreachable-within-horizon`; or `undecided`, when a
+  run blocks where the set is undetermined. With `inputs`,
   configurations are indexed by time, so the set never stops growing and the verdict stays
   within the horizon.
-- **Invariance** (`safe`): `violated`, with a shortest trace out of the set; `invariant`; or
-  `invariant-within-horizon`, on the same terms.
+- **Invariance** (`safe`): `violated`, with a shortest trace out of the set; `invariant`;
+  `invariant-within-horizon`; or `undecided`, on the same terms.
 - **Separation in time** (`separation`): two to four demands, each a target set with an
   inclusive time window; the windows must not overlap. `realizable` means one run visits each
   target set at some time within its window; the trace and the visit times are the witness.
   `unrealizable` gives the reason: `demand-never-met`, when no run meets some demand within its
   window, or `not-in-one-run`, when each demand is met by some run but no single run meets them
-  all. The search tracks which demands each run has met, so it never mixes two runs. This
+  all. `undecided` means a blocked run might meet them all. The search tracks which demands each
+  run has met, so it never mixes two runs. This
   extends Principle 15 and separation in time from snapshots to trajectories.
 
 The result also lists the reached fixed points: configurations whose step can leave the state

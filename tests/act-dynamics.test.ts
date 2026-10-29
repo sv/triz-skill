@@ -237,9 +237,40 @@ test("input sequences index configurations by time; a state with no row for its 
   const missing = run(heater([["on", "hot"]]), { unsafe: [{ box: "heater", state: ["hot"] }], inputs: power("on", "on", "on") });
   assert.equal(missing.blocked.count, 1);
   assert.deepEqual(missing.blocked.first?.map((s) => [s.time, s.state[0], s.values?.[0]]), [[0, "cold", "on"], [1, "warm", "on"], [2, "hot", undefined]]);
-  // Targets are checked on configurations only: the blocked hot state takes no step, so it is not reported as reached.
-  assert.ok(missing.escalation?.verdict === "unreachable-within-horizon");
+  // A run that blocks in the unsafe state has reached it.
+  assert.ok(missing.escalation?.verdict === "reachable");
+  assert.deepEqual(missing.escalation.trace, missing.blocked.first);
+  assert.match(missing.escalation.note, /the run blocks there/);
   assert.match(missing.note, /1 runs block/);
+});
+
+test("a blocked state is never read as safe: state conditions decide there, and a port condition leaves the verdict undecided", () => {
+  const stuck = heater([["on", "hot"], ["off", "hot"]]);
+  const hot = run(stuck, { unsafe: [{ box: "heater", state: ["hot"] }], safe: [{ box: "heater", state: ["cold", "warm"] }] });
+  assert.equal(hot.reachable.saturated, true);
+  assert.equal(hot.blocked.count, 1);
+  assert.ok(hot.escalation?.verdict === "reachable" && hot.escalation.time === 2);
+  assert.deepEqual(hot.escalation.trace.map((s) => [s.state[0], s.values?.[0]]), [["cold", "on"], ["warm", "on"], ["hot", undefined]]);
+  assert.deepEqual(checkRun(stuck, {}, hot.escalation.trace), { ok: true, errors: [] });
+  assert.ok(hot.invariance?.verdict === "violated" && hot.invariance.time === 2);
+  // The temperature port has no value at the blocked state: neither verdict can be decided there.
+  const ports = run(stuck, { unsafe: [{ box: "heater", port: "temp", values: ["hot"] }], safe: [{ box: "heater", port: "temp", values: ["cold", "warm"] }] });
+  assert.ok(ports.escalation?.verdict === "undecided" && ports.escalation.reason === "blocked");
+  assert.ok(ports.invariance?.verdict === "undecided" && ports.invariance.reason === "blocked");
+  assert.equal(ports.escalation.trace[ports.escalation.trace.length - 1].state[0], "hot");
+  // A state the safe set allows, blocked, is safe; one it forbids by state is a violation whatever the ports.
+  const warmOnly = heater([["on", "warm"], ["off", "warm"]]);
+  assert.ok(run(warmOnly, { safe: [{ box: "heater", state: ["cold", "warm"] }] }).invariance?.verdict === "invariant");
+  assert.ok(run(stuck, { safe: [{ box: "heater", state: ["cold", "warm"] }, { box: "heater", port: "temp", values: ["cold", "warm"] }] }).invariance?.verdict === "violated");
+  // Separation: a blocked state can meet a demand that names states only, and leaves one that names a port undecided.
+  const blocking = spacer(FOLLOWS.filter(([s]) => s !== "tight"));
+  const met = run(blocking, { horizon: 4, separation: CLEARANCE });
+  assert.ok(met.separation?.verdict === "realizable");
+  assert.deepEqual(met.separation.visits.map((v) => v.time), [0, 2]);
+  assert.equal(met.separation.trace[2].values, undefined);
+  const withPort = [CLEARANCE[0], { ...CLEARANCE[1], where: [...CLEARANCE[1].where, { box: "spacer", port: "temp", values: ["warm"] }] }];
+  const unsure = run(blocking, { horizon: 4, separation: withPort });
+  assert.ok(unsure.separation?.verdict === "undecided" && unsure.separation.reason === "blocked");
 });
 
 test("separation in time: one run visits each demand in its window, or the reason none does", () => {

@@ -3,11 +3,11 @@ import CategoricalTriz
 /-!
 # Non-vacuity witnesses
 
-A lemma whose hypotheses can never hold together proves nothing. For each `Wiring` lemma in
-`CategoricalTriz`, this module gives:
+A lemma whose hypotheses can never hold together proves nothing. For each `Wiring` lemma, and
+each behaviour and dynamics lemma with hypotheses, in `CategoricalTriz`, this module gives:
 
-- a concrete diagram on which all its hypotheses hold while a wire survives, so the lemma is not
-  vacuous;
+- a concrete diagram, relation, or step relation on which all its hypotheses hold while
+  something survives (a wire, a related pair, a reached state), so the lemma is not vacuous;
 - a counterexample showing that each hypothesis is needed: drop it, and the conclusion fails.
 
 The examples are checked by `lake build --wfail`, so CI keeps them in step with the lemmas.
