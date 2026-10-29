@@ -79,8 +79,9 @@ export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports
  * box's ports. Each wire follows its port to the part that now owns it. Each cost dimension goes
  * wholesale to one part (`costTo`, default the first part), so cost totals are unchanged. Parts
  * are independent when no wire joins two of them; the result reports any that do (former
- * self-loops). Splitting a product box changes deliverable keys: use `boxMap` before comparing
- * with compareIdeality.
+ * self-loops). Splitting a product box changes deliverable keys. Pass the returned `boxMap` as
+ * `box_map` to triz_function_model with compare_to (see mapBoxes); `deliverableKeysChanged` says
+ * when that is needed.
  */
 export function segment(model: FunctionModel, spec: { box: string; parts: PartSpec[]; costTo?: Record<string, string> }) {
   const box = model.boxes.find((b) => b.id === spec.box);
@@ -130,10 +131,40 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
     ok: true as const,
     model: r.model,
     boxMap: Object.fromEntries(partIds.map((p) => [p, box.id])),
+    deliverableKeysChanged: box.role === "product" && partIds.some((p) => p !== box.id),
     independent: between.length === 0,
     between,
     basis: r.basis,
-    note: "Typing is preserved; whether the parts can really work apart is a design question to substantiate.",
+    note: box.role === "product"
+      ? "Typing is preserved. The product's deliverables now arrive at part ids: compare with triz_function_model compare_to and box_map set to boxMap, or the comparison reports them lost and regained."
+      : "Typing is preserved; whether the parts can really work apart is a design question to substantiate.",
+  };
+}
+
+/**
+ * The concept seen through a box map (concept box id → baseline box id), for comparison only.
+ * Every box id and wire endpoint in the map is renamed; others stay. Several parts may map to
+ * one baseline box, so the result may repeat a box id: it is an input to compareIdeality, never
+ * a model to type-check. Port ids are untouched, so a segment's deliverables keep their
+ * [box, port, carrier] keys. Fails closed on keys that are not concept boxes and values that are
+ * not baseline boxes.
+ */
+export function mapBoxes(concept: FunctionModel, baseline: FunctionModel, boxMap: Record<string, string>) {
+  const conceptIds = new Set(concept.boxes.map((b) => b.id)), baselineIds = new Set(baseline.boxes.map((b) => b.id));
+  const errors = Object.entries(boxMap).flatMap(([from, to]) => [
+    ...(conceptIds.has(from) ? [] : [`box_map: '${from}' is not a box of the concept model`]),
+    ...(baselineIds.has(to) ? [] : [`box_map: '${to}' is not a box of the baseline (compare_to)`]),
+  ]);
+  if (errors.length) return { ok: false as const, errors };
+  const map = new Map(Object.entries(boxMap));
+  const at = (id: string) => map.get(id) ?? id;
+  return {
+    ok: true as const,
+    model: {
+      ...concept,
+      boxes: concept.boxes.map((b) => ({ ...b, id: at(b.id) })),
+      wires: concept.wires.map((w) => ({ ...w, from: { ...w.from, box: at(w.from.box) }, to: { ...w.to, box: at(w.to.box) } })),
+    },
   };
 }
 
@@ -247,7 +278,7 @@ export function applyTrim(model: FunctionModel, spec: { trim: string[]; absorb?:
   }
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
   const chosen = absorbed.map((f) => {
-    const pick = spec.absorb?.[f.wire];
+    const pick = spec.absorb && Object.hasOwn(spec.absorb, f.wire) ? spec.absorb[f.wire] : undefined;
     const a = pick ? f.absorbers.find((x) => x.box === pick.box) : f.absorbers[0];
     const port = pick?.port ?? a?.port;
     const typed = a && (boxes.get(a.box)!.outputs ?? []).some((p) => p.id === port && p.carrier === f.carrier);

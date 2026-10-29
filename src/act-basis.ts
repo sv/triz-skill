@@ -8,7 +8,7 @@
  * Kernel results from src/act.ts are annotated here, at the tool boundary, so the kernel itself
  * stays unchanged. The construction modules cite their basis inline.
  */
-import type { analyseModel, dynamize, separationCheck, trimCandidates } from "./act.js";
+import type { analyseModel, compareIdeality, dynamize, separationCheck, trimCandidates } from "./act.js";
 
 export const THEORY_FILE = "theory/CategoricalTriz.lean";
 
@@ -51,6 +51,11 @@ export function trimBasis(r: ReturnType<typeof trimCandidates>) {
   return { ...r, functions: r.functions.map((f) => (f.absorbers.length ? { ...f, basis: ["typed_reroute"] as Theorem[] } : f)) };
 }
 
+/** A trade-off is two cost vectors neither of which dominates. */
+export function comparisonBasis(c: ReturnType<typeof compareIdeality>) {
+  return c.verdict === "trade-off" ? { ...c, basis: ["pareto_incomparable"] as Theorem[] } : c;
+}
+
 /**
  * Analysis results:
  * - each harm loop's witness cycle (edge, then return path) is `edge_on_cycle`;
@@ -66,6 +71,6 @@ export function analysisBasis(r: ReturnType<typeof analyseModel>) {
     harmLoops: r.harmLoops.map((l) => ({ ...l, basis: ["edge_on_cycle"] as Theorem[] })),
     ideality: { ...r.ideality, ratio: unweighted ? { ...ratio, basis: ["pareto_not_total"] as Theorem[] } : ratio },
     separation: r.separation.map(separationBasis),
-    comparison: r.comparison && (r.comparison.verdict === "trade-off" ? { ...r.comparison, basis: ["pareto_incomparable"] as Theorem[] } : r.comparison),
+    comparison: r.comparison && comparisonBasis(r.comparison),
   };
 }

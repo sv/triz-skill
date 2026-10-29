@@ -280,3 +280,66 @@ test("kernel construction tools answer over the shared spec", async () => {
   const sep = await call("triz_separate", { contradiction: example("bearing-heat").contradictions![0], along: "time" });
   assert.equal(sep.along.verdict, "dynamizable");
 });
+
+test("9 windows: the default collapsed id avoids a box already named 'system'; an explicit clash fails closed", () => {
+  const m: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "c", layer: "energy", dimension: "W" }],
+    boxes: [
+      { id: "engine", name: "Engine", role: "tool", outputs: [{ id: "o", carrier: "c" }] },
+      { id: "system", name: "Customer system", role: "product", inputs: [{ id: "i", carrier: "c" }] },
+    ],
+    wires: [{ id: "w", from: { box: "engine", port: "o" }, to: { box: "system", port: "i" }, carrier: "c", polarity: "useful" }],
+  };
+  const grid = nineWindows({ present: m, subsystem: ["engine"] });
+  assert.equal(grid.ok, true);
+  assert.equal(grid.systemId, "system-2");
+  const now = grid.windows[1];
+  assert.ok(now.status === "ok" && "collapsed" in now.supersystem);
+  assert.deepEqual(now.supersystem.boxes, ["system", "system-2"]);
+  const explicit = nineWindows({ present: m, subsystem: ["engine"], system: { id: "system" } });
+  assert.equal(explicit.ok, false);
+  assert.match(JSON.stringify(explicit.windows[1]), /box id 'system' is not fresh/);
+});
+
+test("segment then compare: box_map keeps a split product's deliverables from reading as lost", async () => {
+  const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
+  const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
+  const base = example("bearing-heat");
+  const split = segment(base, { box: "shaft", parts: [{ id: "journal", ports: ["support", "heat-in", "expansion"] }, { id: "coupling", ports: ["drive"] }] });
+  assert.ok(split.ok);
+  assert.equal(split.deliverableKeysChanged, true);
+  assert.match(split.note, /box_map/);
+  const naive = await call("triz_function_model", { model: split.model, compare_to: base });
+  assert.equal(naive.comparison.verdict, "concept-loses-functions");
+  const mapped = await call("triz_function_model", { model: split.model, compare_to: base, box_map: split.boxMap });
+  assert.deepEqual([mapped.comparison.verdict, mapped.comparison.lostDeliverables, mapped.comparison.gainedDeliverables], ["equal", [], []]);
+  assert.deepEqual(mapped.comparison.boxMap, { journal: "shaft", coupling: "shaft" });
+
+  const taken = takeOut(base, { box: "shaft", ports: ["heat-in"], part: { id: "skin" } });
+  assert.ok(taken.ok && taken.deliverableKeysChanged);
+  const viaTake = await call("triz_function_model", { model: taken.model, compare_to: base, box_map: taken.boxMap });
+  assert.deepEqual(viaTake.comparison.lostDeliverables, []);
+  const notProduct = segment(base, { box: "bearing", parts: [{ id: "a", ports: ["race", "preload-in"] }, { id: "b", ports: ["friction"] }] });
+  assert.ok(notProduct.ok && !notProduct.deliverableKeysChanged);
+
+  assert.deepEqual((await call("triz_function_model", { model: split.model, box_map: split.boxMap })).errors, ["box_map needs compare_to"]);
+  const bad = await call("triz_function_model", { model: split.model, compare_to: base, box_map: { ghost: "shaft", journal: "nowhere" } });
+  assert.deepEqual(bad.errors, ["box_map: 'ghost' is not a box of the concept model", "box_map: 'nowhere' is not a box of the baseline (compare_to)"]);
+});
+
+test("applied trim reads absorber choices as own keys: a wire named 'constructor' is not misread", () => {
+  const m: FunctionModel = {
+    domain: "software",
+    carriers: [{ id: "c", layer: "information", dimension: "req" }],
+    boxes: [
+      { id: "cache", name: "Cache", role: "mediator", outputs: [{ id: "o", carrier: "c" }] },
+      { id: "db", name: "DB", role: "mediator", outputs: [{ id: "o", carrier: "c" }] },
+      { id: "app", name: "App", role: "product", inputs: [{ id: "i", carrier: "c" }] },
+    ],
+    wires: [{ id: "constructor", from: { box: "cache", port: "o" }, to: { box: "app", port: "i" }, carrier: "c", polarity: "useful" }],
+  };
+  const r = applyTrim(m, { trim: ["cache"], absorb: {} });
+  assert.ok(r.ok, r.ok ? "" : r.errors.join());
+  assert.deepEqual(r.chosen, [{ wire: "constructor", box: "db", port: "o", rule: "C", defaulted: true }]);
+});

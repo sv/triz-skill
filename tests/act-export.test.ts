@@ -106,3 +106,35 @@ test("triz_export answers over the shared tool spec and fails closed", async () 
   const r = JSON.parse((await spec.handler({ model: bad, format: "hypergraph" })).content[0].text);
   assert.equal(r.ok, false);
 });
+
+test("DOT keeps ids that differ only in whitespace as distinct nodes", () => {
+  const m: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "c", layer: "energy", dimension: "W" }],
+    boxes: [
+      { id: "A B", name: "first", role: "tool", outputs: [{ id: "o", carrier: "c" }] },
+      { id: "A  B", name: "second", role: "product", inputs: [{ id: "i", carrier: "c" }] },
+    ],
+    wires: [{ id: "w", from: { box: "A B", port: "o" }, to: { box: "A  B", port: "i" }, carrier: "c", polarity: "useful" }],
+  };
+  const dot = toDot(m);
+  assert.ok(dot.includes('  "A B" [label='));
+  assert.ok(dot.includes('  "A  B" [label='));
+  assert.ok(dot.includes('"A B":o0:e -> "A  B":i0:w'), "the wire joins two nodes, not a self-loop");
+});
+
+test("hypergraph import validates every hyperedge after a bad one, without bogus interface errors", () => {
+  const h = toHypergraph(example("bearing-heat"));
+  const bad = structuredClone(h);
+  const fn = bad.hyperedges.findIndex((e) => e.kind === "function");
+  const [first] = bad.hyperedges.splice(fn, 1);
+  bad.hyperedges.unshift({ ...first, sources: [999] as [number] });
+  const shaft = bad.hyperedges.find((e) => e.kind === "box" && e.id === "shaft")!;
+  [shaft.sources, shaft.targets] = [shaft.targets, shaft.sources];
+  const r = fromHypergraph(bad);
+  assert.equal(r.ok, false);
+  const errors = r.ok ? [] : r.errors;
+  assert.ok(errors.some((e) => /vertex 999 out of range/.test(e)));
+  assert.ok(errors.some((e) => /is not an input of box 'shaft'/.test(e)), "a later hyperedge is still checked");
+  assert.ok(!errors.some((e) => /interface|belongs to no box/.test(e)), errors.join("; "));
+});

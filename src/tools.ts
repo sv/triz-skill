@@ -11,8 +11,8 @@ import * as triz from "./core.js";
 import * as act from "./act.js";
 import { exportModel } from "./act-export.js";
 import { findIsomorphism } from "./act-iso.js";
-import { analysisBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
-import { segment, takeOut, interpose, applyTrim, rewrite } from "./act-rewrite.js";
+import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
+import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
@@ -57,12 +57,17 @@ type Transformation = z.infer<typeof Transformation>;
 
 /**
  * Analysis with each verdict's Lean basis. Given a baseline, the comparison also says whether the
- * two models share a wiring shape, ignoring ids and labels.
+ * two models share a wiring shape, ignoring ids and labels. With a box map (e.g. a segment's
+ * boxMap), deliverables are compared after renaming the concept's boxes to the baseline's.
  */
-function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel) {
+function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, boxMap?: Record<string, string>) {
+  if (boxMap && !compareTo) return { ok: false as const, errors: ["box_map needs compare_to"] };
   const r = analysisBasis(act.analyseModel(model, compareTo));
   if (!r.ok || !compareTo || !r.comparison) return r;
-  return { ...r, comparison: { ...r.comparison, isomorphism: findIsomorphism(compareTo, model) } };
+  const mapped = boxMap ? mapBoxes(model, compareTo, boxMap) : null;
+  if (mapped && !mapped.ok) return mapped;
+  const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model)), boxMap } : r.comparison;
+  return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
 }
 
 function transform(model: act.FunctionModel, t: Transformation) {
@@ -160,8 +165,11 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       shape: {
         model: act.FunctionModel.describe("The model to analyse (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),
+        box_map: z.record(z.string(), Id).optional()
+          .describe("Concept box id → baseline box id, applied before comparing deliverables; pass a triz_transform segment or take_out boxMap here"),
       },
-      handler: async ({ model, compare_to }: { model: act.FunctionModel; compare_to?: act.FunctionModel }) => text(functionModel(model, compare_to)),
+      handler: async ({ model, compare_to, box_map }: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string> }) =>
+        text(functionModel(model, compare_to, box_map)),
     },
     {
       name: "triz_trim",
@@ -195,7 +203,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_transform",
-      description: "Apply one typed model transformation and return the new model: segment (Principle 1: divide a box into parts whose ports partition its ports), take_out (Principle 2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), interpose (Principle 24: route a function through a new mediator box), trim (perform a typed-feasible trim, re-attaching each kept function to an absorber), or rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to.",
+      description: "Apply one typed model transformation and return the new model: segment (Principle 1: divide a box into parts whose ports partition its ports), take_out (Principle 2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), interpose (Principle 24: route a function through a new mediator box), trim (perform a typed-feasible trim, re-attaching each kept function to an absorber), or rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing segment's or take_out's boxMap as box_map.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
     },

@@ -126,14 +126,28 @@ function summary(m: FunctionModel) {
  * The 9-windows grid. `present` is required; `past` and `future` are optional snapshots with
  * stable box ids. `subsystem` names the boxes to zoom into (ids absent from a snapshot are listed,
  * not invented). The supersystem view collapses `system.boxes` (default: every tool and mediator
- * box) into one box, so the product and the environment stay visible across its boundary.
+ * box) into one box, so the product and the environment stay visible across its boundary. The
+ * collapsed box takes `system.id`; without one it takes 'system', or 'system-2', 'system-3', …
+ * if a box left outside the collapse in any snapshot already uses that id. An explicit id that
+ * collides still fails closed.
  */
 export function nineWindows(spec: {
   present: FunctionModel; past?: FunctionModel; future?: FunctionModel;
   subsystem: string[];
   system?: { id?: string; name?: string; boxes?: string[] };
 }) {
-  const id = spec.system?.id ?? "system";
+  const groupOf = (m: FunctionModel) => {
+    const present = new Set(m.boxes.map((b) => b.id));
+    return spec.system?.boxes?.filter((b) => present.has(b)) ?? m.boxes.filter((b) => b.role === "tool" || b.role === "mediator").map((b) => b.id);
+  };
+  const outside = new Set(TIMES.flatMap((t) => {
+    const m = spec[t];
+    if (!m) return [];
+    const group = new Set(groupOf(m));
+    return m.boxes.filter((b) => !group.has(b.id)).map((b) => b.id);
+  }));
+  let id = spec.system?.id ?? "system";
+  for (let n = 2; spec.system?.id === undefined && outside.has(id); n++) id = `system-${n}`;
   const windows = TIMES.map((time) => {
     const m = spec[time];
     if (!m) return { time, status: "missing" as const, prompt: `No ${time} snapshot: model the ${time} system with the same box ids to fill this column.` };
@@ -142,7 +156,7 @@ export function nineWindows(spec: {
     const present = new Set(m.boxes.map((b) => b.id));
     const zoom = spec.subsystem.filter((b) => present.has(b));
     const sub = zoom.length ? restrict(m, zoom) : null;
-    const group = spec.system?.boxes?.filter((b) => present.has(b)) ?? m.boxes.filter((b) => b.role === "tool" || b.role === "mediator").map((b) => b.id);
+    const group = groupOf(m);
     const sup = group.length ? collapse(m, group, { id, name: spec.system?.name ?? m.system ?? "System", role: "tool" }) : null;
     if (sub && !sub.ok) return { time, status: "invalid" as const, errors: sub.errors };
     if (sup && !sup.ok) return { time, status: "invalid" as const, errors: sup.errors };
@@ -171,6 +185,7 @@ export function nineWindows(spec: {
   }
   return {
     ok: windows.every((w) => w.status !== "invalid"),
+    systemId: id,
     windows,
     changes,
     note: "Views are typed restrictions and collapses of the snapshots you supply; no transition between times is computed. Fill missing windows before drawing conclusions from the grid.",

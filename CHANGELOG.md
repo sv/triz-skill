@@ -84,7 +84,11 @@ All notable changes to this project are documented here. The format follows
   nodes, and a node that already separates is flagged. Example node P1 carries one.
 - `triz_separate` gains `along`: the parameter as a function of one axis. With `time`, this is
   the checkable part of Principle 15 (Dynamics). It is reported only when the value must change.
-- `triz_nine_windows`: system-operator views for each time snapshot.
+- `triz_function_model` gains `box_map` (concept box id → baseline box id) for `compare_to`, so a
+  segmented or split product is compared against its original box. `segment` and `take_out`
+  return the map and flag `deliverableKeysChanged`.
+- `triz_nine_windows`: system-operator views for each time snapshot. When no system id is given,
+  the collapsed system box gets a fresh one (`system`, then `system-2`, …).
   - Subsystem: restriction, with crossing functions as the boundary.
   - System: the model itself.
   - Supersystem: a collapse into one box that lists the harms it hides.

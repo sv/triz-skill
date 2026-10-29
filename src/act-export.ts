@@ -151,9 +151,15 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
   const boxes: Box[] = [];
   const wires: FunctionModel["wires"] = [];
   const wired = new Set<number>();
+  let unread = 0;
   for (const e of h.hyperedges) {
-    for (const i of [...e.sources, ...e.targets]) if (!inRange(i)) errors.push(`hyperedge '${e.id}': vertex ${i} out of range`);
-    if (errors.length) continue;
+    const outOfRange = [...e.sources, ...e.targets].filter((i) => !inRange(i));
+    if (outOfRange.length) {
+      // Skip only this hyperedge; later ones are still validated.
+      for (const i of outOfRange) errors.push(`hyperedge '${e.id}': vertex ${i} out of range`);
+      unread++;
+      continue;
+    }
     if (e.kind === "box") {
       const port = (side: "in" | "out") => (i: number): Port => {
         const v = h.vertices[i];
@@ -179,6 +185,8 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
       wires.push({ id: e.id, from: { box: s.box, port: s.port }, to: { box: t.box, port: t.port }, carrier: e.carrier, polarity: e.polarity, ...(e.verb !== undefined ? { verb: e.verb } : {}) });
     }
   }
+  // Ownership and interface are derived from every hyperedge, so they are not judged from a partial read.
+  if (unread) return { ok: false, errors };
   h.vertices.forEach((_, i) => { if (!owner.has(i)) errors.push(`vertex ${i} belongs to no box`); });
   for (const side of ["in", "out"] as const) {
     const expected = h.vertices.flatMap((v, i) => (v.side === side && !wired.has(i) ? [i] : []));

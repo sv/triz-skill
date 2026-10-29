@@ -253,3 +253,33 @@ test("domain blindness: the physical bearing and the software connection pool sh
   });
   assert.deepEqual(idFree(pool), idFree(bearing));
 });
+
+test("isomorphism with '__proto__', 'constructor', 'toString' ids neither pollutes nor misreads prototypes", () => {
+  const names = ["__proto__", "constructor", "toString"];
+  const before = Object.getOwnPropertyNames(Object.prototype).sort();
+  const model = (tag: string): FunctionModel => ({
+    domain: "software",
+    carriers: names.map((n) => ({ id: tag + n, layer: "information", dimension: "x" })),
+    boxes: names.map((n, i) => ({
+      id: n, name: n, role: i === 0 ? "product" : "tool",
+      inputs: [{ id: n, carrier: tag + n }], outputs: [{ id: `${n}-out`, carrier: tag + names[(i + 1) % 3] }],
+      cost: { constructor: i + 1, toString: 1 },
+    })),
+    wires: names.map((n, i) => ({ id: n, from: { box: n, port: `${n}-out` }, to: { box: names[(i + 1) % 3], port: names[(i + 1) % 3] }, carrier: tag + names[(i + 1) % 3], polarity: i ? "useful" : "harmful" })),
+    budget: { constructor: 10 },
+    weights: { constructor: 1, toString: 1, harmful: 1 },
+  });
+  const a = model("a:"), b = model("b:");
+  assert.ok(checkModel(a).ok && checkModel(b).ok);
+  const found = findIsomorphism(a, b);
+  assert.ok(found.ok && found.decided && found.isomorphic);
+  for (const family of [found.mapping.boxes, found.mapping.wires, found.mapping.ports]) {
+    for (const n of names) assert.ok(Object.hasOwn(family, n), `'${n}' must be an own key`);
+  }
+  assert.deepEqual(checkIsomorphism(a, b, found.mapping), { ok: true, errors: [] });
+  assert.deepEqual(Object.getOwnPropertyNames(Object.prototype).sort(), before);
+  assert.equal(({} as Record<string, unknown>)["__proto__-out"], undefined);
+  // A mapping that leaves an inherited-name id unmapped is rejected, not read through the prototype.
+  const partial = { ...found.mapping, boxes: Object.fromEntries(Object.entries(found.mapping.boxes).filter(([k]) => k !== "constructor")) };
+  assert.match(checkIsomorphism(a, b, partial).errors.join(), /boxes: 'constructor' is not mapped/);
+});

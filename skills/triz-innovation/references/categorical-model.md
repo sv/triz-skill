@@ -64,8 +64,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `rewrite`, which deletes and adds boxes and wires directly.
 
    A transformation is a move to evaluate, not a result. Compare the new model with
-   `triz_function_model` and `compare_to`. A segmented product box changes deliverable keys, so
-   map parts back with the returned `boxMap`, or collapse them, before reading a lost function.
+   `triz_function_model` and `compare_to`. Segmenting a product box, or taking a part out of one,
+   moves its deliverables to new box ids, and the result reports `deliverableKeysChanged`. Pass
+   the returned `boxMap` as `box_map` so the comparison renames the parts back before matching
+   deliverables. Without it, the moved deliverables read as lost and regained.
 6. **Windows.** Use `triz_nine_windows` with the present model, any past or future snapshots
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing

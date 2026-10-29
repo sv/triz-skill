@@ -20,7 +20,7 @@ recalling principle numbers or matrix cells.
 | `triz_effects(query?, category?)` | Search the curated effects database by required function |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
-| `triz_function_model(model, compare_to?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape |
+| `triz_function_model(model, compare_to?, box_map?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape |
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it |
 | `triz_separate(contradiction, along?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis |
 | `triz_transform(model, transformation)` | Apply one typed move: segment, take_out, interpose, an applied trim, or a raw rewrite; the result type-checks or fails closed |
