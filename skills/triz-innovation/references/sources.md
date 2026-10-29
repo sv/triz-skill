@@ -127,6 +127,11 @@ it supports here.
   [arXiv:1512.08055](https://arxiv.org/abs/1512.08055).
   Resources ordered componentwise. This is why ideality here is a comparison per dimension,
   not a sum.
+  Censi also supplies `triz_feasibility`. Checked on 2026-10-29 against v7: Def. 13 (a monotone
+  design problem), Props. 2–4 (parallel, series, and loop composition keep monotonicity),
+  Def. 22 with eq. (26) (a loop's minimal resources as the least fixpoint of
+  R ↦ Min ⋃_{r ∈ R} h(f₁, r) ∩ ↑r on antichains, found by Kleene's ascent from ⊥), and Prop. 5
+  (memory and work bounded by the width and height of the resource poset).
 - **Abramsky & Brandenburger (2011)**, *The sheaf-theoretic structure of non-locality and
   contextuality*, New Journal of Physics 13, 113036.
   **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,

@@ -17,6 +17,7 @@ export const THEOREMS = [
   "exists_section_iff", "glue_of_disjoint_regions", "no_section_of_overlap", "separated_iff_axis",
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
   "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict", "restrict_restrict",
+  "kleene_lfp", "kleeneStep_upperClosure", "codesign_lfp",
 ] as const;
 /** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */
 export const MATHLIB_THEOREMS = ["Relation.comp_assoc"] as const;
