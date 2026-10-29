@@ -103,6 +103,9 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `workflow.md` lists all five MATRIZ separation types, adding direction.
+- The CI and Lean workflows can be started by hand (`workflow_dispatch`): from the Actions tab,
+  or with `gh workflow run ci.yml --ref <branch>`. GitHub offers this only once the workflow file
+  is on `main`.
 - Dependencies, lockfile only (ranges unchanged), as in Dependabot PRs #5–#10:
   - zod 4.6.6 and @modelcontextprotocol/sdk 1.32.0;
   - transitive: fast-uri 3.1.9, @hono/node-server 2.1.5, ip-address 10.7.5, and body-parser
