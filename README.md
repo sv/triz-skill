@@ -320,7 +320,14 @@ trimming as a Kan extension; categorical-model.md says why.
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
 (cd theory && lake exe cache get && lake build --wfail)
 node scripts/certify.mjs --local --tamper theory/Certificates/*.lean   # tampered copies must fail
+TRIZ_SKIP_LEAN=1 pnpm test        # skip the Lean-backed tests even where theory/ is built
 ```
+
+Once `theory/` is built, `pnpm test` also runs the Lean-backed certificate tests. Each such test
+starts one Lean process, which loads the theory's whole import closure (about 2.5 GiB of Lean and
+Mathlib). `TRIZ_SKIP_LEAN=1` skips them. CI runs them with `TRIZ_REQUIRE_LEAN=1`, which fails when
+Lean is missing, whatever `TRIZ_SKIP_LEAN` says. `certify.mjs` checks all its files and their
+tampered copies in one Lean process.
 
 ## Optional: your own network of problems
 

@@ -6,9 +6,12 @@
  * tampered certificate (verdicts negated, a carrier changed, the unsafe set emptied or filled,
  * nothing acceptable, a wrong invariant, a concept row changed) fails where it must. Escalation,
  * weakness, and behaviour certificates encode the declared rows, never the kernel's results, and
- * state only what a witness or an exhaustive decision supports. Without
- * Lean those tests skip; TRIZ_REQUIRE_LEAN=1 makes them fail instead. Nothing here calls AXLE,
- * and without local Lean the checker refuses rather than falling back to it.
+ * state only what a witness or an exhaustive decision supports. Each Lean test checks its
+ * certificates and tampered copies in one Lean process (runLocalBatch), and one test checks that a
+ * batch gives every file the messages it gets alone. Without Lean, or with TRIZ_SKIP_LEAN=1, those
+ * tests skip; TRIZ_REQUIRE_LEAN=1 makes them run, and fail without Lean, whatever TRIZ_SKIP_LEAN
+ * says. Nothing here calls AXLE, and without local Lean the checker refuses rather than falling
+ * back to it.
  * Regenerate the fixtures with UPDATE_GOLDEN=1 pnpm test, then review the diff.
  */
 import { test } from "node:test";
@@ -27,7 +30,7 @@ import { supportConcept, supportConcepts, SUPPORT_ACCEPTABLE } from "./support/c
 import { toolSpecs } from "../src/tools.js";
 // triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
 import "../src/data.js";
-import { accept, check, checkTampered, lint, localLeanAvailable, runLocal, tamperVariants, theorems } from "../scripts/certify.mjs";
+import { accept, batchFile, check, checkAll, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -57,9 +60,9 @@ const call = async (name: string, args: unknown) => JSON.parse((await specs[name
 
 const lean = localLeanAvailable();
 const leanTest = (name: string, fn: () => Promise<void>) =>
-  lean ? test(name, fn)
-  : process.env.TRIZ_REQUIRE_LEAN ? test(name, () => assert.fail("TRIZ_REQUIRE_LEAN is set, but theory/ is not built"))
-  : test.skip(name, fn);
+  process.env.TRIZ_REQUIRE_LEAN ? test(name, lean ? fn : () => assert.fail("TRIZ_REQUIRE_LEAN is set, but theory/ is not built"))
+  : process.env.TRIZ_SKIP_LEAN ? test(name, { skip: "TRIZ_SKIP_LEAN is set" }, fn)
+  : test(name, { skip: !lean && "theory/ is not built" }, fn);
 
 /** The text outside string literals, where model ids must never appear. */
 const outsideStrings = (lean: string) => lean.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
@@ -224,15 +227,15 @@ test("without local Lean, nothing is sent to AXLE unless --remote is given", () 
     assert.equal(cli.status, 2, cli.stdout + cli.stderr);
     assert.match(cli.stderr, /lake build.*--remote/s);
     assert.doesNotMatch(cli.stdout + cli.stderr, /Sending data|Checking locally|AXLE info|AXLE \d/);
-    // The library has no fallback either: without mode "remote", check and checkTampered throw rather than fetch.
+    // The library has no fallback either: without mode "remote", check, checkTampered, and checkAll throw rather than fetch.
     const probe = `globalThis.fetch = () => { throw new Error("fetch called"); };
       const m = await import(${JSON.stringify(pathToFileURL(script).href)});
       const src = (await import("node:fs")).readFileSync(${JSON.stringify(fixturePath("SoftwareCache"))}, "utf8");
-      for (const run of [() => m.check(src), () => m.checkTampered(m.tamperVariants(src)[0])]) {
+      for (const run of [() => m.check(src), () => m.checkTampered(m.tamperVariants(src)[0]), () => m.checkAll({ certificates: [src], tampered: m.tamperVariants(src) })]) {
         try { await run(); console.log("checked"); } catch (e) { console.log(e.message === m.NO_LOCAL_LEAN ? "refused" : e.message); }
       }`;
     const lib = spawnSync(process.execPath, ["--input-type=module", "-e", probe], { env, encoding: "utf8" });
-    assert.equal(lib.stdout, "refused\nrefused\n", lib.stdout + lib.stderr);
+    assert.equal(lib.stdout, "refused\nrefused\nrefused\n", lib.stdout + lib.stderr);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
@@ -287,11 +290,54 @@ test("the tamper variants are the verdicts negated and a carrier changed", () =>
   assert.match(carrier.content, /^ {2}carrier := !\[1, 1, 2, 3\]$/m);
 });
 
-leanTest("Lean accepts every fixture, and every verdict in them", async () => {
-  for (const [ns, generate] of Object.entries(GENERATED)) {
+test("a batch keeps each file's lines and names, and gives up on messages it cannot place", () => {
+  const a = "import CategoricalTriz\n\nnamespace A\n\ntheorem t : True :=\n  trivial\n\nend A\n";
+  const b = "import CategoricalTriz\n\nnamespace B\n\ntheorem u : True :=\n  trivial\n\nend B\n";
+  const layout = batchFile([a, b]);
+  const lines = layout.text.split("\n");
+  assert.equal(lines[0], "import CategoricalTriz");
+  // File k's line n is the batch's line start + n - 1; its import line opens its namespace.
+  for (const [k, f] of [a, b].entries()) {
+    const { prefix, start, last } = layout.jobs[k];
+    assert.equal(lines[start - 1], `namespace ${prefix}`);
+    f.split("\n").slice(1).forEach((l, n) => assert.equal(lines[start + n], l));
+    assert.deepEqual(lines.slice(last, last + 2), [`#print "${prefix} read"`, `end ${prefix}`]);
+  }
+  const [ja, jb] = layout.jobs;
+  const read = layout.jobs.map((j) => ({ severity: "info" as const, line: j.last + 1, text: `${j.prefix} read` }));
+  const at = (j: typeof ja, n: number, text: string, severity: "error" | "info" = "error") => ({ severity, line: j.start + n - 1, text });
+  assert.deepEqual(splitBatch(layout, [...read, at(jb, 5, `unknown constant '${jb.prefix}.B.v'`), at(ja, 5, `'${ja.prefix}.A.t' depends on axioms: [propext]`, "info")]),
+    [[{ severity: "info", line: 5, text: "'A.t' depends on axioms: [propext]" }], [{ severity: "error", line: 5, text: "unknown constant 'B.v'" }]]);
+  assert.deepEqual(splitBatch(layout, [read[0]]), [[], null], "no sentinel: B was not read to its end");
+  assert.deepEqual(splitBatch(layout, [...read, at(ja, 1, "unexpected end")]), [null, []], "a message on A's namespace line");
+  assert.deepEqual(splitBatch(layout, [...read, { severity: "error", line: jb.last + 2, text: "invalid 'end'" }]), [[], null], "a message on B's end line");
+  assert.deepEqual(splitBatch(layout, [...read, { severity: "error", line: 0, text: "lean exited 139" }]), [null, null], "a message outside every file");
+  assert.deepEqual(splitBatch(layout, [...read, { severity: "error", line: 1, text: "unknown module" }]), [null, null], "a message on the batch's import line");
+  assert.deepEqual(splitBatch(layout, read, false), [null, null], "a run that was not clean");
+});
+
+test("every tampered copy of a fixture may share a batch, and nothing with a command or option may", () => {
+  for (const ns of Object.keys(GENERATED)) {
     const c = fs.readFileSync(fixturePath(ns), "utf8");
-    const r = await check(c, { mode: "local" });
-    assert.ok(r.ok, r.problems.join("\n"));
+    for (const v of tamperVariants(c)) assert.deepEqual(lint(v.content, { pinned: false }), [], `${ns} (${v.name})`);
+  }
+  const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
+  const negated = tamperVariants(c)[0].content;
+  assert.ok(lint(negated).length, "a negated verdict leaves the pinned grammar");
+  for (const t of [
+    negated.replace(/^(theorem typed : )/m, "$1(set_option debug.skipKernelTC true in True) ∧ "),
+    negated.replace("open CategoricalTriz\n", "open CategoricalTriz\ninstance : Inhabited Nat := ⟨1⟩\n"),
+    negated.replace(/decide \+kernel$/m, "attribute [simp] Nat.add_comm in decide +kernel"),
+    negated.replace("end SoftwareCache", "end SoftwareCache\nnamespace Other"),
+  ]) assert.ok(lint(t, { pinned: false }).length, t);
+});
+
+leanTest("Lean accepts every fixture, and every verdict in them", async () => {
+  const fixtures = Object.entries(GENERATED);
+  const { certificates } = await checkAll({ certificates: fixtures.map(([ns]) => fs.readFileSync(fixturePath(ns), "utf8")) }, { mode: "local" });
+  for (const [k, [ns, generate]] of fixtures.entries()) {
+    const r = certificates[k];
+    assert.ok(r.ok, `${ns}: ${r.problems.join("\n")}`);
     const cert = generate(ns);
     assert.ok(cert.ok);
     for (const v of cert.certifies) assert.ok(r.certified.includes(v.theorem), v.theorem);
@@ -299,23 +345,35 @@ leanTest("Lean accepts every fixture, and every verdict in them", async () => {
 });
 
 leanTest("a tampered certificate fails to check where it was tampered", async () => {
-  for (const ns of Object.keys(GENERATED)) {
-    for (const v of tamperVariants(fs.readFileSync(fixturePath(ns), "utf8"))) {
-      const r = await checkTampered(v, { mode: "local" });
-      assert.ok(r.ok, `${ns} (${v.name}): ${r.problems.join("\n")}`);
-    }
-  }
+  const variants = Object.keys(GENERATED).flatMap((ns) => tamperVariants(fs.readFileSync(fixturePath(ns), "utf8")).map((v) => ({ ...v, name: `${ns} (${v.name})` })));
   // A certificate that proves its verdict with `sorry`, or with an axiom of its own, is not accepted.
   const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
-  const sorry = await check(c.replace(/^( {2})by intro w hw.*$/m, "$1sorry"), { mode: "local" });
+  const { certificates: [sorry, native], tampered } = await checkAll({
+    certificates: [c.replace(/^( {2})by intro w hw.*$/m, "$1sorry"), c.replace(/decide \+kernel$/m, "native_decide")],
+    tampered: variants,
+  }, { mode: "local" });
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
   assert.ok(!sorry.ok && sorry.problems.some((p) => /sorry/.test(p)), sorry.problems.join("\n"));
-  const native = await check(c.replace(/decide \+kernel$/m, "native_decide"), { mode: "local" });
   assert.ok(!native.ok && native.problems.some((p) => /SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), native.problems.join("\n"));
   // Without the grammar, the axiom audit alone still finds the verdict behind the decoy.
   const t = decoy();
   const audit = accept(t, runLocal(`${t}\n${theorems(t).map((x) => `#print axioms ${x.name}`).join("\n")}\n`));
   assert.ok(!audit.ok && audit.problems.some((p) => /^SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), audit.problems.join("\n"));
   assert.ok(audit.certified.includes("SoftwareCache.Separation0.typed"));
+});
+
+leanTest("a batch gives each file the messages Lean gives it alone", async () => {
+  const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
+  const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
+  // A certificate, a copy of it under the same names, and another certificate's data tamper.
+  const jobs = [{ content: c, audit: true }, { content: tamperVariants(c)[0].content, audit: false }, { content: tamperVariants(d)[1].content, audit: false }];
+  const batch = runLocalBatch(jobs);
+  assert.ok(batch.every((r) => r.batched), "every job shared the process");
+  const sorted = (ms: typeof batch[number]["messages"]) => [...ms].sort((x, y) => x.line - y.line || x.text.localeCompare(y.text));
+  for (const [k, j] of jobs.entries()) {
+    const alone = runLocal(j.audit ? withAxioms(j.content) : j.content);
+    assert.deepEqual(sorted(batch[k].messages), sorted(alone.messages), `job ${k}`);
+  }
 });
 
 leanTest("Lean accepts certificates of hostile generated models and every separation shape", async () => {
@@ -730,11 +788,9 @@ leanTest("Lean rejects an invariant that is not closed or meets the unsafe set, 
     // The housing's bore delivers unsupported: the trimmed shaft is no longer supported.
     { name: "a concept row changed", content: t.slice(0, concept) + t.slice(concept).replace(/^def rowValue : Row → Port → Value := .*$/m, "def rowValue : Row → Port → Value := ![![0, 0, 0, 0], ![0, 1, 0, 0]]"), mustFail: ["BearingTrim.preserved"] },
   ];
-  for (const v of variants) {
-    assert.notEqual(v.content, v.name.startsWith("a concept") ? t : d, v.name);
-    const r = await checkTampered(v, { mode: "local" });
-    assert.ok(r.ok, `${v.name}: ${r.problems.join("\n")}`);
-  }
+  for (const v of variants) assert.notEqual(v.content, v.name.startsWith("a concept") ? t : d, v.name);
+  const { tampered } = await checkAll({ tampered: variants }, { mode: "local" });
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
 });
 
 leanTest("Lean accepts unreachable and preserved certificates of blocked runs, stateless targets, box_map, gained deliverables, one-sided inputs, and hostile ids", async () => {
@@ -751,14 +807,10 @@ leanTest("Lean accepts unreachable and preserved certificates of blocked runs, s
   ];
   const combined = ["import CategoricalTriz", ...parts.map((p) => content(p).split("\n").slice(1).join("\n"))].join("\n");
   assert.doesNotMatch(outsideStrings(combined), /#exit|😀/);
-  const r = await check(combined, { mode: "local" });
+  // Each tamper variant fails where it must: negated verdicts, a filled unsafe set, no situation allowed.
+  const variants = parts.flatMap((p) => tamperVariants(content(p)));
+  const { certificates: [r], tampered } = await checkAll({ certificates: [combined], tampered: variants }, { mode: "local" });
   assert.ok(r.ok, r.problems.join("\n"));
   assert.equal(r.certified.length, theorems(combined).length);
-  // Each tamper variant fails where it must: negated verdicts, a filled unsafe set, no situation allowed.
-  for (const p of parts) {
-    for (const v of tamperVariants(content(p))) {
-      const t = await checkTampered(v, { mode: "local" });
-      assert.ok(t.ok, `${v.name}: ${t.problems.join("\n")}`);
-    }
-  }
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
 });
