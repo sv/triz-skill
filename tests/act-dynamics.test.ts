@@ -196,7 +196,7 @@ test("the bearing's heat → preload loop escalates: a shortest trace from cold 
 test("the damped variant never escalates: the reachable set saturates, so cold-or-warm is invariant at any horizon", () => {
   const r = run(damped(), { unsafe: HOT, safe: COOL });
   assert.ok(r.escalation?.verdict === "unreachable");
-  assert.deepEqual(r.escalation.basis, ["reachWithin_iff_trace", "reachWithin_saturated"]);
+  assert.deepEqual(r.escalation.basis, ["reachWithin_iff_trace", "reachWithin_saturated", "unreachable_of_invariant"]);
   assert.ok(r.invariance?.verdict === "invariant");
   assert.deepEqual(r.reachable.byBox, [{ box: "shaft", states: ["cold", "warm"] }]);
   assert.equal(r.reachable.saturated, true);

@@ -324,6 +324,7 @@ const cases: Case[] = [
   { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
     pick: (r) => r.certificate, path: "$.unsafe", hint: /Raise horizon/ },
   { code: "not-certifiable", tool: "triz_weakness", args: { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true }, pick: (r) => r.certificate, path: "$.concepts" },
+  { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
