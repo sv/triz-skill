@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `workflow.md` lists all five MATRIZ separation types.
 - Releases publish to npm and the MCP Registry through OIDC, with no stored tokens; pnpm is pinned via `packageManager`.
-- Dependencies: zod 4.6.6, @modelcontextprotocol/sdk 1.32.0.
+- Dependencies: zod 4.6.6, @modelcontextprotocol/sdk 1.32.0, @modelcontextprotocol/server 2.3.0.
 
 ## [0.3.0] - 2026-08-18
 
