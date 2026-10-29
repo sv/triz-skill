@@ -23,7 +23,9 @@
  *                            the weakest box specification (residual in Rel): every row whose
  *                            composite stays inside a target relation, and whether its composite
  *                            covers the target (spec) or not (impossible: no behaviour of the box
- *                            gives the target).
+ *                            gives the target). For two such boxes, the maximal pairs of relations
+ *                            that stay inside (the formal concepts of the safe row pairs), and
+ *                            those that cover the target.
  *  - weaknessRanking       — the situations each concept admits (a steady state, and every output
  *                            acceptable), ranked by inclusion; the count is a secondary figure.
  *                            Acceptable values are listed, or derived from a threshold through the
@@ -34,7 +36,7 @@
  * absorber's above all, is outside the kernel.
  */
 import { checkModel, type FunctionModel } from "./act.js";
-import { applyTrim, mapBoxes } from "./act-rewrite.js";
+import { applyTrim, finestFactorisation, mapBoxes, type Factorisation } from "./act-rewrite.js";
 import { thresholdValues } from "./act-levels.js";
 import type { Theorem } from "./act-basis.js";
 // `at` is a local name for lookups here, so the path helper goes by `jp`.
@@ -299,6 +301,21 @@ function summary(e: Evaluation, p: Plan, fullRelation = false) {
   };
 }
 
+/**
+ * Segmentation hints: each composed box whose declared relation is the product of its projections
+ * onto two or more groups of ports, with the finest such groups (finestFactorisation). Segmenting
+ * the box into them, or unions of them, gives each part its projection. A box past the cap is
+ * listed undecided.
+ */
+export function factorisationsOf(boxes: Box[], opts: { maxSteps?: number } = {}) {
+  type Entry = { box: string } & Factorisation & { note: string };
+  return boxes.flatMap((b): Entry[] => {
+    const f = finestFactorisation(b, opts);
+    if (!f.decided) return [{ box: b.id, ...f }];
+    return f.parts.length > 1 ? [{ box: b.id, ...f, note: `'${b.id}''s relation is the product of its projections onto ${f.parts.map((g) => `[${g.join(", ")}]`).join(", ")}: triz_transform segment into these groups, or unions of them, and each part keeps its projection.` }] : [];
+  });
+}
+
 /** The model's input→deliverable relation under its declared behaviour (relational trace for feedback). */
 export function externalBehavior(model: FunctionModel, opts: BehaviorOptions = {}) {
   return scoped(externalBehaviorScoped(model, opts), opts.scope ?? "upstream");
@@ -317,8 +334,10 @@ function externalBehaviorScoped(model: FunctionModel, opts: BehaviorOptions) {
   }
   const e = evaluate(model, p, deliverables, opts.maxStates ?? MAX_STATES);
   if (!e.ok) return e;
+  const factorisations = factorisationsOf(p.composed);
   return {
     ok: true as const, decided: true as const, deliverables, ...summary(e, p, opts.fullRelation), assumption: ASSUMPTION,
+    ...(factorisations.length ? { factorisations } : {}),
     note: "Steady-state semantics: each output is reached by some consistent valuation, including the loop values. Nothing here says which steady state the system reaches, or how. An input with no steady state may signal a runaway loop.",
   };
 }
@@ -634,9 +653,37 @@ const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
     : r;
 };
 
+/** Cap on the formal concepts enumerated for two boxes to specify. */
+export const MAX_CONCEPTS = 10_000;
+
+type SpecOptions = BehaviorOptions & { boxMap?: Record<string, string>; maxConcepts?: number };
+type SpecRow = { in: Record<string, string>; out: Record<string, string> };
+
+/** A box's ports, inputs first, each with its side. */
+const portsOf = (b: Box) => [...(b.inputs ?? []).map((q) => ({ ...q, side: "in" as const })), ...(b.outputs ?? []).map((q) => ({ ...q, side: "out" as const }))];
+
+/** A box to specify: its ports, every candidate row over their declared values, its producible rows, and the probe that reads its row off a steady state. */
+function openBox(hole: Box, domain: Map<string, string[]>) {
+  const ports = portsOf(hole);
+  const asRow = (vals: string[]): SpecRow => ({
+    in: Object.fromEntries(ports.flatMap((q, i) => (q.side === "in" ? [[q.id, vals[i]]] : []))),
+    out: Object.fromEntries(ports.flatMap((q, i) => (q.side === "out" ? [[q.id, vals[i]]] : []))),
+  });
+  const rows = [...valuationsOf(ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier })), domain)];
+  const producible = hole.producible && new Set(hole.producible.map((row) => tupleKey(ports.map((q) => (q.side === "in" ? row.in[q.id] : row.out[q.id])))));
+  const probe: Observed[] = ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier, side: q.side }));
+  return { hole, ports, rows, asRow, producible, probe };
+}
+type OpenBox = ReturnType<typeof openBox>;
+
+/** The model with `behavior` declared on the boxes it names. */
+const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): FunctionModel =>
+  ({ ...m, boxes: m.boxes.map((b) => (Object.hasOwn(behavior, b.id) ? { ...b, behavior: behavior[b.id] } : b)) });
+
 /**
  * The weakest box specification (residual in Rel) for the one box of `concept` that can reach a
- * deliverable and declares no behaviour, against the target relation of `baseline`.
+ * deliverable and declares no behaviour, against the target relation of `baseline`. With two such
+ * boxes, pairSpec gives the maximal pairs of relations instead.
  *
  * Every other box is fixed, so the context C sends a relation R for the box to the concept's
  * input→deliverable relation C[R]. One search with the box admitting every row finds C[{r}] for
@@ -648,12 +695,11 @@ const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
  * (covers_iff_exists_eq). Both are re-checked by evaluating the concept with W declared.
  *
  * Fails closed: a concept that loses a deliverable is `impossible` before any search (deliverables
- * only the concept has are listed and not compared, as in compareBehavior); a
- * second box without behaviour is `undecided` (several-holes), since the residual for one depends
- * on the relation chosen for the other; a target with no steady state anywhere is `undecided`
- * (no-steady-state); past the cap, `undecided` (state-cap).
+ * only the concept has are listed and not compared, as in compareBehavior); three or more
+ * boxes without behaviour are `undecided` (several-holes); a target with no steady state anywhere
+ * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap).
  */
-function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: BehaviorOptions & { boxMap?: Record<string, string> }, of: string) {
+function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
   // Paths as with compare_to: the baseline is compare_to, the concept is model.
   const checked = checkModel(baseline, "$.compare_to");
   if (!checked.ok) return rebase(fail(checked.issues), [], `${of}: `);
@@ -682,34 +728,28 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Beh
     };
   }
   const p = plan(concept, observe, opts);
-  if (p.missing.length > 1) {
+  if (p.missing.length > 2) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
-      note: `${p.missing.length} composed boxes declare no behaviour (${p.missing.map((id) => `'${id}'`).join(", ")}). The weakest specification is decided for one unknown box only: with several, the largest safe relation for one depends on the relation chosen for the others, so there is no single weakest choice per box. Declare all but one.`,
+      note: `${p.missing.length} composed boxes declare no behaviour (${p.missing.map((id) => `'${id}'`).join(", ")}). The weakest specification is decided for one or two unknown boxes only: with more, the maximal safe choices are not computed. Declare all but one or two.`,
     };
   }
   if (!p.missing.length) {
     return fail([issue("nothing-to-specify", "$.model", "every composed box declares behavior: there is no box to specify. Remove the behavior of the box to specify, or compare the relations with trim",
       "Drop behavior from the one box whose specification you want (it becomes the box to specify), or omit weakest_spec to compare the relations as declared.")]);
   }
-  const hole = concept.boxes.find((b) => b.id === p.missing[0])!;
+  const holes = p.missing.map((id) => concept.boxes.find((b) => b.id === id)!);
   const declared = new Map(concept.carriers.map((c) => [c.id, c.values]));
-  const ports = [...(hole.inputs ?? []).map((q) => ({ ...q, side: "in" as const })), ...(hole.outputs ?? []).map((q) => ({ ...q, side: "out" as const }))];
-  const bare = ports.filter((q) => !declared.get(q.carrier));
-  if (bare.length) {
-    return fail(bare.map((q) => issue("no-declared-values", where.carrier(concept, q.carrier, "$.model"), `box '${hole.id}' is the box to specify, but carrier '${q.carrier}' of port '${q.id}' declares no values`,
-      `Declare values on carrier '${q.carrier}': the specification's rows range over them.`)));
-  }
+  const bare = holes.flatMap((hole) => portsOf(hole).filter((q) => !declared.get(q.carrier)).map((q) => issue("no-declared-values", where.carrier(concept, q.carrier, "$.model"), `box '${hole.id}' is the box to specify, but carrier '${q.carrier}' of port '${q.id}' declares no values`,
+    `Declare values on carrier '${q.carrier}': the specification's rows range over them.`)));
+  if (bare.length) return fail(bare);
   const max = opts.maxStates ?? MAX_STATES;
-  const candidates = product(ports.map((q) => declared.get(q.carrier)!.length));
-  if (candidates > max) return capped(capFail(`box '${hole.id}' has ${candidates} candidate rows; the cap is ${max}. Declare fewer values or split the box`, where.box(concept, hole.id, "$.model"), `Declare fewer values on the carriers of '${hole.id}''s ports, or segment it so each part has fewer ports.`));
+  for (const hole of holes) {
+    const candidates = product(portsOf(hole).map((q) => declared.get(q.carrier)!.length));
+    if (candidates > max) return capped(capFail(`box '${hole.id}' has ${candidates} candidate rows; the cap is ${max}. Declare fewer values or split the box`, where.box(concept, hole.id, "$.model"), `Declare fewer values on the carriers of '${hole.id}''s ports, or segment it so each part has fewer ports.`));
+  }
   const domain = new Map([...declared].map(([k, v]) => [k, v!]));
-  const asRow = (vals: string[]) => ({
-    in: Object.fromEntries(ports.flatMap((q, i) => (q.side === "in" ? [[q.id, vals[i]]] : []))),
-    out: Object.fromEntries(ports.flatMap((q, i) => (q.side === "out" ? [[q.id, vals[i]]] : []))),
-  });
-  const rows = [...valuationsOf(ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier })), domain)];
-  const withBehavior = (behavior: ReturnType<typeof asRow>[]) => ({ ...concept, boxes: concept.boxes.map((b) => (b.id === hole.id ? { ...b, behavior } : b)) });
+  const boxes = holes.map((hole) => openBox(hole, domain));
 
   const t = evaluate(baseline, before, target, max);
   if (!t.ok) return capped(t, `${of}: `, [["$.model", "$.compare_to"]]);
@@ -719,8 +759,12 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Beh
       note: "The target relation is empty: the baseline has no steady state at any input. Every relation for the box stays inside it and the empty relation equals it, so nothing is decided. Check the baseline's loops.",
     };
   }
+  if (boxes.length === 2) {
+    return pairSpec(concept, baseline, boxes, { t, target, observe, rename, gainedDeliverables, composed: p.composed.map((b) => b.id), max, maxConcepts: opts.maxConcepts ?? MAX_CONCEPTS, scope: opts.scope });
+  }
+  const [{ hole, ports, rows, asRow, producible, probe }] = boxes;
+  const withBehavior = (behavior: ReturnType<typeof asRow>[]) => declare(concept, { [hole.id]: behavior });
   const full = withBehavior(rows.map(asRow));
-  const probe: Observed[] = ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier, side: q.side }));
   const e = evaluate(full, plan(full, observe, opts), [...observe, ...probe], max);
   if (!e.ok) return capped(e);
   const space = situations([
@@ -746,7 +790,6 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Beh
   }
   // W, the residual; with producible rows F, the spec is W ∩ F, and W \ F are the rows the box cannot produce.
   const residual = rows.filter((r) => !violation.has(tupleKey(r)));
-  const producible = hole.producible && new Set(hole.producible.map((row) => tupleKey(ports.map((q) => (q.side === "in" ? row.in[q.id] : row.out[q.id])))));
   const spec = producible ? residual.filter((r) => producible.has(tupleKey(r))) : residual;
   const infeasible = producible ? residual.filter((r) => !producible.has(tupleKey(r))) : [];
   const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
@@ -852,18 +895,209 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Beh
   };
 }
 
-/** The weakest specification for the concept's one box without behaviour, against the baseline (compare_to). */
-export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opts: BehaviorOptions & { boxMap?: Record<string, string> } = {}) {
+/** A pair of relations for the two boxes to specify, as row indices into each box's candidate rows. */
+type RelationPair = { extent: number[]; intent: number[] };
+
+/**
+ * The weakest specification for two boxes of `concept` without behaviour (theory/CategoricalTriz.lean,
+ * Two unknown boxes). The context preserves unions in each box, so a pair of relations keeps the
+ * composite inside the target iff every pair of rows, one of each box, does. One search with both
+ * boxes admitting every row finds each row pair's composite C[{p}, {q}]: a steady state fixes one
+ * row of each box, so its steady states are grouped by both rows. A row pair is safe when its
+ * composite stays inside the target at every situation; a pair in no steady state is safe.
+ *
+ * The maximal safe pairs of relations are exactly the formal concepts of the safe row pairs
+ * (safe_iff_le_concept, concept_maximal), enumerated by intersection closure: every intent is an
+ * intersection of first-box rows' safe sets. The target is achievable iff some concept's
+ * composite covers it (exists_eq₂_iff); those concepts are the specs. Distinct concepts are
+ * incomparable (a larger extent has a smaller intent), so with several specs no pair is weakest.
+ *
+ * With producible rows, each box's rows are cut to them first: the cut context still preserves
+ * unions in each box, so the same statements hold within them. When no concept of the cut context
+ * covers the target, the uncut one decides between `infeasible` and `not-covered`, as for one box.
+ * Each returned pair is re-checked by declaring both relations. Past `maxConcepts`, `undecided`
+ * (concept-cap); past the state cap, `undecided` (state-cap).
+ */
+function pairSpec(concept: FunctionModel, baseline: FunctionModel, [a, b]: OpenBox[], ctx: {
+  t: Evaluation; target: Typed[]; observe: Typed[]; rename: (e: Typed) => Typed; gainedDeliverables: Typed[]; composed: string[]; max: number; maxConcepts: number; scope?: BehaviorScope;
+}) {
+  const { t, observe, rename, max } = ctx;
+  const inScope = { scope: ctx.scope };
+  const [ida, idb] = [a.hole.id, b.hole.id];
+  const pairs = a.rows.length * b.rows.length;
+  if (pairs > max) {
+    return capped(capFail(`boxes '${ida}' and '${idb}' have ${a.rows.length} × ${b.rows.length} = ${pairs} candidate row pairs; the cap is ${max}. Declare fewer values or split a box`, where.box(concept, idb, "$.model"),
+      `Declare fewer values on the carriers of '${ida}''s and '${idb}''s ports, or declare the behaviour of one of them.`));
+  }
+  const full = declare(concept, { [ida]: a.rows.map(a.asRow), [idb]: b.rows.map(b.asRow) });
+  const e = evaluate(full, plan(full, observe, inScope), [...observe, ...a.probe, ...b.probe], max);
+  if (!e.ok) return capped(e);
+  const conceptInputs = e.inputs.map(rename);
+  const space = situations([
+    { name: "the baseline", inputs: t.inputs, carriers: baseline.carriers, root: "$.compare_to" },
+    { name: "the concept", inputs: conceptInputs, carriers: concept.carriers, root: "$.model" },
+  ]);
+  if (!space.ok) return space;
+  const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
+  if (valuations > max) return capped(capFail(`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`));
+  const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
+
+  // At each situation: the target, and for each target output the row pairs (index i·|b| + j) that deliver it.
+  // A row pair delivering an output outside the target is unsafe, with the first such situation as witness.
+  const k = observe.length, na = a.ports.length, nb = b.rows.length;
+  const index = (x: OpenBox) => new Map(x.rows.map((r, i) => [tupleKey(r), i]));
+  const [ia, ib] = [index(a), index(b)];
+  const unsafe = new Map<number, { input: string[]; outputs: string[]; target: string[][] }>();
+  const points: Array<{ u: string[]; goal: Map<string, string[]>; by: Map<string, number[]> }> = [];
+  for (const u of valuationsOf(space.typed, space.domain)) {
+    const goal = outputsAt(t, t.inputs, space.at, u), by = new Map<string, number[]>();
+    for (const z of outputsAt(e, conceptInputs, space.at, u).values()) {
+      const y = tupleKey(z.slice(0, k)), pair = ia.get(tupleKey(z.slice(k, k + na)))! * nb + ib.get(tupleKey(z.slice(k + na)))!;
+      if (goal.has(y)) by.set(y, [...(by.get(y) ?? []), pair]);
+      else if (!unsafe.has(pair)) unsafe.set(pair, { input: u, outputs: z.slice(0, k), target: sorted(goal) });
+    }
+    points.push({ u, goal, by });
+  }
+
+  /**
+   * The formal concepts of the safe row pairs between rows `ga` of the first box and `gb` of the
+   * second. Intents are bitsets over `gb`: the whole of it, and every intersection of a row's
+   * safe set with an intent already found. Each extent is the rows safe with all of its intent.
+   * Undefined past the cap.
+   */
+  const concepts = (ga: number[], gb: number[]): RelationPair[] | undefined => {
+    const words = Math.ceil(gb.length / 32);
+    const bits = (keep: (j: number) => boolean) => {
+      const s = new Uint32Array(words);
+      gb.forEach((j, x) => { if (keep(j)) s[x >>> 5] |= 1 << (x & 31); });
+      return s;
+    };
+    const safe = ga.map((i) => bits((j) => !unsafe.has(i * nb + j)));
+    const whole = bits(() => true);
+    const intents = new Map<string, Uint32Array>([[whole.join(), whole]]);
+    for (const s of safe) {
+      for (const B of [...intents.values()]) {
+        const C = B.map((w, x) => w & s[x]);
+        if (intents.has(C.join())) continue;
+        if (intents.size >= ctx.maxConcepts) return undefined;
+        intents.set(C.join(), C);
+      }
+    }
+    return [...intents.values()].map((B) => ({
+      extent: ga.filter((_, g) => safe[g].every((w, x) => ((w & B[x]) >>> 0) === B[x])),
+      intent: gb.filter((_, x) => (B[x >>> 5] >>> (x & 31)) & 1),
+    }));
+  };
+  /** Where a pair's composite misses the target: the first such situation, and how many there are. */
+  const coverage = (c: RelationPair) => {
+    const inA = new Set(c.extent), inB = new Set(c.intent);
+    let count = 0;
+    let first: { input: Array<Endpoint & { value: string }>; target: string[][]; delivered: string[][]; missing: string[][] } | undefined;
+    for (const { u, goal, by } of points) {
+      const delivered = new Map([...by].filter(([, ps]) => ps.some((x) => inA.has(Math.floor(x / nb)) && inB.has(x % nb))).map(([y]) => [y, goal.get(y)!]));
+      const missing = [...goal].filter(([y]) => !delivered.has(y));
+      if (!missing.length) continue;
+      count++;
+      first ??= { input: situation(u), target: sorted(goal), delivered: sorted(delivered), missing: sorted(new Map(missing)) };
+    }
+    return { uncovered: first, uncoveredInputs: count };
+  };
+  const relations = (c: RelationPair) => ({ [ida]: c.extent.map((i) => a.asRow(a.rows[i])), [idb]: c.intent.map((j) => b.asRow(b.rows[j])) });
+  /** A pair as returned: each box's rows (truncated) and how many there are. */
+  const listed = (c: RelationPair) => ({
+    spec: { [ida]: c.extent.slice(0, LISTED_ROWS).map((i) => a.asRow(a.rows[i])), [idb]: c.intent.slice(0, LISTED_ROWS).map((j) => b.asRow(b.rows[j])) },
+    specRows: { [ida]: c.extent.length, [idb]: c.intent.length },
+    specTruncated: c.extent.length > LISTED_ROWS || c.intent.length > LISTED_ROWS,
+  });
+  // Independent re-check: declare both relations and compare the concept's relation with the target.
+  const recheck = (c: RelationPair, covers: boolean) => {
+    if (!c.extent.length || !c.intent.length) return;
+    const m = declare(concept, relations(c));
+    const again = evaluate(m, plan(m, observe, inScope), observe, max);
+    if (!again.ok) throw new Error(`invariant: re-evaluating the pair failed: ${again.errors.join("; ")}`);
+    for (const { u, goal } of points) {
+      const got = outputsAt(again, conceptInputs, space.at, u);
+      const outside = [...got.keys()].some((y) => !goal.has(y)), short = [...goal.keys()].some((y) => !got.has(y));
+      if (outside || (covers && short)) throw new Error(`invariant: the declared pair ${outside ? "leaves" : "does not cover"} the target at input [${u.join(", ")}]`);
+    }
+  };
+
+  const cut = (x: OpenBox) => x.rows.flatMap((r, i) => (!x.producible || x.producible.has(tupleKey(r)) ? [i] : []));
+  const every = (x: OpenBox) => x.rows.map((_, i) => i);
+  const bounded = Boolean(a.producible || b.producible);
+  const common = {
+    boxes: [ida, idb],
+    ports: Object.fromEntries([a, b].map((x) => [x.hole.id, { inputs: (x.hole.inputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })), outputs: (x.hole.outputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })) }])),
+    candidateRows: { [ida]: a.rows.length, [idb]: b.rows.length },
+    unsafePairs: unsafe.size,
+    excluded: [...unsafe].sort(([x], [y]) => x - y).slice(0, LISTED).map(([x, v]) => ({
+      rows: { [ida]: a.asRow(a.rows[Math.floor(x / nb)]), [idb]: b.asRow(b.rows[x % nb]) }, input: situation(v.input), delivers: v.outputs, target: v.target,
+    })),
+    ...(bounded ? { producible: Object.fromEntries([a, b].flatMap((x) => (x.producible ? [[x.hole.id, { declared: x.producible.size }]] : []))) } : {}),
+    deliverables: ctx.target, gainedDeliverables: ctx.gainedDeliverables, inputs: space.inputs, inputValuations: valuations, composed: ctx.composed, assumption: ASSUMPTION,
+  };
+  const both = `'${ida}' and '${idb}'`;
+  const conceptCap = {
+    ok: true as const, verdict: "undecided" as const, reason: "concept-cap" as const, ...common,
+    note: `The safe row pairs of ${both} have more than ${ctx.maxConcepts} formal concepts (maximal pairs of relations), so nothing is decided. Their number can grow exponentially with the rows. Declare fewer values on the boxes' ports, declare producible rows to cut them, or declare the behaviour of one box.`,
+  };
+  const physics = ` It holds for the other boxes' relations as declared; whether physical ${both} can meet it, and at what cost, is outside the kernel.`;
+
+  const within = concepts(cut(a), cut(b));
+  if (!within) return conceptCap;
+  const scored = within.map((c) => ({ ...c, ...coverage(c) }));
+  const covering = scored.filter((c) => !c.uncovered);
+  if (covering.length) {
+    covering.slice(0, LISTED).forEach((c) => recheck(c, true));
+    const weakest = covering.length === 1;
+    const scope = bounded ? "within the producible rows, " : "";
+    return {
+      ok: true as const, verdict: "spec" as const, preserves: true as const, ...common, maximalPairs: within.length, weakest,
+      specs: covering.slice(0, LISTED).map(listed), specCount: covering.length,
+      basis: ["safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"] as Theorem[],
+      note: (weakest
+        ? `The weakest specification for ${both} together: ${scope}the one maximal pair of relations whose composite covers the target (a formal concept of the safe row pairs). Declaring both gives exactly the target, and every pair of relations for them${bounded ? " within the producible rows" : ""} that gives the target is contained in it.`
+        : `${covering.length} maximal pairs of relations for ${both} give the target (specs; ${scope}formal concepts of the safe row pairs). Declaring any of them gives exactly the target, and every pair of relations${bounded ? " within the producible rows" : ""} that gives it is contained in at least one of them. They are incomparable: of any two, each allows a row the other forbids, since allowing more rows of '${ida}' leaves fewer safe rows of '${idb}'. So there is no single weakest pair, and what one box must do depends on what the other does. Choose one by what each box can do.`)
+        + physics,
+    };
+  }
+  scored.slice(0, LISTED).forEach((c) => recheck(c, false));
+  const witnessed = (cs: typeof scored) => cs.slice(0, LISTED).map((c) => ({ ...listed(c), uncovered: c.uncovered!, uncoveredInputs: c.uncoveredInputs }));
+  const whole = bounded ? concepts(every(a), every(b)) : within;
+  if (!whole) return conceptCap;
+  const wouldGive = bounded ? whole.filter((c) => !coverage(c).uncovered) : [];
+  if (wouldGive.length) {
+    wouldGive.slice(0, LISTED).forEach((c) => recheck(c, true));
+    return {
+      ok: true as const, verdict: "impossible" as const, reason: "infeasible" as const, preserves: false as const, ...common, maximalPairs: within.length,
+      pairs: witnessed(scored), wouldGive: wouldGive.slice(0, LISTED).map(listed), wouldGiveCount: wouldGive.length,
+      basis: ["exists_eq₂_iff"] as Theorem[],
+      note: `No pair of relations ${both} can produce gives the target relation. Some pair would: ${wouldGive.length} maximal pair(s) over all their rows give it (wouldGive), and each holds a row that is not producible. Within the producible rows, each of the ${within.length} maximal pairs (pairs) misses the target outputs under its uncovered. Make more rows producible, or change another box or the wiring.`,
+    };
+  }
+  const reported = whole === within ? scored : whole.map((c) => ({ ...c, ...coverage(c) }));
+  if (whole !== within) reported.slice(0, LISTED).forEach((c) => recheck(c, false));
+  return {
+    ok: true as const, verdict: "impossible" as const, reason: "not-covered" as const, preserves: false as const, ...common, maximalPairs: whole.length,
+    pairs: witnessed(reported),
+    basis: ["exists_eq₂_iff"] as Theorem[],
+    note: `No pair of relations for ${both} gives the target relation${bounded ? ", producible or not" : ""}. Every pair that keeps the composite inside the target lies within one of the ${whole.length} maximal pairs (pairs: formal concepts of the safe row pairs), and each misses the target outputs under its uncovered. Change another box or the wiring.`
+      + (unsafe.size === pairs ? ` No pair of rows is safe: every row of '${ida}' beside every row of '${idb}' takes the composite outside the target.` : ""),
+  };
+}
+
+/** The weakest specification for the concept's one or two boxes without behaviour, against the baseline (compare_to). */
+export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions = {}) {
   const checked = checkModel(concept, "$.model");
   if (!checked.ok) return fail(checked.issues);
   return scoped(residualSpec(concept, baseline, opts, "compare_to"), opts.scope ?? "upstream");
 }
 
-/** Perform a trim and give the weakest specification for the one box without behaviour, against the untrimmed model. */
-export function weakestTrimSpec(model: FunctionModel, spec: BehaviorOptions & { trim: string[]; absorb?: Record<string, Endpoint> }) {
+/** Perform a trim and give the weakest specification for the one or two boxes without behaviour, against the untrimmed model. */
+export function weakestTrimSpec(model: FunctionModel, spec: BehaviorOptions & { trim: string[]; absorb?: Record<string, Endpoint>; maxConcepts?: number }) {
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
   if (!applied.ok) return applied;
-  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, scope: spec.scope }, "baseline"), spec.scope ?? "upstream");
+  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, maxConcepts: spec.maxConcepts, scope: spec.scope }, "baseline"), spec.scope ?? "upstream");
   return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : rebase(r, TRIMMED);
 }
 
@@ -960,24 +1194,101 @@ function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>
 }
 
 /**
+ * One prior entry: for a situation input port (box and port), or every situation input of a
+ * carrier, the prior mass of each declared value.
+ */
+export type Prior = { box?: string; port?: string; carrier?: string; weights: Record<string, number> };
+
+/**
+ * Resolve the priors over the situation inputs into one weight per valuation. A weight of 0 rules
+ * a value out; an unlisted input or value counts 1, so the weights multiply to the uniform measure
+ * of the count when every weight is 1. Fails closed on an entry that names neither or both of a
+ * port and a carrier, an input that is not a situation input, a carrier no input carries, an entry
+ * listed twice, an undeclared value, and a weight that is not a nonnegative number.
+ */
+function resolvePriors(inputs: Typed[], domain: Map<string, string[]>, priors: Prior[]): { ok: true; weight: (u: string[]) => number } | Failure {
+  const issues: Issue[] = [];
+  const push = (path: string, message: string, hint: string) => issues.push(issue("invalid-prior", path, message, hint));
+  // situations() keys each input's declared values by its carrier and port, so two inputs of one carrier can differ.
+  const valuesOf = (q: Typed) => domain.get(q.carrier + "\u0000" + endKey(q)) ?? [];
+  const byPort = new Map<string, Record<string, number>>(), byCarrier = new Map<string, Record<string, number>>();
+  priors.forEach((a, k) => {
+    const here = jp("$.priors", k);
+    const named = a.box !== undefined || a.port !== undefined;
+    if (named === (a.carrier !== undefined)) {
+      push(here, "priors: each entry names a situation input port (box and port) or a carrier, not both or neither",
+        `Give either box and port of a situation input (${quoted(inputs.map(label))}) or a carrier, not both.`);
+      return;
+    }
+    if (named && (a.box === undefined || a.port === undefined)) {
+      push(here, "priors: an entry that names a port gives both box and port", "Give both box and port of a situation input.");
+      return;
+    }
+    const q = named ? inputs.find((x) => x.box === a.box && x.port === a.port) : undefined;
+    if (named && !q) {
+      push(here, `priors: '${a.box}.${a.port}' is not a situation input`, `Name a boundary input the situations range over: ${quoted(inputs.map(label))}.`);
+      return;
+    }
+    const carrier = q ? q.carrier : a.carrier!;
+    const ofCarrier = named ? [q!] : inputs.filter((x) => x.carrier === carrier);
+    if (!named && !ofCarrier.length) {
+      push(jp(here, "carrier"), `priors: carrier '${carrier}' is the carrier of no situation input`,
+        `Name a carrier a situation input carries: ${quoted([...new Set(inputs.map((x) => x.carrier))])}.`);
+      return;
+    }
+    const name = named ? label(q!) : `carrier '${carrier}'`;
+    const into = named ? byPort : byCarrier, key = named ? endKey(q!) : carrier;
+    if (into.has(key)) { push(here, `priors: '${name}' is listed twice`, `List '${name}' once, with every weight.`); return; }
+    const table: Record<string, number> = {};
+    for (const [v, w] of Object.entries(a.weights)) {
+      if (typeof w !== "number" || !Number.isFinite(w) || w < 0) push(jp(here, "weights", v), `priors: the weight of value '${v}' of '${name}' is not a nonnegative number`, "Give each value a weight of 0 or more; a weight of 0 rules the value out.");
+      if (ofCarrier.some((x) => !valuesOf(x).includes(v))) push(jp(here, "weights", v), `priors: value '${v}' of '${name}' is not declared by carrier '${carrier}' as some input reading it declares it`,
+        `Weight values every input of ${name} declares: ${quoted([...new Set(ofCarrier.flatMap(valuesOf))])}.`);
+      table[v] = w;
+    }
+    into.set(key, table);
+  });
+  if (issues.length) return fail(issues);
+  const perInput = inputs.map((q) => {
+    const table = byPort.get(endKey(q)) ?? byCarrier.get(q.carrier) ?? {};
+    return (v: string) => (Object.hasOwn(table, v) ? table[v] : 1);
+  });
+  return { ok: true as const, weight: (u: string[]) => perInput.reduce((p, w, i) => p * w(u[i]), 1) };
+}
+
+/**
  * Rank concepts that declare behaviour by the situations they admit. A situation is a valuation of
  * the union of the concepts' boundary inputs over their carriers' declared values: the operating
  * situations of weakness.md's step 1, declared in the model. A concept admits a situation when it
  * has a steady state there and every deliverable output there is acceptable (`acceptable`: per
  * deliverable port, the values that are). Concepts are ordered by inclusion of what they admit;
  * incomparable pairs are reported with a witness each way. The count of admitted situations is a
- * secondary figure: it depends on how finely the carriers' values are declared.
+ * secondary figure: it depends on how finely the carriers' values are declared. With `priors`
+ * (weakness.md: a real prior beats the uniform assumption), each concept also gets the total prior
+ * mass of what it admits (`weightedAdmitted`, ranked in `byWeight`); an unlisted input or value
+ * counts 1, and the inclusion ranking never changes. `jointPrior` is the alternative for
+ * correlated inputs: an explicit weight for every complete situation, with no independence
+ * assumption, reported separately (`jointAdmittedWeight`, `jointAdmittedProbability`, ranked in
+ * `byJointPrior`); it too never moves an inclusion. The two are exclusive.
  *
  * Fails closed: concepts must deliver the same ports (a concept that drops a deliverable has fewer
  * outputs to be acceptable and would look weaker), `acceptable` must cover every deliverable with
- * declared values, and an input several concepts read must range over the same values. Missing
- * behaviour or the state cap is `undecided`.
+ * declared values, an input several concepts read must range over the same values, a prior
+ * entry must name a situation input or its carrier with nonnegative weights over declared values,
+ * and a joint prior must list every complete situation exactly once with a positive total.
+ * Missing behaviour or the state cap is `undecided`.
  */
-export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: BehaviorOptions & { prior?: JointPriorRow[] } = {}) {
+export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: WeaknessOptions = {}) {
   return scoped(weaknessRankingScoped(concepts, acceptable, opts), opts.scope ?? "upstream");
 }
-function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: BehaviorOptions & { prior?: JointPriorRow[] }) {
+/** weaknessRanking's options: the scope and cap, and at most one of the two priors. */
+export type WeaknessOptions = BehaviorOptions & { priors?: Prior[]; jointPrior?: JointPriorRow[] };
+function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: WeaknessOptions) {
   const issues: Issue[] = [];
+  if (opts.priors !== undefined && opts.jointPrior !== undefined) {
+    return fail([issue("invalid-prior", "$.joint_prior", "priors and joint_prior are both given: give one prior over the operating situations",
+      "Use priors for independent per-input weights, or joint_prior for an explicit weight per complete situation (correlated inputs), not both.")]);
+  }
   if (!concepts.length) return fail([issue("empty-set", "$.concepts", "no concepts to rank", "Supply at least one concept.")]);
   const ids = concepts.map((c) => c.id);
   const root = (i: number) => jp("$.concepts", i, "model");
@@ -1014,18 +1325,21 @@ function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionMode
   }
   const space = situations(concepts.map((c, i) => ({ name: `concept '${c.id}'`, inputs: evals[i].inputs, carriers: c.model.carriers, root: root(i) })));
   if (!space.ok) return space;
+  const prior = opts.priors ? resolvePriors(space.inputs, space.domain, opts.priors) : null;
+  if (prior && !prior.ok) return prior;
+  const weight = prior ? prior.weight : null;
   const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
   if (valuations > max) return capped(capFail(`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`, "$.concepts", "Declare fewer values on the situation inputs' carriers, or give the same operating condition the same box and port id in every concept."));
   const ok = (y: string[]) => y.every((x, j) => accept.get(endKey(target[j]))!.has(x));
   const all = [...valuationsOf(space.typed, space.domain)];
   const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
 
-  let prior: { weights: Map<string, number>; totalWeight: number } | undefined;
-  if (opts.prior !== undefined) {
+  let joint: { weights: Map<string, number>; totalWeight: number } | undefined;
+  if (opts.jointPrior !== undefined) {
     const weights = new Map<string, number>();
     let totalWeight = 0;
-    for (const [i, row] of opts.prior.entries()) {
-      const path = jp("$.prior", i);
+    for (const [i, row] of opts.jointPrior.entries()) {
+      const path = jp("$.joint_prior", i);
       if (!Number.isFinite(row.weight) || row.weight < 0) return fail([issue("prior-malformed", jp(path, "weight"), "joint prior weights must be finite and nonnegative", "Give a finite nonnegative weight, including zero for an impossible situation.")]);
       const r = completeSituation(row.input, space.inputs, space.typed.map((q) => space.domain.get(q.carrier)!), jp(path, "input"), "prior-malformed");
       if (!r.ok) return r;
@@ -1034,9 +1348,9 @@ function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionMode
       weights.set(key, row.weight);
       totalWeight += row.weight;
     }
-    if (weights.size !== all.length) return fail([issue("prior-malformed", "$.prior", `the joint prior covers ${weights.size} of ${all.length} operating situations: mass is missing`, "List every complete joint assignment exactly once, including zero-weight situations; no independence or missing-mass assumption is made.")]);
-    if (!Number.isFinite(totalWeight) || totalWeight <= 0) return fail([issue("prior-malformed", "$.prior", "the joint prior must have finite positive total weight", "Supply finite nonnegative weights with a finite positive total; zero-weight situations may still be listed.")]);
-    prior = { weights, totalWeight };
+    if (weights.size !== all.length) return fail([issue("prior-malformed", "$.joint_prior", `the joint prior covers ${weights.size} of ${all.length} operating situations: mass is missing`, "List every complete joint assignment exactly once, including zero-weight situations; no independence or missing-mass assumption is made.")]);
+    if (!Number.isFinite(totalWeight) || totalWeight <= 0) return fail([issue("prior-malformed", "$.joint_prior", "the joint prior must have finite positive total weight", "Supply finite nonnegative weights with a finite positive total; zero-weight situations may still be listed.")]);
+    joint = { weights, totalWeight };
   }
 
   const admits = evals.map((e) => all.map((u) => {
@@ -1050,9 +1364,10 @@ function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionMode
     const firstRejected = a.findIndex((x) => x !== "admitted");
     return {
       id: c.id, reads: reads[i], admitted: a.filter((x) => x === "admitted").length,
-      ...(prior ? {
-        admittedWeight: all.reduce((sum, u, n) => sum + (a[n] === "admitted" ? prior!.weights.get(tupleKey(u))! : 0), 0),
-        admittedProbability: all.reduce((sum, u, n) => sum + (a[n] === "admitted" ? prior!.weights.get(tupleKey(u))! / prior!.totalWeight : 0), 0),
+      ...(weight ? { weightedAdmitted: all.reduce((s, u, n) => s + (a[n] === "admitted" ? weight(u) : 0), 0) } : {}),
+      ...(joint ? {
+        jointAdmittedWeight: all.reduce((sum, u, n) => sum + (a[n] === "admitted" ? joint!.weights.get(tupleKey(u))! : 0), 0),
+        jointAdmittedProbability: all.reduce((sum, u, n) => sum + (a[n] === "admitted" ? joint!.weights.get(tupleKey(u))! / joint!.totalWeight : 0), 0),
       } : {}),
       rejected: { noSteadyState: a.filter((x) => x === "no-steady-state").length, unacceptable: a.filter((x) => Array.isArray(x)).length },
       admittedSituations: all.filter((_, n) => a[n] === "admitted").slice(0, LISTED).map((u) => u),
@@ -1082,13 +1397,16 @@ function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionMode
     situations: space.inputs, situationCount: valuations, readByOne,
     weakest, maximal, pairs, concepts: perConcept,
     byCount: [...perConcept].sort((a, b) => b.admitted - a.admitted).map((c) => ({ id: c.id, admitted: c.admitted })),
-    ...(prior ? {
-      prior: { kind: "joint" as const, totalWeight: prior.totalWeight, coveredSituations: prior.weights.size },
-      byPrior: [...perConcept].sort((a, b) => b.admittedProbability! - a.admittedProbability!).map((c) => ({ id: c.id, admittedWeight: c.admittedWeight!, admittedProbability: c.admittedProbability! })),
+    ...(weight ? { byWeight: perConcept.map((c) => ({ id: c.id, weightedAdmitted: c.weightedAdmitted as number })).sort((x, y) => y.weightedAdmitted - x.weightedAdmitted) } : {}),
+    ...(joint ? {
+      jointPrior: { totalWeight: joint.totalWeight, coveredSituations: joint.weights.size },
+      byJointPrior: [...perConcept].sort((a, b) => b.jointAdmittedProbability! - a.jointAdmittedProbability!).map((c) => ({ id: c.id, jointAdmittedWeight: c.jointAdmittedWeight!, jointAdmittedProbability: c.jointAdmittedProbability! })),
     } : {}),
     assumption: assumption(opts.scope ?? "upstream"),
     note: (weakest.length ? `Weakest: ${weakest.map((id) => `'${id}'`).join(", ")} admits every situation any other concept admits.` : `No concept admits every situation the others admit: the maximal concepts ${maximal.map((id) => `'${id}'`).join(", ")} are incomparable (pairs).`)
       + (readByOne.length ? ` ${readByOne.length} situation input(s) are read by one concept only (readByOne); the other concepts admit or reject regardless of them. If one names the same operating condition as another concept's input, give both the same box and port id (an environment box with an unwired input), or the ranking treats them as distinct operating variables. An explicit joint prior may correlate those variables.` : "")
-      + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. An explicit joint prior, when supplied, gives the separate byPrior order and does not change inclusion; zero-weight extra situations can tie byPrior despite strict inclusion. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md).",
+      + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md)."
+      + (weight ? " weightedAdmitted is each concept's total prior mass over the situations it admits (an unlisted input or value counts 1), and byWeight ranks by it; the uniform count is Bennett's measure, and a real prior overrides it (weakness.md). Weights change no inclusion: the pairs and the weakest are the same as under the count." : "")
+      + (joint ? " An explicit joint prior gives the separate byJointPrior order (jointAdmittedWeight, and jointAdmittedProbability over its total) and does not change inclusion; zero-weight extra situations can tie byJointPrior despite strict inclusion." : ""),
   };
 }

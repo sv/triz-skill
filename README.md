@@ -207,13 +207,17 @@ decides a concept against a baseline instead of only screening it: `preserved`, 
 a counterexample input, or `undecided` (boxes that need behaviour, or no steady state in either
 model). The concept can be a trim or any `triz_transform` result; a segment's `boxMap` maps its
 parts back. Segmentation gives each part its projection of the box's relation when that relation
-is the product of the projections, and Intermediary's mediator can declare an identity relation.
+is the product of the projections, and suggests the finest partition of the box's ports for
+which it is; Intermediary's mediator can declare an identity relation.
 The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
 weakest specification for the one box without behaviour, such as an absorber: every row that
 keeps the relation inside the target. The verdict is `spec` when that specification also covers
 the target, and `impossible` when no behaviour of the box can. When the box declares the rows it
 can physically produce (`producible`), the specification is cut down to them, and a target only
-unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. `triz_weakness` ranks modelled
+unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. With two
+boxes without behaviour, such as an absorber and a new mediator, it gives the maximal pairs of
+relations for them that cover the target; several such pairs are incomparable, so there may be
+no weakest one. `triz_weakness` ranks modelled
 concepts by the situations they admit (references/weakness.md).
 
 When boxes declare feasibility (minimal rows of levels provided against levels required and
@@ -312,7 +316,9 @@ with no `sorry`:
   composite inside a target form the weakest specification (a Galois connection), and the target
   is reachable iff that specification's composite covers it; within the rows the box can
   produce, iff the specification cut down to them covers it, and a relation that reaches the
-  target holds, for each target pair, a row of the specification that delivers it;
+  target holds, for each target pair, a row of the specification that delivers it; for two
+  unknown boxes the maximal safe pairs of relations are the formal concepts of the safe row
+  pairs, and the target is reachable iff one of them covers it;
 - concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
   strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
@@ -341,7 +347,14 @@ trimming as a Kan extension; categorical-model.md says why.
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
 (cd theory && lake exe cache get && lake build --wfail)
 node scripts/certify.mjs --local --tamper theory/Certificates/*.lean   # tampered copies must fail
+TRIZ_SKIP_LEAN=1 pnpm test        # skip the Lean-backed tests even where theory/ is built
 ```
+
+Once `theory/` is built, `pnpm test` also runs the Lean-backed certificate tests. Each such test
+starts one Lean process, which loads the theory's whole import closure (about 2.5 GiB of Lean and
+Mathlib). `TRIZ_SKIP_LEAN=1` skips them. CI runs them with `TRIZ_REQUIRE_LEAN=1`, which fails when
+Lean is missing, whatever `TRIZ_SKIP_LEAN` says. `certify.mjs` checks all its files and their
+tampered copies in one Lean process.
 
 ## Optional: your own network of problems
 
@@ -423,6 +436,14 @@ construction.
 - The code in this repository is MIT licensed (`LICENSE`). That license covers the code and the
   original prose, not third-party data noted above.
 
+
+## Roadmap
+
+The ranked backlog of the categorical-model work — certificates for the verdicts that have
+none, properties to promote from tested to proved, and the larger categorical closures — lives
+in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in
+categorical-model.md's "What is not claimed". The acceptance criteria of the assurance
+workstreams are in [docs/categorical-future-plan.md](docs/categorical-future-plan.md).
 
 ## Publishing and distribution
 

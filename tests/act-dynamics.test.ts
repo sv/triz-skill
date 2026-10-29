@@ -490,7 +490,7 @@ test("loop classification: an absorbing unsafe state is trapped; one the run can
   const [back] = renewed.loops.recurrent!;
   assert.deepEqual([back.component, back.from, back.time, back.trace.map((st) => st.state[0])], [0, "initial", 1, ["thin", "thick"]]);
   assert.deepEqual(back.safe, { state: ["thin"], values: [] });
-  assert.deepEqual(back.basis, ["closed_reachIn", "reach_of_trace"]);
+  assert.deepEqual(back.basis, ["closed_reachIn", "recurrent_reach", "reach_of_trace"]);
   assert.match(renewed.loops.note, /it can recover, but it never leaves the component/);
   // The escalation verdict is the same for both: the unsafe state is reachable; only the class differs.
   assert.deepEqual([absorbing.escalation?.verdict, renewed.escalation?.verdict], ["reachable", "reachable"]);

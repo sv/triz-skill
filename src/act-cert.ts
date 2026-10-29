@@ -12,7 +12,7 @@
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
 import { at, fail, issue, quoted, type Failure } from "./act-issues.js";
-import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable, type BehaviorScope, type JointPriorRow } from "./act-behavior.js";
+import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable, type BehaviorScope, type JointPriorRow, type Prior } from "./act-behavior.js";
 import { applyTrim } from "./act-rewrite.js";
 import { boundedDynamics, reachedStates, type DynamicsSpec } from "./act-dynamics.js";
 
@@ -24,7 +24,7 @@ export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
 /** Exact source pins; refresh deliberately when the theory or model schema changes. */
-export const CERTIFICATE_THEORY_SOURCE = "5da3177cd95634e5e12781b6fc3ed8ba4fd0f277692aefab222bc7b1b294e7f4";
+export const CERTIFICATE_THEORY_SOURCE = "4f454df65878905dd9699e724c45298293803cd76d6d256344c7ce5f9c102893";
 export const CERTIFICATE_SCHEMA_SOURCE = "c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
@@ -36,7 +36,7 @@ export type CertificateRequest =
   | { kind: "model"; model: FunctionModel }
   | { kind: "separation"; contradiction: PhysicalContradiction }
   | { kind: "dynamics"; model: FunctionModel; spec: DynamicsSpec }
-  | { kind: "weakness"; concepts: Array<{ id: string; model: FunctionModel }>; acceptable: Acceptable[]; scope?: BehaviorScope; maxStates?: number; prior?: JointPriorRow[] }
+  | { kind: "weakness"; concepts: Array<{ id: string; model: FunctionModel }>; acceptable: Acceptable[]; scope?: BehaviorScope; maxStates?: number; priors?: Prior[]; jointPrior?: JointPriorRow[] }
   | { kind: "behavior"; baseline: FunctionModel; concept: FunctionModel; scope?: BehaviorScope; maxStates?: number; boxMap?: Record<string, string> };
 export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[]; manifest: CertificateManifest } | Failure;
 
@@ -578,10 +578,10 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
  * Admission requires existence AND acceptance of every output. Rows are encoded independently
  * of the verdict and checked over every valuation, subject to MAX_CERT_ROWS.
  */
-export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { namespace?: string; maxStates?: number; scope?: BehaviorScope; prior?: JointPriorRow[] } = {}): Certificate {
+export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { namespace?: string; maxStates?: number; scope?: BehaviorScope; priors?: Prior[]; jointPrior?: JointPriorRow[] } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
-  const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates, scope: opts.scope, prior: opts.prior });
+  const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates, scope: opts.scope, priors: opts.priors, jointPrior: opts.jointPrior });
   if (!r.ok) return r;
   if (r.verdict !== "ranked") {
     return fail([issue("not-certifiable", "$.concepts", `the ranking is ${r.verdict}: ${r.note}`, "Decide the ranking first (declare the missing behaviour, or reduce the values below the cap); only a decided ranking is certified.")]);
@@ -697,7 +697,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
       { theorem: `${ns}.count_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' admits strictly more situations than '${concepts[s].id}'` },
     );
   }
-  return certified({ kind: "weakness", concepts, acceptable, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.prior !== undefined ? { prior: opts.prior } : {}) }, ns, assemble("all pairs of a weakness ranking", ns, [lines]), certifies);
+  return certified({ kind: "weakness", concepts, acceptable, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.priors !== undefined ? { priors: opts.priors } : {}), ...(opts.jointPrior !== undefined ? { jointPrior: opts.jointPrior } : {}) }, ns, assemble("all pairs of a weakness ranking", ns, [lines]), certifies);
 }
 
 type DecidedDynamics = Extract<ReturnType<typeof boundedDynamics>, { decided: true }>;

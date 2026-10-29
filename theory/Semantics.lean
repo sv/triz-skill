@@ -21,6 +21,9 @@ proves that it is compositional:
   wires join exactly the matching loop ports (`external_feedbackAlong`); `feedback` does so by
   construction (`external_feedback`);
 - widening a box's relation widens the external relation (`external_mono`);
+- with one box left open as a hole, the external relation preserves unions in the hole's relation
+  (`holeContext_preservesUnions`), the hypothesis of the residual lemmas behind the weakest
+  specification; with two holes it does so in each (`holeContext₂_preservesUnions₂`);
 - series composition and the identity make open diagrams, identified when their external relations
   agree, a category, with a faithful functor to Mathlib's `RelCat` (`semantics`). The functor laws
   are `external_seq` and `external_id`. Diagrams side by side are sent to the product of relations
@@ -314,10 +317,11 @@ theorem external_mono (d : OpenDiagram V I O) {A A' : d.Box → Set (d.Port → 
   rintro x y ⟨s, ⟨hv, hb, hw⟩, hx, hy⟩
   exact ⟨s, ⟨hv, fun b => h b (hb b), hw⟩, hx, hy⟩
 
-/-! ## Explicit bridges for finite certificate row tables and one-hole contexts
+/-! ## Explicit bridges for finite certificate row tables
 
-These theorems relate the two Lean representations. They do not prove that the TypeScript
-encoder or evaluator implements either representation correctly. -/
+These theorems relate the two Lean representations: the certificates' row tables (`Rows`) and
+open diagrams. They do not prove that the TypeScript encoder or evaluator implements either
+representation correctly. One-hole and two-hole contexts are in "A box left open" below. -/
 
 /-- A row table as an open diagram over the encoded values. -/
 def rowsDiagram {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
@@ -364,6 +368,80 @@ theorem rows_relation_iff_external {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr 
     · intro o
       exact congrFun ho o
 
+/-! ## A box left open
+
+The weakest specification fixes every box but one and asks what that box must do. Here the open
+box is a hole added to a diagram `d`: a relation `R` from its input ports `pin` to its output
+ports `pout` (`withHole`). A kernel box is declared by rows over its own ports (`ofRows`), so a
+kernel model with a chosen box is `d` with that box removed and put back as a hole. The context sends `R` to the external relation (`holeContext`), and it preserves
+unions (`holeContext_preservesUnions`): a related pair needs exactly one row of the hole. So the
+residual lemmas of `CategoricalTriz` hold for the semantics itself. With two holes it preserves
+unions in each (`holeContext₂_preservesUnions₂`), the hypothesis of the two-box lemmas. -/
+
+/-- A box declared by a relation from its input ports `pin` to its output ports `pout`: it admits
+a valuation iff the pair it reads there is related. -/
+def ofRel {Qi Qo P : Type*} (pin : Qi → P) (pout : Qo → P) (R : SetRel (Qi → V) (Qo → V)) :
+    Set (P → V) :=
+  {s | (s ∘ pin, s ∘ pout) ∈ R}
+
+/-- `d` with one more box, the hole, declared by `R` over the ports `pin` and `pout`. -/
+def withHole {Qi Qo : Type*} (d : OpenDiagram V I O) (pin : Qi → d.Port) (pout : Qo → d.Port)
+    (R : SetRel (Qi → V) (Qo → V)) : OpenDiagram V I O :=
+  { d with Box := Option d.Box, behavior := fun b => b.elim (ofRel pin pout R) d.behavior }
+
+/-- The context of the hole: a relation for it goes to the diagram's external relation. -/
+def holeContext {Qi Qo : Type*} (d : OpenDiagram V I O) (pin : Qi → d.Port) (pout : Qo → d.Port)
+    (R : SetRel (Qi → V) (Qo → V)) : SetRel (I → V) (O → V) :=
+  {p | (d.withHole pin pout R).external p.1 p.2}
+
+/-- A steady state with the hole is a steady state of `d` whose ports at the hole read a row. -/
+theorem mem_steadyStates_withHole {Qi Qo : Type*} {d : OpenDiagram V I O} {pin : Qi → d.Port}
+    {pout : Qo → d.Port} {R : SetRel (Qi → V) (Qo → V)} {s : d.Port → V} :
+    s ∈ (d.withHole pin pout R).steadyStates ↔ s ∈ d.steadyStates ∧ (s ∘ pin, s ∘ pout) ∈ R := by
+  change (_ ∧ _ ∧ _) ↔ (_ ∧ _ ∧ _) ∧ _
+  simp only [withHole, Option.forall, Option.elim_none, Option.elim_some]
+  exact ⟨fun ⟨hv, ⟨hR, hb⟩, hw⟩ => ⟨⟨hv, hb, hw⟩, hR⟩, fun ⟨⟨hv, hb, hw⟩, hR⟩ => ⟨hv, ⟨hR, hb⟩, hw⟩⟩
+
+/-- The semantics preserves unions in the hole: a related pair needs exactly one row of it. So
+`le_residual_iff`, `covers_iff_exists_eq`, and the other residual lemmas hold for `external`, for
+every diagram and a hole declared by a relation over its own ports, as every kernel box is. -/
+theorem holeContext_preservesUnions {Qi Qo : Type*} (d : OpenDiagram V I O) (pin : Qi → d.Port)
+    (pout : Qo → d.Port) : PreservesUnions (d.holeContext pin pout) := by
+  intro R
+  ext ⟨x, y⟩
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨s, hs, hx, hy⟩
+    obtain ⟨hs, hR⟩ := mem_steadyStates_withHole.mp hs
+    exact ⟨_, hR, s, mem_steadyStates_withHole.mpr ⟨hs, rfl⟩, hx, hy⟩
+  · rintro ⟨p, hp, s, hs, hx, hy⟩
+    obtain ⟨hs, hR⟩ := mem_steadyStates_withHole.mp hs
+    exact ⟨s, mem_steadyStates_withHole.mpr ⟨hs, Set.mem_singleton_iff.mp hR ▸ hp⟩, hx, hy⟩
+
+/-- The context of two holes, `R₁` at `pin`, `pout` and `R₂` at `pin'`, `pout'`. -/
+def holeContext₂ {Qi Qo Qi' Qo' : Type*} (d : OpenDiagram V I O) (pin : Qi → d.Port)
+    (pout : Qo → d.Port) (pin' : Qi' → d.Port) (pout' : Qo' → d.Port)
+    (R₁ : SetRel (Qi → V) (Qo → V)) (R₂ : SetRel (Qi' → V) (Qo' → V)) : SetRel (I → V) (O → V) :=
+  {p | ((d.withHole pin pout R₁).withHole pin' pout' R₂).external p.1 p.2}
+
+/-- The semantics preserves unions in each of two holes: a related pair needs one row of each. -/
+theorem holeContext₂_preservesUnions₂ {Qi Qo Qi' Qo' : Type*} (d : OpenDiagram V I O)
+    (pin : Qi → d.Port) (pout : Qo → d.Port) (pin' : Qi' → d.Port) (pout' : Qo' → d.Port) :
+    PreservesUnions₂ (d.holeContext₂ pin pout pin' pout') := by
+  intro R₁ R₂
+  ext ⟨x, y⟩
+  simp only [Set.mem_iUnion]
+  constructor
+  · rintro ⟨s, hs, hx, hy⟩
+    obtain ⟨hs, h₂⟩ := mem_steadyStates_withHole.mp hs
+    obtain ⟨hs, h₁⟩ := mem_steadyStates_withHole.mp hs
+    exact ⟨_, h₁, _, h₂, s, mem_steadyStates_withHole.mpr
+      ⟨mem_steadyStates_withHole.mpr ⟨hs, rfl⟩, rfl⟩, hx, hy⟩
+  · rintro ⟨p, hp, q, hq, s, hs, hx, hy⟩
+    obtain ⟨hs, h₂⟩ := mem_steadyStates_withHole.mp hs
+    obtain ⟨hs, h₁⟩ := mem_steadyStates_withHole.mp hs
+    exact ⟨s, mem_steadyStates_withHole.mpr ⟨mem_steadyStates_withHole.mpr
+      ⟨hs, Set.mem_singleton_iff.mp h₁ ▸ hp⟩, Set.mem_singleton_iff.mp h₂ ▸ hq⟩, hx, hy⟩
 
 end OpenDiagram
 

@@ -1987,7 +1987,7 @@
         }
       ],
       "scope": "whole",
-      "prior": [
+      "joint_prior": [
         {
           "input": [
             {

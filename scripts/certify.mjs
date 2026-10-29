@@ -32,9 +32,15 @@
  * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
  * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
+ * Locally, all the files and their tampered copies share one Lean process, so the theory's imports
+ * load once: each copy sits in a namespace of its own at its own line numbers, and Lean's messages
+ * go back to it by line. A copy outside the generator's grammar runs alone, and so does every copy
+ * whose messages the batch cannot place (see runLocalBatch).
+ *
  * Without --request, this checks the statements about the file's tables. --request binds the
  * manifest to authoritative request JSON, independently compares normalized row/wiring/interface
- * data, then regenerates to detect staleness. Regeneration is not an encoder-correctness proof.
+ * data, then regenerates to detect staleness, before any file reaches Lean; a file that is not
+ * bound is not checked. Regeneration is not an encoder-correctness proof.
  * State-only negative claims use invariants over all port valuations. Saturated port-target
  * negatives use finite state invariants against consistent target configurations. Time-varying
  * inputs and negatives supported only to a horizon remain unsupported.
@@ -244,8 +250,11 @@ const FORBIDDEN = /\b(?:set_option|axiom|variable|include|omit|section|macro|mac
  * their pinned statements, and proof lines free of commands and options. This rules out what the
  * axiom audit cannot see, e.g. `set_option debug.skipKernelTC true`, a hidden `variable`
  * hypothesis, a redefined `out`, or a renamed or restated verdict.
+ *
+ * With `pinned: false`, a theorem may state anything free of commands and options: the grammar of
+ * a tampered copy, whose negated verdicts no longer carry their pinned statements.
  */
-export function lint(content) {
+export function lint(content, { pinned = true } = {}) {
   const text = code(content);
   if (text === null) return ["the file is not in the generator's lexical subset (strings, comments, quotes)"];
   const problems = [];
@@ -277,7 +286,7 @@ export function lint(content) {
       if (stack.length !== 1) problems.push(`${at}: open outside the certificate namespace`);
     } else if ((m = /^theorem (\S+) : (.*) :=$/.exec(line))) {
       if (!stack.length) problems.push(`${at}: theorem outside a namespace`);
-      if (!statementOk(m[1], m[2])) problems.push(`${at}: theorem ${m[1]} does not carry its pinned statement`);
+      if (pinned ? !statementOk(m[1], m[2]) : FORBIDDEN.test(m[2])) problems.push(`${at}: theorem ${m[1]} does not carry its pinned statement`);
       block = { kind: "proof" };
     } else if (DECLARATIONS.some((d) => d.test(line))) {
       if (!stack.length) problems.push(`${at}: declaration outside a namespace`);
@@ -296,7 +305,8 @@ export function lint(content) {
   return problems;
 }
 
-const withAxioms = (content) => `${content.trimEnd()}\n\n${theorems(content).map((t) => `#print axioms ${t.name}`).join("\n")}\n`;
+/** `content` with a `#print axioms` for each of its theorems appended: what the acceptance rule runs. */
+export const withAxioms = (content) => `${content.trimEnd()}\n\n${theorems(content).map((t) => `#print axioms ${t.name}`).join("\n")}\n`;
 
 let lake;
 function lakeBin() {
@@ -317,8 +327,11 @@ export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off
   + `holds the model's ids and tables, with theory/CategoricalTriz.lean to AXLE at ${AXLE_URL}.`;
 
 let rebuilt = false;
-/** Run Lean on `content` against theory/; messages carry 1-based lines of `content`. */
-export function runLocal(content) {
+/**
+ * One `lake env lean --json` on `text` against theory/: its messages, at 1-based lines of `text`,
+ * and whether Lean ran cleanly (every output line a message, exit 0, or 1 with an error reported).
+ */
+function runLean(text) {
   const bin = lakeBin();
   if (!bin || !fs.existsSync(OLEAN)) throw new Error(NO_LOCAL_LEAN);
   if (!rebuilt) {
@@ -330,20 +343,95 @@ export function runLocal(content) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "triz-cert-"));
   const file = path.join(dir, "Certificate.lean");
   try {
-    fs.writeFileSync(file, content);
+    fs.writeFileSync(file, text);
     const r = spawnSync(bin, ["env", "lean", "--json", file], { cwd: THEORY_DIR, encoding: "utf8", maxBuffer: 64 << 20 });
     const messages = [];
-    for (const line of r.stdout.split("\n")) {
+    let clean = !r.error && !r.signal;
+    for (const line of (r.stdout ?? "").split("\n")) {
       if (!line.trim()) continue;
       let m;
-      try { m = JSON.parse(line); } catch { messages.push({ severity: "error", line: 0, text: line }); continue; }
+      try { m = JSON.parse(line); } catch { messages.push({ severity: "error", line: 0, text: line }); clean = false; continue; }
       messages.push({ severity: m.severity === "information" ? "info" : m.severity, line: m.pos?.line ?? 0, text: m.data });
     }
-    if (r.status !== 0 && !messages.some((m) => m.severity === "error")) messages.push({ severity: "error", line: 0, text: `lean exited ${r.status}: ${r.stderr}` });
-    return { mode: "local", messages, toolProblems: [] };
+    const errors = messages.some((m) => m.severity === "error");
+    if (r.status !== 0 && !errors) messages.push({ severity: "error", line: 0, text: `lean exited ${r.status ?? r.signal}: ${r.stderr ?? r.error}` });
+    return { messages, clean: clean && (r.status === 0 || (r.status === 1 && errors)) };
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** Run Lean on `content` against theory/; messages carry 1-based lines of `content`. */
+export function runLocal(content) {
+  return { mode: "local", messages: runLean(content).messages, toolProblems: [] };
+}
+
+const BATCH = "TrizBatch";
+
+/**
+ * Whether `content` may share a Lean process with others: it is in the generator's grammar, bar
+ * the pinned statements, so it declares nothing outside its namespaces (no instance, attribute,
+ * option, or `open` that would outlive them) and closes every namespace it opens; and it never
+ * names the batch's namespaces, so it cannot reach another file's declarations.
+ */
+function shareable(content) {
+  return content.startsWith("import CategoricalTriz\n") && !content.includes(BATCH) && lint(content, { pinned: false }).length === 0;
+}
+
+/**
+ * One Lean file for several. File k's import line becomes `namespace TrizBatch<k>`, so its lines
+ * keep their numbers, counted from `start`, and its declarations their names under that prefix; a
+ * sentinel `#print` after its last line shows Lean read it to the end, and `end TrizBatch<k>`
+ * closes it.
+ */
+export function batchFile(texts) {
+  const lines = ["import CategoricalTriz"];
+  const jobs = texts.map((text, k) => {
+    const body = text.split("\n");
+    const prefix = `${BATCH}${k}`, start = lines.length + 1;
+    lines.push(`namespace ${prefix}`, ...body.slice(1), `#print "${prefix} read"`, `end ${prefix}`);
+    return { prefix, start, last: start + body.length - 1 };
+  });
+  return { text: `${lines.join("\n")}\n`, jobs };
+}
+
+/**
+ * Each file's messages from the batch, at the file's own lines and with the prefix taken out of
+ * names; null where they cannot all be placed: a message on the file's wrapper lines or a missing
+ * sentinel, and for every file a message outside all of them or a run that was not clean.
+ */
+export function splitBatch(layout, messages, clean = true) {
+  const out = layout.jobs.map(() => ({ messages: [], read: false, lost: false }));
+  let lost = !clean;
+  for (const m of messages) {
+    const k = layout.jobs.findIndex((j) => m.line >= j.start && m.line <= j.last + 2);
+    if (k < 0) { lost = true; continue; }
+    const j = layout.jobs[k], o = out[k];
+    if (m.line === j.last + 1 && m.severity === "info" && m.text.trim() === `${j.prefix} read` && !o.read) o.read = true;
+    else if (m.line === j.start || m.line > j.last) o.lost = true;
+    else o.messages.push({ ...m, line: m.line - j.start + 1, text: m.text.replaceAll(`${j.prefix}.`, "") });
+  }
+  return out.map((o) => (lost || o.lost || !o.read ? null : o.messages));
+}
+
+/** What Lean runs for a job: a certificate with its `#print axioms` (`audit`), or a tampered copy as it is. */
+const leanText = (job) => (job.audit ? withAxioms(job.content) : job.content);
+
+/**
+ * Run Lean on several jobs against theory/, as runLocal would one by one: every shareable job in
+ * one process, the rest alone, and alone again any job the batch's messages cannot be placed for.
+ */
+export function runLocalBatch(jobs) {
+  const runs = [];
+  const shared = jobs.flatMap((j, i) => (shareable(j.content) ? [i] : []));
+  if (shared.length > 1) {
+    const layout = batchFile(shared.map((i) => leanText(jobs[i])));
+    const r = runLean(layout.text);
+    splitBatch(layout, r.messages, r.clean).forEach((messages, n) => {
+      if (messages) runs[shared[n]] = { mode: "local", messages, toolProblems: [], batched: true };
+    });
+  }
+  return jobs.map((j, i) => runs[i] ?? runLocal(leanText(j)));
 }
 
 /** Run Lean on `content` through AXLE, with the theory inlined; lines are mapped back to `content`. */
@@ -410,11 +498,35 @@ export function accept(content, run) {
 }
 
 /** Lean runs locally unless the caller opts in to AXLE with mode "remote"; there is no fallback. */
-export async function check(content, { mode } = {}) {
-  const grammar = lint(content);
-  if (grammar.length) return { ok: false, mode: "grammar", certified: [], problems: grammar };
-  const run = mode === "remote" ? await runRemote(withAxioms(content)) : runLocal(withAxioms(content));
-  return { ...accept(content, run), info: run.info };
+export async function check(content, opts = {}) {
+  return (await checkAll({ certificates: [content] }, opts)).certificates[0];
+}
+
+/**
+ * Check certificates and tampered copies together, with the verdicts that check and checkTampered
+ * give one at a time. A certificate outside the grammar never reaches Lean. Locally, the rest
+ * share one Lean process where runLocalBatch can place their messages (`batched` counts them);
+ * remotely, each goes to AXLE alone.
+ */
+export async function checkAll({ certificates = [], tampered = [] }, { mode } = {}) {
+  const grammar = certificates.map((c) => lint(c));
+  const jobs = [
+    ...certificates.flatMap((content, i) => (grammar[i].length ? [] : [{ content, audit: true }])),
+    ...tampered.map((v) => ({ content: v.content, audit: false })),
+  ];
+  const runs = [];
+  if (mode === "remote") for (const j of jobs) runs.push(await runRemote(leanText(j)));
+  else runs.push(...runLocalBatch(jobs));
+  let n = 0;
+  return {
+    certificates: certificates.map((content, i) => {
+      if (grammar[i].length) return { ok: false, mode: "grammar", certified: [], problems: grammar[i] };
+      const run = runs[n++];
+      return { ...accept(content, run), info: run.info };
+    }),
+    tampered: tampered.map((v) => rejected(v, runs[n++])),
+    batched: runs.filter((r) => r.batched).length,
+  };
 }
 
 /**
@@ -460,8 +572,12 @@ export function tamperVariants(content) {
  * Check that a tampered certificate fails: Lean reports an error inside each theorem that must
  * fail, and every error lies inside some theorem (none in the data, none a parse error).
  */
-export async function checkTampered(variant, { mode } = {}) {
-  const run = mode === "remote" ? await runRemote(variant.content) : runLocal(variant.content);
+export async function checkTampered(variant, opts = {}) {
+  return (await checkAll({ tampered: [variant] }, opts)).tampered[0];
+}
+
+/** The rule checkTampered applies to Lean's run on a tampered copy. */
+export function rejected(variant, run) {
   const errors = run.messages.filter((m) => m.severity === "error");
   const ranges = spans(variant.content);
   const problems = [];
@@ -614,18 +730,29 @@ export function checkCorrespondence(content, request) {
   return problems;
 }
 
-/** Regeneration detects generator staleness. Independent table checks above check correspondence. */
-export async function checkRequest(content, request, opts = {}) {
+/**
+ * The binding half of checkRequest, without Lean: the problems that keep `content` from being bound
+ * to `request`, none when it is. Regeneration detects generator staleness; the independent table
+ * checks above check correspondence.
+ */
+export function bindRequest(content, request) {
   let problems;
   try { problems = [...lint(content),...checkCorrespondence(content, request)]; }
-  catch (e) { return {ok:false,mode:"binding",certified:[],problems:[`malformed authoritative request: ${e.message ?? e}`]}; }
-  if (problems.length) return { ok:false,mode:"binding",certified:[],problems };
+  catch (e) { return [`malformed authoritative request: ${e.message ?? e}`]; }
+  if (problems.length) return problems;
   const manifest = JSON.parse(literalTables(content).get("certificateManifest"));
-  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,prior:r.prior,boxMap:r.boxMap}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
+  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,priors:r.priors,jointPrior:r.jointPrior,boxMap:r.boxMap}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
   const regen = spawnSync(process.execPath,["--import","tsx","--input-type=module","-e",program],{cwd:path.resolve(here,".."),input:JSON.stringify(request),encoding:"utf8",maxBuffer:64<<20});
-  if (regen.status !== 0) return {ok:false,mode:"binding",certified:[],problems:[`cannot regenerate the authoritative request: ${regen.stderr.trim()}`]};
-  let generated; try { generated=JSON.parse(regen.stdout); } catch { return {ok:false,mode:"binding",certified:[],problems:["generator returned invalid JSON"]}; }
-  if (!generated?.ok || generated.content !== content) return {ok:false,mode:"binding",certified:[],problems:["certificate is stale or differs from current request regeneration; this is a staleness check, not an encoder-correctness proof"]};
+  if (regen.status !== 0) return [`cannot regenerate the authoritative request: ${regen.stderr.trim()}`];
+  let generated; try { generated=JSON.parse(regen.stdout); } catch { return ["generator returned invalid JSON"]; }
+  if (!generated?.ok || generated.content !== content) return ["certificate is stale or differs from current request regeneration; this is a staleness check, not an encoder-correctness proof"];
+  return [];
+}
+
+/** Bind `content` to `request` (bindRequest), then check it as check does; an unbound file never reaches Lean. */
+export async function checkRequest(content, request, opts = {}) {
+  const problems = bindRequest(content, request);
+  if (problems.length) return { ok:false,mode:"binding",certified:[],problems };
   return check(content,opts);
 }
 
@@ -651,10 +778,23 @@ async function main(argv) {
   } else {
     console.log(`Checking locally: lake env lean against ${path.relative(process.cwd(), THEORY_DIR) || "."}/.`);
   }
-  let failed = 0;
-  for (const file of files) {
-    const content = fs.readFileSync(file, "utf8");
-    const r = await (request ? checkRequest(content, request, { mode: remote ? "remote" : "local" }) : check(content, { mode: remote ? "remote" : "local" }));
+  const mode = remote ? "remote" : "local";
+  const contents = files.map((file) => fs.readFileSync(file, "utf8"));
+  // With --request, a file not bound to the request is reported and never reaches Lean.
+  const binding = contents.map((c) => (request ? bindRequest(c, request) : []));
+  const bound = contents.flatMap((_, i) => (binding[i].length ? [] : [i]));
+  // Tampered copies count only for an accepted certificate. Locally, one batch checks every bound
+  // certificate and the copies of those in the grammar; remotely, a copy goes to AXLE only once
+  // its certificate is accepted.
+  const copies = contents.map((c, i) => (tamper && !binding[i].length && !lint(c).length ? tamperVariants(c) : []));
+  const local = remote ? null : await checkAll({ certificates: bound.map((i) => contents[i]), tampered: copies.flat() }, { mode });
+  const checks = bound.filter((i) => !lint(contents[i]).length).length + copies.flat().length;
+  if (local) console.log(`  ${local.batched} of ${checks} Lean checks shared one process.`);
+  let failed = 0, n = 0;
+  for (const [i, file] of files.entries()) {
+    const r = binding[i].length ? { ok: false, mode: "binding", certified: [], problems: binding[i] }
+      : local ? local.certificates[bound.indexOf(i)] : await check(contents[i], { mode });
+    const verdicts = local?.tampered.slice(n, (n += copies[i].length));
     if (r.info) console.log(`  AXLE info: ${JSON.stringify(r.info)}`);
     if (r.ok) {
       console.log(`✓ ${file}: ${r.certified.length} theorems certified (${r.mode})`);
@@ -666,8 +806,9 @@ async function main(argv) {
       continue;
     }
     if (!tamper) continue;
-    for (const v of tamperVariants(content)) {
-      const t = await checkTampered(v, { mode: remote ? "remote" : "local" });
+    const ts = verdicts ?? (await checkAll({ tampered: copies[i] }, { mode })).tampered;
+    for (const [k, v] of copies[i].entries()) {
+      const t = ts[k];
       if (t.ok) console.log(`✓ ${file}: tampered (${v.name}) fails to check, as it must`);
       else {
         failed++;

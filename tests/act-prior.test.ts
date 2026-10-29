@@ -24,40 +24,40 @@ const weighted = (values: Array<[string, number]>): JointPriorRow[] => values.ma
 const two = () => [{ id: "zero", model: concept(["0", "1"], (x) => x === "0") }, { id: "one", model: concept(["0", "1"], (x) => x === "1") }];
 
 test("an explicit joint prior orders incomparable concepts without changing their inclusion order", () => {
-  const a = weaknessRanking(two(), acceptable, { scope: "whole", prior: weighted([["0", 8], ["1", 2]]) });
-  const b = weaknessRanking(two(), acceptable, { scope: "whole", prior: weighted([["0", 2], ["1", 8]]) });
+  const a = weaknessRanking(two(), acceptable, { scope: "whole", jointPrior: weighted([["0", 8], ["1", 2]]) });
+  const b = weaknessRanking(two(), acceptable, { scope: "whole", jointPrior: weighted([["0", 2], ["1", 8]]) });
   assert.ok(a.ok && a.verdict === "ranked" && b.ok && b.verdict === "ranked");
   assert.equal(a.scope, "whole");
   assert.equal(a.pairs[0].order, "incomparable");
   assert.deepEqual(a.pairs[0].basis, ["incomparable_of_witnesses"]);
   assert.deepEqual(a.pairs, b.pairs);
   assert.deepEqual(a.byCount, b.byCount);
-  assert.deepEqual(a.byPrior?.map((c) => c.id), ["zero", "one"]);
-  assert.deepEqual(b.byPrior?.map((c) => c.id), ["one", "zero"]);
-  assert.deepEqual(a.byPrior?.map((c) => c.admittedProbability), [0.8, 0.2]);
-  assert.deepEqual(a.prior, { kind: "joint", totalWeight: 10, coveredSituations: 2 });
+  assert.deepEqual(a.byJointPrior?.map((c) => c.id), ["zero", "one"]);
+  assert.deepEqual(b.byJointPrior?.map((c) => c.id), ["one", "zero"]);
+  assert.deepEqual(a.byJointPrior?.map((c) => c.jointAdmittedProbability), [0.8, 0.2]);
+  assert.deepEqual(a.jointPrior, { totalWeight: 10, coveredSituations: 2 });
 });
 
 test("a strict inclusion can tie under a prior with zero mass on the extra situations", () => {
   const models = [{ id: "narrow", model: concept(["0", "1"], (x) => x === "0") }, { id: "wide", model: concept(["0", "1"], () => true) }];
-  const r = weaknessRanking(models, acceptable, { prior: weighted([["0", 1], ["1", 0]]) });
+  const r = weaknessRanking(models, acceptable, { jointPrior: weighted([["0", 1], ["1", 0]]) });
   assert.ok(r.ok && r.verdict === "ranked");
   assert.deepEqual(r.weakest, ["wide"]);
   assert.equal(r.pairs[0].order, "second-weaker");
   assert.deepEqual(r.byCount, [{ id: "wide", admitted: 2 }, { id: "narrow", admitted: 1 }]);
-  assert.deepEqual(r.byPrior?.map((c) => c.admittedProbability), [1, 1]);
+  assert.deepEqual(r.byJointPrior?.map((c) => c.jointAdmittedProbability), [1, 1]);
 });
 
 test("splitting a carrier value preserves its total prior mass while counts change", () => {
   const coarse = weaknessRanking([{ id: "a", model: concept(["normal", "hot"], (x) => x === "normal") }], acceptable,
-    { prior: weighted([["normal", 8], ["hot", 2]]) });
+    { jointPrior: weighted([["normal", 8], ["hot", 2]]) });
   const fine = weaknessRanking([{ id: "a", model: concept(["normal-a", "normal-b", "hot"], (x) => x.startsWith("normal")) }], acceptable,
-    { prior: weighted([["normal-a", 3], ["normal-b", 5], ["hot", 2]]) });
+    { jointPrior: weighted([["normal-a", 3], ["normal-b", 5], ["hot", 2]]) });
   assert.ok(coarse.ok && coarse.verdict === "ranked" && fine.ok && fine.verdict === "ranked");
   assert.equal(coarse.concepts[0].admitted, 1);
   assert.equal(fine.concepts[0].admitted, 2);
-  assert.equal(coarse.byPrior?.[0].admittedWeight, fine.byPrior?.[0].admittedWeight);
-  assert.equal(coarse.byPrior?.[0].admittedProbability, fine.byPrior?.[0].admittedProbability);
+  assert.equal(coarse.byJointPrior?.[0].jointAdmittedWeight, fine.byJointPrior?.[0].jointAdmittedWeight);
+  assert.equal(coarse.byJointPrior?.[0].jointAdmittedProbability, fine.byJointPrior?.[0].jointAdmittedProbability);
 });
 
 test("correlated input weights are consumed jointly, with no independence assumption", () => {
@@ -66,10 +66,10 @@ test("correlated input weights are consumed jointly, with no independence assump
     // Deliberately reverse endpoint order: the assignment is keyed by port, not array position.
     input: [{ box: "f", port: "z", value: z }, { box: "f", port: "x", value: x }], weight: x === z ? 45 : 5,
   })));
-  const r = weaknessRanking(models, acceptable, { prior });
+  const r = weaknessRanking(models, acceptable, { jointPrior: prior });
   assert.ok(r.ok && r.verdict === "ranked");
   assert.deepEqual(r.byCount.map((c) => c.admitted), [2, 2]);
-  assert.deepEqual(r.byPrior?.map((c) => c.admittedProbability), [0.9, 0.1]);
+  assert.deepEqual(r.byJointPrior?.map((c) => c.jointAdmittedProbability), [0.9, 0.1]);
 });
 
 test("invalid and incomplete joint priors fail closed, including omitted zero mass", () => {
@@ -88,11 +88,11 @@ test("invalid and incomplete joint priors fail closed, including omitted zero ma
     [{ input: [{ box: "f", port: "x", value: "0" }, { box: "f", port: "x", value: "0" }], weight: 1 }, good[1]],
   ];
   for (const prior of broken) {
-    const r = weaknessRanking(two(), acceptable, { prior });
+    const r = weaknessRanking(two(), acceptable, { jointPrior: prior });
     assert.ok(!r.ok, JSON.stringify(prior));
     assert.ok(r.issues.every((i) => i.code === "prior-malformed"));
   }
-  const missingMass = weaknessRanking(two(), acceptable, { prior: [good[0]] });
+  const missingMass = weaknessRanking(two(), acceptable, { jointPrior: [good[0]] });
   assert.ok(!missingMass.ok);
   assert.match(missingMass.errors.join("; "), /mass is missing/);
 });
@@ -100,7 +100,22 @@ test("invalid and incomplete joint priors fail closed, including omitted zero ma
 test("omitting the prior leaves inclusion and count outputs available without probability claims", () => {
   const r = weaknessRanking(two(), acceptable);
   assert.ok(r.ok && r.verdict === "ranked");
-  assert.equal(r.byPrior, undefined);
-  assert.equal(r.prior, undefined);
+  assert.equal(r.byJointPrior, undefined);
+  assert.equal(r.jointPrior, undefined);
+  assert.equal(r.byWeight, undefined);
   assert.equal(r.pairs[0].order, "incomparable");
+});
+
+test("a joint prior over independent inputs gives the mass the per-input priors give, and the two are exclusive", () => {
+  // One input: the joint table and the per-input weights are the same measure.
+  const perInput = weaknessRanking(two(), acceptable, { priors: [{ box: "f", port: "x", weights: { "0": 8, "1": 2 } }] });
+  const joint = weaknessRanking(two(), acceptable, { jointPrior: weighted([["0", 8], ["1", 2]]) });
+  assert.ok(perInput.ok && perInput.verdict === "ranked" && joint.ok && joint.verdict === "ranked");
+  assert.deepEqual(perInput.byWeight?.map((c) => [c.id, c.weightedAdmitted]), joint.byJointPrior?.map((c) => [c.id, c.jointAdmittedWeight]));
+  assert.equal(perInput.byJointPrior, undefined);
+  assert.equal(joint.byWeight, undefined);
+  assert.deepEqual(perInput.pairs, joint.pairs);
+  const both = weaknessRanking(two(), acceptable, { priors: [{ box: "f", port: "x", weights: { "0": 8 } }], jointPrior: weighted([["0", 8], ["1", 2]]) });
+  assert.ok(!both.ok);
+  assert.deepEqual(both.issues.map((i) => [i.code, i.path]), [["invalid-prior", "$.joint_prior"]]);
 });

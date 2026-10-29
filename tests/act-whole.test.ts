@@ -85,7 +85,7 @@ test("whole one-hole residual includes constraints of a downstream unknown box",
   const local = weakestSpec(concept, baseline);
   assert.ok(!local.ok);
   const spec = weakestSpec(concept, baseline, { scope: "whole" });
-  assert.ok(spec.ok && spec.verdict === "spec");
+  assert.ok(spec.ok && spec.verdict === "spec" && "box" in spec, "one box to specify, not a pair");
   assert.equal(spec.scope, "whole");
   assert.equal(spec.box, "sink");
   assert.deepEqual(spec.spec, [{ in: { x: "0" }, out: {} }]);

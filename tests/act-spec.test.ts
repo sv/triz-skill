@@ -2,9 +2,11 @@
  * The weakest box specification (residual in Rel) and the weakness ranking. The spec is checked
  * against every relation the unknown box could declare (brute force over subsets): a relation
  * gives the target iff it is contained in the spec and the spec covers the target. The empty
- * relation stays inside every target and is never read as preserving; two unknown boxes, a lost
- * deliverable, and the cap fail closed. The ranking orders concepts by inclusion of the
- * situations they admit and reports incomparable pairs.
+ * relation stays inside every target and is never read as preserving; a lost deliverable, three
+ * unknown boxes, and the cap fail closed. With two unknown boxes the specs are the maximal pairs
+ * of relations that cover the target, checked against every pair of relations the boxes could
+ * declare. The ranking orders concepts by inclusion of the situations they admit and reports
+ * incomparable pairs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -13,8 +15,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel } from "../src/act.js";
 import { fromHypergraph, toHypergraph } from "../src/act-export.js";
-import { externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking } from "../src/act-behavior.js";
-import { segment } from "../src/act-rewrite.js";
+import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, type Prior } from "../src/act-behavior.js";
+import { applyTrim, interpose, segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
 import { supportConcept, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
 
@@ -44,7 +46,7 @@ function openHousing(edit?: (m: FunctionModel) => void) {
  * (map_empty), so it never gives a non-empty target.
  */
 function bruteForce(r: ReturnType<typeof weakestSpec>, candidates: Row[], gives: (R: Row[]) => boolean) {
-  assert.ok(r.ok && (r.verdict === "spec" || r.verdict === "impossible") && r.reason !== "lost-deliverables");
+  assert.ok(r.ok && (r.verdict === "spec" && "box" in r || r.verdict === "impossible") && "box" in r);
   assert.equal(r.candidateRows, candidates.length);
   const achieving = subsets(candidates).filter((R) => R.length && gives(R));
   for (const R of achieving) assert.ok(R.every((row) => r.spec.some((w) => same(w, row))), `C[R] = T but R ⊄ W: ${JSON.stringify(R)}`);
@@ -63,7 +65,7 @@ const byTrim = (model: FunctionModel, trim: string[], hole: string, absorb?: Rec
 
 test("the bearing's absorber spec: the housing must support the shaft, and that is all it must do", () => {
   const r = weakestTrimSpec(openHousing(), { trim: ["bearing"] });
-  assert.ok(r.ok && r.verdict === "spec");
+  assert.ok(r.ok && r.verdict === "spec" && "box" in r);
   assert.equal(r.preserves, true);
   assert.deepEqual(r.chosen, [{ wire: "w-support", box: "housing", port: "bore", rule: "C", defaulted: true }]);
   assert.equal(r.box, "housing");
@@ -84,7 +86,7 @@ test("the bearing's absorber spec: the housing must support the shaft, and that 
   concept.wires = concept.wires.filter((w) => w.from.box !== "bearing" && w.to.box !== "bearing")
     .concat({ id: "w-support", from: { box: "housing", port: "bore" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful", verb: "support" });
   const c = weakestSpec(concept, bearing());
-  assert.ok(c.ok && c.verdict === "spec");
+  assert.ok(c.ok && c.verdict === "spec" && "box" in c);
   assert.deepEqual(c.spec, r.spec);
 });
 
@@ -94,7 +96,7 @@ test("the weakest spec commits to nothing the target does not need: a housing th
     box(m, "housing").inputs = [{ id: "fit", carrier: "fit" }];
   });
   const r = weakestTrimSpec(withFit(), { trim: ["bearing"] });
-  assert.ok(r.ok && r.verdict === "spec");
+  assert.ok(r.ok && r.verdict === "spec" && "box" in r);
   assert.deepEqual(r.spec, [{ in: { fit: "press" }, out: { bore: "supported" } }, { in: { fit: "loose" }, out: { bore: "supported" } }]);
   assert.deepEqual(r.inputs, [{ box: "housing", port: "fit", carrier: "fit" }]);
   assert.deepEqual(r.blockedInputs, []);
@@ -112,7 +114,7 @@ test("rows no steady state presents stay in the spec: the segmented shaft's ther
   assert.deepEqual(unmapped.lostDeliverables.map((d) => `${d.box}.${d.port}`), ["shaft.drive", "shaft.support"]);
 
   const r = weakestSpec(seg.model, bearing(), { boxMap: seg.boxMap });
-  assert.ok(r.ok && r.verdict === "spec");
+  assert.ok(r.ok && r.verdict === "spec" && "box" in r);
   assert.equal(r.box, "body");
   assert.deepEqual([r.specRows, r.candidateRows, r.unusedRows], [4, 4, 2]);
   assert.match(r.note, /2 row\(s\) of the spec occur in no steady state/);
@@ -157,7 +159,7 @@ const correlatedAbsorb = { "w-p": { box: "m", port: "o" }, "w-q": { box: "f", po
 
 test("impossible: the spec stays inside the target but cannot cover it, so no behaviour of the box gives it", () => {
   const r = weakestTrimSpec(correlated(), { trim: ["s"], absorb: correlatedAbsorb });
-  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered");
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered" && "box" in r);
   assert.deepEqual(bruteForce(r, [{ in: {}, out: { o: "a" } }, { in: {}, out: { o: "b" } }], byTrim(correlated(), ["s"], "m", correlatedAbsorb)), []);
   assert.equal(r.preserves, false);
   assert.deepEqual(r.spec, [{ in: {}, out: { o: "a" } }]);
@@ -182,7 +184,7 @@ test("the empty-spec trap: when every row breaks the target, the empty relation 
   assert.deepEqual(before.relation.map((row) => [row.input, row.outputs]), [[["ok"], [["rated", "supported"]]], [["dry"], [["rated", "unsupported"]]]]);
 
   const r = weakestTrimSpec(lubricated(), { trim: ["bearing"] });
-  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered");
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered" && "box" in r);
   assert.notEqual(r.verdict as string, "spec");
   assert.equal(r.preserves, false);
   // Safety alone holds for the empty spec: no row is kept, so its composite is empty and inside the target.
@@ -196,13 +198,12 @@ test("the empty-spec trap: when every row breaks the target, the empty relation 
   assert.match(r.note, /never read as preserving/);
 });
 
-test("fail closed: two unknown boxes, a lost deliverable, no box to specify, an empty target, and bare carriers", () => {
-  const two = correlated();
-  delete box(two, "f").behavior;
-  const r = weakestTrimSpec(two, { trim: ["s"], absorb: correlatedAbsorb });
+test("fail closed: three unknown boxes, a lost deliverable, no box to specify, an empty target, and bare carriers", () => {
+  const three = housingAndSleeve((m) => { delete box(m, "motor").behavior; });
+  const r = weakestSpec(three, bearing());
   assert.ok(r.ok && r.verdict === "undecided" && r.reason === "several-holes");
-  assert.deepEqual(r.missingBehavior, ["m", "f"]);
-  assert.match(r.note, /decided for one unknown box only/);
+  assert.deepEqual(r.missingBehavior, ["motor", "housing", "sleeve"]);
+  assert.match(r.note, /decided for one or two unknown boxes only/);
   // A box the baseline needs is missing behaviour in the baseline: that is reported first.
   const motor = weakestTrimSpec(openHousing((m) => { delete box(m, "motor").behavior; }), { trim: ["bearing"] });
   assert.ok(motor.ok && motor.verdict === "undecided" && motor.reason === "missing-behavior");
@@ -261,7 +262,7 @@ const housingGives = (model: FunctionModel) => (R: Row[]) => {
  * entry of requiredInfeasible, one of its rows (required_row_of_eq), none of them producible.
  */
 function bruteForceWithin(r: ReturnType<typeof weakestSpec>, F: Row[], all: Row[], gives: (R: Row[]) => boolean) {
-  assert.ok(r.ok && (r.verdict === "spec" || r.verdict === "impossible") && r.reason !== "lost-deliverables");
+  assert.ok(r.ok && (r.verdict === "spec" && "box" in r || r.verdict === "impossible") && "box" in r);
   const achieving = subsets(F).filter((R) => R.length && gives(R));
   for (const R of achieving) assert.ok(R.every((row) => r.spec.some((w) => same(w, row))), `C[R] = T but R ⊄ W ∩ F: ${JSON.stringify(R)}`);
   assert.equal(achieving.length > 0, r.verdict === "spec");
@@ -277,7 +278,7 @@ function bruteForceWithin(r: ReturnType<typeof weakestSpec>, F: Row[], all: Row[
 test("producible rows: the spec is the residual cut down to them, and a target they cannot reach is the residual contradiction", () => {
   // Everything producible: the same spec as without producible.
   const both = weakestTrimSpec(openHousing((m) => { box(m, "housing").producible = [SUPPORTED, UNSUPPORTED]; }), { trim: ["bearing"] });
-  assert.ok(both.ok && both.verdict === "spec");
+  assert.ok(both.ok && both.verdict === "spec" && "box" in both);
   assert.deepEqual(both.spec, [SUPPORTED]);
   assert.deepEqual(both.producible, { declared: 2, residualRows: 1, infeasibleRows: 0, infeasible: [] });
   assert.deepEqual(both.basis, ["le_residual_iff", "covers_feasible_iff"]);
@@ -286,7 +287,7 @@ test("producible rows: the spec is the residual cut down to them, and a target t
   // The housing can only leave the shaft unsupported: the residual covers the target, its producible part is empty.
   const loose = openHousing((m) => { box(m, "housing").producible = [UNSUPPORTED]; });
   const r = weakestTrimSpec(loose, { trim: ["bearing"] });
-  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible");
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible" && "box" in r);
   assert.equal(r.preserves, false);
   assert.deepEqual([r.spec, r.specRows], [[], 0]);
   assert.deepEqual(r.producible, { declared: 1, residualRows: 1, infeasibleRows: 1, infeasible: [SUPPORTED] });
@@ -305,7 +306,7 @@ test("producible rows: partly producible, the required row is named per input; a
   // A loose fit cannot be made to support the shaft.
   const F = [fitRow("press", "supported"), fitRow("loose", "unsupported")];
   const r = weakestTrimSpec(fitted(F), { trim: ["bearing"] });
-  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible");
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible" && "box" in r);
   assert.deepEqual(r.spec, [fitRow("press", "supported")]);
   assert.deepEqual(r.producible, { declared: 2, residualRows: 2, infeasibleRows: 1, infeasible: [fitRow("loose", "supported")] });
   assert.deepEqual(r.requiredInfeasible, [{ input: [{ box: "housing", port: "fit", value: "loose" }], outputs: ["rated", "supported"], rows: [fitRow("loose", "supported")] }]);
@@ -315,13 +316,13 @@ test("producible rows: partly producible, the required row is named per input; a
   // Both supporting rows producible, and a useless one too: the spec, and nothing infeasible.
   const G = [fitRow("press", "supported"), fitRow("loose", "supported"), fitRow("loose", "unsupported")];
   const ok = weakestTrimSpec(fitted(G), { trim: ["bearing"] });
-  assert.ok(ok.ok && ok.verdict === "spec");
+  assert.ok(ok.ok && ok.verdict === "spec" && "box" in ok);
   assert.deepEqual(ok.spec, [fitRow("press", "supported"), fitRow("loose", "supported")]);
   assert.deepEqual([ok.producible?.infeasibleRows, ok.producible?.residualRows], [0, 2]);
   assert.equal(bruteForceWithin(ok, G, all, housingGives(fitted(G))).length, 1);
   // The same verdict as without producible, since F contains the residual.
   const plain = weakestTrimSpec(fitted(), { trim: ["bearing"] });
-  assert.ok(plain.ok && plain.verdict === "spec");
+  assert.ok(plain.ok && plain.verdict === "spec" && "box" in plain);
   assert.deepEqual(plain.spec, ok.spec);
   assert.equal("producible" in plain, false);
 });
@@ -345,14 +346,14 @@ test("producible rows: rows the target does not need may be unproducible; a resi
   };
   // Only the cool steady state is producible: the spec is that row; three residual rows are left out.
   const cool = weakestSpec(withProducible([all[0]]), bearing(), { boxMap: seg.boxMap });
-  assert.ok(cool.ok && cool.verdict === "spec");
+  assert.ok(cool.ok && cool.verdict === "spec" && "box" in cool);
   assert.deepEqual(cool.spec, [all[0]]);
   assert.deepEqual([cool.specRows, cool.producible?.residualRows, cool.producible?.infeasibleRows], [1, 4, 3]);
   assert.match(cool.note, /3 row\(s\) of the residual are not producible/);
   bruteForceWithin(cool, [all[0]], all, gives);
   // Only a row no steady state uses is producible: the target needs one of the two loop rows, and both are listed.
   const neither = weakestSpec(withProducible([all[1]]), bearing(), { boxMap: seg.boxMap });
-  assert.ok(neither.ok && neither.verdict === "impossible" && neither.reason === "infeasible");
+  assert.ok(neither.ok && neither.verdict === "impossible" && neither.reason === "infeasible" && "box" in neither);
   assert.equal(neither.requiredInfeasible.length, 1);
   assert.deepEqual(neither.requiredInfeasible[0].rows, [all[0], all[3]]);
   assert.equal(neither.requiredInfeasibleRows, 2);
@@ -363,7 +364,7 @@ test("producible rows: rows the target does not need may be unproducible; a resi
   const c = correlated();
   box(c, "m").producible = [{ in: {}, out: { o: "b" } }];
   const nc = weakestTrimSpec(c, { trim: ["s"], absorb: correlatedAbsorb });
-  assert.ok(nc.ok && nc.verdict === "impossible" && nc.reason === "not-covered");
+  assert.ok(nc.ok && nc.verdict === "impossible" && nc.reason === "not-covered" && "box" in nc);
   assert.deepEqual(nc.uncovered, { input: [], target: [["a", "a"], ["b", "b"]], delivered: [["a", "a"]], missing: [["b", "b"]] });
   assert.deepEqual(nc.producible, { declared: 1, residualRows: 1, infeasibleRows: 1, infeasible: [{ in: {}, out: { o: "a" } }] });
   assert.deepEqual(nc.basis, ["not_covers_iff"]);
@@ -410,6 +411,188 @@ test("the spec's cap: candidate rows are checked before the search, and the sear
   assert.match(errors(weakestTrimSpec(openHousing(), { trim: ["ghost"] })), /ghost/);
 });
 
+/** The bearing trimmed onto the open housing, with a sleeve that declares no behaviour interposed on the support: two boxes to specify. */
+function housingAndSleeve(edit?: (m: FunctionModel) => void) {
+  const trimmed = applyTrim(openHousing(), { trim: ["bearing"] });
+  assert.ok(trimmed.ok);
+  const via = interpose(trimmed.model, { wire: "w-support", mediator: { id: "sleeve", name: "Sleeve" } });
+  assert.ok(via.ok);
+  edit?.(via.model);
+  return via.model;
+}
+const BORE = (bore: string): Row => ({ in: {}, out: { bore } });
+const SLEEVE = (from: string, to: string): Row => ({ in: { in: from }, out: { out: to } });
+const SLEEVE_ROWS = ["supported", "unsupported"].flatMap((from) => ["supported", "unsupported"].map((to) => SLEEVE(from, to)));
+const inside = (R: Row[], S: Row[]) => R.every((row) => S.some((w) => same(w, row)));
+const nonEmpty = <T>(xs: T[]) => subsets(xs).filter((R) => R.length);
+
+/**
+ * Brute force over every pair of non-empty relations (R₁, R₂) the two boxes could declare within
+ * `rows`, with compareBehavior deciding C[R₁, R₂] = T on a code path independent of the spec.
+ * Checks what theory/ proves: some pair gives T iff the verdict is `spec` (exists_eq₂_iff), and
+ * every pair that gives T lies inside a returned pair (safe_iff_le_concept). Each returned pair is
+ * re-checked: declared, it gives T, and adding any row of `rows` takes the composite outside T
+ * (concept_maximal).
+ */
+function bruteForcePairs(r: ReturnType<typeof weakestSpec>, concept: FunctionModel, baseline: FunctionModel, rows: Record<string, Row[]>) {
+  assert.ok(r.ok && (r.verdict === "spec" || r.verdict === "impossible") && "boxes" in r);
+  const [ida, idb] = r.boxes;
+  const compare = (R1: Row[], R2: Row[]) => {
+    const m = structuredClone(concept);
+    for (const [id, R] of [[ida, R1], [idb, R2]] as const) { delete box(m, id).producible; box(m, id).behavior = R; }
+    const v = compareBehavior(baseline, m);
+    assert.ok(v.ok && v.verdict !== "undecided", JSON.stringify(v));
+    return v;
+  };
+  const gives = (R1: Row[], R2: Row[]) => compare(R1, R2).verdict === "preserved";
+  const safe = (R1: Row[], R2: Row[]) => { const v = compare(R1, R2); return v.verdict === "preserved" || (v.reason === "counterexample" && v.direction === "baseline-contains-concept"); };
+  const achieving = nonEmpty(rows[ida]).flatMap((R1) => nonEmpty(rows[idb]).filter((R2) => gives(R1, R2)).map((R2) => [R1, R2]));
+  assert.equal(achieving.length > 0, r.verdict === "spec");
+  if (r.verdict === "spec") {
+    for (const [R1, R2] of achieving) assert.ok(r.specs.some((s) => inside(R1, s.spec[ida]) && inside(R2, s.spec[idb])), `C[R₁, R₂] = T outside every spec pair: ${JSON.stringify([R1, R2])}`);
+    for (const { spec } of r.specs) {
+      assert.ok(gives(spec[ida], spec[idb]), "a returned pair gives the target");
+      for (const row of rows[ida].filter((x) => !inside([x], spec[ida]))) assert.ok(!safe([...spec[ida], row], spec[idb]), `a row of '${ida}' can be added: ${JSON.stringify(row)}`);
+      for (const row of rows[idb].filter((x) => !inside([x], spec[idb]))) assert.ok(!safe(spec[ida], [...spec[idb], row]), `a row of '${idb}' can be added: ${JSON.stringify(row)}`);
+    }
+  }
+  return achieving;
+}
+
+test("two boxes: an absorber and a new mediator have three incomparable maximal pairs that give the target, and no weakest one", () => {
+  const r = weakestSpec(housingAndSleeve(), bearing());
+  assert.ok(r.ok && r.verdict === "spec" && "boxes" in r);
+  assert.deepEqual([r.boxes, r.candidateRows, r.unsafePairs], [["housing", "sleeve"], { housing: 2, sleeve: 4 }, 2]);
+  // A supporting housing beside a sleeve that drops the support, and an unsupporting one beside a sleeve that passes it on.
+  assert.deepEqual(r.excluded.map((x) => [x.rows.housing, x.rows.sleeve, x.delivers]), [
+    [BORE("supported"), SLEEVE("supported", "unsupported"), ["rated", "unsupported"]],
+    [BORE("unsupported"), SLEEVE("unsupported", "unsupported"), ["rated", "unsupported"]],
+  ]);
+  assert.deepEqual([r.maximalPairs, r.specCount, r.weakest, r.preserves], [4, 3, false, true]);
+  assert.deepEqual(r.specs.map((s) => s.spec), [
+    { housing: [BORE("supported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "supported"), SLEEVE("unsupported", "unsupported")] },
+    { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "supported"), SLEEVE("supported", "unsupported")] },
+    { housing: [BORE("supported"), BORE("unsupported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "supported")] },
+  ]);
+  // Componentwise, no spec pair contains another.
+  for (const s of r.specs) for (const t of r.specs) if (s !== t) assert.ok(!(inside(s.spec.housing, t.spec.housing) && inside(s.spec.sleeve, t.spec.sleeve)));
+  assert.deepEqual(r.basis, ["safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"]);
+  assert.match(r.note, /3 maximal pairs of relations for 'housing' and 'sleeve' give the target/);
+  assert.match(r.note, /no single weakest pair/);
+  const achieving = bruteForcePairs(r, housingAndSleeve(), bearing(), { housing: [BORE("supported"), BORE("unsupported")], sleeve: SLEEVE_ROWS });
+  // The specs are the weakest choices, not the only ones: smaller pairs inside them also give the target.
+  assert.ok(achieving.length > r.specCount);
+});
+
+test("two boxes: one maximal pair covers a rectangle target and is the weakest; a target that is not a rectangle is impossible", () => {
+  const two = (rows: Row[]) => { const m = correlated(); delete box(m, "f").behavior; box(m, "s").behavior = rows; return m; };
+  const symbol = (o: string): Row => ({ in: {}, out: { o } });
+  const both = (x: string) => ({ in: {}, out: { p: x, q: x } });
+  // The source gives (a, a) only: each box must give a, and that pair is the weakest.
+  const aa = weakestTrimSpec(two([both("a")]), { trim: ["s"], absorb: correlatedAbsorb });
+  assert.ok(aa.ok && aa.verdict === "spec" && "boxes" in aa);
+  assert.deepEqual([aa.maximalPairs, aa.specCount, aa.weakest], [3, 1, true]);
+  assert.deepEqual(aa.specs, [{ spec: { m: [symbol("a")], f: [symbol("a")] }, specRows: { m: 1, f: 1 }, specTruncated: false }]);
+  assert.match(aa.note, /The weakest specification for 'm' and 'f' together/);
+  const trimmed = (rows: Row[]) => { const t = applyTrim(two(rows), { trim: ["s"], absorb: correlatedAbsorb }); assert.ok(t.ok); return t.model; };
+  bruteForcePairs(aa, trimmed([both("a")]), two([both("a")]), { m: [symbol("a"), symbol("b")], f: [symbol("a"), symbol("b")] });
+
+  // The source gives (a, a) or (b, b): the boxes would have to agree, and no pair of relations makes them.
+  const r = weakestTrimSpec(two([both("a"), both("b")]), { trim: ["s"], absorb: correlatedAbsorb });
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered" && "boxes" in r);
+  assert.equal(r.preserves, false);
+  assert.deepEqual(r.basis, ["exists_eq₂_iff"]);
+  assert.equal(r.maximalPairs, 4);
+  // Two maximal pairs give one of the agreeing outputs each; the two with an empty side give nothing.
+  assert.deepEqual(r.pairs.map((x) => [x.spec, x.uncovered.delivered, x.uncovered.missing]), [
+    [{ m: [], f: [symbol("a"), symbol("b")] }, [], [["a", "a"], ["b", "b"]]],
+    [{ m: [symbol("a")], f: [symbol("a")] }, [["a", "a"]], [["b", "b"]]],
+    [{ m: [symbol("b")], f: [symbol("b")] }, [["b", "b"]], [["a", "a"]]],
+    [{ m: [symbol("a"), symbol("b")], f: [] }, [], [["a", "a"], ["b", "b"]]],
+  ]);
+  assert.match(r.note, /No pair of relations for 'm' and 'f' gives the target relation/);
+  assert.deepEqual(bruteForcePairs(r, trimmed([both("a"), both("b")]), two([both("a"), both("b")]), { m: [symbol("a"), symbol("b")], f: [symbol("a"), symbol("b")] }), []);
+});
+
+test("two boxes: producible rows cut each box first; the uncut rows tell infeasible from not-covered", () => {
+  const ALL = { housing: [BORE("supported"), BORE("unsupported")], sleeve: SLEEVE_ROWS };
+  // A housing that can only leave the shaft unsupported: the sleeve must support it, and that pair is the weakest.
+  const loose = housingAndSleeve((m) => { box(m, "housing").producible = [BORE("unsupported")]; });
+  const r = weakestSpec(loose, bearing());
+  assert.ok(r.ok && r.verdict === "spec" && "boxes" in r);
+  assert.deepEqual([r.maximalPairs, r.specCount, r.weakest, r.producible], [2, 1, true, { housing: { declared: 1 } }]);
+  assert.deepEqual(r.specs[0].spec, { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "supported"), SLEEVE("supported", "unsupported")] });
+  assert.match(r.note, /within the producible rows/);
+  bruteForcePairs(r, loose, bearing(), { ...ALL, housing: [BORE("unsupported")] });
+
+  // A sleeve that can only pass the support on as it is, too: some pair over all rows would give the target, none they can produce.
+  const passing = housingAndSleeve((m) => {
+    box(m, "housing").producible = [BORE("unsupported")];
+    box(m, "sleeve").producible = [SLEEVE("supported", "supported"), SLEEVE("unsupported", "unsupported")];
+  });
+  const i = weakestSpec(passing, bearing());
+  assert.ok(i.ok && i.verdict === "impossible" && i.reason === "infeasible" && "boxes" in i);
+  assert.deepEqual([i.maximalPairs, i.wouldGiveCount, i.basis], [2, 3, ["exists_eq₂_iff"]]);
+  assert.deepEqual(i.pairs.map((x) => x.spec), [
+    { housing: [], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "unsupported")] },
+    { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported")] },
+  ]);
+  assert.match(i.note, /Some pair would: 3 maximal pair\(s\) over all their rows give it/);
+  assert.deepEqual(bruteForcePairs(i, passing, bearing(), { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "unsupported")] }), []);
+
+  // A target that is not a rectangle stays not-covered whatever is producible.
+  const c = correlated();
+  delete box(c, "f").behavior;
+  box(c, "m").producible = [{ in: {}, out: { o: "a" } }];
+  const nc = weakestTrimSpec(c, { trim: ["s"], absorb: correlatedAbsorb });
+  assert.ok(nc.ok && nc.verdict === "impossible" && nc.reason === "not-covered" && "boxes" in nc);
+  assert.equal(nc.maximalPairs, 4, "the maximal pairs over all rows");
+  assert.match(nc.note, /producible or not/);
+});
+
+/**
+ * Two boxes pick a symbol each and a comparator flags whether they differ; the target is "differ".
+ * The safe row pairs are the unequal ones, whose formal concepts are (A, the complement of A) for
+ * every set A of symbols: 2ⁿ of them, the most n rows can have.
+ */
+function differing(n: number, open: boolean): FunctionModel {
+  const symbols = Array.from({ length: n }, (_, i) => `v${i}`);
+  const pick = (id: string, v: string) => ({ id, name: id, role: "mediator" as const, outputs: [{ id: "o", carrier: "sym" }], ...(open ? {} : { behavior: [{ in: {}, out: { o: v } }] }) });
+  return {
+    domain: "software",
+    carriers: [{ id: "sym", layer: "information", dimension: "symbol", values: symbols }, { id: "flag", layer: "information", dimension: "flag", values: ["differ", "same"] }],
+    boxes: [
+      pick("x", "v0"), pick("y", "v1"),
+      { id: "cmp", name: "Comparator", role: "tool", inputs: [{ id: "a", carrier: "sym" }, { id: "b", carrier: "sym" }], outputs: [{ id: "r", carrier: "flag" }],
+        behavior: symbols.flatMap((a) => symbols.map((b) => ({ in: { a, b }, out: { r: a === b ? "same" : "differ" } }))) },
+      { id: "user", name: "User", role: "product", inputs: [{ id: "r", carrier: "flag" }] },
+    ],
+    wires: [
+      { id: "w-a", from: { box: "x", port: "o" }, to: { box: "cmp", port: "a" }, carrier: "sym", polarity: "useful" },
+      { id: "w-b", from: { box: "y", port: "o" }, to: { box: "cmp", port: "b" }, carrier: "sym", polarity: "useful" },
+      { id: "w-r", from: { box: "cmp", port: "r" }, to: { box: "user", port: "r" }, carrier: "flag", polarity: "useful" },
+    ],
+  };
+}
+
+test("two boxes: the concepts are capped (undecided, concept-cap), and below the cap every proper split of the symbols is a spec", () => {
+  const capped = weakestSpec(differing(4, true), differing(4, false), { maxConcepts: 15 });
+  assert.ok(capped.ok && capped.verdict === "undecided" && capped.reason === "concept-cap");
+  assert.match(capped.note, /more than 15 formal concepts/);
+  const r = weakestSpec(differing(4, true), differing(4, false), { maxConcepts: 16 });
+  assert.ok(r.ok && r.verdict === "spec" && "boxes" in r);
+  // Every split (A, complement) with both sides non-empty: 2⁴ − 2 incomparable specs.
+  assert.deepEqual([r.maximalPairs, r.specCount, r.weakest, r.unsafePairs], [16, 14, false, 4]);
+  for (const { spec } of r.specs) {
+    const [xs, ys] = [spec.x.map((row) => row.out.o), spec.y.map((row) => row.out.o)];
+    assert.deepEqual([...xs, ...ys].sort(), ["v0", "v1", "v2", "v3"]);
+  }
+  // The row pairs are capped before the search.
+  const pairs = weakestSpec(differing(4, true), differing(4, false), { maxStates: 15 });
+  assert.ok(pairs.ok && pairs.verdict === "undecided" && pairs.reason === "state-cap");
+  assert.match(pairs.errors.join(), /boxes 'x' and 'y' have 4 × 4 = 16 candidate row pairs; the cap is 15/);
+});
+
 const concept = supportConcept;
 const acceptable = SUPPORT_ACCEPTABLE;
 const ball = concept("Ball bearing", (lube) => lube === "oiled");
@@ -450,6 +633,41 @@ test("weakness ranking: inclusion first, incomparable pairs with a witness each 
   const twins = weaknessRanking([{ id: "ball", model: ball }, { id: "again", model: ball }], acceptable);
   assert.ok(twins.ok && twins.verdict === "ranked");
   assert.deepEqual([twins.weakest, twins.maximal, twins.pairs[0].order, "basis" in twins.pairs[0]], [["ball", "again"], ["ball", "again"], "equal", false]);
+});
+
+test("weakness ranking with priors: the weighted mass ranks, and no inclusion moves", () => {
+  const rank = (priors: Prior[]) => weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }, { id: "tight", model: tight }], acceptable, { priors });
+  // Oiled situations are three times as likely: ball 3+3, bushing 3+1, tight 3; the counts stay 2, 2, 1.
+  const skewed = rank([{ box: "support", port: "lube", weights: { oiled: 3, dry: 1 } }]);
+  assert.ok(skewed.ok && skewed.verdict === "ranked");
+  assert.deepEqual(skewed.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 6], ["bushing", 2, 4], ["tight", 1, 3]]);
+  assert.deepEqual(skewed.byWeight, [{ id: "ball", weightedAdmitted: 6 }, { id: "bushing", weightedAdmitted: 4 }, { id: "tight", weightedAdmitted: 3 }]);
+  assert.deepEqual(skewed.pairs.map((p) => p.order), ["incomparable", "first-weaker", "first-weaker"], "weights change no inclusion");
+  assert.match(skewed.note, /byWeight ranks by it/);
+  // A weight of 0 rules a value out of the mass, and out of the ranking's counts it does not go.
+  const ruled = rank([{ box: "support", port: "lube", weights: { oiled: 1, dry: 0 } }]);
+  assert.ok(ruled.ok && ruled.verdict === "ranked");
+  assert.deepEqual(ruled.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 1], ["tight", 1, 1]]);
+  // All weights 1 is the uniform measure: the count again.
+  const uniform = rank([{ carrier: "lube", weights: { oiled: 1, dry: 1 } }, { carrier: "temp", weights: { normal: 1, hot: 1 } }]);
+  assert.ok(uniform.ok && uniform.verdict === "ranked");
+  assert.deepEqual(uniform.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 2], ["tight", 1, 1]]);
+  assert.deepEqual(uniform.byWeight, uniform.byCount.map((c) => ({ id: c.id, weightedAdmitted: c.admitted })));
+});
+
+test("weakness priors fail closed on a bad entry", () => {
+  const one = (priors: Prior[]) => weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }], acceptable, { priors });
+  assert.match(errors(one([{ box: "support", weights: { oiled: 1 } }])), /priors: an entry that names a port gives both box and port/);
+  assert.match(errors(one([{ weights: { oiled: 1 } }])), /priors: each entry names a situation input port \(box and port\) or a carrier, not both or neither/);
+  assert.match(errors(one([{ box: "support", port: "nope", weights: { oiled: 1 } }])), /'support.nope' is not a situation input/);
+  assert.match(errors(one([{ carrier: "ghost", weights: { oiled: 1 } }])), /carrier 'ghost' is the carrier of no situation input/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { wet: 1 } }])), /value 'wet' of 'support.lube' is not declared/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { oiled: -1 } }])), /the weight of value 'oiled' of 'support.lube' is not a nonnegative number/);
+  assert.match(errors(one([{ box: "support", port: "lube", weights: { oiled: 1 } }, { box: "support", port: "lube", weights: { dry: 2 } }])), /'support.lube' is listed twice/);
+  // A port entry takes precedence over a carrier entry, as with acceptable: the port's table applies.
+  const both = weaknessRanking([{ id: "ball", model: ball }, { id: "bushing", model: bushing }], acceptable, { priors: [{ carrier: "lube", weights: { oiled: 5, dry: 5 } }, { box: "support", port: "lube", weights: { oiled: 1, dry: 1 } }] });
+  assert.ok(both.ok && both.verdict === "ranked");
+  assert.deepEqual(both.concepts.map((c) => [c.id, c.admitted, c.weightedAdmitted]), [["ball", 2, 2], ["bushing", 2, 2]]);
 });
 
 test("weakness ranking: a condition read under different box ids is two situations, and is flagged", () => {
@@ -519,6 +737,8 @@ test("triz_behavior weakest_spec and triz_weakness answer over the shared tool s
   // Segment projects the shaft's relation onto its parts; remove the body's to leave it to specify.
   delete box(seg.model, "body").behavior;
   assert.equal((await call("triz_behavior", { model: seg.model, compare_to: bearing(), box_map: seg.boxMap, weakest_spec: true })).verdict, "spec");
+  const pair = await call("triz_behavior", { model: housingAndSleeve(), compare_to: bearing(), weakest_spec: true });
+  assert.deepEqual([pair.verdict, pair.boxes, pair.specCount, pair.weakest], ["spec", ["housing", "sleeve"], 3, false]);
   for (const [args, message] of [
     [{ model: bearing(), weakest_spec: true }, /weakest_spec needs compare_to/],
     [{ model: bearing(), compare_to: bearing(), trim: ["bearing"], weakest_spec: true }, /trim and compare_to are exclusive/],

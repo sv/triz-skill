@@ -34,6 +34,8 @@ const RECTANGLE: Theorem[] = ["eq_projections_prod_iff_rectangle"];
 const NO_FACTORS: Theorem[] = ["eq_projections_prod_iff"];
 /** All parts at once: R is Π πᵢR iff it is a product at all. */
 const SPLIT_ALL: Theorem[] = ["eq_projections_pi_iff"];
+/** The finest factorisation, one port at a time, each block by the rectangle test; a partition splits iff it merges its blocks. */
+const FINEST: Theorem[] = ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"];
 
 type Box = FunctionModel["boxes"][number];
 type Wire = FunctionModel["wires"][number];
@@ -153,6 +155,94 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
 export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports: string[]; }
 
 /**
+ * A box's declared rows as distinct tuples over its ports (inputs, then outputs, in box order),
+ * in lexicographic order of their values (compared by code unit), with the number of distinct
+ * projections onto a set of columns.
+ */
+function rowTable(box: Box) {
+  const columns = [...(box.inputs ?? []).map((p) => ({ side: "in" as const, id: p.id })), ...(box.outputs ?? []).map((p) => ({ side: "out" as const, id: p.id }))];
+  const lexicographic = (a: string[], b: string[]) => {
+    const i = a.findIndex((x, j) => x !== b[j]);
+    return i < 0 ? 0 : a[i] < b[i] ? -1 : 1;
+  };
+  const tuples = [...new Map(box.behavior!.map((row) => {
+    const t = columns.map((c) => row[c.side][c.id]);
+    return [JSON.stringify(t), t] as const;
+  })).values()].sort(lexicographic);
+  const key = (t: string[], cols: number[]) => JSON.stringify(cols.map((i) => t[i]));
+  const size = (cols: number[]) => new Set(tuples.map((t) => key(t, cols))).size;
+  return { columns, tuples, key, size };
+}
+
+/** Default cap on the cells finestFactorisation reads. */
+export const MAX_FACTOR_STEPS = 1_000_000;
+
+/** The finest split of a box's ports into groups (port ids in box order), or undecided past the cap. */
+export type Factorisation =
+  | { decided: true; parts: string[][]; basis: Theorem[] }
+  | { decided: false; reason: "step-cap"; cap: number; note: string };
+
+/**
+ * The finest partition of a box's ports over which its declared relation R factors (R is the
+ * product of its projections onto the blocks). It exists and is unique (`exists_isFinest`), and a
+ * partition factors iff each of its parts is a union of its blocks (`IsFinest.factors_iff`), so it
+ * is the segmentation to suggest. Ports are added one at a time, in box order: with P the finest
+ * blocks of R's projection onto the ports so far, the next port x joins every block A of P that
+ * the rectangle test couples to the rest, on the projection onto the ports so far and x, and
+ * every other block of P stays (`IsFinest.addPort`, from no ports by `isFinest_onPorts_empty`).
+ * Since a projection is inside the product of its parts' projections, the test is a count:
+ * |π_A R| · |π_rest R| = |π R| (`factors_split_iff`). The empty relation factors over single
+ * ports. For n ports and |R| distinct rows this reads about n³·|R|/2 cells; past `maxSteps` it
+ * stops undecided.
+ */
+export function finestFactorisation(box: Box, opts: { maxSteps?: number } = {}): Factorisation {
+  const max = opts.maxSteps ?? MAX_FACTOR_STEPS;
+  const { columns, tuples, size } = rowTable(box);
+  let blocks: number[][] = [];
+  let steps = 0;
+  for (let x = 0; x < columns.length; x++) {
+    const seen = columns.slice(0, x + 1).map((_, i) => i);
+    const coupled: number[][] = [], kept: number[][] = [];
+    steps += tuples.length * seen.length * (1 + 2 * blocks.length);
+    if (steps > max) {
+      return {
+        decided: false, reason: "step-cap", cap: max,
+        note: `Finding the finest split of '${box.id}' needs more than ${max} cell reads (${columns.length} ports, ${tuples.length} distinct rows), so no partition is suggested.`,
+      };
+    }
+    const total = size(seen);
+    for (const block of blocks) (size(block) * size(seen.filter((i) => !block.includes(i))) === total ? kept : coupled).push(block);
+    blocks = [...kept, [...coupled.flat(), x]];
+  }
+  const parts = blocks.map((b) => [...b].sort((i, j) => i - j)).sort((a, b) => a[0] - b[0]).map((b) => b.map((i) => columns[i].id));
+  return { decided: true, parts, basis: FINEST };
+}
+
+/**
+ * The finest split of a segmented box, set against the given parts: `cut` lists each suggested
+ * block whose ports lie in several parts. The given parts split iff nothing is cut
+ * (`IsFinest.factors_iff`), and then `splitsFurther` lists each part that holds several blocks.
+ */
+function suggestParts(box: Box, parts: PartSpec[]) {
+  const finest = finestFactorisation(box);
+  if (!finest.decided) return finest;
+  const owner = new Map(parts.flatMap((p) => p.ports.map((port) => [port, p.id] as const)));
+  const cut = finest.parts.filter((b) => new Set(b.map((port) => owner.get(port))).size > 1);
+  const splitsFurther = cut.length ? [] : parts.filter((p) => finest.parts.filter((b) => b.some((port) => p.ports.includes(port))).length > 1).map((p) => p.id);
+  const listed = (bs: string[][]) => bs.map((b) => `[${b.map((p) => `'${p}'`).join(", ")}]`).join(", ");
+  return {
+    ...finest, cut, splitsFurther,
+    note: finest.parts.length === 1
+      ? `'${box.id}''s relation factors over no split of its ports: each group of ports is coupled to the rest.`
+      : cut.length
+        ? `The parts cut the suggested blocks ${listed(cut)}; a split holds iff each part is a union of suggested blocks. Segment into ${listed(finest.parts)}, or unions of them, and each part keeps its projection.`
+        : splitsFurther.length
+          ? `Each part is a union of suggested blocks, so the split holds; ${splitsFurther.map((id) => `'${id}'`).join(", ")} could split further, into ${listed(finest.parts)}.`
+          : "The parts are the finest split: no part splits further.",
+  };
+}
+
+/**
  * Whether a box's declared relation R splits over its parts: R equals the product of its
  * projections πᵢR onto each part's ports. R ⊆ Π πᵢR always holds, so after removing duplicate rows
  * equality is |R| = Π |πᵢR|: about k·|R| steps for k parts, with no membership check per tuple of
@@ -168,18 +258,8 @@ export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports
  * tie-break; it reads value names and port order.
  */
 export function splitBehavior(box: Box, parts: Array<{ id: string; ports: string[] }>) {
-  const columns = [...(box.inputs ?? []).map((p) => ({ side: "in" as const, id: p.id })), ...(box.outputs ?? []).map((p) => ({ side: "out" as const, id: p.id }))];
-  const lexicographic = (a: string[], b: string[]) => {
-    const i = a.findIndex((x, j) => x !== b[j]);
-    return i < 0 ? 0 : a[i] < b[i] ? -1 : 1;
-  };
-  const tuples = [...new Map(box.behavior!.map((row) => {
-    const t = columns.map((c) => row[c.side][c.id]);
-    return [JSON.stringify(t), t] as const;
-  })).values()].sort(lexicographic);
+  const { columns, tuples, key, size } = rowTable(box);
   const of = (part: { ports: string[] }) => columns.flatMap((c, i) => (part.ports.includes(c.id) ? [i] : []));
-  const key = (t: string[], cols: number[]) => JSON.stringify(cols.map((i) => t[i]));
-  const size = (cols: number[]) => new Set(tuples.map((t) => key(t, cols))).size;
   const all = parts.map(of);
   const restOf = (i: number) => all.flatMap((cols, j) => (j === i ? [] : cols));
   const coupledAt = all.flatMap((cols, i) => (size(cols) * size(restOf(i)) !== tuples.length ? [i] : []));
@@ -253,6 +333,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
   if (issues.length) return fail(issues);
 
   const split = box.behavior ? splitBehavior(box, spec.parts) : undefined;
+  const finest = box.behavior ? suggestParts(box, spec.parts) : undefined;
   const parts: Box[] = spec.parts.map((part, i) => {
     const pick = (list: Port[] | undefined) => (list ?? []).filter((p) => owner.get(p.id) === part.id);
     const cost = Object.fromEntries(Object.entries(box.cost ?? {}).filter(([dim]) => (Object.hasOwn(costTo, dim) ? costTo[dim] : partIds[0]) === part.id));
@@ -287,6 +368,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
       behavior: {
         coupled: split.coupled,
         witnesses: split.witnesses,
+        finest,
         basis: split.basis,
         note: split.independent
           ? "The declared relation is the product of its projections onto the parts, so each part carries its projection and together they compose back to it."

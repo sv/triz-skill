@@ -2,7 +2,8 @@
 
 This change implements bounded capabilities across the eight workstreams in the reviewed plan.
 It does not remove a limitation merely because a related theorem exists. The remaining work and
-acceptance criteria are in [the separate future plan](categorical-future-plan.md); the bibliography
+acceptance criteria are in [the separate future plan](categorical-future-plan.md); the ranked
+backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); the bibliography
 is in [theory/REFERENCES.md](../theory/REFERENCES.md).
 The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 
@@ -14,7 +15,7 @@ The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 | 2. Invariance and semantic comparison | `triz_isomorphism`, extended metamorphic tests | A supplied or bounded-search bijection preserves the selected annotations; arbitrary renaming and permutations preserve the complete tested verdicts. |
 | 3. Finite certificates | `triz_behavior`, `triz_weakness`, `triz_dynamics` with `certificate` | Supported finite equality/inequality and all weakness pair outcomes; reachable escalation and supported state-only inductive safety, independently checked by Lean. |
 | 4. Whole-system semantics and adequacy | `triz_behavior` with `scope: "whole"`; `triz_adequacy` | Every box constraint participates in the declared relation. Required inputs have an output and every output meets `acceptable`. |
-| 5. Common implementation witness | `triz_implementations`, `triz_absorber_assignments`; `triz_weakness` with `prior` | One complete named alternative meets behavior, adequacy, declared-harm and shared-budget conditions together; operating probability mass is reported separately from inclusion. |
+| 5. Common implementation witness | `triz_implementations`, `triz_absorber_assignments`; `triz_weakness` with `joint_prior` | One complete named alternative meets behavior, adequacy, declared-harm and shared-budget conditions together; operating probability mass is reported separately from inclusion. |
 | 6. Joint synthesis and abstraction | `triz_synthesize`, `triz_behavior_refinement`, `triz_subsystem_summary` | A complete tuple from the finite fixed-wiring library satisfies the contract; or complete whole-model relations satisfy the stated interface/value inclusion; or a stateless subsystem has an exact boundary summary. |
 | 7. Engineering and structured separation | `triz_queue`, `triz_conservation`, `triz_global_separation` | A declared finite queue schedule reaches overflow or avoids it within its horizon; a declared quantity balance holds; or one assignment satisfies every overlapping local relation. |
 | 8. Restricted rewrite guarantees | `triz_rule_set`, `triz_rewrite_pair`, `triz_trim_rewrite` | A sufficient natural-number measure decreases for the named rules; two named rewrites commute; or an explicit absorber-aware trim rewrite replays exactly. |
@@ -23,13 +24,29 @@ These checks share typed models, strict request validation, and explicit work ca
 incomplete decision, never proof of infeasibility, non-isomorphism, or nonconfluence. Search
 results state the candidate space and distinguish display truncation from search completeness.
 
-## Relationship to merged and companion work
+## Relationship to merged work
 
-[PR #32](https://github.com/sv/triz-skill/pull/32) proposes general one/two-hole union preservation,
-two-hole safe-pair theory via formal concepts, Mealy fixed-point statements, and recurrent
-reachability. This PR keeps its distinct row/OpenDiagram adapters and certificate lemmas, and
-removes its unused overlapping one-hole theorem layer. The runtime and certificate APIs remain
-independent of that open PR; no unmerged theory is imported or claimed as delivered here.
+Merged [PR #32](https://github.com/sv/triz-skill/pull/32) supplies general one/two-hole union
+preservation (`holeContext_preservesUnions`, `holeContext₂_preservesUnions₂`), the two-box
+weakest specification via formal concepts (`triz_behavior` `weakest_spec` with two boxes without
+behaviour), Mealy fixed-point statements, and recurrent reachability. This work keeps its
+distinct row/OpenDiagram adapters (`rowsDiagram`, `rows_relation_iff_external`) and certificate
+lemmas, and dropped its own overlapping one-hole theorem layer in favour of #32's. `triz_synthesize`
+is not a second residual: it searches complete tuples from a declared finite library on fixed
+wiring, while `weakest_spec` computes the maximal safe relations for one or two boxes.
+
+Merged [PR #38](https://github.com/sv/triz-skill/pull/38) suggests the finest segmentation of a
+box's declared relation (`behavior.finest`, `factorisations`); with `scope: "whole"`,
+`factorisations` covers every composed box. Merged
+[PR #37](https://github.com/sv/triz-skill/pull/37) adds `triz_weakness` `priors`, independent
+per-input weights reported as `weightedAdmitted` and `byWeight`. `joint_prior` here is the
+correlated alternative: an explicit weight per complete situation, reported separately as
+`jointAdmittedWeight`, `jointAdmittedProbability` and `byJointPrior`; a request gives one or the
+other. #37's label-blindness tests (`tests/act-invariance-rows.test.ts`, generated models) and the
+extended metamorphic tests here (`tests/act-extended-invariance.test.ts`, fixtures with semantic
+annotations, flows and dynamics) are complementary. Merged
+[PR #40](https://github.com/sv/triz-skill/pull/40) checks every file and tampered copy in one Lean
+process; `--request` binding runs before that batch, and an unbound file never reaches Lean.
 
 Merged [PR #39](https://github.com/sv/triz-skill/pull/39) supplies preserved-behavior and
 unreachable-escalation certificates, including comparison mappings and one-sided inputs. This
@@ -76,7 +93,7 @@ and its model data to AXLE, whose execution and Mathlib revision are then truste
 
 The request is a certificate request record: `kind: "model"` with `model`;
 `kind: "separation"` with `contradiction`; `kind: "dynamics"` with `model` and `spec`;
-`kind: "weakness"` with `concepts`, `acceptable` and optional `scope`/`maxStates`;
+`kind: "weakness"` with `concepts`, `acceptable` and optional `scope`/`maxStates`/`priors`/`jointPrior`;
 or `kind: "behavior"` with `baseline`, `concept` and optional `scope`/`maxStates`/`boxMap`.
 Use the exact request used for generation. Internal `spec` options use camelCase, as the
 library does, rather than MCP's snake_case wrapper.
@@ -124,11 +141,12 @@ joint behavior rows and a coupled resource mode for each hole. It never substitu
 projections for a correlated relation. Exhaustive failure is only impossibility within the
 specified finite library, not impossibility of invention.
 
-An explicit weakness `prior` is a complete joint table of `{input: [{box, port, value}], weight}`
-rows, including zero masses. It yields `byPrior` operating coverage while keeping set inclusion,
+An explicit weakness `joint_prior` is a complete joint table of `{input: [{box, port, value}], weight}`
+rows, including zero masses. It yields `byJointPrior` operating coverage while keeping set inclusion,
 maximal concepts and `byCount` separate. Strict inclusion can tie under a prior assigning zero
 mass to the additional situations. No independence assumption or extension of Bennett's
-uniform-task theorem is made.
+uniform-task theorem is made. For independent operating conditions, `priors` (per input or per
+carrier) is the shorter form; the two are exclusive.
 
 ## Engineering and rewrite boundaries
 
@@ -162,7 +180,7 @@ The example evidence identifies synthetic declarations rather than pretending to
 
 ## Validation
 
-Focused regression suites accompany the behavior/scope/prior, certificates, semantic
+Focused regression suites accompany the behavior/scope/joint-prior, certificates, semantic
 isomorphism, refinement/summary, contracts, synthesis, structured separation, queue/conservation,
 rewrite analysis and extended invariance capabilities. Existing regression suites remain part of
 `pnpm test`. Run the schema, build, typecheck, MCP handshake, Lean build and certificate tamper

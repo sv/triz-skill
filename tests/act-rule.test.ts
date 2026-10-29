@@ -310,6 +310,66 @@ test("rule `distinct` must name two carrier variables of the rule", () => {
   assert.match(validateRule({ ...rule, distinct: [["c", "c"]] }).errors.join(), /distinct: 'c' is paired with itself/);
 });
 
+/** replace, refused wherever another box already feeds the same object input. */
+const onceOnly: Rule = Rule.parse({
+  id: "replace-once",
+  carriers: ["c"],
+  left: fn,
+  interface: { boxes: [fn.boxes[1]] },
+  right: replace.right,
+  forbid: [{
+    boxes: [...fn.boxes, { id: "other", outputs: [{ id: "o", carrier: "c" }] }],
+    wires: [...fn.wires, { id: "h", from: { box: "other", port: "o" }, to: { box: "object", port: "in" }, carrier: "c" }],
+  }],
+});
+
+test("rule `forbid`: a match that extends to a forbidden occurrence is not applicable, and does not apply", () => {
+  assert.deepEqual(validateRule(onceOnly).errors, []);
+  const idle = small(); // X performs nothing: no occurrence of the condition
+  const [entry] = only(matchRule(idle, onceOnly)).matches;
+  assert.equal(entry.applicable, true);
+  const applied = only(applyRule(idle, onceOnly, entry.match));
+  assert.ok(checkModel(applied.model).ok);
+  assert.deepEqual(applied.model.wires.map((w) => w.id), ["g"], "X unwired, so the rule applies");
+
+  const crowded = small();
+  crowded.wires.push({ id: "w2", from: { box: "X", port: "r" }, to: { box: "P", port: "q" }, carrier: "c", polarity: "useful" });
+  const [refused] = only(matchRule(crowded, onceOnly)).matches;
+  assert.equal(refused.applicable, false);
+  assert.deepEqual(refused.violations, ["forbid[0]: the match extends to an occurrence of this condition, which the rule forbids"]);
+  assert.match(errors(applyRule(crowded, onceOnly, refused.match)), /^forbid\[0\]: the match extends to an occurrence of this condition/);
+  // The condition reads the match, not the whole model: an occurrence away from it does not refuse.
+  const elsewhere = small();
+  elsewhere.boxes.push({ id: "Q", name: "Q", role: "product", inputs: [{ id: "q", carrier: "c" }] });
+  elsewhere.wires.push({ id: "w3", from: { box: "X", port: "r" }, to: { box: "Q", port: "q" }, carrier: "c", polarity: "useful" });
+  const [away] = only(matchRule(elsewhere, onceOnly)).matches;
+  assert.equal(away.applicable, true);
+  assert.ok(applyRule(elsewhere, onceOnly, away.match).ok);
+});
+
+test("rule `forbid` must extend the left side, with its carrier variables and no created-only fields", () => {
+  const raw = (): any => ({
+    id: "r", carriers: ["c", "d"],
+    left: fn,
+    interface: { boxes: [fn.boxes[1]] },
+    right: replace.right,
+    forbid: [{ boxes: [...fn.boxes, { id: "other", outputs: [{ id: "o", carrier: "d" }] }], wires: fn.wires }],
+  });
+  assert.match(validateRule(Rule.parse(raw())).errors.join(), /forbid\[0\]: carrier variable 'd' is not bound by the left side/);
+  const noOld = raw();
+  noOld.forbid[0].boxes = noOld.forbid[0].boxes.filter((b: { id: string }) => b.id !== "old");
+  assert.match(validateRule(Rule.parse(noOld)).errors.join(), /forbid\[0\]: left-side box 'old' is missing/);
+  const noWire = raw();
+  noWire.forbid[0].wires = [];
+  assert.match(validateRule(Rule.parse(noWire)).errors.join(), /forbid\[0\]: left-side wire 'f' is missing/);
+  const reRoled = raw();
+  reRoled.forbid[0].boxes = reRoled.forbid[0].boxes.map((b: { id: string }) => (b.id === "old" ? { id: "old", role: "product", outputs: [{ id: "out", carrier: "c" }] } : b));
+  assert.match(validateRule(Rule.parse(reRoled)).errors.join(), /forbid\[0\] box 'old': role differs from the left side/);
+  const liking = raw();
+  liking.forbid[0].boxes[2] = { id: "other", like: "old", outputs: [{ id: "o", carrier: "c" }] };
+  assert.match(validateRule(Rule.parse(liking)).errors.join(), /forbid\[0\] box 'other': 'like' is only for boxes the rule creates/);
+});
+
 test("detector uneven-development reads every minimal vector, not only the 50 feasibility lists", async () => {
   // A is the only box of a harm loop (a harmful self-loop). Its 51 rows all provide level 1; row i
   // costs { a: i, b: 50 - i, usd: 1 only for i = 50 }, so all 51 vectors are minimal. Z, outside

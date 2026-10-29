@@ -2,7 +2,9 @@
 
 This is the separate future-work record requested during the eight-workstream review.
 Implemented scope and current restrictions are in [categorical-assurance.md](categorical-assurance.md).
-The full research bibliography is maintained separately in
+The ranked backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); this
+file keeps the per-workstream acceptance criteria. The full research bibliography is maintained
+separately in
 [theory/REFERENCES.md](../theory/REFERENCES.md), including current foundations, deferred
 alternatives and supporting TRIZ/AI sources; it is not limited to this future plan.
 The baseline reviewed was `82d87a6a7a124481afa33194679807561bb6358c`.
@@ -39,9 +41,9 @@ Incomplete capped evidence must remain sound without a promise of identical sele
 **Next, in order:**
 
 1. Residual safety, target coverage and impossibility certificates, using a semantic one-hole
-   union theorem and the delivered row/diagram correspondence. The proposed general one/two-hole
-   foundation is in [companion PR #32](https://github.com/sv/triz-skill/pull/32); it is not a runtime
-   dependency of this PR.
+   union theorem and the delivered row/diagram correspondence. The general one/two-hole
+   foundation landed in [PR #32](https://github.com/sv/triz-skill/pull/32)
+   (`holeContext_preservesUnions`, `holeContext₂_preservesUnions₂`).
 2. Harm-loop completeness: every negative edge on a cycle is covered and each claimed region
    has the advertised connectivity. Useful-only cycles must remain admissible.
 3. Time-indexed negative dynamics certificates, initial-state coverage and bounded input
@@ -100,7 +102,10 @@ about a uniform distribution over tasks [R7](../theory/REFERENCES.md#r7).
 - Compute a merged-hole residual as an explicitly coordinated relaxation/diagnostic. Require
   factorization, an explicit coordination mechanism, or finite product-subrelation synthesis
   before calling it independently implementable.
-- Search for groups of ports that factor, rather than testing only a supplied partition.
+- Search for groups of ports that factor, rather than testing only a supplied partition:
+  landed in [PR #38](https://github.com/sv/triz-skill/pull/38) (`behavior.finest`,
+  `factorisations`). The maximal relation pairs for two unknown boxes landed in #32; three or
+  more boxes remain.
 - Compose feasibility across several detailed preimages with compatible implementation modes.
 - Add dynamic simulation relations and validated refinement of coarse counterexamples.
 - Check supersystem summaries against transformations through a stated commuting/refinement
@@ -172,18 +177,18 @@ the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
 | 1 negative dynamics | Supported state-only inductive certificates delivered; bounded inputs and port predicates remain §3. |
 | 2 incomparability | Delivered with generic witnesses and complete admission/rejection obligations. |
 | 3 behavior certificates | Shared PR #39 encoder covers box maps, gained deliverables and one-sided inputs; this branch adds changed/whole-scope proofs and binding. Remaining interfaces are in §3. |
-| 4 label-blindness | Extended tests and semantic mapping search delivered; sorting ids alone was rejected as a proof of equivariance. |
+| 4 label-blindness | Extended tests and semantic mapping search delivered; sorting ids alone was rejected as a proof of equivariance. #37's generated-model tests cover feasibility and the principle constructions alongside them. |
 | 5 model encoding check | Authoritative request binding and independent table comparison delivered; verified encoder remains §1. |
-| 6 weighted weakness | Joint operating coverage delivered separately from inclusion; no extension of Bennett's task-prior theorem. |
+| 6 weighted weakness | Joint operating coverage delivered separately from inclusion (`joint_prior`, beside #37's independent per-input `priors`); no extension of Bennett's task-prior theorem. |
 | 7 row isomorphism | Delivered with value/state maps and continued search after failed automorphisms. |
-| 8 grouping theorem | Row/diagram bridge delivered; unused overlapping union proofs removed in favor of companion PR #32. Optimized evaluator correctness remains §4. |
+| 8 grouping theorem | Row/diagram bridge delivered; unused overlapping union proofs removed in favor of #32 (merged). Optimized evaluator correctness remains §4. |
 | 9 harm completeness | Deferred to §3; witness validity must not be described as completeness. |
-| 10 loop certificates | Deferred to §3; recurrence requires a quantified statement and full premises. |
+| 10 loop certificates | Deferred to §3; recurrence requires a quantified statement and full premises. #32's `recurrent_reach` is that statement for the `recurrent` verdict's basis; certificates remain §3. |
 | 11 whole composition | Delivered by exact global finite constraints; greatest-fixpoint language not required. |
-| 12 merged residual | Real independent finite-library synthesis delivered; coordinated residual/factorization work remains §6. |
+| 12 merged residual | Real independent finite-library synthesis delivered; the two-box residual (maximal pairs) landed in #32; three or more boxes and coordinated factorization remain §6. |
 | 13 absorber checks | Complete endpoint/assignment search delivered, with joint checks and a shared budget. |
 | 14 controlled trim | Explicit replay delivered; AGREE/PBPO+ and general categorical claims remain §8. |
 | 15 fibration | Optional §8; proposed full-grid fibration had the wrong variance. |
 | 16 overlapping separation | Exact global finite joins delivered; a pairwise scan was rejected as insufficient. |
 | 17 critical pairs | Termination measure and occurrence commutation delivered; global critical-pair obligations remain §8. |
-| 18 small features | Exact behavioral summaries/refinement delivered; group search, numeric preimages and transition inference remain §§6/8. |
+| 18 small features | Exact behavioral summaries/refinement delivered; group search landed in #38; numeric preimages and transition inference remain §§6/8. |

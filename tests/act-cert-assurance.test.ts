@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import type { FunctionModel } from "../src/act.js";
 import { behaviorCertificate, canonicalRequest, CERTIFICATE_SCHEMA_SOURCE, CERTIFICATE_THEORY_SOURCE, dynamicsCertificate, modelCertificate, requestDigest, weaknessCertificate, type Certificate } from "../src/act-cert.js";
-import { check, checkCorrespondence, checkRequest, checkTampered, lint, localLeanAvailable, tamperVariants } from "../scripts/certify.mjs";
+import { bindRequest, checkCorrespondence, checkRequest, lint } from "../scripts/certify.mjs";
 
 const acceptable = [{ carrier: "bit", values: ["1"] }];
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
@@ -39,8 +39,8 @@ test("request binding checks normalized row data independently of generator rege
   assert.notEqual(tampered, c); assert.match(checkCorrespondence(tampered, request).join(";"), /rowValue/);
   assert.match(checkCorrespondence(c, { ...request, scope: "upstream" }).join(";"), /manifest (source|scope)/);
   const prior=[{input:[{box:"f",port:"x",value:"0"}],weight:1},{input:[{box:"f",port:"x",value:"1"}],weight:1}];
-  const weighted=weaknessCertificate(concepts,acceptable,{scope:"whole",prior}); assert.ok(weighted.ok);
-  assert.deepEqual(checkCorrespondence(weighted.content,{...request,prior}),[]);
+  const weighted=weaknessCertificate(concepts,acceptable,{scope:"whole",jointPrior:prior}); assert.ok(weighted.ok);
+  assert.deepEqual(checkCorrespondence(weighted.content,{...request,jointPrior:prior}),[]);
   assert.match(checkCorrespondence(weighted.content,request).join(";"),/manifest source/);
   const hidden=c.replace(/^def rowValue : (.*)$/m,"/- def rowValue : $1 -/");
   assert.match(checkCorrespondence(hidden,request).join(";"),/rowValue/);
@@ -77,16 +77,18 @@ test("negative dynamics derives a genuinely closed invariant and reports bounded
   assert.match(sequence.errors.join(";"), /input sequence/);
 });
 
-const leanTest = localLeanAvailable() ? test : process.env.TRIZ_REQUIRE_LEAN ? test : test.skip;
-leanTest("new finite certificates check with pinned Lean and their tamper variants fail", async () => {
-  assert.ok(localLeanAvailable(), "TRIZ_REQUIRE_LEAN requires the pinned local theory build");
+test("request binding regenerates the certificate and refuses a stale one before any Lean check", async () => {
   const a = model(), b = model((x) => x === "0" ? "1" : "0");
-  const certificates = [behaviorCertificate(a,a,{scope:"whole"}), behaviorCertificate(a,b,{scope:"whole"}), weaknessCertificate([{id:"a",model:a},{id:"b",model:a}],acceptable), weaknessCertificate([{id:"a",model:a},{id:"b",model:b}],acceptable), dynamicsCertificate(dynamics(),{unsafe:[{box:"m",state:["bad"]}],safe:[{box:"m",state:["safe"]}]})];
-  for (const c of certificates) {
-    const text = content(c), checked = await check(text,{mode:"local"}); assert.ok(checked.ok,checked.problems.join("\n"));
-    for (const variant of tamperVariants(text)) { const rejected = await checkTampered(variant,{mode:"local"}); assert.ok(rejected.ok,`${variant.name}: ${rejected.problems.join("\n")}`); }
-  }
-  const request = {kind:"behavior" as const,baseline:a,concept:b,scope:"whole" as const};
-  const checked = await checkRequest(content(behaviorCertificate(a,b,{scope:"whole"})),request,{mode:"local"}); assert.ok(checked.ok,checked.problems.join("\n"));
-  const stale = await checkRequest(content(behaviorCertificate(a,b,{scope:"whole"})).replace("A pair belongs", "The pair belongs"),request,{mode:"local"}); assert.ok(!stale.ok); assert.match(stale.problems.join(";"),/stale/);
+  const request = { kind: "behavior" as const, baseline: a, concept: b, scope: "whole" as const };
+  const fresh = content(behaviorCertificate(a, b, { scope: "whole" }));
+  assert.deepEqual(bindRequest(fresh, request), []);
+  const stale = fresh.replace("A pair belongs", "The pair belongs");
+  assert.notEqual(stale, fresh);
+  assert.match(bindRequest(stale, request).join(";"), /stale/);
+  // An unbound file never reaches Lean, so this needs no local theory.
+  const refused = await checkRequest(stale, request, { mode: "local" });
+  assert.deepEqual([refused.ok, refused.mode], [false, "binding"]);
 });
+
+// The Lean-backed checks of these certificates are in tests/act-cert.test.ts, which runs every
+// Lean test of the suite in one file, one Lean process per test.

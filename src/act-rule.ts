@@ -32,6 +32,11 @@
  *                   must bind different carriers. Every failure fails closed with an error naming
  *                   the condition. A created wire `like` a deleted wire of another carrier is
  *                   recorded in `fieldChanges`.
+ *  - forbid       — negative application conditions (Habel–Pennemann): each pattern extends `left`
+ *                   by id with the same constraints, and a match that extends to an occurrence of
+ *                   it — including any elements the pattern adds — is not applicable; matchRule
+ *                   lists the violation, applyRule fails on it. A condition its own step budget
+ *                   cannot decide also refuses the application.
  *  - TREND_RULES  — the evolution lines whose text in evolution-trends.md describes a structural
  *                   move, each citing its line. Trimming is `triz_transform` `trim`.
  *  - TREND_DETECTORS, laggingSubsystem — the uneven-development line, whose text names a
@@ -92,7 +97,9 @@ export const Rule = z.strictObject({
   interface: Pattern.describe("K: what is kept; every element appears with the same id and constraints in left and right"),
   right: Pattern.describe("R: what is there afterwards; R \\ K is created under fresh ids"),
   distinct: z.array(z.tuple([Id, Id])).optional()
-    .describe("Pairs of carrier variables that must bind to different carriers: an application condition, checked with the gluing conditions"),
+    .describe("Pairs of carrier variables that must bind different carriers: an application condition, checked with the gluing conditions"),
+  forbid: z.array(Pattern).optional()
+    .describe("Negative application conditions (Habel–Pennemann): each pattern extends `left` by id with the same constraints, and a match that extends to an occurrence of it — including any elements the pattern adds — is not applicable. An undecided condition (its own step budget) also refuses the application"),
   source: z.strictObject({
     file: z.string().min(1),
     line: z.number().int().positive(),
@@ -147,6 +154,8 @@ const portsOf = <B extends { inputs?: Array<{ id: string; carrier: string }>; ou
   ...(b.outputs ?? []).map((p) => ({ ...p, side: "out" as Side })),
 ];
 const wiresOf = (p: Pat) => p.wires ?? [];
+/** The carrier variables a pattern uses; a forbid condition may name only those `left` binds. */
+const patternVars = (p: Pat) => new Set([...p.boxes.flatMap((b) => portsOf(b).map((q) => q.carrier)), ...wiresOf(p).map((w) => w.carrier)]);
 function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 }
@@ -237,6 +246,42 @@ export function validateRule(rule: Rule, root = "$"): { ok: boolean; errors: str
     } else {
       if (w.like !== undefined && !L.wires.has(w.like)) malformed(at(wireAt("right", w.id), "like"), `right wire '${w.id}': like '${w.like}' is not a left-side wire`, `Set like to a left-side wire id: ${quoted(L.wires.keys())}.`);
       if (w.like === undefined && w.polarity === undefined) malformed(wireAt("right", w.id), `right wire '${w.id}': a created wire needs polarity, or like`, `Give right wire '${w.id}' a polarity, or like: a left-side wire id to copy it from.`);
+    }
+  }
+  // Negative application conditions: each extends `left` by id, so it can be checked with the match.
+  for (const [i, p] of (rule.forbid ?? []).entries()) {
+    const here = (...segments: Array<string | number>) => at(root, "forbid", i, ...segments);
+    const typedPat = rebase(fail(checkModel(asModel(p, [...new Set(vars)]), here()).issues), [[here("carriers"), at(root, "carriers"), "collapse"]]);
+    issues.push(...typedPat.issues.map((x) => issue("rule-ill-typed", x.path,
+      `forbid[${i}]: ${x.message.replace(/unknown carrier/g, "undeclared carrier variable")}`,
+      x.code === "unknown-carrier" ? `Declare the carrier variable in the rule's carriers (${quoted(vars)}), or use one of them.` : x.hint)));
+    const P = {
+      boxes: new Map(p.boxes.map((b) => [b.id, b])),
+      wires: new Map(wiresOf(p).map((w) => [w.id, w])),
+      ports: new Map(p.boxes.flatMap((b) => portsOf(b).map((q) => [key(b.id, q.id), { box: b.id, ...q }] as const))),
+    };
+    for (const b of p.boxes) for (const f of createdOnly(b)) malformed(at(here("boxes", p.boxes.indexOf(b)), f), `forbid[${i}] box '${b.id}': '${f}' is only for boxes the rule creates`, `Remove '${f}': a forbid pattern is matched against the model, like the left side.`);
+    for (const w of wiresOf(p)) for (const f of (["like", "verb"] as const).filter((f) => w[f] !== undefined)) malformed(at(here("wires", wiresOf(p).indexOf(w)), f), `forbid[${i}] wire '${w.id}': '${f}' is only for wires the rule creates`, `Remove '${f}': a forbid pattern is matched against the model, like the left side.`);
+    for (const [id, l] of L.boxes) {
+      const n = P.boxes.get(id);
+      if (!n) { malformed(boxAt("left", id), `forbid[${i}]: left-side box '${id}' is missing`, `Add box '${id}' to forbid[${i}] with the role it has on the left side: a condition extends the left side.`); continue; }
+      if (n.role !== l.role) malformed(here("boxes", p.boxes.indexOf(n)), `forbid[${i}] box '${id}': role differs from the left side`, `Give box '${id}' the same role as on the left side${l.role ? ` ('${l.role}')` : " (none)"}.`);
+    }
+    for (const [k, q] of L.ports) {
+      const n = P.ports.get(k);
+      if (!n || n.side !== q.side || n.carrier !== q.carrier) {
+        malformed(boxAt("left", q.box), `forbid[${i}]: port '${q.box}.${q.id}' is missing or retyped`, `Give box '${q.box}' the ${q.side === "in" ? "input" : "output"} port '${q.id}' with carrier '${q.carrier}', as on the left side.`);
+      }
+    }
+    for (const [id, l] of L.wires) {
+      const n = P.wires.get(id);
+      if (!n) { malformed(wireAt("left", id), `forbid[${i}]: left-side wire '${id}' is missing`, `Add wire '${id}' to forbid[${i}] with the same ends, carrier, and rating.`); continue; }
+      if (key(n.from.box, n.from.port, n.to.box, n.to.port, n.carrier) !== key(l.from.box, l.from.port, l.to.box, l.to.port, l.carrier) || n.polarity !== l.polarity) {
+        malformed(here("wires", wiresOf(p).indexOf(n)), `forbid[${i}] wire '${id}' differs from the left side`, `Give wire '${id}' the same from, to, carrier, and polarity as on the left side.`);
+      }
+    }
+    for (const v of patternVars(p)) {
+      if (!leftVars.has(v)) malformed(here(), `forbid[${i}]: carrier variable '${v}' is not bound by the left side`, `A condition is checked with the match, so it can name only the left side's carrier variables: ${quoted([...leftVars])}.`);
     }
   }
   return { ok: issues.length === 0, errors: issues.map((i) => i.message), issues };
@@ -418,6 +463,32 @@ function preconditions(model: FunctionModel, rule: Rule): Issue[] {
 
 export const MAX_STEPS = 100_000;
 export const MAX_MATCHES = 50;
+/** Step budget for one negative application condition at one match; an undecided condition refuses the application. */
+export const MAX_FORBID_STEPS = 10_000;
+
+/**
+ * The `forbid` conditions at `match`: one issue per condition that holds, or that could not be
+ * decided within its budget. A condition extends `left` by id, so the match seeds a search for an
+ * injective occurrence of the whole condition over the model; one is found exactly when the match
+ * extends to it. matchRule lists the issues' messages as violations; applyRule fails on them.
+ */
+function forbidIssues(model: FunctionModel, rule: Rule, match: RuleMatch): Issue[] {
+  return (rule.forbid ?? []).flatMap((p, i) => {
+    const vars = [...patternVars(p)];
+    const found = matchRule(model, { id: `${rule.id}/forbid/${i}`, carriers: vars, left: p, interface: p, right: p }, {
+      at: { boxes: match.boxes, ports: match.ports, wires: match.wires, carriers: Object.fromEntries(vars.map((v) => [v, get(match.carriers, v)!])) },
+      limit: 1,
+      maxSteps: MAX_FORBID_STEPS,
+    });
+    if (!found.ok) throw new Error(`internal: forbid[${i}] of rule '${rule.id}' failed its own preconditions: ${found.errors.join("; ")}`);
+    return found.matches.length
+      ? [issue("forbid-violated", at("$.rule", "forbid", i), `forbid[${i}]: the match extends to an occurrence of this condition, which the rule forbids`,
+        `Match elsewhere, change the model, or drop condition forbid[${i}] from the rule.`)]
+      : found.decided ? []
+        : [issue("forbid-violated", at("$.rule", "forbid", i), `forbid[${i}]: the search budget of ${MAX_FORBID_STEPS} steps ran out while checking this condition`,
+          `Narrow the model or the condition; an undecided condition refuses the application.`)];
+  });
+}
 
 /**
  * Every injective match of the rule's left side, optionally seeded by a partial match `at`.
@@ -522,7 +593,7 @@ export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial
     const verified = checkMatch(model, rule, match);
     if (verified.length) throw new Error(`internal: search returned an unverified match: ${verified.join("; ")}`);
     const g = gluingConditions(model, rule, match);
-    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : []), ...distinctIssues(rule, match.carriers).map((i) => i.message)];
+    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : []), ...distinctIssues(rule, match.carriers).map((i) => i.message), ...(rule.forbid?.length ? forbidIssues(model, rule, match).map((i) => i.message) : [])];
     return { match, applicable: !violations.length, violations };
   });
   return {
@@ -580,6 +651,8 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   if (declared.length) return fail(declared);
   const apart = distinctIssues(rule, bound, (v) => (fromOpts.has(v) ? jp("$.carriers", v) : jp("$.match.carriers", v)));
   if (apart.length) return fail(apart);
+  const forbidden = rule.forbid?.length ? forbidIssues(model, rule, match) : [];
+  if (forbidden.length) return fail(forbidden);
 
   const gone = deletedBy(rule, match);
   const sigma = (v: string) => bound.get(v)!;
