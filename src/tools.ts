@@ -17,9 +17,11 @@ import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act
 import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
-import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES } from "./act-behavior.js";
+import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES, type Acceptable } from "./act-behavior.js";
 import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_HORIZON } from "./act-dynamics.js";
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
+import { levelsConsistency } from "./act-levels.js";
+import { AbstractionMap, checkAbstraction } from "./act-abstraction.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -114,15 +116,28 @@ type Transformation = z.infer<typeof Transformation>;
  * two models share a wiring shape, ignoring ids and labels. With a box map (e.g. a segment's
  * boxMap), deliverables are compared after renaming the concept's boxes to the baseline's.
  */
-function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, boxMap?: Record<string, string>) {
-  if (boxMap && !compareTo) return { ok: false as const, errors: ["box_map needs compare_to"] };
-  const r = analysisBasis(act.analyseModel(model, compareTo));
+function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, boxMap?: Record<string, string>, mpvWeights?: Record<string, number>) {
+  const misuse = [...(boxMap && !compareTo ? ["box_map needs compare_to"] : []), ...(mpvWeights && !compareTo ? ["mpv_weights needs compare_to: the MPV view ranks a concept against a baseline"] : [])];
+  if (misuse.length) return { ok: false as const, errors: misuse };
+  const opts = mpvWeights ? { mpvWeights } : {};
+  const r = analysisBasis(act.analyseModel(model, compareTo, opts));
   if (!r.ok || !compareTo || !r.comparison) return r;
   const mapped = boxMap ? mapBoxes(model, compareTo, boxMap) : null;
   if (mapped && !mapped.ok) return mapped;
-  const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model)), boxMap } : r.comparison;
+  const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model, opts)), boxMap } : r.comparison;
+  if (comparison.mpv && !comparison.mpv.ok) return { ok: false as const, errors: comparison.mpv.errors };
   return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
 }
+
+/** An acceptability entry: a deliverable port or a carrier, with values or a threshold read through the carrier's levels. */
+const AcceptableEntry = z.strictObject({
+  box: Id.optional().describe("Deliverable box (with port)"),
+  port: Id.optional().describe("Deliverable input port (with box)"),
+  carrier: Id.optional().describe("Instead of box and port: every deliverable of this carrier, unless a port entry names it"),
+  values: z.array(Id).min(1).optional().describe("The acceptable declared values"),
+  at_least: z.number().nonnegative().optional().describe("Instead of values: the amount must be at least this, a threshold declared in the carrier's levels; acceptable are the values from that level up"),
+  below: z.number().nonnegative().optional().describe("Instead of values: the amount must stay below this, a threshold declared in the carrier's levels; acceptable are the values under that level"),
+});
 
 type BehaviorArgs = {
   model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[];
@@ -271,9 +286,11 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),
         box_map: z.record(z.string(), Id).optional()
           .describe("Concept box id → baseline box id, applied before comparing deliverables; pass the boxMap a triz_transform segment, take_out, or cheap_copy returns"),
+        mpv_weights: z.record(z.string(), z.number().positive()).optional()
+          .describe("With compare_to: the main parameters of value, each a cost dimension or 'harmful' with your explicit weight. Adds comparison.mpv: the comparison over those axes only, componentwise and by the weighted sum (lower is better), with the differing axes it ignores. Never filled in, and never used for the model's scalar ratio"),
       },
-      handler: async ({ model, compare_to, box_map }: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string> }) =>
-        text(functionModel(model, compare_to, box_map)),
+      handler: async ({ model, compare_to, box_map, mpv_weights }: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; mpv_weights?: Record<string, number> }) =>
+        text(functionModel(model, compare_to, box_map, mpv_weights)),
     },
     {
       name: "triz_trim",
@@ -355,11 +372,11 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       description: "Rank candidate concepts that declare behaviour by the operating situations they admit (references/weakness.md). A situation is a valuation of the concepts' boundary inputs (unwired input ports, matched by box and port id) over their carriers' declared values: the declared input space is weakness.md's list of operating situations. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable (`acceptable`: per deliverable port, the values that are; required for every deliverable). Give each operating condition the same box and port id in every concept (e.g. an environment box with an unwired input); readByOne lists the inputs only one concept reads. Ranked by set inclusion: weakest (admits everything any other admits), maximal, and every pair as equal, first-weaker, second-weaker, or incomparable, with a situation only one admits each way. The admitted count is a secondary figure: it depends on how finely carrier values are declared. Fails closed when the concepts deliver different ports, an input several read ranges over different values, or acceptable misses a deliverable or names an undeclared value; undecided on missing behaviour or past the state cap. Filter concepts for adequacy first; for safety, integrity, or authorisation decisions admitting more is the wrong direction.",
       shape: {
         concepts: z.array(z.strictObject({ id: Id, model: act.FunctionModel })).min(2).describe("Candidate concepts, each a model that declares behaviour for every box that can reach a deliverable"),
-        acceptable: z.array(z.strictObject({ box: Id, port: Id, values: z.array(Id).min(1) })).min(1)
-          .describe("Per deliverable port (a product input port), the declared values that are acceptable; an output is acceptable when every deliverable's value is"),
+        acceptable: z.array(AcceptableEntry).min(1)
+          .describe("Per deliverable port (a product input port), or per carrier for every deliverable it carries, the acceptable values: listed, or derived from a threshold (at_least, below) through the carrier's levels. An output is acceptable when every deliverable's value is"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on situations and search states per concept (default and maximum ${MAX_STATES})`),
       },
-      handler: async ({ concepts, acceptable, max_states }: { concepts: Array<{ id: string; model: act.FunctionModel }>; acceptable: Array<{ box: string; port: string; values: string[] }>; max_states?: number }) =>
+      handler: async ({ concepts, acceptable, max_states }: { concepts: Array<{ id: string; model: act.FunctionModel }>; acceptable: Acceptable[]; max_states?: number }) =>
         text(weaknessRanking(concepts, acceptable, { maxStates: max_states })),
     },
     {
@@ -391,10 +408,23 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       },
       handler: async ({ model, trim, absorb, max_antichain, max_iterations }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_antichain?: number; max_iterations?: number }) => {
         const caps = { maxAntichain: max_antichain, maxIterations: max_iterations };
-        return text(trim ? trimFeasibility(model, { trim, absorb, ...caps })
-          : absorb ? { ok: false, errors: ["absorb needs trim"] }
-          : feasibility(model, caps));
+        const r = trim ? trimFeasibility(model, { trim, absorb, ...caps })
+          : absorb ? { ok: false as const, errors: ["absorb needs trim"] }
+          : feasibility(model, caps);
+        const levels = r.ok ? levelsConsistency(model) : undefined;
+        return text(levels ? { ...r, levels } : r);
       },
+    },
+    {
+      name: "triz_abstraction",
+      description: "Check that a coarse function model (few boxes, e.g. with declared behaviour) is an abstraction of a detailed one of the same system (many boxes, e.g. with costs and feasibility) under a typed map: detailed box → coarse box (several may share one; a box left out is outside the abstraction), per box detailed port → coarse port (default: the same id and side), detailed carrier → coarse carrier (default: the same id). A function between two mapped ports is mapped; one between unmapped ports of boxes with the same image is hidden inside that coarse box; one between boxes with different images and an unmapped port is forgotten. Four checks: total (every mapped port's carrier has an image, and every mapped function has an image coarse function with the mapped endpoints, the mapped carrier, and the same polarity class: negative = harmful or excessive, or not), typed (each mapped port lands on a port of the same side whose carrier is its carrier's image, of the same layer; typed_map), wires (every coarse function is the image of a mapped detailed function of its class), harm loops (every coarse harm loop is the image of a detailed one: each harmful or excessive coarse function on it has such a preimage whose object reaches its performer along mapped and hidden functions; cycle_map, with the detailed cycle as witness). Verdict abstraction or not-an-abstraction with the failing checks. Also reports the functions hidden, forgotten, and left out (harms listed apart), the detailed harm loops the coarse model hides or loses, whether reachability among mapped boxes passes to the coarse model (reach_map, when nothing is forgotten), and, where a coarse box with behaviour has one preimage box with feasibility, whether that box's feasibility amounts read through the coarse carriers' levels fall in the coarse behaviour. Fails closed on a model that does not type-check and on map ids that do not exist. Whether the coarse rows are true of their preimages is substantiated outside the kernel.",
+      shape: {
+        detailed: act.FunctionModel.describe("The detailed model"),
+        coarse: act.FunctionModel.describe("The coarse model of the same system"),
+        map: AbstractionMap,
+      },
+      handler: async ({ detailed, coarse, map }: { detailed: act.FunctionModel; coarse: act.FunctionModel; map: AbstractionMap }) =>
+        text(checkAbstraction(detailed, coarse, map)),
     },
     {
       name: "triz_nine_windows",
@@ -410,6 +440,8 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
           past_to_present: z.array(Transformation).min(1).optional().describe("Applied to past in order; the result must equal present"),
           present_to_future: z.array(Transformation).min(1).optional().describe("Applied to present in order; the result must equal future if given, otherwise it is the future"),
         }).optional().describe("Transformation sequences linking the times, as triz_transform operations"),
+        acceptable: z.array(AcceptableEntry).min(1).optional()
+          .describe("As triz_weakness takes it: with declared behaviour, rank each pair of consecutive times by the situations they admit"),
       },
       handler: async (args: Parameters<typeof nineWindows<Transformation>>[0]) => text(nineWindows(args, transform)),
     },

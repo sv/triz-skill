@@ -22,6 +22,8 @@
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { rewrite, type RewriteStep } from "./act-rewrite.js";
+import { compareBehavior, externalBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
+import { feasibility } from "./act-feasibility.js";
 import type { Theorem } from "./act-basis.js";
 
 /** A restriction keeps typing. Each view zooms once, so restriction's composition laws are not cited. */
@@ -255,6 +257,86 @@ function transition<T extends { op: string }>(
   };
 }
 
+/** A failure kept inside one verdict: it never fails the grid. */
+const failed = (r: { ok: false; errors: string[] }) => ({ ok: false as const, errors: r.errors });
+
+/** The system view's behaviour at one time: decided or why not, and the size of the relation. */
+function behaviourAt(m: FunctionModel) {
+  const r = externalBehavior(m);
+  if (!r.ok) return failed(r);
+  if (!r.decided) return { ok: true as const, decided: false as const, reason: "missing-behavior" as const, missingBehavior: r.missingBehavior };
+  return { ok: true as const, decided: true as const, inputValuations: r.inputValuations, noSteadyState: r.noSteadyState.length, severalSteadyStates: r.severalSteadyStates, basis: r.basis };
+}
+
+/** The system view's feasibility at one time: the verdict, its reason, and the minimal resource vectors. */
+function feasibilityAt(m: FunctionModel) {
+  const r = feasibility(m);
+  if (!r.ok) return failed(r);
+  return {
+    ok: true as const, verdict: r.verdict,
+    ...("reason" in r ? { reason: r.reason } : {}),
+    ...("minimal" in r ? { minimal: r.minimal.map((v) => v.resources), minimalCount: r.minimalCount } : {}),
+    ...("binding" in r ? { binding: r.binding } : {}),
+    ...("basis" in r ? { basis: r.basis } : {}),
+  };
+}
+
+const decidedFeasibility = (v: ReturnType<typeof feasibilityAt>) => v.ok && (v.verdict === "feasible" || v.verdict === "infeasible");
+const canonVectors = (v: ReturnType<typeof feasibilityAt>) => (v.ok && "minimal" in v ? (v.minimal ?? []).map((x) => canon(x)).sort().join("|") : "");
+
+/**
+ * What changes between two times at the system level, beyond structure. Behaviour: the later
+ * model compared with the earlier one (compareBehavior: preserved, changed with a counterexample,
+ * or undecided). Weakness: the two times ranked as concepts by the situations they admit, with
+ * `acceptable`. Feasibility: the verdicts at both times, and changed only when both are decided.
+ * A failure (say, different deliverables for the ranking) is reported here and does not fail the grid.
+ */
+function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, what: { behavior: boolean; feasibility: boolean }, acceptable?: Acceptable[]) {
+  const out: Record<string, unknown> = {};
+  if (what.behavior) {
+    const c = compareBehavior(a, b);
+    out.behavior = !c.ok ? failed(c) : {
+      ok: true as const, verdict: c.verdict,
+      ...("reason" in c ? { reason: c.reason } : {}),
+      ...("direction" in c ? { direction: c.direction, counterexample: c.counterexample } : {}),
+      ...("lostDeliverables" in c ? { lostDeliverables: c.lostDeliverables } : {}),
+      ...("missingBehavior" in c ? { missingBehavior: c.missingBehavior } : {}),
+      gainedDeliverables: c.gainedDeliverables,
+      note: c.verdict === "preserved" ? `The ${to} model has the ${from} model's input→deliverable relation.`
+        : c.verdict === "changed" ? `The input→deliverable relation changes from ${from} to ${to}${"direction" in c ? ` (${c.direction}, as baseline ${from} and concept ${to})` : ": a deliverable is lost"}.`
+        : `Undecided between ${from} and ${to}: ${"reason" in c ? c.reason : "see the comparison"}.`,
+    };
+    if (acceptable) {
+      const w = weaknessRanking([{ id: from, model: a }, { id: to, model: b }], acceptable);
+      out.weakness = !w.ok ? failed(w) : w.verdict !== "ranked" ? { ok: true as const, verdict: w.verdict, ...("reason" in w ? { reason: w.reason } : {}) } : {
+        ok: true as const, verdict: w.verdict, order: w.pairs[0].order,
+        admitted: Object.fromEntries(w.concepts.map((c) => [c.id, c.admitted])), situationCount: w.situationCount,
+        ...("onlyFirst" in w.pairs[0] ? { [`only${from[0].toUpperCase()}${from.slice(1)}`]: w.pairs[0].onlyFirst } : {}),
+        ...("onlySecond" in w.pairs[0] ? { [`only${to[0].toUpperCase()}${to.slice(1)}`]: w.pairs[0].onlySecond } : {}),
+        ...("basis" in w.pairs[0] ? { basis: w.pairs[0].basis } : {}),
+        note: w.pairs[0].order === "equal" ? `The ${from} and ${to} models admit the same situations.`
+          : w.pairs[0].order === "first-weaker" ? `The ${from} model admits every situation the ${to} model admits, and more: the ${to} model is less robust.`
+          : w.pairs[0].order === "second-weaker" ? `The ${to} model admits every situation the ${from} model admits, and more.`
+          : `Neither time admits every situation the other does: each admits one the other rejects.`,
+      };
+    } else out.weakness = { prompt: "Pass acceptable (per deliverable port or carrier: values, or a threshold through the carrier's levels) to rank the times by the situations they admit." };
+  }
+  if (what.feasibility) {
+    const [x, y] = [feasibilityAt(a), feasibilityAt(b)];
+    const decided = decidedFeasibility(x) && decidedFeasibility(y);
+    const verdictOf = (v: typeof x) => (v.ok ? v.verdict : "error");
+    out.feasibility = {
+      [from]: x, [to]: y,
+      changed: decided ? verdictOf(x) !== verdictOf(y) : null,
+      ...(decided && verdictOf(x) === verdictOf(y) ? { resourcesChanged: canonVectors(x) !== canonVectors(y) } : {}),
+      note: decided
+        ? (verdictOf(x) !== verdictOf(y) ? `Feasibility changes from ${verdictOf(x)} (${from}) to ${verdictOf(y)} (${to}).` : `Feasibility stays ${verdictOf(x)}${canonVectors(x) !== canonVectors(y) ? ", with different minimal resource vectors" : ""}.`)
+        : "Not both decided, so no change is claimed: see each time's verdict and reason.",
+    };
+  }
+  return out;
+}
+
 /**
  * The 9-windows grid. `present` is required; `past` and `future` are optional snapshots with
  * stable box ids. `transitions` links them by transformation sequences, applied in order with
@@ -276,6 +358,7 @@ export function nineWindows<T extends { op: string }>(spec: {
   subsystem: string[];
   system?: { id?: string; name?: string; boxes?: string[] };
   transitions?: { past_to_present?: T[]; present_to_future?: T[] };
+  acceptable?: Acceptable[];
 }, apply?: (model: FunctionModel, t: T) => Applied) {
   const models: Partial<Record<Time, FunctionModel>> = { past: spec.past, present: spec.present, future: spec.future };
   const keep = new Set(spec.subsystem);
@@ -300,6 +383,12 @@ export function nineWindows<T extends { op: string }>(spec: {
   }));
   let id = spec.system?.id ?? "system";
   for (let n = 2; spec.system?.id === undefined && outside.has(id); n++) id = `system-${n}`;
+  const declared = (pick: (b: FunctionModel["boxes"][number]) => unknown) => TIMES.some((t) => models[t]?.boxes.some((b) => pick(b) !== undefined));
+  const what = { behavior: declared((b) => b.behavior), feasibility: declared((b) => b.feasibility) };
+  const verdictsAt = (m: FunctionModel) => ({
+    ...(what.behavior ? { behavior: behaviourAt(m) } : {}),
+    ...(what.feasibility ? { feasibility: feasibilityAt(m) } : {}),
+  });
   const windows = TIMES.map((time) => {
     const m = models[time];
     if (!m) return { time, status: "missing" as const, prompt: `No ${time} snapshot: model the ${time} system with the same box ids, or give the transformations that lead to it, to fill this column.` };
@@ -318,7 +407,7 @@ export function nineWindows<T extends { op: string }>(spec: {
       subsystem: sub?.ok
         ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)), basis: sub.basis }
         : { empty: true, absent: spec.subsystem },
-      system: summary(m),
+      system: { ...summary(m), ...(what.behavior || what.feasibility ? { verdicts: verdictsAt(m) } : {}) },
       supersystem: sup?.ok
         ? { ...summary(sup.model), collapsed: group, hidden: sup.hidden, hiddenHarms: sup.hiddenHarms, model: sup.model, basis: sup.basis }
         : { empty: true, reason: "no box to collapse into the system" },
@@ -329,10 +418,12 @@ export function nineWindows<T extends { op: string }>(spec: {
     const [a, b] = [models[TIMES[i]], models[TIMES[i + 1]]];
     if (!a || !b) continue;
     const before = new Set(a.boxes.map((x) => x.id)), after = new Set(b.boxes.map((x) => x.id));
+    const typed = checkModel(a).ok && checkModel(b).ok;
     changes.push({
       from: TIMES[i] as Time, to: TIMES[i + 1] as Time,
       addedBoxes: [...after].filter((x) => !before.has(x)),
       removedBoxes: [...before].filter((x) => !after.has(x)),
+      ...(typed && (what.behavior || what.feasibility) ? { verdicts: verdictDelta(a, b, TIMES[i], TIMES[i + 1], what, spec.acceptable) } : {}),
     });
   }
   return {
@@ -341,6 +432,9 @@ export function nineWindows<T extends { op: string }>(spec: {
     windows,
     changes,
     transitions,
-    note: "Views are typed restrictions and collapses of each time's model. A transition given as transformations is applied and checked; between snapshots without one, only the box ids added and removed are listed. The supersystem collapse is not checked against transitions. Fill missing windows before drawing conclusions from the grid.",
+    note: "Views are typed restrictions and collapses of each time's model. A transition given as transformations is applied and checked; between snapshots without one, only the box ids added and removed are listed. The supersystem collapse is not checked against transitions. Fill missing windows before drawing conclusions from the grid."
+      + (what.behavior || what.feasibility
+        ? " The snapshots declare rows, so each time's system view carries its behaviour and feasibility verdicts (system.verdicts), and each change between times says how they change (changes[].verdicts). These are computed on the system view only: restriction drops the budget and cuts the deliverables' suppliers, and the collapsed box declares no rows."
+        : ""),
   };
 }

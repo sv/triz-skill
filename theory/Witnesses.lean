@@ -1019,4 +1019,191 @@ example : ((kleeneStep (fun (s x : ℤ) => x = s + 1)).lfp : Set ℤ) ≠
   have : (0 : ℤ) ∈ (upperClosure {s : ℤ | ∃ x, x = s + 1 ∧ x ≤ s} : Set ℤ) := h ▸ Set.mem_univ 0
   simp at this
 
+/-! ## Abstraction maps
+
+### `typed_map`
+
+`d3` (wire 0 → 1, box 2 a spare output) maps onto two coarse boxes: boxes 0 and 2 to coarse box
+0, box 1 to coarse box 1. Under the coarse typing that gives coarse box 0 an output and coarse
+box 1 an input, the image is typed and keeps its wire. A coarse typing without that output
+(`ho` fails) or that input (`hi` fails) gives an untyped image, and so does an untyped detailed
+diagram (`h` fails) whose wire starts at box 1, which has no output, though `ho` and `hi` hold. -/
+
+/-- Boxes 0 and 2 map to coarse box 0, box 1 to coarse box 1. -/
+abbrev coarse2 (b : Fin 3) : Fin 2 := if b = 1 then 1 else 0
+
+/-- Coarse typing: box 0 has an output, box 1 an input. -/
+abbrev outC (b : Fin 2) (_ : Unit) : Option Unit := if b = 0 then some () else none
+abbrev inpC (b : Fin 2) (_ : Unit) : Option Unit := if b = 1 then some () else none
+
+theorem d3_ho : ∀ b p c, d3.out b p = some c → outC (coarse2 b) p = some (id c) := by decide
+theorem d3_hi : ∀ b p c, d3.inp b p = some c → inpC (coarse2 b) p = some (id c) := by decide
+
+example : (d3.map coarse2 (fun _ p => p) id outC inpC).Typed ∧
+    () ∈ (d3.map coarse2 (fun _ p => p) id outC inpC).wires :=
+  ⟨d3.typed_map d3_typed d3_ho d3_hi, by simp [Wiring.map, d3]⟩
+
+example : ¬ (d3.map coarse2 (fun _ p => p) id (fun _ _ => none) inpC).Typed := by
+  intro h
+  have := (h () (by simp [Wiring.map, d3])).2.2.1
+  simp [Wiring.map] at this
+
+example : ¬ (d3.map coarse2 (fun _ p => p) id outC (fun _ _ => none)).Typed := by
+  intro h
+  have := (h () (by simp [Wiring.map, d3])).2.2.2
+  simp [Wiring.map] at this
+
+/-- `d3` with its wire starting at box 1, which has no output: untyped. -/
+def d3from1 : Wiring (Fin 3) Unit Unit Unit := { d3 with src := fun _ => (1, ()) }
+
+example : ¬ d3from1.Typed ∧ (∀ b p c, d3from1.out b p = some c → outC (coarse2 b) p = some (id c)) ∧
+    ¬ (d3from1.map coarse2 (fun _ p => p) id outC inpC).Typed := by
+  refine ⟨fun h => ?_, d3_ho, fun h => ?_⟩
+  · have := (h () (by simp [d3from1, d3])).2.2.1
+    simp [d3from1, d3] at this
+  · have := (h () (by simp [Wiring.map, d3from1, d3])).2.2.1
+    simp [Wiring.map, d3from1, d3] at this
+
+/-! ### `reach_map`, `cycle_map`
+
+The chain 0 → 1 → 2 maps onto one coarse function 0 → 1 when boxes 0 and 1 merge: the function
+0 → 1 stays inside coarse box 0 and 1 → 2 maps to the coarse function, so `h` holds and the path
+0 →* 2 has an image path. Against a coarse model with no functions, `h` fails and there is none.
+
+The ring 0 → 1 → 2 → 0 maps onto the coarse loop 0 → 1 → 0 the same way, and the coarse
+function 0 → 1, the image of 1 → 2, lies on a coarse cycle because 2 reaches 1 in the ring.
+Mapping the chain instead, where 2 reaches nothing (`hback` fails), onto the single coarse
+function gives no coarse cycle; neither does mapping the ring onto it, where the function 2 → 0
+has no image (`h` fails). -/
+
+/-- The chain 0 → 1 → 2: wire `false` runs 0 → 1, wire `true` 1 → 2. -/
+def chain3 : Wiring (Fin 3) Unit Bool Unit where
+  boxes := Set.univ
+  wires := Set.univ
+  src w := (if w then 1 else 0, ())
+  tgt w := (if w then 2 else 1, ())
+  carrier _ := ()
+  out _ _ := some ()
+  inp _ _ := some ()
+
+/-- The ring 0 → 1 → 2 → 0: wire `i` runs `i → i + 1`. -/
+def ring3 : Wiring (Fin 3) Unit (Fin 3) Unit where
+  boxes := Set.univ
+  wires := Set.univ
+  src w := (w, ())
+  tgt w := (w + 1, ())
+  carrier _ := ()
+  out _ _ := some ()
+  inp _ _ := some ()
+
+/-- One coarse function, 0 → 1. -/
+def edge2 : Wiring (Fin 2) Unit Unit Unit where
+  boxes := Set.univ
+  wires := Set.univ
+  src _ := (0, ())
+  tgt _ := (1, ())
+  carrier _ := ()
+  out _ _ := some ()
+  inp _ _ := some ()
+
+/-- The coarse loop 0 → 1 → 0: wire `false` runs 0 → 1, wire `true` 1 → 0. -/
+def loop2 : Wiring (Fin 2) Unit Bool Unit where
+  boxes := Set.univ
+  wires := Set.univ
+  src w := (if w then 1 else 0, ())
+  tgt w := (if w then 0 else 1, ())
+  carrier _ := ()
+  out _ _ := some ()
+  inp _ _ := some ()
+
+theorem chain3_maps : ∀ a b, chain3.Acts a b → merge01 a = merge01 b ∨ edge2.Acts (merge01 a) (merge01 b) := by
+  rintro a b ⟨w, -, rfl, rfl⟩
+  cases w
+  · exact Or.inl (by decide)
+  · exact Or.inr ⟨(), Set.mem_univ _, by decide, by decide⟩
+
+theorem ring3_maps : ∀ a b, ring3.Acts a b → merge01 a = merge01 b ∨ loop2.Acts (merge01 a) (merge01 b) := by
+  rintro a b ⟨w, -, rfl, rfl⟩
+  fin_cases w
+  · exact Or.inl (by decide)
+  · exact Or.inr ⟨false, Set.mem_univ _, by decide, by decide⟩
+  · exact Or.inr ⟨true, Set.mem_univ _, by decide, by decide⟩
+
+theorem chain3_0_2 : Relation.ReflTransGen chain3.Acts 0 2 :=
+  (Relation.ReflTransGen.single (show chain3.Acts 0 1 from ⟨false, Set.mem_univ _, by decide, by decide⟩)).tail
+    (show chain3.Acts 1 2 from ⟨true, Set.mem_univ _, by decide, by decide⟩)
+
+theorem ring3_2_1 : Relation.ReflTransGen ring3.Acts 2 1 :=
+  (Relation.ReflTransGen.single (show ring3.Acts 2 0 from ⟨2, Set.mem_univ _, by decide, by decide⟩)).tail
+    (show ring3.Acts 0 1 from ⟨0, Set.mem_univ _, by decide, by decide⟩)
+
+/-- The single coarse function closes no cycle. -/
+theorem edge2_acyclic : ¬ Relation.TransGen edge2.Acts 0 0 := by
+  intro h
+  obtain ⟨_, -, w, -, -, ht⟩ := Relation.TransGen.tail'_iff.mp h
+  cases w
+  exact absurd ht (by decide)
+
+example : Relation.ReflTransGen edge2.Acts (merge01 0) (merge01 2) :=
+  chain3.reach_map merge01 chain3_maps chain3_0_2
+
+/-- `edge2` without its function. -/
+def none2 : Wiring (Fin 2) Unit Unit Unit := { edge2 with wires := ∅ }
+
+example : ¬ (∀ a b, chain3.Acts a b → merge01 a = merge01 b ∨ none2.Acts (merge01 a) (merge01 b)) ∧
+    ¬ Relation.ReflTransGen none2.Acts (merge01 0) (merge01 2) := by
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · rcases h 1 2 ⟨true, Set.mem_univ _, by decide, by decide⟩ with h | ⟨_, hw, _⟩
+    · exact absurd h (by decide)
+    · exact hw
+  · have := (Relation.reflTransGen_iff_eq (fun _ ⟨_, hw, _⟩ => hw)).mp h
+    exact absurd this (by decide)
+
+example : Relation.TransGen loop2.Acts (merge01 1) (merge01 1) :=
+  ring3.cycle_map merge01 ring3_maps (w' := false) (Set.mem_univ _) (by decide) (by decide) ring3_2_1
+
+example : ¬ Relation.ReflTransGen chain3.Acts 2 1 ∧ ¬ Relation.TransGen edge2.Acts (merge01 1) (merge01 1) := by
+  refine ⟨fun h => ?_, edge2_acyclic⟩
+  have := (Relation.reflTransGen_iff_eq (fun b ⟨w, _, hs, _⟩ => by
+    cases w <;> exact absurd hs (by decide))).mp h
+  exact absurd this (by decide)
+
+example : ¬ (∀ a b, ring3.Acts a b → merge01 a = merge01 b ∨ edge2.Acts (merge01 a) (merge01 b)) := by
+  intro h
+  rcases h 2 0 ⟨2, Set.mem_univ _, by decide, by decide⟩ with h | ⟨w, -, hs, -⟩
+  · exact absurd h (by decide)
+  · cases w
+    exact absurd hs (by decide)
+
+/-! ## Levels
+
+### `level_monotone`, `level_band`, `level_gc`
+
+Thresholds 0 and 20 on two values: 25 reads as the upper value and 5 as the lower, each amount
+lies in its value's band, and the reading is a Galois connection. Thresholds 0, 20, 10 do not
+increase (`ht` fails): 15 reads as the top value without reaching the middle one's threshold, so
+the Galois connection fails, though the reading stays monotone (`level_monotone` has no
+hypotheses) and every amount still lies in its band. Thresholds 5 and 20 do not start at the least
+amount (`h0` fails): 3 reaches no threshold, reads as the bottom value anyway, and lies outside
+its band, so both `level_band` and the Galois connection fail. -/
+
+abbrev t2 : Fin 2 → ℕ := ![0, 20]
+abbrev t3 : Fin 3 → ℕ := ![0, 20, 10]
+abbrev t5 : Fin 2 → ℕ := ![5, 20]
+
+example : level t2 25 = 1 ∧ level t2 5 = 0 := by decide
+
+example : GaloisConnection t2 (level t2) ∧ (t2 (level t2 5) ≤ 5 ∧ ∀ w, level t2 5 < w → 5 < t2 w) :=
+  ⟨level_gc (by decide) rfl, level_band rfl 5⟩
+
+example : level t3 15 = 2 ∧ ¬ GaloisConnection t3 (level t3) ∧ level t3 9 ≤ level t3 15 := by
+  refine ⟨by decide, fun h => ?_, level_monotone t3 (by decide)⟩
+  have := (h 1 15).mpr (by decide)
+  exact absurd this (by decide)
+
+example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
+  refine ⟨by decide, fun h => ?_⟩
+  have := (h 0 3).mpr bot_le
+  exact absurd this (by decide)
+
 end CategoricalTriz.Witnesses

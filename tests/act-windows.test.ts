@@ -13,6 +13,7 @@ import { FunctionModel } from "../src/act.js";
 import { rewrite } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
 import { rng, genModel, pick, shuffle, int } from "./support/gen.js";
+import { bearingWithRows } from "./support/bearing.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -171,4 +172,55 @@ test("property: every transition's part inside the subsystem commutes with restr
     reached++;
   }
   assert.ok(within_ > 10 && crossing > 50 && interiorUnchanged > 5 && reached > 100, `${within_} within, ${crossing} crossing, ${interiorUnchanged} unchanged, ${reached} reached`);
+});
+
+/** The bearing with declared rows (support/bearing.ts), and a past where high preload loses the support. */
+function rowsOverTime() {
+  const present = bearingWithRows();
+  const past = bearingWithRows();
+  for (const row of past.boxes.find((b) => b.id === "bearing")!.behavior!) if (row.in["preload-in"] === "high") row.out.race = "unsupported";
+  return { past, present };
+}
+const supportAcceptable = [{ box: "shaft", port: "drive", values: ["rated"] }, { carrier: "radial-load", at_least: 2500 }];
+
+test("with declared rows, each time carries its behaviour and feasibility verdicts, and each change says how they move", async () => {
+  const { past, present } = rowsOverTime();
+  const r = await windows({ past, present, subsystem: ["bearing", "shaft"], transitions: { present_to_future: [{ op: "trim", trim: ["bearing"] }] }, acceptable: supportAcceptable });
+  assert.equal(r.ok, true);
+  const at = (t: string) => r.windows.find((w: { time: string }) => w.time === t).system.verdicts;
+  assert.deepEqual(at("present").behavior, { ok: true, decided: true, inputValuations: 1, noSteadyState: 0, severalSteadyStates: 1, basis: ["Relation.comp_assoc"] });
+  assert.deepEqual([at("present").feasibility.verdict, at("present").feasibility.minimal], ["feasible", [{ service_h_year: 2, usd_unit: 178 }]]);
+  assert.deepEqual(at("future").feasibility.minimal, [{ service_h_year: 1, usd_unit: 182 }]);
+  assert.match(r.note, /system\.verdicts.*changes\[\]\.verdicts/);
+  const [before, after] = r.changes.map((c: { verdicts: unknown }) => c.verdicts);
+  // Past → present: the present no longer lets high preload unsupport the shaft.
+  assert.deepEqual([before.behavior.verdict, before.behavior.direction], ["changed", "baseline-contains-concept"]);
+  assert.deepEqual([before.weakness.order, before.weakness.admitted], ["second-weaker", { past: 0, present: 1 }]);
+  assert.deepEqual(before.weakness.onlyPresent, []);
+  assert.deepEqual([before.feasibility.changed, before.feasibility.resourcesChanged], [false, false]);
+  // Present → future (the trim): the relation is preserved, the robustness equal, and the feasible resources move.
+  assert.equal(after.behavior.verdict, "preserved");
+  assert.equal(after.weakness.order, "equal");
+  assert.deepEqual([after.feasibility.changed, after.feasibility.resourcesChanged], [false, true]);
+  assert.match(after.feasibility.note, /Feasibility stays feasible, with different minimal resource vectors/);
+});
+
+test("verdict deltas never fail the grid, need both sides decided to claim a change, and are absent without rows", async () => {
+  const { past, present } = rowsOverTime();
+  // An acceptability predicate missing a deliverable fails the ranking only.
+  const partial = await windows({ past, present, subsystem: ["shaft"], acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }] });
+  assert.equal(partial.ok, true);
+  assert.match(partial.changes[0].verdicts.weakness.errors.join(), /no values for deliverable 'shaft.support'/);
+  // Without acceptable, the ranking is a prompt.
+  const prompt = await windows({ past, present, subsystem: ["shaft"] });
+  assert.match(prompt.changes[0].verdicts.weakness.prompt, /Pass acceptable/);
+  // A past without a budget is undecided, so no feasibility change is claimed.
+  delete past.budget;
+  const undecided = await windows({ past, present, subsystem: ["shaft"] });
+  assert.deepEqual([undecided.changes[0].verdicts.feasibility.past.reason, undecided.changes[0].verdicts.feasibility.changed], ["no-budget", null]);
+  // Without declared rows, the grid is structural, as before.
+  const plain = await windows({ past: example("bearing-heat"), present: example("bearing-heat"), subsystem: ["shaft"] });
+  assert.equal("verdicts" in plain.windows[1].system, false);
+  assert.equal("verdicts" in plain.changes[0], false);
+  assert.doesNotMatch(plain.note, /system\.verdicts/);
 });
