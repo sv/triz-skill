@@ -1173,6 +1173,50 @@ example : Closed wearOrRenew Set.univ ∧ (Set.univ ∩ {true} : Set Bool).Nonem
     reachIn wearOrRenew 1 true false ∧ false ∉ ({true} : Set Bool) :=
   ⟨fun _ _ _ _ => trivial, ⟨true, trivial, rfl⟩, ⟨true, rfl, trivial⟩, by simp⟩
 
+/-! ### `recurrent_reach`
+
+Under `wearOrRenew`, `Set.univ` is closed and its states reach each other; it holds the unsafe
+thick state and the safe thin one, so from a run's state thick, both stay reachable. Each
+hypothesis is needed. Under `wearOnly`, thick is absorbing (`wearOnly_stays`): without
+closedness, `{false}` is left for thick, which never returns; without the states reaching each
+other, the closed `Set.univ` holds thin but thick never returns to it. Without `hU`, an empty
+unsafe set is never reached. Without the start in `C`, a run that holds its state outside the
+closed `{true}` never enters it. -/
+
+/-- Under `wearOnly`, thick stays thick. -/
+theorem wearOnly_stays {t : Bool} (h : Relation.ReflTransGen wearOnly true t) : t = true := by
+  induction h with
+  | refl => rfl
+  | tail _ hbc ih => exact hbc ih
+
+example : (∃ u ∈ ({true} : Set Bool), Relation.ReflTransGen wearOrRenew true u) ∧
+    ∃ s ∈ ({false} : Set Bool), Relation.ReflTransGen wearOrRenew true s :=
+  recurrent_reach (r := wearOrRenew) (C := Set.univ) (U := {true}) (S := {false}) (b := true)
+    (fun _ _ _ _ => trivial)
+    (fun _ _ _ _ => Relation.ReflTransGen.single trivial) ⟨true, trivial, rfl⟩ ⟨false, trivial, rfl⟩
+    (Set.mem_univ false) 1 (⟨false, rfl, trivial⟩ : reachIn wearOrRenew 1 false true)
+
+example : ¬ Closed wearOnly {false} ∧ reachIn wearOnly 1 false true ∧
+    ¬ ∃ u ∈ ({false} : Set Bool), Relation.ReflTransGen wearOnly true u :=
+  ⟨fun h => by simpa using h false rfl true (fun h => absurd h Bool.false_ne_true),
+    ⟨false, rfl, fun h => absurd h Bool.false_ne_true⟩,
+    fun ⟨u, hu, hr⟩ => absurd ((Set.mem_singleton_iff.mp hu).symm.trans (wearOnly_stays hr)) Bool.false_ne_true⟩
+
+example : Closed wearOnly Set.univ ∧ ¬ Relation.ReflTransGen wearOnly true false :=
+  ⟨fun _ _ _ _ => trivial, fun h => Bool.false_ne_true (wearOnly_stays h)⟩
+
+example : ¬ ∃ u ∈ (∅ : Set Bool), Relation.ReflTransGen wearOrRenew true u :=
+  fun ⟨_, hu, _⟩ => hu
+
+example : Closed (fun (s t : Bool) => t = s) {true} ∧ false ∉ ({true} : Set Bool) ∧
+    ¬ Relation.ReflTransGen (fun (s t : Bool) => t = s) false true := by
+  refine ⟨fun a ha b hb => hb ▸ ha, by simp, fun h => ?_⟩
+  have : ∀ t, Relation.ReflTransGen (fun (s t : Bool) => t = s) false t → t = false := fun t h => by
+    induction h with
+    | refl => rfl
+    | tail _ hbc ih => exact hbc.trans ih
+  exact Bool.noConfusion (this true h)
+
 /-! ### `return_ge_two`
 
 Negation on `Bool` has no fixed point and returns in two steps. Without `h`, the identity returns
