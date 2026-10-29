@@ -165,7 +165,10 @@ weakest specification for the one box without behaviour, such as an absorber: ev
 keeps the relation inside the target. The verdict is `spec` when that specification also covers
 the target, and `impossible` when no behaviour of the box can. When the box declares the rows it
 can physically produce (`producible`), the specification is cut down to them, and a target only
-unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. `triz_weakness` ranks modelled
+unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. With two
+boxes without behaviour, such as an absorber and a new mediator, it gives the maximal pairs of
+relations for them that cover the target; several such pairs are incomparable, so there may be
+no weakest one. `triz_weakness` ranks modelled
 concepts by the situations they admit (references/weakness.md).
 
 When boxes declare feasibility (minimal rows of levels provided against levels required and
@@ -242,7 +245,9 @@ with no `sorry`:
   composite inside a target form the weakest specification (a Galois connection), and the target
   is reachable iff that specification's composite covers it; within the rows the box can
   produce, iff the specification cut down to them covers it, and a relation that reaches the
-  target holds, for each target pair, a row of the specification that delivers it;
+  target holds, for each target pair, a row of the specification that delivers it; for two
+  unknown boxes the maximal safe pairs of relations are the formal concepts of the safe row
+  pairs, and the target is reachable iff one of them covers it;
 - concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
   strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
