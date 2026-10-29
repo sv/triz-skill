@@ -94,6 +94,7 @@ missing.
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
+| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -126,6 +127,11 @@ decides a trim instead of only screening it: `preserved`, `changed` with a count
 or `undecided` (boxes that need behaviour, or no steady state in either model). The semantics
 is steady state; it says nothing about dynamics.
 
+When boxes declare state (`state`, `initial`, and `transition` rows), `triz_dynamics` explores
+every run up to a horizon. It decides whether a harm loop escalates into an unsafe set, with a
+shortest trace, and whether a safe set is invariant. It also decides whether one run meets
+time-separated demands within their windows. Only finite, discrete dynamics are covered.
+
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
@@ -137,7 +143,8 @@ transfer between domains.
 [categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
 what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
 software models. One software model has the physical model's wiring shape. A copy of the
-physical model declares box behaviour, so its trim can be decided.
+physical model declares box behaviour, so its trim can be decided; another declares a shaft
+temperature, so its heat loop's escalation can be decided.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
@@ -149,10 +156,13 @@ with no `sorry`:
   re-attachment to a same-carrier port;
 - restriction composes;
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
-  trace is monotone and yanks a swap to the identity.
+  trace is monotone and yanks a swap to the identity;
+- reachability within n steps is an existential over traces, a counterexample trace is sound, a
+  layer that adds nothing completes the reachable set, and reachability is monotone in the
+  transition rows.
 
-`theory/Witnesses.lean` checks that none of the typing or behaviour-monotonicity lemmas is
-vacuous. For each, a concrete diagram or relation meets all its hypotheses, and a counterexample
+`theory/Witnesses.lean` checks that none of the typing, behaviour-monotonicity, or dynamics
+lemmas is vacuous. For each, a concrete diagram or relation meets all its hypotheses, and a counterexample
 shows each hypothesis is needed.
 
 It also states trimming as a left Kan extension, which the kernel does not decide.
