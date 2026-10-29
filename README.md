@@ -91,6 +91,7 @@ missing.
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
+| `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -119,6 +120,12 @@ typed moves. Each returns a model that type-checks, or fails closed:
 - Segmentation, Taking out, and Intermediary, each matched to its principle text;
 - an applied trim;
 - a raw rewrite.
+
+`triz_rule_apply` takes a rule as data, a span L ← K → R of patterns
+([`rule.schema.json`](skills/triz-innovation/schemas/rule.schema.json)). It lists the rule's
+matches in a model, then applies one by double pushout after checking the no-identification and
+no-dangling conditions. Two built-in rules encode evolution lines whose text describes a
+structural move: mono → bi, and self-adjusting feedback.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two

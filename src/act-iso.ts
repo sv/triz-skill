@@ -137,7 +137,8 @@ function incidence(m: FunctionModel): Incidence {
   return g;
 }
 
-class Budget extends Error {}
+/** Thrown when a bounded search runs out of steps; callers answer `decided: false`. */
+export class Budget extends Error {}
 
 /** Colour refinement to a stable partition over the disjoint union; colours renumbered canonically. */
 function refine(g: Incidence, colours: number[]): number[] {

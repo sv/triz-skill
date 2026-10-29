@@ -1,0 +1,249 @@
+{
+  "$id": "https://github.com/sv/triz-skill/skills/triz-innovation/schemas/rule.schema.json",
+  "title": "Rule",
+  "description": "Double-pushout rewrite rule L ← K → R over the function-model schema. Generated from src/act-rule.ts; do not edit by hand.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/Rule",
+  "$defs": {
+    "Rule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "carriers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Carrier variables. Those used in `left` are bound by the match; those used only in `right` are bound by the caller"
+        },
+        "left": {
+          "description": "L: what must be present; L \\ K is deleted",
+          "$ref": "#/$defs/Pattern"
+        },
+        "interface": {
+          "description": "K: what is kept; every element appears with the same id and constraints in left and right",
+          "$ref": "#/$defs/Pattern"
+        },
+        "right": {
+          "description": "R: what is there afterwards; R \\ K is created under fresh ids",
+          "$ref": "#/$defs/Pattern"
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "line": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "quote": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Text on that line the rule encodes"
+            }
+          },
+          "required": [
+            "file",
+            "line",
+            "quote"
+          ],
+          "additionalProperties": false
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "carriers",
+        "left",
+        "interface",
+        "right"
+      ],
+      "additionalProperties": false,
+      "description": "A double-pushout rewrite rule L ← K → R over the function-model schema, with K included in L and R by id"
+    },
+    "RuleBox": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "role": {
+          "description": "On a matched box: the role it must have (omit: any role). On a created box: its role",
+          "type": "string",
+          "enum": [
+            "tool",
+            "product",
+            "mediator",
+            "environment",
+            "supersystem"
+          ]
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RulePort"
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RulePort"
+          }
+        },
+        "like": {
+          "description": "Created box only: copy role, name, action, and cost from the model box this left-side box matches; a port with the same id as one of that box's ports takes the matched port's id",
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "description": "Created box only",
+          "type": "string",
+          "minLength": 1
+        },
+        "action": {
+          "description": "Created box only",
+          "type": "string"
+        },
+        "cost": {
+          "description": "Created box only: cost per resource dimension",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "description": "A box of a rule pattern; ports are typed by carrier variables"
+    },
+    "RulePort": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique within its box"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier variable, declared in the rule's `carriers`"
+        }
+      },
+      "required": [
+        "id",
+        "carrier"
+      ],
+      "additionalProperties": false
+    },
+    "RuleWire": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "from": {
+          "description": "Output port of a box in the same pattern",
+          "$ref": "#/$defs/Endpoint"
+        },
+        "to": {
+          "description": "Input port of a box in the same pattern",
+          "$ref": "#/$defs/Endpoint"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier variable; must equal both port carriers"
+        },
+        "polarity": {
+          "description": "On a matched wire: the rating it must have (omit: any rating). On a created wire: its rating",
+          "type": "string",
+          "enum": [
+            "useful",
+            "insufficient",
+            "excessive",
+            "harmful"
+          ]
+        },
+        "like": {
+          "description": "Created wire only: copy polarity and verb from the model wire this left-side wire matches",
+          "type": "string",
+          "minLength": 1
+        },
+        "verb": {
+          "description": "Created wire only",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "from",
+        "to",
+        "carrier"
+      ],
+      "additionalProperties": false
+    },
+    "Endpoint": {
+      "type": "object",
+      "properties": {
+        "box": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "box",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "Pattern": {
+      "type": "object",
+      "properties": {
+        "boxes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuleBox"
+          }
+        },
+        "wires": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RuleWire"
+          }
+        }
+      },
+      "required": [
+        "boxes"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

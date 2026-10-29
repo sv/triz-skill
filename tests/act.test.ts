@@ -13,6 +13,7 @@ import {
   analyseModel, functionModelJsonSchema, shortestPath, type PhysicalContradiction,
 } from "../src/act.js";
 import { toolSpecs } from "../src/tools.js";
+import { ruleJsonSchema } from "../src/act-rule.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -250,9 +251,11 @@ test("separation: system level, direction, and fail-closed undeclared cells", ()
   assert.deepEqual(spring.pairs[0], { demands: ["stiff", "compliant"], status: "separated", separatingAxes: ["direction"] });
 });
 
-test("committed JSON Schema matches the zod model (regenerate with pnpm schema)", () => {
-  const committed = JSON.parse(fs.readFileSync(path.resolve(here, "../skills/triz-innovation/schemas/function-model.schema.json"), "utf8"));
-  assert.deepEqual(committed, JSON.parse(JSON.stringify(functionModelJsonSchema())));
+test("committed JSON Schemas match the zod models (regenerate with pnpm schema)", () => {
+  for (const [file, schema] of [["function-model.schema.json", functionModelJsonSchema()], ["rule.schema.json", ruleJsonSchema()]] as const) {
+    const committed = JSON.parse(fs.readFileSync(path.resolve(here, `../skills/triz-innovation/schemas/${file}`), "utf8"));
+    assert.deepEqual(committed, JSON.parse(JSON.stringify(schema)), file);
+  }
 });
 
 test("kernel tools are registered and answer over the shared spec", async () => {

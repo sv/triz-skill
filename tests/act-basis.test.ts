@@ -47,6 +47,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
     if (m.wires.length) collect(await call("triz_transform", { model: m, transformation: { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } } }));
+    const listed = await call("triz_rule_apply", { model: m, rule_id: "mono-bi" });
+    if (listed.matches.length) collect(await call("triz_rule_apply", { model: m, rule_id: "mono-bi", match: listed.matches[0].match }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
   for (const n of cited) assert.ok((THEOREMS as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
@@ -91,4 +93,6 @@ test("verdicts cite the statement they use", async () => {
   assert.deepEqual([grid.windows[1].subsystem.basis, grid.windows[1].supersystem.basis], [["typed_restrict", "restrict_restrict"], ["typed_delete", "typed_glue"]]);
   const dyn = await call("triz_separate", { contradiction: bearing.contradictions![0], along: "time" });
   assert.deepEqual(dyn.along.basis, ["exists_section_iff"]);
+  const [first] = (await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi" })).matches;
+  assert.deepEqual((await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi", match: first.match })).basis, ["typed_dpo"]);
 });

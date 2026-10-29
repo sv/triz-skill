@@ -250,6 +250,62 @@ theorem restrict_restrict (A A' : Set B) : (d.restrict A).restrict A' = d.restri
 theorem restrict_of_subset {A A' : Set B} (hA : A' ⊆ A) : (d.restrict A).restrict A' = d.restrict A' := by
   rw [restrict_restrict, Set.inter_eq_right.mpr hA]
 
+/-! ### Double-pushout rule application (`applyRule` in `src/act-rule.ts`)
+
+A rule `L ← K → R` is applied at a match `m : L → G` in two steps. First delete the image of
+`L \ K`. Then glue `R` on, its interface `K` along the match and its new boxes, ports, and wires
+under fresh ids. Here `R` is already renamed into the host's ids by that comatch, so gluing is
+`overlay`: `R`'s wires, boxes, and port carriers, and `d`'s wherever `R` gives none. Lean types
+ports by partial maps, so a port the rule deletes keeps its carrier here. Typing is unaffected,
+because no surviving wire uses that port: the TypeScript dangling check ensures it. -/
+
+open Classical in
+/-- `R` glued over `d`: `R`'s structure where `R` defines it, `d`'s elsewhere. -/
+noncomputable def overlay (R : Wiring B P W C) : Wiring B P W C where
+  boxes := d.boxes ∪ R.boxes
+  wires := d.wires ∪ R.wires
+  src w := if w ∈ R.wires then R.src w else d.src w
+  tgt w := if w ∈ R.wires then R.tgt w else d.tgt w
+  carrier w := if w ∈ R.wires then R.carrier w else d.carrier w
+  out b p := (R.out b p).or (d.out b p)
+  inp b p := (R.inp b p).or (d.inp b p)
+
+/-- Gluing a typed `R` keeps typing when `R` gives no port a carrier other than the one `d`
+gives it: the comatch maps interface ports to themselves with their carrier, and new ports are
+fresh. `R`'s own wires are typed because `R` is. -/
+theorem typed_overlay {R : Wiring B P W C} (h : d.Typed) (hR : R.Typed)
+    (hout : ∀ b p c c', R.out b p = some c → d.out b p = some c' → c = c')
+    (hinp : ∀ b p c c', R.inp b p = some c → d.inp b p = some c' → c = c') :
+    (d.overlay R).Typed := by
+  have keep : ∀ (o o' : Option C) (c : C), o' = some c → (∀ c₁ c₂, o = some c₁ → o' = some c₂ → c₁ = c₂) →
+      o.or o' = some c := by
+    rintro (_ | c₁) o' c rfl hc
+    · rfl
+    · simp [hc c₁ c rfl rfl]
+  rintro w (hw | hw)
+  · by_cases hwR : w ∈ R.wires
+    · obtain ⟨hs, ht, ho, hi⟩ := hR w hwR
+      simp only [overlay, if_pos hwR]
+      exact ⟨Or.inr hs, Or.inr ht, by simp [ho], by simp [hi]⟩
+    · obtain ⟨hs, ht, ho, hi⟩ := h w hw
+      simp only [overlay, if_neg hwR]
+      exact ⟨Or.inl hs, Or.inl ht, keep _ _ _ ho (hout _ _), keep _ _ _ hi (hinp _ _)⟩
+  · obtain ⟨hs, ht, ho, hi⟩ := hR w hw
+    simp only [overlay, if_pos hw]
+    exact ⟨Or.inr hs, Or.inr ht, by simp [ho], by simp [hi]⟩
+
+/-- A typed rule applied under the no-dangling condition keeps typing. `D` and `E` are the boxes
+and wires the match sends `L \ K` to, and `R` is the right-hand side renamed by the comatch.
+Only `R`'s typing is needed. The no-identification condition (Bonchi et al. 2022, Prop. 3.17)
+is what makes the result a pushout; typing does not depend on it, so it is checked in
+TypeScript only. -/
+theorem typed_dpo {R : Wiring B P W C} {D : Set B} {E : Set W} (h : d.Typed) (hR : R.Typed)
+    (hd : ∀ w ∈ d.wires, w ∉ E → (d.src w).1 ∉ D ∧ (d.tgt w).1 ∉ D)
+    (hout : ∀ b p c c', R.out b p = some c → d.out b p = some c' → c = c')
+    (hinp : ∀ b p c c', R.inp b p = some c → d.inp b p = some c' → c = c') :
+    ((d.delete D E).overlay R).Typed :=
+  (d.delete D E).typed_overlay (d.typed_delete h hd) hR hout hinp
+
 end Wiring
 
 /-! ## Ideality as a componentwise comparison (`idealityProfile`, `compareIdeality`)
