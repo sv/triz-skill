@@ -936,6 +936,107 @@ example : ¬ ((∃ R ⊆ (Set.univ : SetRel Unit Bool), allOrNothingBool R = {((
     exact hne R hR
   · simp [allOrNothingBool] at hq
 
+/-! ### Two unknown boxes: `le_safeRows_iff`, `safe_iff_le_concept`, `concept_maximal`, `exists_eq₂_iff`
+
+Two boxes side by side, each delivering one bit (`bothBits`), preserve unions in each box. With
+the target that the bits differ, a box delivering `true` beside one delivering `false` is safe,
+and so is the swap. The concepts these generate are incomparable, so no pair of relations is the
+weakest. Each is maximal: a safe pair containing `true` beside `false` is exactly that pair, and
+without `h` the full relations contain it too. No pair achieves that target: it is not a rectangle, and the boxes would have to
+coordinate. The target "the first bit is `true`" is achieved, so a concept covers it. Without
+`hC`: one box whose relation is used for both bits (`twiceBits`) does not preserve unions in each,
+and on the target that the bits agree every pair of rows is safe while the full relations are
+not. -/
+
+/-- Two boxes side by side: the composite delivers the bit of each. -/
+def bothBits (R₁ R₂ : SetRel Unit Bool) : SetRel Unit (Bool × Bool) :=
+  {q | ((), q.2.1) ∈ R₁ ∧ ((), q.2.2) ∈ R₂}
+
+theorem bothBits_preservesUnions₂ : PreservesUnions₂ bothBits := by
+  intro R₁ R₂
+  ext ⟨u, a, b⟩
+  simp [bothBits]
+
+/-- The bits differ. -/
+def differ : SetRel Unit (Bool × Bool) := {q | q.2.1 ≠ q.2.2}
+
+/-- A concept holding the same row in both boxes is not safe for `differ`. -/
+theorem differ_clash (c : Concept (Unit × Bool) (Unit × Bool) (SafeRows bothBits differ)) (b : Bool)
+    (h₁ : ((), b) ∈ c.extent) (h₂ : ((), b) ∈ c.intent) : False :=
+  concept_safe bothBits_preservesUnions₂ c (show ((), (b, b)) ∈ bothBits c.extent c.intent from ⟨h₁, h₂⟩) rfl
+
+/-- Each orientation is safe, and the concepts the two generate are incomparable. -/
+example : ∃ c c' : Concept (Unit × Bool) (Unit × Bool) (SafeRows bothBits differ), ¬ c ≤ c' ∧ ¬ c' ≤ c := by
+  have safe : ∀ a : Bool, bothBits {((), a)} {((), !a)} ⊆ differ := by
+    rintro a ⟨u, x, y⟩ ⟨hx, hy⟩
+    simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and] at hx hy
+    subst hx hy
+    cases x <;> simp [differ]
+  obtain ⟨c, hc₁, hc₂⟩ := (safe_iff_le_concept bothBits_preservesUnions₂).1 (safe true)
+  obtain ⟨c', hc₁', hc₂'⟩ := (safe_iff_le_concept bothBits_preservesUnions₂).1 (safe false)
+  refine ⟨c, c', fun h => ?_, fun h => ?_⟩
+  · exact differ_clash c' true (Concept.extent_subset_extent_iff.2 h (hc₁ rfl)) (hc₂' rfl)
+  · exact differ_clash c false (Concept.extent_subset_extent_iff.2 h (hc₁' rfl)) (hc₂ rfl)
+
+/-- `true` beside `false` is a maximal safe pair: no safe pair strictly contains it. Without `h`,
+the full relations contain it and are not it. -/
+example : (∀ R₁ R₂, bothBits R₁ R₂ ⊆ differ → {((), true)} ⊆ R₁ → {((), false)} ⊆ R₂ →
+      R₁ = {((), true)} ∧ R₂ = {((), false)}) ∧
+    (Set.univ : SetRel Unit Bool) ≠ {((), true)} := by
+  have safe : bothBits {((), true)} {((), false)} ⊆ differ := by
+    rintro ⟨u, x, y⟩ ⟨hx, hy⟩
+    simp only [Set.mem_singleton_iff, Prod.mk.injEq, true_and] at hx hy
+    subst hx hy
+    simp [differ]
+  obtain ⟨c, hc₁, hc₂⟩ := (safe_iff_le_concept bothBits_preservesUnions₂).1 safe
+  have he : c.extent = {((), true)} := by
+    refine Set.Subset.antisymm (fun ⟨u, b⟩ hb => ?_) hc₁
+    cases b
+    · exact (differ_clash c false hb (hc₂ rfl)).elim
+    · exact rfl
+  have hi : c.intent = {((), false)} := by
+    refine Set.Subset.antisymm (fun ⟨u, b⟩ hb => ?_) hc₂
+    cases b
+    · exact rfl
+    · exact (differ_clash c true (hc₁ rfl) hb).elim
+  refine ⟨fun R₁ R₂ h h₁ h₂ => ?_, fun h => ?_⟩
+  · have := concept_maximal bothBits_preservesUnions₂ c h (he ▸ h₁) (hi ▸ h₂)
+    rwa [he, hi] at this
+  · have : ((), false) ∈ ({((), true)} : SetRel Unit Bool) := h ▸ Set.mem_univ _
+    simp at this
+
+/-- No pair achieves `differ`, so no concept covers it. -/
+example : ¬ ∃ c : Concept (Unit × Bool) (Unit × Bool) (SafeRows bothBits differ),
+    differ ⊆ bothBits c.extent c.intent := by
+  rw [← exists_eq₂_iff bothBits_preservesUnions₂]
+  rintro ⟨R₁, R₂, h⟩
+  have h₁ : ((), (true, false)) ∈ bothBits R₁ R₂ := by rw [h]; simp [differ]
+  have h₂ : ((), (false, true)) ∈ bothBits R₁ R₂ := by rw [h]; simp [differ]
+  have : ((), (true, true)) ∈ bothBits R₁ R₂ := ⟨h₁.1, h₂.2⟩
+  rw [h] at this
+  simp [differ] at this
+
+/-- The first bit is `true`: achieved, so a concept covers it. -/
+example : ∃ c : Concept (Unit × Bool) (Unit × Bool) (SafeRows bothBits {q | q.2.1 = true}),
+    {q | q.2.1 = true} ⊆ bothBits c.extent c.intent :=
+  (exists_eq₂_iff bothBits_preservesUnions₂).1
+    ⟨{((), true)}, Set.univ, by ext ⟨u, a, b⟩; simp [bothBits]⟩
+
+/-- One box's relation used for both bits. -/
+def twiceBits (R₁ _ : SetRel Unit Bool) : SetRel Unit (Bool × Bool) := bothBits R₁ R₁
+
+/-- Without `hC`: on the target that the bits agree, every pair of rows is safe, yet the full
+relations are not. -/
+example : ¬ (twiceBits Set.univ Set.univ ⊆ {q | q.2.1 = q.2.2} ↔
+    (Set.univ : SetRel Unit Bool) ⊆ upperPolar (SafeRows twiceBits {q | q.2.1 = q.2.2}) Set.univ) := by
+  intro h
+  have hsafe : (Set.univ : SetRel Unit Bool) ⊆
+      upperPolar (SafeRows twiceBits {q | q.2.1 = q.2.2}) Set.univ := by
+    rintro q - p - ⟨u, a, b⟩ ⟨ha, hb⟩
+    exact congrArg Prod.snd ((Set.mem_singleton_iff.mp ha).trans (Set.mem_singleton_iff.mp hb).symm)
+  have := h.2 hsafe (show ((), (true, false)) ∈ twiceBits Set.univ Set.univ from ⟨trivial, trivial⟩)
+  simp at this
+
 /-! ## Weakness ranking
 
 `admits_mono_ok`: a predicate that also accepts `false` admits the situation `false` as well;
@@ -1009,6 +1110,25 @@ example : ¬ mealyStep (fun (_ _ _ _ : Unit) => True) Set.univ ≤
   intro h
   obtain ⟨_, hi, _⟩ := h () () ⟨(), Set.mem_univ _, (), trivial⟩
   exact hi
+
+/-! ### `relTrace_mealyRel_iff`, `relTrace_mealyRel_fixed`
+
+A machine that holds its state has a steady state, a fixed point the run can stay at. One that
+toggles its state has none and no self-loop, though it steps forever: the trace sees no
+oscillation. -/
+
+example : relTrace (mealyRel fun (s : Bool) (_ : Unit) s' (_ : Unit) => s' = s) () () ∧
+    ∃ s, mealyStep (fun (s : Bool) (_ : Unit) s' (_ : Unit) => s' = s) {()} s s :=
+  ⟨relTrace_mealyRel_iff.mpr ⟨true, rfl⟩,
+    relTrace_mealyRel_fixed (o := ()) (relTrace_mealyRel_iff.mpr ⟨true, rfl⟩)⟩
+
+example : ¬ relTrace (mealyRel fun (s : Bool) (_ : Unit) s' (_ : Unit) => s' = !s) () () ∧
+    (¬ ∃ s, mealyStep (fun (s : Bool) (_ : Unit) s' (_ : Unit) => s' = !s) {()} s s) ∧
+    mealyStep (fun (s : Bool) (_ : Unit) s' (_ : Unit) => s' = !s) {()} true false := by
+  refine ⟨fun h => ?_, fun ⟨s, _, _, _, hs⟩ => ?_, ⟨(), rfl, (), rfl⟩⟩
+  · obtain ⟨s, hs⟩ := relTrace_mealyRel_iff.mp h
+    cases s <;> simp at hs
+  · cases s <;> simp at hs
 
 /-! ### `reachIn_mono`, `reachWithin_mono`
 
@@ -1178,6 +1298,50 @@ example : Closed wearOnly {true} ∧ false ∉ ({true} : Set Bool) ∧ reachIn w
 example : Closed wearOrRenew Set.univ ∧ (Set.univ ∩ {true} : Set Bool).Nonempty ∧
     reachIn wearOrRenew 1 true false ∧ false ∉ ({true} : Set Bool) :=
   ⟨fun _ _ _ _ => trivial, ⟨true, trivial, rfl⟩, ⟨true, rfl, trivial⟩, by simp⟩
+
+/-! ### `recurrent_reach`
+
+Under `wearOrRenew`, `Set.univ` is closed and its states reach each other; it holds the unsafe
+thick state and the safe thin one, so from a run's state thick, both stay reachable. Each
+hypothesis is needed. Under `wearOnly`, thick is absorbing (`wearOnly_stays`): without
+closedness, `{false}` is left for thick, which never returns; without the states reaching each
+other, the closed `Set.univ` holds thin but thick never returns to it. Without `hU`, an empty
+unsafe set is never reached. Without the start in `C`, a run that holds its state outside the
+closed `{true}` never enters it. -/
+
+/-- Under `wearOnly`, thick stays thick. -/
+theorem wearOnly_stays {t : Bool} (h : Relation.ReflTransGen wearOnly true t) : t = true := by
+  induction h with
+  | refl => rfl
+  | tail _ hbc ih => exact hbc ih
+
+example : (∃ u ∈ ({true} : Set Bool), Relation.ReflTransGen wearOrRenew true u) ∧
+    ∃ s ∈ ({false} : Set Bool), Relation.ReflTransGen wearOrRenew true s :=
+  recurrent_reach (r := wearOrRenew) (C := Set.univ) (U := {true}) (S := {false}) (b := true)
+    (fun _ _ _ _ => trivial)
+    (fun _ _ _ _ => Relation.ReflTransGen.single trivial) ⟨true, trivial, rfl⟩ ⟨false, trivial, rfl⟩
+    (Set.mem_univ false) 1 (⟨false, rfl, trivial⟩ : reachIn wearOrRenew 1 false true)
+
+example : ¬ Closed wearOnly {false} ∧ reachIn wearOnly 1 false true ∧
+    ¬ ∃ u ∈ ({false} : Set Bool), Relation.ReflTransGen wearOnly true u :=
+  ⟨fun h => by simpa using h false rfl true (fun h => absurd h Bool.false_ne_true),
+    ⟨false, rfl, fun h => absurd h Bool.false_ne_true⟩,
+    fun ⟨u, hu, hr⟩ => absurd ((Set.mem_singleton_iff.mp hu).symm.trans (wearOnly_stays hr)) Bool.false_ne_true⟩
+
+example : Closed wearOnly Set.univ ∧ ¬ Relation.ReflTransGen wearOnly true false :=
+  ⟨fun _ _ _ _ => trivial, fun h => Bool.false_ne_true (wearOnly_stays h)⟩
+
+example : ¬ ∃ u ∈ (∅ : Set Bool), Relation.ReflTransGen wearOrRenew true u :=
+  fun ⟨_, hu, _⟩ => hu
+
+example : Closed (fun (s t : Bool) => t = s) {true} ∧ false ∉ ({true} : Set Bool) ∧
+    ¬ Relation.ReflTransGen (fun (s t : Bool) => t = s) false true := by
+  refine ⟨fun a ha b hb => hb ▸ ha, by simp, fun h => ?_⟩
+  have : ∀ t, Relation.ReflTransGen (fun (s t : Bool) => t = s) false t → t = false := fun t h => by
+    induction h with
+    | refl => rfl
+    | tail _ hbc ih => exact hbc.trans ih
+  exact Bool.noConfusion (this true h)
 
 /-! ### `unreachable_of_invariant`
 

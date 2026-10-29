@@ -6,7 +6,8 @@ import Semantics
 For each theorem of `Semantics`, a concrete diagram over `Bool` on which its hypotheses hold and
 its external relation relates something, so the theorem is not vacuous. For each hypothesis of
 `external_glueAlong`, `external_feedbackAlong`, and `external_mono`, a counterexample: drop it,
-and the conclusion fails. The diagrams are generic; the loops are the identity and negation loops
+and the conclusion fails. For `holeContext_preservesUnions`, a counterexample to what it assumes
+of the hole, that it occurs once: the same relation in two holes does not preserve unions. The diagrams are generic; the loops are the identity and negation loops
 of `tests/act-behavior.test.ts`.
 -/
 
@@ -288,6 +289,98 @@ example : ¬ ((boxOf copy).withBehavior anyRows).external ≤ ((boxOf copy).with
   have : s true = s false := hb ()
   rw [h₁, h₂] at this
   exact Bool.false_ne_true this
+
+/-! ## `holeContext_preservesUnions`, `holeContext₂_preservesUnions₂`
+
+A bare diagram, an input port `false` and an output port `true` with no box (`bare`), with the
+hole between them: the context is the hole's relation itself, so the copy relation is inside its
+own residual and its composite relates `true` to `true`. Three ports in a row (`chain`) take two
+holes in series; copy in both relates `true` to `true`. The hole must occur once: the same relation
+in both holes of `chain` does not preserve unions. Each row of `{true ↦ false, false ↦ true}` in
+both holes relates nothing, the two rows together relate `true` to `true`. -/
+
+/-- An input port `false` and an output port `true`, with no box. -/
+def bare : OpenDiagram Bool Unit Unit where
+  Port := Bool
+  Box := Empty
+  Wire := Empty
+  values _ := Set.univ
+  behavior b := b.elim
+  src w := w.elim
+  tgt w := w.elim
+  input _ := false
+  output _ := true
+
+/-- The hole reads the input port and writes the output port. -/
+def holeIn : Unit → bare.Port := fun _ => false
+def holeOut : Unit → bare.Port := fun _ => true
+
+theorem holeContext_bare (R : SetRel (Unit → Bool) (Unit → Bool)) :
+    bare.holeContext holeIn holeOut R = R := by
+  ext ⟨x, y⟩
+  constructor
+  · rintro ⟨s, hs, rfl, rfl⟩
+    exact (mem_steadyStates_withHole.mp hs).2
+  · intro h
+    refine ⟨fun b : Bool => cond b (y ()) (x ()), mem_steadyStates_withHole.mpr
+      ⟨⟨fun _ => trivial, fun b => b.elim, fun w => w.elim⟩, h⟩, rfl, rfl⟩
+
+/-- The copy relation on the hole's interface. -/
+def copyRel : SetRel (Unit → Bool) (Unit → Bool) := {p | p.2 = p.1}
+
+example : copyRel ⊆ residual (bare.holeContext holeIn holeOut) copyRel ∧
+    (fun _ => true, fun _ => true) ∈ bare.holeContext holeIn holeOut copyRel :=
+  ⟨(le_residual_iff (holeContext_preservesUnions bare holeIn holeOut)).2 (holeContext_bare _).le,
+    (holeContext_bare _).symm ▸ rfl⟩
+
+/-- Three ports in a row, with no box: input `0`, output `2`. -/
+def chain : OpenDiagram Bool Unit Unit where
+  Port := Fin 3
+  Box := Empty
+  Wire := Empty
+  values _ := Set.univ
+  behavior b := b.elim
+  src w := w.elim
+  tgt w := w.elim
+  input _ := 0
+  output _ := 2
+
+/-- The first hole runs from port `0` to port `1`, the second from port `1` to port `2`. -/
+def chainContext : SetRel (Unit → Bool) (Unit → Bool) → SetRel (Unit → Bool) (Unit → Bool) →
+    SetRel (Unit → Bool) (Unit → Bool) :=
+  chain.holeContext₂ (fun _ => (0 : Fin 3)) (fun _ => (1 : Fin 3)) (fun _ => (1 : Fin 3))
+    (fun _ => (2 : Fin 3))
+
+/-- A valuation of `chain`'s ports is a steady state. -/
+theorem chain_steady (s : Fin 3 → Bool) : s ∈ chain.steadyStates :=
+  ⟨fun _ => trivial, fun b => b.elim, fun w => w.elim⟩
+
+example : (fun _ => true, fun _ => true) ∈ chainContext copyRel copyRel ∧
+    PreservesUnions₂ chainContext :=
+  ⟨⟨fun _ => true, mem_steadyStates_withHole.mpr ⟨mem_steadyStates_withHole.mpr
+    ⟨chain_steady _, rfl⟩, rfl⟩, rfl, rfl⟩, holeContext₂_preservesUnions₂ _ _ _ _ _⟩
+
+/-- The rows `true ↦ false` and `false ↦ true`. -/
+def swapRows : SetRel (Unit → Bool) (Unit → Bool) :=
+  {(fun _ => true, fun _ => false), (fun _ => false, fun _ => true)}
+
+/-- The same relation in both holes does not preserve unions. -/
+example : ¬ PreservesUnions fun R => chainContext R R := by
+  intro h
+  have hall : (fun _ => true, fun _ => true) ∈ chainContext swapRows swapRows :=
+    ⟨![true, false, true], mem_steadyStates_withHole.mpr ⟨mem_steadyStates_withHole.mpr
+      ⟨chain_steady _, Or.inl rfl⟩, Or.inr rfl⟩, rfl, rfl⟩
+  have hu := h swapRows
+  simp only at hu
+  rw [hu, Set.mem_iUnion₂] at hall
+  obtain ⟨p, hp, s, hs, -, -⟩ := hall
+  obtain ⟨hs, h₂⟩ := mem_steadyStates_withHole.mp hs
+  obtain ⟨-, h₁⟩ := mem_steadyStates_withHole.mp hs
+  -- Both holes read row `p`, so its input and output are both port `1`'s value.
+  have hp' : p.1 () = p.2 () :=
+    (congrFun (Prod.ext_iff.mp (Set.mem_singleton_iff.mp h₂)).1 ()).symm.trans
+      (congrFun (Prod.ext_iff.mp (Set.mem_singleton_iff.mp h₁)).2 ())
+  rcases hp with rfl | rfl <;> exact Bool.noConfusion hp'
 
 /-! ## The category and the functor
 
