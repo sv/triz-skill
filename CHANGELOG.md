@@ -71,6 +71,10 @@ All notable changes to this project are documented here. The format follows
 ### Changed
 
 - `workflow.md` lists all five MATRIZ separation types, adding direction.
+- Dependencies, lockfile only (ranges unchanged), as in Dependabot PRs #5–#10:
+  - zod 4.6.6 and @modelcontextprotocol/sdk 1.32.0;
+  - transitive: fast-uri 3.1.9, @hono/node-server 2.1.5, ip-address 10.7.5, and body-parser
+    2.4.0.
 - `compareIdeality` matches deliverables by the (box, carrier) pair. The display key `box:carrier`
   could collide when ids contain `:`.
 
