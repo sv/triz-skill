@@ -541,7 +541,7 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
   return check.ok ? { ok: true, model } : { ok: false, errors: check.errors };
 }
 
-export const CERTIFICATE_NOTE = "Lean checks these verdicts for this one instance; nothing is extracted. Save as a .lean file and, in a checkout of github.com/sv/triz-skill, run `node scripts/certify.mjs <file>`: Lean against theory/ when it is built, otherwise the AXLE service (which you then trust). The id tables are the encoding; read them to see that the data is your model.";
+export const CERTIFICATE_NOTE = "Lean checks these verdicts for this one instance; nothing is extracted. Save as a .lean file and, in a checkout of github.com/sv/triz-skill, run `node scripts/certify.mjs <file>`: Lean against theory/ once it is built. Only with --remote does it send the file, and so the model, to the AXLE service (which you then trust). The id tables are the encoding; read them to see that the data is your model.";
 
 const DOT_NOTE = "Render with Graphviz: dot -Tsvg model.dot > model.svg (or -Tpng). Boxes show name, «role» (header colour), input ports left and output ports right with their carriers; open ports in italics. Functions: harmful red, insufficient dashed, excessive bold; flows dotted blue. The legend lists what occurs.";
 const MERMAID_NOTE = "Paste into a ```mermaid block: GitHub, GitLab, and many chat clients render it as is (or use the Mermaid CLI). Mermaid has no ports, so each edge names its ports and carrier; use format dot to see ports. Functions: harmful red, insufficient dashed, excessive thick; flows dotted blue.";

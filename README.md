@@ -74,6 +74,33 @@ Register it (`.mcp.json` in this repo is a working example):
 dir is resolved relative to the repo root and the server fails closed with a clear message if it is
 missing.
 
+### Hosted endpoint
+
+`src/worker.ts` serves the same tools, except the optional `triz_graph` and `triz_purpose` and
+`triz_export` format `svg`, as a Cloudflare Worker over stateless streamable HTTP (deploy with `npx wrangler deploy`; endpoints
+`/mcp` and `/health`). It has no authentication and allows any origin (`Access-Control-Allow-Origin: *`) on purpose: it
+is a stateless, read-only public utility with no storage bindings and no secrets, so any client
+or web page may drive it. An operator who wants it private can check a token in `fetch` before
+the MCP handler, list allowed origins instead of `*`, or put it behind Cloudflare Access or a
+rate limit. Calling a hosted endpoint sends your model to whoever runs it; keep private models on
+the local stdio server.
+
+### Tool map
+
+One line per workflow stage; the table below has one row per tool. The theory behind the model
+tools, and exactly what is and is not claimed, is in
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md).
+
+| Stage | Tools | What they do |
+|---|---|---|
+| Lookup | `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_matrix_multi`, `triz_resolve`, `triz_effects`, `triz_route`, `triz_tool_catalog`, `triz_evals` | Read the canonical data: parameters, principles, matrix cells, effects, the method router, and the eval suites |
+| Model | `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
+| Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
+| Transform | `triz_transform`, `triz_rule_apply` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
+| Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
+| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
+
 ### Tools
 
 | Tool | Purpose |
@@ -220,8 +247,8 @@ models share a wiring shape. Each verdict names in `basis` the theorem in `theor
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
-and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
+and proves them, and `node scripts/certify.mjs` checks it with local Lean (or, only with
+`--remote`, by sending the file to the AXLE service). `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
 reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
 pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or

@@ -5,15 +5,17 @@
  *
  *   node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...
  *
- * Local (the default when theory/ is built): `lake env lean` against theory/, so the certificate's
- * `import CategoricalTriz` is this repo's theory at its Mathlib pin. Build it once with
- * `cd theory && lake exe cache get && lake build`.
+ * Local (the default; --local says so explicitly): `lake env lean` against theory/, so the
+ * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Build it once
+ * with `cd theory && lake exe cache get && lake build`. Without a built theory/, the script stops
+ * and says so; it never falls back to the network.
  *
- * Remote (--remote, or no local Lean): the AXLE service (axle.axiommath.ai), environment
- * lean-4.32.2, no API key. The theory file is sent inline ahead of the certificate. AXLE replaces
- * the imports with `import Mathlib` at its own Mathlib revision, which may differ from the repo
- * pin. A remote verdict trusts AXLE to run that Lean faithfully. The MCP server and the hosted
- * Worker never call AXLE; only this script does.
+ * Remote (--remote only, an explicit opt-in): the certificate, which holds the model's ids and
+ * tables, leaves this machine. It is POSTed with theory/CategoricalTriz.lean inlined ahead of it
+ * to the AXLE service (axle.axiommath.ai, or AXLE_API_URL), environment lean-4.32.2, no API key.
+ * AXLE replaces the imports with `import Mathlib` at its own Mathlib revision, which may differ
+ * from the repo pin, and a remote verdict trusts AXLE to run that Lean faithfully. The MCP server
+ * and the hosted Worker never call AXLE; only this script does, and only with --remote.
  *
  * A certificate is accepted only if it is in the generator's grammar (lint: its data lines, its
  * theorems' pinned statements, no command or option in a proof, so no `set_option
@@ -274,11 +276,16 @@ export function localLeanAvailable() {
   return Boolean(lakeBin()) && fs.existsSync(OLEAN);
 }
 
+/** Why there is no verdict without local Lean: the two ways to get one, and what the second sends where. */
+export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off. Either build theory/ (install elan, then "
+  + "`cd theory && lake exe cache get && lake build`), or pass --remote (mode \"remote\") to send the certificate, which "
+  + `holds the model's ids and tables, with theory/CategoricalTriz.lean to AXLE at ${AXLE_URL}.`;
+
 let rebuilt = false;
 /** Run Lean on `content` against theory/; messages carry 1-based lines of `content`. */
 export function runLocal(content) {
   const bin = lakeBin();
-  if (!bin || !fs.existsSync(OLEAN)) throw new Error("local Lean unavailable: install elan, then cd theory && lake exe cache get && lake build");
+  if (!bin || !fs.existsSync(OLEAN)) throw new Error(NO_LOCAL_LEAN);
   if (!rebuilt) {
     // Bring the theory olean up to date with the source (fast when it already is).
     const b = spawnSync(bin, ["build", "CategoricalTriz"], { cwd: THEORY_DIR, encoding: "utf8" });
@@ -367,11 +374,11 @@ export function accept(content, run) {
   return { ok: problems.length === 0, mode: run.mode, certified, problems };
 }
 
+/** Lean runs locally unless the caller opts in to AXLE with mode "remote"; there is no fallback. */
 export async function check(content, { mode } = {}) {
   const grammar = lint(content);
   if (grammar.length) return { ok: false, mode: "grammar", certified: [], problems: grammar };
-  const useLocal = mode === "local" || (mode !== "remote" && localLeanAvailable());
-  const run = useLocal ? runLocal(withAxioms(content)) : await runRemote(withAxioms(content));
+  const run = mode === "remote" ? await runRemote(withAxioms(content)) : runLocal(withAxioms(content));
   return { ...accept(content, run), info: run.info };
 }
 
@@ -409,8 +416,7 @@ export function tamperVariants(content) {
  * fail, and every error lies inside some theorem (none in the data, none a parse error).
  */
 export async function checkTampered(variant, { mode } = {}) {
-  const useLocal = mode === "local" || (mode !== "remote" && localLeanAvailable());
-  const run = useLocal ? runLocal(variant.content) : await runRemote(variant.content);
+  const run = mode === "remote" ? await runRemote(variant.content) : runLocal(variant.content);
   const errors = run.messages.filter((m) => m.severity === "error");
   const ranges = spans(variant.content);
   const problems = [];
@@ -427,16 +433,19 @@ export async function checkTampered(variant, { mode } = {}) {
 
 async function main(argv) {
   const files = argv.filter((a) => !a.startsWith("--"));
-  const mode = argv.includes("--local") ? "local" : argv.includes("--remote") ? "remote" : undefined;
+  const remote = argv.includes("--remote");
   const tamper = argv.includes("--tamper");
-  if (!files.length) {
+  if (!files.length || (remote && argv.includes("--local"))) {
     console.error("usage: node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...");
     return 2;
   }
-  const remote = mode === "remote" || (mode !== "local" && !localLeanAvailable());
   if (remote) {
-    console.log(`Checking remotely with AXLE (${AXLE_URL}, ${AXLE_ENVIRONMENT}). This trusts AXLE to run Lean faithfully;`);
-    console.log("AXLE replaces the imports with `import Mathlib` at its own revision, which may differ from theory/'s pin.");
+    console.log(`Sending data off this machine (--remote): each certificate, with the model's ids and tables, and`);
+    console.log(`theory/CategoricalTriz.lean go to AXLE at ${AXLE_URL} (${AXLE_ENVIRONMENT}). The verdict then trusts`);
+    console.log("AXLE to run Lean faithfully; AXLE replaces the imports with `import Mathlib` at its own revision, which may differ from theory/'s pin.");
+  } else if (!localLeanAvailable()) {
+    console.error(`Not checked: ${NO_LOCAL_LEAN}`);
+    return 2;
   } else {
     console.log(`Checking locally: lake env lean against ${path.relative(process.cwd(), THEORY_DIR) || "."}/.`);
   }
