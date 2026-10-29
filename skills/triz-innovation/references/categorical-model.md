@@ -18,14 +18,15 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Flow (substance, energy, data, money) | carrier with `layer` and `dimension` | — | — |
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
-| Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
+| Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
-| System operator (9 windows), level axis | restriction to a subsystem; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset` |
+| System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
+| System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
 Ratings follow the MATRIZ function definition. A function is useful or harmful. Only useful
 functions have a performance level: normal, insufficient, or excessive. A back-reaction is
@@ -81,6 +82,18 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
    window is returned as a prompt to fill.
+
+   To say how one time becomes the next, give `transitions`: `past_to_present`, or
+   `present_to_future`, as a list of `triz_transform` operations. The kernel applies them in
+   order. If the later snapshot is given, the result must equal it; otherwise the result
+   becomes the future. A step that fails, or a result that misses the snapshot, fails closed.
+   Each transition reports:
+   - `step`: the net rewrite, as deleted and added box and wire ids;
+   - `subsystem.step`: its part inside the subsystem, which takes the earlier subsystem view to
+     the later one;
+   - `subsystem.withinSubsystem`: the transition is its own part, so it touches nothing outside;
+   - `subsystem.interiorUnchanged`: the part is empty;
+   - `subsystem.boundary`: the crossing functions the transition cuts and adds.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape.
 
@@ -261,12 +274,29 @@ example cohort churn against fee changes. Name it only from that evidence.
 
 ## What is not claimed
 
-- Nothing computes a Kan extension, an optic or lens, sheaf cohomology, or a Grothendieck
-  fibration. The categorical names identify the structure each check is a necessary condition
-  of. Of those statements, only the trimming one is stated in Lean, and it is not decided.
-- For models that declare behaviour, `triz_behavior` decides a finite relational question
-  instead: whether the trimmed model's input→deliverable relation equals the baseline's. It is
-  not proved equivalent to `Recoverable`. Series composition is Mathlib's `Relation.Comp`, and
+- Trimming is not framed as a Kan extension of what remains. `theory/` once stated it
+  (`Recoverable`, never decided), and the statement was removed for three reasons:
+  - It took no absorber, but the decided trim depends on one. With the same box trimmed,
+    `triz_behavior` returns `preserved` for one absorber and `changed` for another (test "the
+    decided trim depends on the absorber, not only on the trimmed boxes"). No statement about
+    the trimmed boxes alone can agree with that verdict.
+  - It needed the trimmed model to include into the original. A trim that re-attaches a
+    function (rules B and C) adds a wire the original lacks, so there is no inclusion. A trim
+    by rule A alone is a restriction; there the statement would be well typed.
+  - No functor from a function model to a category of systems was ever defined, so it
+    constrained nothing the kernel computes.
+- Nothing computes an optic or lens, or a Grothendieck fibration.
+  - The system operator is not claimed to be a fibration. What is proved is a functor from the
+    time chain times the opposite poset of box sets to sets (`Wiring.restrictionGrid`). It
+    covers the subsystem and system rows, not the supersystem collapse, and no Grothendieck
+    construction is built.
+- Sheaf cohomology is not computed, and none is needed on the base the separation check uses.
+  That base is a finite set of cells with no further structure. On it, a global assignment
+  exists exactly when every cell admits a value (`exists_section_iff`). So the only obstruction
+  to gluing is a cell with no admissible value, and the cell scan finds every such cell. Nothing
+  is claimed for a base whose regions carry more structure.
+- For models that declare behaviour, `triz_behavior` decides a finite relational question:
+  whether the trimmed model's input→deliverable relation equals the baseline's. Series composition is Mathlib's `Relation.Comp`, and
   its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
   that the trace is monotone, that the trace of a swap is the identity, that every value is a
   steady state of an identity loop, and that a negation loop has none. The evaluator is checked
@@ -304,8 +334,29 @@ example cohort churn against fee changes. Name it only from that evidence.
   with ordered sources and targets, plus an interface. The encoding is this kernel's own choice.
   Ports are the vertices, and one port may carry several functions: fan-out, or a useful and a
   harmful function on the same pair of ports.
-- The 9-windows time axis is the snapshots the caller writes; no transition between times is
-  computed. The system operator as a fibration stays an analogy.
+- The 9 windows, as proved in `theory/`:
+  - The level axis is a presheaf. `supportedOn` sends a set of boxes to the diagrams it
+    supports, and an inclusion to restriction. Typed diagrams form a sub-presheaf, `typedOn`.
+  - Restriction commutes with every rewrite step once the step is restricted too
+    (`restrict_rewrite`, no hypothesis). A step that adds nothing outside the subsystem applies
+    to it unchanged (`restrict_rewrite_of_inside`). The boundary changes by exactly the crossing
+    wires the step cuts and adds (`boundary_rewrite`). `withinSubsystem` is stricter: the step
+    deletes nothing outside the subsystem either.
+  - With two steps, the subsystem and system rows form a functor from time × (box sets)ᵒᵖ to
+    sets (`Wiring.restrictionGrid`). The supersystem row is a collapse, not a restriction, and is
+    outside it. The functor's sets hold typed and untyped diagrams alike: a step keeps typing
+    only under its no-dangling and gluing conditions, which the kernel checks on the model
+    given.
+- 9 windows, in the kernel:
+  - A transition reaches a snapshot when boxes, wires, and carriers agree by id and content,
+    ignoring array order. `domain`, `system`, `budget`, `weights`, and `contradictions` are not
+    compared.
+  - Lean wires have fixed endpoints, so a step never moves one. A function re-attached under the
+    same id, as an applied trim does, counts as one function deleted and another glued.
+    `reroute` alone does not commute with restriction when it moves an endpoint across the
+    boundary; `theory/Witnesses.lean` has the counterexample.
+  - Transitions are not inferred. Between snapshots given without one, only the box ids added
+    and removed are listed. The supersystem collapse is not checked against transitions.
 - Without declared behaviour, a carrier match is necessary for an absorber, not sufficient.
   Each absorber's added cost and its new harms are not modelled.
 - `harmLoops` is exhaustive for the model as written. It cannot find a back-reaction the model
