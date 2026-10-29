@@ -9,7 +9,7 @@ export const THEORY_DIR: string;
 export const AXLE_URL: string;
 export const AXLE_ENVIRONMENT: string;
 export const STANDARD_AXIOMS: string[];
-export function theorems(content: string): Array<{ name: string; line: number }>;
+export function theorems(content: string): Array<{ name: string; short: string; depth: number; line: number }>;
 export function code(src: string): string | null;
 export function lint(content: string): string[];
 export function localLeanAvailable(): boolean;

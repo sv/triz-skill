@@ -37,6 +37,11 @@ export type Certificate = { ok: true; namespace: string; content: string; certif
 
 const AXES: Axis[] = Axis.options;
 const NAMESPACE = /^[A-Z][A-Za-z0-9]*$/;
+/**
+ * Capitalised alphanumeric tokens in Lean's token table at the pin, with all of Mathlib imported
+ * (as AXLE does): `namespace Type` does not parse. scripts/certify.mjs rejects the same names.
+ */
+export const RESERVED_NAMESPACES: ReadonlySet<string> = new Set(["GL", "PiType", "Prop", "Sort", "StateRefT", "Type"]);
 
 /**
  * Lean string literal. Quotes, backslashes, and control or invisible characters are escaped, so
@@ -290,7 +295,8 @@ function assemble(what: string, ns: string, sections: string[][]) {
 
 function namespaceOf(opts: { namespace?: string }): string | Failure {
   const ns = opts.namespace ?? DEFAULT_NAMESPACE;
-  return NAMESPACE.test(ns) ? ns : { ok: false, errors: [`namespace '${ns}' must be a capitalised alphanumeric Lean identifier`] };
+  if (!NAMESPACE.test(ns)) return { ok: false, errors: [`namespace '${ns}' must be a capitalised alphanumeric Lean identifier`] };
+  return RESERVED_NAMESPACES.has(ns) ? { ok: false, errors: [`namespace '${ns}' is a Lean keyword`] } : ns;
 }
 
 /** Certificate for a model: typing, harm-loop witnesses, and each embedded contradiction. Fails closed. */

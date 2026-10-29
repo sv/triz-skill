@@ -13,9 +13,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
-import { modelCertificate, separationCertificate, leanString, MAX_CERT_WORK, type Certificate } from "../src/act-cert.js";
+import { modelCertificate, separationCertificate, leanString, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { toolSpecs } from "../src/tools.js";
-import { check, checkTampered, lint, localLeanAvailable, tamperVariants, theorems } from "../scripts/certify.mjs";
+import { accept, check, checkTampered, lint, localLeanAvailable, runLocal, tamperVariants, theorems } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -155,6 +155,43 @@ test("tools: triz_export format lean and triz_separate certificate", async () =>
   assert.equal((await call("triz_separate", { contradiction: pc })).certificate, undefined);
 });
 
+/**
+ * Review of PR #19: a `namespace` line inside a comment moved the real `typed` (proved by
+ * `native_decide`) to the name of a decoy `Separation0.typed` with a standard proof, so the axiom
+ * audit checked the decoy twice and the verdict never.
+ */
+function decoy() {
+  const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
+  const verdict = c.indexOf("/-- `checkModel`");
+  const end = c.indexOf("\n\n", c.indexOf("theorem typed :")) + 1;
+  const typed = c.slice(verdict, end).replace(/decide \+kernel$/m, "native_decide");
+  const standard = c.slice(c.indexOf("theorem typed :"), end);
+  return c.slice(0, verdict)
+    + `namespace Separation0\n\n${standard}\nend Separation0\n\n/-\nnamespace Separation0\n-/\n${typed}/-\nend Separation0\n-/\n`
+    + c.slice(end);
+}
+
+test("the checker names each theorem as Lean does, so a commented-out namespace cannot redirect the audit", async () => {
+  const t = decoy();
+  const names = theorems(t).filter((x) => x.short === "typed").map((x) => x.name);
+  assert.deepEqual(names, ["SoftwareCache.Separation0.typed", "SoftwareCache.typed"]);
+  assert.ok(lint(t).some((p) => /theorem typed is not where the generator puts it/.test(p)), lint(t).join("\n"));
+  const r = await check(t);
+  assert.ok(!r.ok && r.mode === "grammar");
+  // A theorem declared twice under one name is refused too (Lean would reject it as well).
+  const twice = fs.readFileSync(fixturePath("SoftwareCache"), "utf8").replace("end SoftwareCache", "theorem typed : diagram.Typed :=\n  trivial\n\nend SoftwareCache");
+  assert.ok(lint(twice).some((p) => /SoftwareCache\.typed is declared twice/.test(p)), lint(twice).join("\n"));
+});
+
+test("namespaces that are Lean keywords are refused", () => {
+  const empty: FunctionModel = { domain: "physical", carriers: [], boxes: [], wires: [] };
+  for (const ns of RESERVED_NAMESPACES) {
+    assert.deepEqual(modelCertificate(empty, { namespace: ns }), { ok: false, errors: [`namespace '${ns}' is a Lean keyword`] });
+    assert.ok(lint(content(modelCertificate(empty, { namespace: "Empty" })).replace(/\bEmpty\b/g, ns)).some((p) => /unexpected namespace/.test(p)), ns);
+  }
+  assert.ok(modelCertificate(empty, { namespace: "Empty" }).ok);
+});
+
 test("the checker's grammar rejects what Lean's messages and the axiom audit cannot show", async () => {
   const c = fs.readFileSync(fixturePath("BearingHeat"), "utf8");
   assert.deepEqual(lint(c), []);
@@ -218,11 +255,17 @@ leanTest("a tampered certificate fails to check where it was tampered", async ()
   assert.ok(!sorry.ok && sorry.problems.some((p) => /sorry/.test(p)), sorry.problems.join("\n"));
   const native = await check(c.replace(/decide \+kernel$/m, "native_decide"), { mode: "local" });
   assert.ok(!native.ok && native.problems.some((p) => /SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), native.problems.join("\n"));
+  // Without the grammar, the axiom audit alone still finds the verdict behind the decoy.
+  const t = decoy();
+  const audit = accept(t, runLocal(`${t}\n${theorems(t).map((x) => `#print axioms ${x.name}`).join("\n")}\n`));
+  assert.ok(!audit.ok && audit.problems.some((p) => /^SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), audit.problems.join("\n"));
+  assert.ok(audit.certified.includes("SoftwareCache.Separation0.typed"));
 });
 
 leanTest("Lean accepts certificates of hostile generated models and every separation shape", async () => {
   const parts = [separationCertificate(irreducible, { namespace: "Multi" }), separationCertificate(hostile, { namespace: "Hostile" }),
-    separationCertificate({ id: "flat", parameter: "p", demands: [{ id: "a", values: ["x"] }, { id: "b", values: ["y"] }] }, { namespace: "Flat" })];
+    separationCertificate({ id: "flat", parameter: "p", demands: [{ id: "a", values: ["x"] }, { id: "b", values: ["y"] }] }, { namespace: "Flat" }),
+    modelCertificate({ domain: "physical", carriers: [], boxes: [], wires: [] }, { namespace: "Empty" })];
   for (let seed = 1; seed <= 12; seed++) parts.push(modelCertificate(genModel(rng(seed), { contradictions: true }), { namespace: `Gen${seed}` }));
   const combined = ["import CategoricalTriz", ...parts.map((p) => content(p).split("\n").slice(1).join("\n"))].join("\n");
   const r = await check(combined, { mode: "local" });

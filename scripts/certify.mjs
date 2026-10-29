@@ -43,14 +43,19 @@ export const AXLE_URL = process.env.AXLE_API_URL ?? "https://axle.axiommath.ai";
 export const AXLE_ENVIRONMENT = "lean-4.32.2";
 export const STANDARD_AXIOMS = ["propext", "Classical.choice", "Quot.sound"];
 
-/** Every `theorem` the generator emits, fully qualified by the namespaces open at its line. */
+/**
+ * Every `theorem`, fully qualified by the namespaces open at its line. Read from `code(content)`,
+ * the text Lean reads, as `lint` does: a `namespace` line inside a comment must not move a theorem
+ * into another name, or `#print axioms` would audit the wrong declaration. Empty if the file is
+ * not in the generator's lexical subset.
+ */
 export function theorems(content) {
   const stack = [], out = [];
-  content.split("\n").forEach((line, i) => {
+  (code(content) ?? "").split("\n").forEach((line, i) => {
     let m;
     if ((m = /^namespace (\S+)\s*$/.exec(line))) stack.push(m[1]);
     else if ((m = /^end (\S+)\s*$/.exec(line)) && stack.at(-1) === m[1]) stack.pop();
-    else if ((m = /^theorem (\S+) :/.exec(line))) out.push({ name: [...stack, m[1]].join("."), line: i + 1 });
+    else if ((m = /^theorem (\S+) :/.exec(line))) out.push({ name: [...stack, m[1]].join("."), short: m[1], depth: stack.length, line: i + 1 });
   });
   return out;
 }
@@ -58,8 +63,9 @@ export function theorems(content) {
 /** The lines a theorem occupies: from its doc comment or declaration up to the next declaration. */
 function spans(content) {
   const lines = content.split("\n");
+  const codeLines = (code(content) ?? "").split("\n");
   const starts = [];
-  lines.forEach((l, i) => { if (/^(theorem|def|abbrev|namespace|end|\/-[-!]|#)/.test(l)) starts.push(i + 1); });
+  lines.forEach((l, i) => { if (/^\/-[-!]/.test(l) || /^(theorem|def|abbrev|namespace|end|#)/.test(codeLines[i] ?? "")) starts.push(i + 1); });
   return theorems(content).map((t) => {
     let from = t.line;
     if (lines[t.line - 2]?.startsWith("/--")) from = t.line - 1;
@@ -100,6 +106,8 @@ export function code(src) {
   return depth ? null : out;
 }
 
+/** Capitalised alphanumeric tokens in Lean's token table at the pin, with all of Mathlib (as AXLE imports it): not names. */
+const RESERVED = new Set(["GL", "PiType", "Prop", "Sort", "StateRefT", "Type"]);
 const AX = "(space|time|condition|direction|level)";
 const NUMS = "!\\[(?:\\d+(?:, \\d+)*)?\\]";
 const BOOLS = "!\\[(?:(?:true|false)(?:, (?:true|false))*)?\\]";
@@ -190,7 +198,7 @@ export function lint(content) {
     let m;
     if (row++ === 0) { if (line !== "import CategoricalTriz") problems.push(`${at}: the only import is CategoricalTriz`); return; }
     if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) {
-      if (stack.length > 1 || (stack.length === 1 && !/^Separation\d+$/.test(m[1]))) problems.push(`${at}: unexpected namespace`);
+      if (stack.length > 1 || (stack.length === 1 && !/^Separation\d+$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
       stack.push(m[1]);
     } else if ((m = /^end (\S+)$/.exec(line))) {
       if (stack.pop() !== m[1]) problems.push(`${at}: end does not close the open namespace`);
@@ -206,6 +214,14 @@ export function lint(content) {
     } else problems.push(`${at}: not a line the generator writes`);
   });
   if (stack.length) problems.push("a namespace is left open");
+  // Each verdict sits where the generator puts it, under one name: the audit targets are exact.
+  const seen = new Set();
+  for (const t of theorems(content)) {
+    if (seen.has(t.name)) problems.push(`theorem ${t.name} is declared twice`);
+    seen.add(t.name);
+    const separation = /^(?:contradiction|sharedValue|gluable|notGluable|pair_\d+_\d+(?:_\w+)?)$/.test(t.short);
+    if (t.depth !== (separation ? 2 : 1)) problems.push(`line ${t.line}: theorem ${t.short} is not where the generator puts it`);
+  }
   return problems;
 }
 
