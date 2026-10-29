@@ -554,10 +554,12 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
   };
   for (const s0 of initialStates(s)) if (complete) add(s0, "initial");
   const safeState = spec.safe && s.meetsStates(spec.safe);
+  const globalStates = product(s.machines.map((m) => m.state!.length));
+  // Too many global states to scan for safe ones: explore from the initial states alone, and say so.
+  const safeSkipped = safeState !== undefined && globalStates > max;
   let safeStarts = 0;
-  if (safeState) {
-    if (product(s.machines.map((m) => m.state!.length)) > max) complete = false;
-    else for (const s0 of allStates(s)) {
+  if (safeState && !safeSkipped) {
+    for (const s0 of allStates(s)) {
       if (!complete) break;
       if (safeState(s0) && !index.has(tupleKey(s0))) { add(s0, "safe"); safeStarts++; }
     }
@@ -610,27 +612,30 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
   });
 
   const listed = (vs: number[]) => vs.slice(0, LISTED).map((v) => vertices[v].state);
-  const report = closed.map((x) => ({
+  const report = closed.slice(0, LISTED).map((x) => ({
     size: x.c.length, states: listed(x.c), kind: x.kind, fixedPoints: listed(x.fixedPoints),
     ...(x.cycle ? { cycle: x.cycle.map((v) => vertices[v].state), period: x.period } : {}),
     ...(unsafe && x.kind !== "blocked" ? { unsafe: x.entry !== undefined } : {}),
   }));
   const settling = closed.flatMap((x, i) => (x.kind === "settles" ? [i] : []));
-  const bistable = settling.length >= 2 && { components: settling, fixedPoints: settling.flatMap((i) => listed(closed[i].fixedPoints)), basis: BISTABLE };
-  const escalating = closed.flatMap((x, i) => {
+  const bistable = settling.length >= 2 && { count: settling.length, components: settling.slice(0, LISTED), fixedPoints: settling.slice(0, LISTED).flatMap((i) => listed(closed[i].fixedPoints)).slice(0, LISTED), basis: BISTABLE };
+  const escalating = closed.slice(0, LISTED).flatMap((x, i) => {
     if (!x.entry) return [];
     const path = pathTo(x.entry.v), from = vertices[path[0]].from;
     const trace: RunStep[] = path.map((v, t) => ({ time: t, state: vertices[v].state, values: t + 1 < path.length ? vertices[path[t + 1]].via! : x.entry!.st!.values }));
     return [{ component: i, from, time: path.length - 1, trace: verified(trace, from), basis: TRAP }];
   });
-  const oscillating = closed.flatMap((x, i) => (x.kind === "oscillates" ? [{ component: i, period: x.period, cycle: x.cycle!.map((v) => vertices[v].state), basis: OSCILLATING }] : []));
+  const oscillating = closed.slice(0, LISTED).flatMap((x, i) => (x.kind === "oscillates" ? [{ component: i, period: x.period, cycle: x.cycle!.map((v) => vertices[v].state), basis: OSCILLATING }] : []));
+  const traps = closed.some((x) => x.entry), cycles = closed.some((x) => x.kind === "oscillates");
   const classes = closed.length
-    ? [...(bistable ? ["bistable" as const] : []), ...(escalating.length ? ["escalating" as const] : []), ...(oscillating.length ? ["oscillating" as const] : [])]
+    ? [...(bistable ? ["bistable" as const] : []), ...(traps ? ["escalating" as const] : []), ...(cycles ? ["oscillating" as const] : [])]
     : ["none" as const];
   const machines = new Set(s.machines.map((m) => m.id));
   return {
-    classified: true as const, complete, states: vertices.length,
+    classified: true as const, complete: complete && !safeSkipped, states: vertices.length,
     starts: { initial: vertices.filter((v) => v.parent === undefined && v.from === "initial").length, safe: safeStarts },
+    ...(safeSkipped ? { safeStartsSkipped: `the safe set's states were not used as starts: ${globalStates} global states exceed the cap of ${max}` } : {}),
+    closedCount: closed.length,
     harmLoops: harmLoops(model).filter((l) => l.boxes.some((b) => machines.has(b))).map((l) => ({ boxes: l.boxes, negative: l.negative })),
     closed: report, classes,
     ...(bistable ? { bistable } : {}),
@@ -640,6 +645,8 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
       ? "No closed component was found within the cap."
       : "Every run that enters a closed component stays in it. Classes can coexist; a component that settles at one fixed point outside the unsafe set belongs to no class.")
       + (complete ? " The reachable state graph was explored completely, without a horizon." : " The cap cut the exploration: every closed component listed is closed, but others may be missed.")
+      + (safeSkipped ? " Only the initial states were starts (safeStartsSkipped)." : "")
+      + (closed.length > LISTED ? ` ${LISTED} of ${closed.length} closed components are listed.` : "")
       + " The graph is over the states of boxes that declare transition; harmLoops lists the harm loops through them.",
   };
 }

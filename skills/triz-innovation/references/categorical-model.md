@@ -195,7 +195,9 @@ claimed: no lens laws, no optic composition beyond the one below, no profunctor 
 - **Search.** Runs are explored breadth first from the initial states, up to `horizon` steps
   (default 20, at most 1000). Every trace is a shortest one, and every trace returned is
   re-checked against the declared rows, independently of the search. Configurations and search
-  states are capped (`max_states`, at most 100000); past the cap the call fails closed.
+  states are capped (`max_states`, at most 100000); past the cap the call fails closed. Only the
+  loop classification, which has no horizon, returns a partial result past the cap instead
+  (`complete: false`; see [Loop classification](#loop-classification)).
 
 A target set is a list of conditions that must all hold at one time: `{ box, state }` names
 states of a stateful box, and `{ box, port, values }` names values of a port, such as
@@ -237,7 +239,9 @@ Without `inputs`, `triz_dynamics` also classifies how the loops behave in the lo
 - **Exploration.** Breadth first, without a horizon, up to the cap. It starts from the initial
   states and, when `safe` names states, from every state that meets the safe set's state
   conditions. Past the cap the result says `complete: false`: every closed component it lists is
-  closed, but others may be missed.
+  closed, but others may be missed. When the global states are too many to scan for safe ones,
+  only the initial states are starts, and `safeStartsSkipped` says so. Listings stop at 50, with
+  `closedCount` giving the total.
 - **Closed components.** A strongly connected component is closed when no edge leaves it, so a
   run that enters it never leaves. Each closed component settles (it has a fixed point, a state
   that can step to itself), oscillates (a cycle and no fixed point), or blocks (one state with no

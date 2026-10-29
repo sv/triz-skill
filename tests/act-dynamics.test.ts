@@ -436,7 +436,7 @@ test("loop classification: a two-well model is bistable", () => {
   assert.equal(r.loops.complete, true);
   assert.deepEqual(r.loops.classes, ["bistable"]);
   assert.deepEqual(r.loops.closed.map((c) => [c.states, c.kind]), [[[["left"]], "settles"], [[["right"]], "settles"]]);
-  assert.deepEqual(r.loops.bistable, { components: [0, 1], fixedPoints: [["left"], ["right"]], basis: ["fixed_on_cycle", "closed_reachIn"] });
+  assert.deepEqual(r.loops.bistable, { count: 2, components: [0, 1], fixedPoints: [["left"], ["right"]], basis: ["fixed_on_cycle", "closed_reachIn"] });
   // From a single well there is one closed component: settling is no class.
   const left = run(graph(TWO_WELLS, ["left"]), {});
   assert.ok(left.loops.classified);
@@ -484,6 +484,8 @@ test("loop classification: classes coexist, safe states are starts, and 'none' o
   assert.ok(fromSafe.escalation?.verdict === "unreachable");
   assert.ok(fromSafe.loops.classified);
   assert.deepEqual(fromSafe.loops.starts, { initial: 1, safe: 1 });
+  // The safe start top reaches both wells, so they are reported bistable too, though the initial state reaches one.
+  assert.deepEqual(fromSafe.loops.classes, ["bistable", "escalating"]);
   const [trap] = fromSafe.loops.escalating!;
   assert.equal(trap.from, "safe");
   assert.deepEqual(trap.trace.map((st) => st.state[0]), ["top", "right"]);
@@ -499,6 +501,18 @@ test("loop classification: classes coexist, safe states are starts, and 'none' o
   const whole = run(chain, { horizon: 5 });
   assert.ok(whole.loops.classified && whole.loops.complete);
   assert.deepEqual(whole.loops.closed.map((c) => c.states), [[["s59"]]]);
+
+  // Too many global states to scan for safe starts: the initial states still classify the trap.
+  const wide = escalating();
+  wide.boxes.push({ id: "clock", name: "Clock", role: "supersystem", state: Array.from({ length: 40 }, (_, i) => `t${i}`), initial: ["t0"],
+    transition: Array.from({ length: 40 }, (_, i) => ({ state: `t${i}`, in: {}, next: "t0", out: {} })) });
+  const skipped = run(wide, { unsafe: HOT, safe: [{ box: "shaft", state: ["cold"] }], maxStates: 100 });
+  assert.ok(skipped.loops.classified);
+  assert.equal(skipped.loops.complete, false);
+  assert.match(skipped.loops.safeStartsSkipped!, /120 global states exceed the cap of 100/);
+  assert.deepEqual(skipped.loops.starts, { initial: 1, safe: 0 });
+  assert.deepEqual(skipped.loops.classes, ["escalating"]);
+  assert.deepEqual(skipped.loops.escalating![0].trace.map((st) => st.state), [["cold", "t0"], ["warm", "t0"], ["hot", "t0"]]);
 
   // A blocked state is a closed component that is not classified.
   const stuck = run(heater([["on", "hot"], ["off", "hot"]]), {});
