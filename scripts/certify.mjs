@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Check a Lean certificate: the `content` of triz_export format "lean", or of the `certificate`
- * that triz_separate, triz_dynamics, or triz_weakness returns, saved as a .lean file.
+ * that triz_separate, triz_dynamics, triz_weakness, or triz_behavior returns, saved as a .lean file.
  *
  *   node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...
  *
@@ -26,9 +26,10 @@
  *
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
- * must fail; with the unsafe set emptied, `escalation` must fail; with no deliverable value
- * acceptable, every weakness verdict must fail. Errors outside a theorem (a parse error, say) do
- * not count.
+ * must fail; with the unsafe set emptied, `escalation` must fail; with the unsafe set filled,
+ * `unreachable` must fail; with no deliverable value acceptable, every weakness verdict must fail;
+ * with no situation allowed, `nonempty` must fail. A data tamper is tried only where a verdict
+ * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
  * This checks the proofs of the statements in the file. Whether the file encodes your model is
  * read from its id tables, or checked by generating it again and comparing.
@@ -146,6 +147,7 @@ const DECLARATIONS = [
   re(`def unsafeValue : Port → Value → Bool := ${rows(BOOLS)}`),
   re(`def (?:acceptable : Deliverable|inputDomain : Input) → Value → Bool := ${rows(BOOLS)}`),
   re(`def trace : Fin \\d+ → \\(Machine → State\\) × \\(Port → Value\\) := ${rows(`\\(${NUMS}, ${NUMS}\\)`)}`),
+  re(`def invariant : Fin \\d+ → Machine → State := ${rows(NUMS)}`),
   re(`def reads : Input → Option Port := ${OPTS}`),
   re(`def delivers : Deliverable → Port := ${NUMS}`),
   re(`def portBox : Port → Box := ${NUMS}`),
@@ -185,6 +187,10 @@ function statementOk(name, s) {
   }
   if ((m = /^pair_(\d+)_(\d+)_values$/.exec(name))) return s === `Disjoint (values ${m[1]}) (values ${m[2]})`;
   if (name === "escalation") return /^∃ a ∈ system\.starts initial, ∃ b ∈ system\.target unsafeState unsafeValue, reachWithin system\.Step \d+ a b$/.test(s);
+  if (name === "unreachable") return s === "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b";
+  const model = (side) => `${side}.rows.relation inputDomain ${side}.reads ${side}.delivers`;
+  if (name === "preserved") return s === `${model("Baseline")} = ${model("Concept")}`;
+  if (name === "nonempty") return s === `∃ u y, ${model("Baseline")} u y`;
   const relation = (i) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
   if ((m = /^weaker_(\d+)_(\d+)$/.exec(name))) {
     const [, w, t] = m;
@@ -234,7 +240,7 @@ export function lint(content) {
     let m;
     if (row++ === 0) { if (line !== "import CategoricalTriz") problems.push(`${at}: the only import is CategoricalTriz`); return; }
     if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) {
-      if (stack.length > 1 || (stack.length === 1 && !/^(?:Separation|Concept)\d+$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
+      if (stack.length > 1 || (stack.length === 1 && !/^(?:(?:Separation|Concept)\d+|Baseline|Concept)$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
       stack.push(m[1]);
     } else if ((m = /^end (\S+)$/.exec(line))) {
       if (stack.pop() !== m[1]) problems.push(`${at}: end does not close the open namespace`);
@@ -382,7 +388,13 @@ export async function check(content, { mode } = {}) {
   return { ...accept(content, run), info: run.info };
 }
 
-/** Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied; nothing acceptable. */
+/**
+ * Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied
+ * or filled; nothing acceptable; no situation allowed. A data tamper is kept only where some
+ * verdict must fail under it: emptying the unsafe set leaves an unreachable verdict true. Filling
+ * it assumes some listed state admits a valuation; when every reached state blocks, the target
+ * stays empty and the filled copy still checks.
+ */
 export function tamperVariants(content) {
   const variants = [{
     name: "every verdict negated",
@@ -398,16 +410,14 @@ export function tamperVariants(content) {
       mustFail: theorems(content).filter((t) => t.name.endsWith(".typed") && t.name.split(".").length === 2).map((t) => t.name),
     });
   }
-  // A data tamper per row-table kind: every entry of the table set to false.
-  const emptied = (pattern) => content.replace(pattern, (line) => line.replace(/\btrue\b/g, "false"));
-  const unsafe = emptied(/^def (?:unsafeState|unsafeValue) : .*$/gm);
-  if (unsafe !== content) {
-    variants.push({ name: "the unsafe set emptied", content: unsafe, mustFail: theorems(content).filter((t) => t.short === "escalation" && t.depth === 1).map((t) => t.name) });
-  }
-  const refused = emptied(/^def acceptable : Deliverable → Value → Bool := .*$/m);
-  if (refused !== content) {
-    variants.push({ name: "no deliverable value acceptable", content: refused, mustFail: theorems(content).filter((t) => /^(?:weaker|count)_\d+_\d+$/.test(t.short) && t.depth === 1).map((t) => t.name) });
-  }
+  // A data tamper per row-table kind: every entry of the table set to false, or to true.
+  const set = (pattern, to) => content.replace(pattern, (line) => line.replace(to ? /\bfalse\b/g : /\btrue\b/g, String(to)));
+  const verdicts = (short) => theorems(content).filter((t) => short.test(t.short) && t.depth === 1).map((t) => t.name);
+  const data = (name, tampered, mustFail) => { if (tampered !== content && mustFail.length) variants.push({ name, content: tampered, mustFail }); };
+  data("the unsafe set emptied", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, false), verdicts(/^escalation$/));
+  data("the unsafe set filled", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, true), verdicts(/^unreachable$/));
+  data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count)_\d+_\d+$/));
+  data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
   return variants;
 }
 

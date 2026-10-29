@@ -98,7 +98,7 @@ tools, and exactly what is and is not claimed, is in
 | Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
 | Transform | `triz_transform`, `triz_rule_apply` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
 | Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
-| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_dynamics`, `triz_weakness`, `triz_behavior` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
 | Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
 
 ### Tools
@@ -248,9 +248,11 @@ on; a test checks that every cited name is a theorem there. Typing, harm-loop wi
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
 and proves them, and `node scripts/certify.mjs` checks it with local Lean (or, only with
-`--remote`, by sending the file to the AXLE service). `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
-reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
-pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
+`--remote`, by sending the file to the AXLE service). `triz_dynamics`, `triz_weakness`, and `triz_behavior` with `certificate: true` do the same for a
+reachable escalation (the composed rows and the shortest trace), an unreachable one (the
+composed rows and the reached states as an inductive invariant), each strictly ordered pair of
+concepts (their rows, the inclusion, and the count), and a preserved verdict (both models'
+rows, and their relations equal and not empty). Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
