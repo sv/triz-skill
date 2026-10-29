@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, type FeasibilityRow } from "../src/act.js";
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "../src/act-feasibility.js";
+import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
 import { rng, int, genModel } from "./support/gen.js";
 
@@ -168,6 +169,12 @@ test("undecided: missing feasibility, no budget, an unbudgeted dimension in use;
   const noProduct = bearing();
   box(noProduct, "shaft").role = "mediator";
   assert.match(errors(feasibility(noProduct)), /no product box/);
+
+  // Constructions do not invent feasibility: the part that supports the shaft must declare it.
+  const seg = segment(bearing(), { box: "bearing", parts: [{ id: "races", ports: ["preload-in", "race"] }, { id: "rolling", ports: ["friction"] }] });
+  assert.ok(seg.ok);
+  const s = feasibility(seg.model);
+  assert.deepEqual(s.ok && "missingFeasibility" in s && s.missingFeasibility, ["races"]);
 });
 
 test("a port has one level: fan-out meets the largest demand, and fan-in needs every feeder to meet it", () => {
@@ -260,14 +267,55 @@ test("the least fixpoint's minimal vectors are exactly the minimal feasible row 
     if ("minimal" in res) {
       decided++;
       assert.deepEqual(res.minimal.map((v) => JSON.stringify(dims.map((d) => own(v.resources, d)))).sort(), expected, `seed ${seed}`);
-      if (m.wires.some((w) => w.polarity !== "harmful" && w.from.box === w.to.box) || res.iterations > 2) loops++;
+      // Each witness is a selection that meets every requirement, costs its operating vector, and provides its levels.
+      for (const v of res.minimal) {
+        const sel = new Map(v.rows.map((x) => [x.box, box(m, x.box).feasibility![x.row]]));
+        const met = composed.every((b) => Object.entries(sel.get(b.id)!.requires ?? {}).every(([port, q]) =>
+          m.wires.filter((w) => w.polarity !== "harmful" && w.to.box === b.id && w.to.port === port).every((w) => level(w.from.box, w.from.port, sel) >= q)));
+        assert.ok(met, `seed ${seed}: witness misses a requirement`);
+        assert.deepEqual(dims.map((d) => own(v.operating, d)), dims.map((d) => composed.reduce((s, b) => s + own(sel.get(b.id)!.cost, d), 0)), `seed ${seed}`);
+        for (const l of v.levels) assert.ok(l.level <= level(l.box, l.port, sel), `seed ${seed}: level ${l.box}.${l.port} not provided`);
+      }
+      // A loop that carries demand: a non-harmful wire between composed boxes on a cycle, at a positive level.
+      const useful = m.wires.filter((w) => w.polarity !== "harmful" && res.composed.includes(w.from.box) && res.composed.includes(w.to.box));
+      const reaches = (a: string, b: string) => {
+        const seen = new Set([a]), queue = [a];
+        for (let x = queue.shift(); x !== undefined; x = queue.shift()) {
+          if (x === b) return true;
+          for (const w of useful) if (w.from.box === x && !seen.has(w.to.box)) { seen.add(w.to.box); queue.push(w.to.box); }
+        }
+        return false;
+      };
+      if (useful.some((w) => reaches(w.to.box, w.from.box) && res.minimal.some((v) => v.levels.some((l) => l.box === w.from.box && l.port === w.from.port)))) loops++;
     } else {
       unprovidable++;
       assert.ok(res.verdict === "infeasible" && res.reason === "unprovidable", `seed ${seed}`);
       assert.deepEqual(expected, [], `seed ${seed}: brute force found a feasible selection`);
     }
   }
-  assert.ok(decided >= 100 && unprovidable >= 10 && loops >= 10, `decided ${decided}, unprovidable ${unprovidable}, loops ${loops}`);
+  assert.ok(decided >= 120 && unprovidable >= 30 && loops >= 25, `decided ${decided}, unprovidable ${unprovidable}, loops carrying demand ${loops}`);
+});
+
+test("a dominated feasibility row fails closed in every tool that takes a model", async () => {
+  const bad = bearing();
+  box(bad, "housing").feasibility!.push({ provides: { bore: 300 }, cost: { usd_unit: 1 } });
+  const args: Record<string, unknown> = {
+    triz_function_model: { model: bad },
+    triz_trim: { model: bad, trim: ["bearing"] },
+    triz_export: { model: bad, format: "hypergraph" },
+    triz_transform: { model: bad, transformation: { op: "trim", trim: ["bearing"] } },
+    triz_nine_windows: { present: bad, subsystem: ["bearing"] },
+    triz_behavior: { model: bad },
+    triz_feasibility: { model: bad, trim: ["bearing"] },
+  };
+  const takesModel = toolSpecs().filter((s) => ["model", "present"].some((k) => k in s.shape));
+  assert.deepEqual(takesModel.map((s) => s.name).sort(), Object.keys(args).sort());
+  for (const s of takesModel) {
+    const out = JSON.parse((await s.handler(args[s.name])).content[0].text);
+    assert.equal(out.ok, false, s.name);
+    const errors = out.errors ?? out.windows.find((w: { time: string }) => w.time === "present").errors;
+    assert.match(errors.join(), /box 'housing' feasibility row 2 is dominated by row 0/, s.name);
+  }
 });
 
 test("triz_feasibility answers over the shared tool spec and fails closed", async () => {

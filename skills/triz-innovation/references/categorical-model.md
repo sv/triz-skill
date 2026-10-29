@@ -171,7 +171,8 @@ another row of the box dominates.
   on a port that only harmful functions feed fails closed.
 - **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
   upstream of them along non-harmful wires are composed, and each must declare feasibility.
-  Every other box contributes only its fixed `cost`.
+  Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
+  build new boxes without feasibility, as without behaviour.
 - **Resources.** A resource vector is every box's fixed `cost` plus the operating cost of the
   rows chosen, per cost dimension. Dimensions are never summed together.
 - **Least fixpoint.** A configuration is a demanded level per output port and a cost vector.
@@ -221,9 +222,9 @@ The antichain per step (`max_antichain`, at most 1000), the Kleene steps (`max_i
 most 1000), and the row selections tried (1,000,000 per solve) are capped. Past a cap the call
 fails closed. The ascent always ends, because every coordinate takes values in a finite set:
 the declared levels, and the sums of one row per box closed under max. The antichains can still
-grow exponentially with the number of boxes and rows. No polynomial bound is claimed; Censi
-(2015, Prop. 5) bounds the work by the width and height of the resource poset, not by the size
-of the model.
+grow exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi
+(2015, Prop. 5) bounds the work by the width of the loop's resource poset, the height of its
+lattice of antichains, and the cost of one evaluation, not by the size of the model.
 
 ## Principle constructions
 

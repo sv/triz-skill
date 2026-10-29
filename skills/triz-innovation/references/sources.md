@@ -131,7 +131,8 @@ it supports here.
   design problem), Props. 2–4 (parallel, series, and loop composition keep monotonicity),
   Def. 22 with eq. (26) (a loop's minimal resources as the least fixpoint of
   R ↦ Min ⋃_{r ∈ R} h(f₁, r) ∩ ↑r on antichains, found by Kleene's ascent from ⊥), and Prop. 5
-  (memory and work bounded by the width and height of the resource poset).
+  (memory O(width(R₀)) and work O(width(R₀) × height(A R₀) × c), where R₀ is the resource poset
+  of the loop, A R₀ its lattice of antichains, and c the cost of one evaluation of the inner h).
 - **Abramsky & Brandenburger (2011)**, *The sheaf-theoretic structure of non-locality and
   contextuality*, New Journal of Physics 13, 113036.
   **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,
