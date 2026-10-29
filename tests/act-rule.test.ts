@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, harmLoops, idealityProfile } from "../src/act.js";
 import { Rule, TREND_RULES, applyRule, checkMatch, matchRule, validateRule, type RuleMatch } from "../src/act-rule.js";
 import { toolSpecs } from "../src/tools.js";
-import { rng, genModel } from "./support/gen.js";
+import { rng, int, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -291,11 +291,81 @@ test("a kept box that declares behaviour keeps its ports; a copy does not inheri
   assert.ok(checkModel(bi.model).ok);
 });
 
+test("a kept box that declares feasibility may gain ports, but keeps the ports its rows name", () => {
+  // The review's reproduction: unplugging A.p → P.q would leave both rows naming deleted ports.
+  const m: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "c", layer: "energy", dimension: "N" }],
+    boxes: [
+      { id: "A", name: "A", role: "tool", outputs: [{ id: "p", carrier: "c" }], feasibility: [{ provides: { p: 1 } }] },
+      { id: "P", name: "P", role: "product", inputs: [{ id: "q", carrier: "c" }], feasibility: [{ requires: { q: 1 } }] },
+    ],
+    wires: [{ id: "w", from: { box: "A", port: "p" }, to: { box: "P", port: "q" }, carrier: "c", polarity: "useful" }],
+  };
+  const listed = only(matchRule(m, unplug));
+  assert.deepEqual(listed.matches.map((x) => [x.applicable, x.violations]), [[false, [
+    "feasibility: the rule deletes port 'p' of box 'A', which its feasibility rows name; restate or remove its feasibility first",
+    "feasibility: the rule deletes port 'q' of box 'P', which its feasibility rows name; restate or remove its feasibility first",
+  ]]]);
+  assert.match(errors(applyRule(m, unplug, listed.matches[0].match)), /^feasibility: the rule deletes port 'p' of box 'A'/);
+  // Rows that do not name the deleted ports keep the match applicable.
+  const unnamed = structuredClone(m);
+  unnamed.boxes[0].feasibility = [{ cost: { usd: 1 } }];
+  unnamed.boxes[1].feasibility = [{}];
+  const ok = only(matchRule(unnamed, unplug)).matches[0];
+  assert.ok(ok.applicable);
+  assert.ok(only(applyRule(unnamed, unplug, ok.match)).model.wires.length === 0);
+
+  // Gaining a port is fine: feedback adds a port to each box, where the rows provide and need 0.
+  const f = example("bearing-heat-feasibility");
+  let gained = 0;
+  for (const { match, applicable } of only(matchRule(f, trend("feedback"))).matches) {
+    assert.ok(applicable, JSON.stringify(match.boxes));
+    const r = only(applyRule(f, trend("feedback"), match, { carriers: { s: "torque" } }));
+    assert.ok(checkModel(r.model).ok);
+    for (const id of [match.boxes.tool, match.boxes.object]) assert.deepEqual(r.model.boxes.find((b) => b.id === id)!.feasibility, f.boxes.find((b) => b.id === id)!.feasibility);
+    gained++;
+  }
+  assert.ok(gained >= 2);
+});
+
+test("a kept box that declares transition keeps its ports, like one that declares behavior", () => {
+  const m = example("bearing-heat-dynamics");
+  // Drop the stateless boxes' behaviour, so only the stateful shaft's transition can refuse.
+  for (const b of m.boxes) delete b.behavior;
+  assert.ok(checkModel(m).ok);
+  const stateful = m.boxes.filter((b) => b.transition).map((b) => b.id);
+  const signal = m.carriers.find((c) => c.values)!.id;
+  let refused = 0;
+  for (const { match, applicable, violations } of only(matchRule(m, trend("feedback"))).matches) {
+    const touched = [...new Set([match.boxes.tool, match.boxes.object])].filter((id) => stateful.includes(id));
+    const r = applyRule(m, trend("feedback"), match, { carriers: { s: signal } });
+    if (!touched.length) { if (applicable) assert.ok(r.ok, errors(r)); continue; }
+    assert.equal(applicable, false);
+    assert.deepEqual(violations, touched.map((id) => `behaviour: the rule changes the ports of box '${id}', which declares transition; restate or remove its transition first`));
+    assert.match(errors(r), /^behaviour: .*declares transition/);
+    refused++;
+  }
+  assert.ok(refused >= 1);
+});
+
+/** One feasibility row on some boxes of a generated model, naming a random subset of their ports. */
+function annotate(r: () => number, m: FunctionModel): FunctionModel {
+  for (const b of m.boxes) {
+    if (r() < 0.4) continue;
+    const pick = (ports: FunctionModel["boxes"][number]["inputs"]) => Object.fromEntries((ports ?? []).filter(() => r() < 0.6).map((p) => [p.id, int(r, 0, 2)]));
+    b.feasibility = [{ provides: pick(b.outputs), requires: pick(b.inputs) }];
+  }
+  return m;
+}
+
 test("property (typed_dpo): every applicable match gives a typed model; others fail on a named condition", () => {
   const rules = [...TREND_RULES, replace, unplug];
-  let applied = 0, refused = 0;
+  let applied = 0, refused = 0, annotatedApplied = 0, feasibilityRefused = 0;
   for (let seed = 1; seed <= 200; seed++) {
-    const m = genModel(rng(seed));
+    // Even seeds carry feasibility rows, so the declared-row conditions are exercised too.
+    const m = seed % 2 ? genModel(rng(seed)) : annotate(rng(seed + 1000), genModel(rng(seed)));
+    const annotated = m.boxes.some((b) => b.feasibility);
     const signal = m.carriers[0].id;
     for (const rule of rules) {
       const listed = only(matchRule(m, rule, { limit: 200 }));
@@ -306,14 +376,17 @@ test("property (typed_dpo): every applicable match gives a typed model; others f
           assert.ok(r.ok, `seed ${seed} ${rule.id}: ${errors(r)}`);
           assert.ok(checkModel(r.model).ok);
           applied++;
+          if (annotated) annotatedApplied++;
         } else {
-          assert.match(errors(r), /^(dangling|identification|behaviour): /, `seed ${seed} ${rule.id}`);
+          assert.match(errors(r), /^(dangling|identification|behaviour|feasibility): /, `seed ${seed} ${rule.id}`);
           refused++;
+          if (/^feasibility: /.test(errors(r))) feasibilityRefused++;
         }
       }
     }
   }
   assert.ok(applied > 500 && refused > 50, `applied ${applied}, refused ${refused}`);
+  assert.ok(annotatedApplied > 100 && feasibilityRefused > 10, `annotated applied ${annotatedApplied}, feasibility refused ${feasibilityRefused}`);
 });
 
 test("triz_rule_apply lists and applies, and fails closed on ambiguous arguments", async () => {
