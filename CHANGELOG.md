@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discrete queue and conserved-quantity adapters, restricted rule termination and rewrite replay.
 - Extended annotation-renaming/permutation tests and a separate cited future-work plan.
 - README: a tool map by workflow stage, and why the hosted Worker is unauthenticated with open CORS (and what an operator can change).
+- `theory/CategoricalTriz.lean` states the two-box weakest specification within producible rows: a pair of producible relations keeps the composite inside the target iff its product lies inside the safe row pairs intersected with the producible ones (`safe_feasible_iff`), and the formal concepts of the safe pairs of producible rows, which `triz_behavior` `weakest_spec` enumerates, are the maximal such pairs and decide the target (`safe_feasible_iff_le_concept`, `concept_feasible_maximal`, `exists_eq₂_feasible_iff`, cited for the producible two-box verdicts).
 
 ### Changed
 

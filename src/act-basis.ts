@@ -27,6 +27,7 @@ export const THEOREMS = [
   "IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
   "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff",
+  "safe_feasible_iff", "safe_feasible_iff_le_concept", "concept_feasible_maximal", "exists_eq₂_feasible_iff",
   "incomparable_of_witnesses", "card_lt_of_strictly_weaker",
   "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated", "unreachable_of_invariant",
   "fixed_on_cycle", "closed_reachIn", "trapped_reachIn", "recurrent_reach", "return_ge_two",

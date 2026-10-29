@@ -1037,6 +1037,39 @@ example : ¬ (twiceBits Set.univ Set.univ ⊆ {q | q.2.1 = q.2.2} ↔
   have := h.2 hsafe (show ((), (true, false)) ∈ twiceBits Set.univ Set.univ from ⟨trivial, trivial⟩)
   simp at this
 
+/-! ### Producible rows: `safe_feasible_iff`, `exists_eq₂_feasible_iff`
+
+With the target "the first bit is `true`", which the uncut boxes achieve (above), a first box that
+can produce only `false` leaves no producible pair that achieves it, and one that can produce
+`true` has a concept of the safe pairs of producible rows that covers it. Without `h₁`, a safe pair
+whose first relation lies outside `F₁` is not inside the intersected relation. -/
+
+/-- The first box produces only `false`: no concept of the safe pairs of producible rows covers
+"the first bit is `true`". -/
+example : ¬ ∃ c : Concept ({((), false)} : SetRel Unit Bool) (Set.univ : SetRel Unit Bool)
+    (SafeRows (cut bothBits {((), false)} Set.univ) {q | q.2.1 = true}),
+    {q | q.2.1 = true} ⊆ bothBits (Subtype.val '' c.extent) (Subtype.val '' c.intent) := by
+  rw [← exists_eq₂_feasible_iff bothBits_preservesUnions₂]
+  rintro ⟨R₁, h₁, R₂, -, h⟩
+  have : ((), (true, true)) ∈ bothBits R₁ R₂ := by rw [h]; rfl
+  simpa using h₁ this.1
+
+/-- The first box can produce `true`: a concept of the safe pairs of producible rows covers it. -/
+example : ∃ c : Concept ({((), true)} : SetRel Unit Bool) (Set.univ : SetRel Unit Bool)
+    (SafeRows (cut bothBits {((), true)} Set.univ) {q | q.2.1 = true}),
+    {q | q.2.1 = true} ⊆ bothBits (Subtype.val '' c.extent) (Subtype.val '' c.intent) :=
+  (exists_eq₂_feasible_iff bothBits_preservesUnions₂).1
+    ⟨{((), true)}, subset_rfl, Set.univ, subset_rfl, by ext ⟨u, a, b⟩; simp [bothBits]⟩
+
+/-- Without `h₁`: `true` beside every row keeps the first bit `true`, but with nothing producible in
+the first box the pair is not inside the intersected relation. -/
+example : bothBits {((), true)} Set.univ ⊆ {q | q.2.1 = true} ∧
+    ¬ ({((), true)} : SetRel Unit Bool) ×ˢ (Set.univ : SetRel Unit Bool) ⊆
+      {x | SafeRows bothBits {q | q.2.1 = true} x.1 x.2} ∩ (∅ : SetRel Unit Bool) ×ˢ Set.univ := by
+  refine ⟨?_, fun h => (h (Set.mk_mem_prod rfl (Set.mem_univ ((), true)))).2.1⟩
+  rintro ⟨u, a, b⟩ ⟨ha, -⟩
+  simpa using ha
+
 /-! ## Weakness ranking
 
 `admits_mono_ok`: a predicate that also accepts `false` admits the situation `false` as well;

@@ -1252,30 +1252,30 @@ Three or more boxes are not stated, and the kernel answers `undecided` (`several
 
 section Holes
 
-variable {α β α' β' γ δ : Type*}
+variable {ρ₁ ρ₂ γ δ : Type*}
 
 /-- A context with two unknown boxes preserves unions in each: a composite pair needs one row of
-each box. -/
-def PreservesUnions₂ (C : SetRel α β → SetRel α' β' → SetRel γ δ) : Prop :=
+each box. A box's rows are of any type: pairs of port valuations for a kernel box, or its
+producible rows (`cut`). -/
+def PreservesUnions₂ (C : Set ρ₁ → Set ρ₂ → SetRel γ δ) : Prop :=
   ∀ R₁ R₂, C R₁ R₂ = ⋃ p ∈ R₁, ⋃ q ∈ R₂, C {p} {q}
 
 /-- The safe pairs of rows: a row of each box whose composite stays inside `T`. -/
-def SafeRows (C : SetRel α β → SetRel α' β' → SetRel γ δ) (T : SetRel γ δ) (p : α × β)
-    (q : α' × β') : Prop :=
+def SafeRows (C : Set ρ₁ → Set ρ₂ → SetRel γ δ) (T : SetRel γ δ) (p : ρ₁) (q : ρ₂) : Prop :=
   C {p} {q} ⊆ T
 
-variable {C : SetRel α β → SetRel α' β' → SetRel γ δ}
+variable {C : Set ρ₁ → Set ρ₂ → SetRel γ δ}
 
 /-- More rows in either box never remove a composite pair. -/
-theorem PreservesUnions₂.mono (hC : PreservesUnions₂ C) {R₁ S₁ : SetRel α β}
-    {R₂ S₂ : SetRel α' β'} (h₁ : R₁ ⊆ S₁) (h₂ : R₂ ⊆ S₂) : C R₁ R₂ ⊆ C S₁ S₂ := by
+theorem PreservesUnions₂.mono (hC : PreservesUnions₂ C) {R₁ S₁ : Set ρ₁}
+    {R₂ S₂ : Set ρ₂} (h₁ : R₁ ⊆ S₁) (h₂ : R₂ ⊆ S₂) : C R₁ R₂ ⊆ C S₁ S₂ := by
   rw [hC R₁, hC S₁]
   exact Set.biUnion_subset_biUnion_left h₁ |>.trans' (Set.iUnion₂_mono fun _ _ =>
     Set.biUnion_subset_biUnion_left h₂)
 
 /-- A pair of relations keeps the composite inside `T` iff the second lies in the upper polar of
 the first along the safe pairs of rows. -/
-theorem le_safeRows_iff (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+theorem le_safeRows_iff (hC : PreservesUnions₂ C) {R₁ : Set ρ₁} {R₂ : Set ρ₂}
     {T : SetRel γ δ} : C R₁ R₂ ⊆ T ↔ R₂ ⊆ upperPolar (SafeRows C T) R₁ := by
   rw [hC R₁ R₂]
   simp only [Set.iUnion₂_subset_iff]
@@ -1283,10 +1283,10 @@ theorem le_safeRows_iff (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R₂ 
 
 /-- A pair of relations keeps the composite inside `T` iff it lies inside a formal concept of the
 safe pairs of rows (Mathlib's `Concept`): the one its first relation generates. -/
-theorem safe_iff_le_concept (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+theorem safe_iff_le_concept (hC : PreservesUnions₂ C) {R₁ : Set ρ₁} {R₂ : Set ρ₂}
     {T : SetRel γ δ} :
     C R₁ R₂ ⊆ T ↔
-      ∃ c : Concept (α × β) (α' × β') (SafeRows C T), R₁ ⊆ c.extent ∧ R₂ ⊆ c.intent := by
+      ∃ c : Concept ρ₁ ρ₂ (SafeRows C T), R₁ ⊆ c.extent ∧ R₂ ⊆ c.intent := by
   rw [le_safeRows_iff hC]
   refine ⟨fun h => ⟨Concept.ofObjects _ R₁, subset_lowerPolar_upperPolar _ R₁, h⟩, ?_⟩
   rintro ⟨c, h₁, h₂⟩
@@ -1294,12 +1294,12 @@ theorem safe_iff_le_concept (hC : PreservesUnions₂ C) {R₁ : SetRel α β} {R
 
 /-- Every concept of the safe pairs of rows keeps the composite inside `T`. -/
 theorem concept_safe (hC : PreservesUnions₂ C) {T : SetRel γ δ}
-    (c : Concept (α × β) (α' × β') (SafeRows C T)) : C c.extent c.intent ⊆ T :=
+    (c : Concept ρ₁ ρ₂ (SafeRows C T)) : C c.extent c.intent ⊆ T :=
   (safe_iff_le_concept hC).2 ⟨c, subset_rfl, subset_rfl⟩
 
 /-- Concepts are the maximal safe pairs: a safe pair containing a concept is that concept. -/
 theorem concept_maximal (hC : PreservesUnions₂ C) {T : SetRel γ δ}
-    (c : Concept (α × β) (α' × β') (SafeRows C T)) {R₁ : SetRel α β} {R₂ : SetRel α' β'}
+    (c : Concept ρ₁ ρ₂ (SafeRows C T)) {R₁ : Set ρ₁} {R₂ : Set ρ₂}
     (h : C R₁ R₂ ⊆ T) (h₁ : c.extent ⊆ R₁) (h₂ : c.intent ⊆ R₂) : R₁ = c.extent ∧ R₂ = c.intent := by
   have hR₂ : R₂ ⊆ c.intent := (le_safeRows_iff hC).1 h |>.trans (c.upperPolar_extent ▸ upperPolar_anti _ h₁)
   have hR₁ : R₁ ⊆ c.extent := by
@@ -1311,10 +1311,104 @@ theorem concept_maximal (hC : PreservesUnions₂ C) {T : SetRel γ δ}
 /-- Some pair of relations achieves `T` iff some concept's composite covers `T`. -/
 theorem exists_eq₂_iff (hC : PreservesUnions₂ C) {T : SetRel γ δ} :
     (∃ R₁ R₂, C R₁ R₂ = T) ↔
-      ∃ c : Concept (α × β) (α' × β') (SafeRows C T), T ⊆ C c.extent c.intent := by
+      ∃ c : Concept ρ₁ ρ₂ (SafeRows C T), T ⊆ C c.extent c.intent := by
   refine ⟨fun ⟨R₁, R₂, h⟩ => ?_, fun ⟨c, h⟩ => ⟨_, _, (concept_safe hC c).antisymm h⟩⟩
   obtain ⟨c, h₁, h₂⟩ := (safe_iff_le_concept hC).1 h.le
   exact ⟨c, h.ge.trans (hC.mono h₁ h₂)⟩
+
+/-! #### Producible rows
+
+When the boxes declare the rows they can produce, `F₁` and `F₂`, the relations allowed are those
+inside them. That is the two-box problem for the context cut to them (`cut`), whose rows are the
+producible rows: it still preserves unions in each box (`PreservesUnions₂.cut`), and its safe pairs
+of rows are the safe pairs of producible rows (`safeRows_cut`). So a pair of producible relations
+keeps the composite inside `T` iff its product lies inside the safe-row relation intersected with
+`F₁ ×ˢ F₂` (`safe_feasible_iff`), and the uncut lemmas, applied to the cut context, give the rest:
+every safe pair of producible relations lies inside a concept of the safe pairs of producible rows
+(`safe_feasible_iff_le_concept`), those concepts are the maximal such pairs
+(`concept_feasible_maximal`), and `T` is achievable within `F₁` and `F₂` iff one of them covers it
+(`exists_eq₂_feasible_iff`).
+
+The concepts are taken on the producible rows (`Concept F₁ F₂`), as the kernel enumerates them. On
+all rows, the intersected relation has the same concepts with two non-empty sides, but the concepts
+with an empty side differ: there the other side is every row, producible or not. A concept with an
+empty side has an empty composite (`PreservesUnions₂` with no row), so it covers only an empty
+target, which the kernel refuses (`no-steady-state`). -/
+
+/-- The context cut to the producible rows `F₁` and `F₂`: a relation for each box is a set of its
+producible rows. -/
+def cut (C : Set ρ₁ → Set ρ₂ → SetRel γ δ) (F₁ : Set ρ₁) (F₂ : Set ρ₂) :
+    Set F₁ → Set F₂ → SetRel γ δ :=
+  fun R₁ R₂ => C (Subtype.val '' R₁) (Subtype.val '' R₂)
+
+/-- The cut context still preserves unions in each box. -/
+theorem PreservesUnions₂.cut (hC : PreservesUnions₂ C) (F₁ : Set ρ₁) (F₂ : Set ρ₂) :
+    PreservesUnions₂ (cut C F₁ F₂) := by
+  intro R₁ R₂
+  simp only [CategoricalTriz.cut, hC (Subtype.val '' R₁), Set.image_singleton, Set.biUnion_image]
+
+/-- The cut context's safe pairs of rows are the safe pairs of producible rows. -/
+theorem safeRows_cut {F₁ : Set ρ₁} {F₂ : Set ρ₂} {T : SetRel γ δ} (p : F₁) (q : F₂) :
+    SafeRows (cut C F₁ F₂) T p q ↔ SafeRows C T p q := by
+  simp only [SafeRows, CategoricalTriz.cut, Set.image_singleton]
+
+/-- A relation inside `F` is the image of its producible rows. -/
+private theorem image_preimage_of_subset {ρ : Type*} {F R : Set ρ} (h : R ⊆ F) :
+    Subtype.val '' (Subtype.val ⁻¹' R : Set F) = R := by
+  rw [Subtype.image_preimage_coe, Set.inter_eq_right.2 h]
+
+/-- With producible rows: a pair of producible relations keeps the composite inside `T` iff every
+pair of their rows is a safe pair of producible rows, i.e. their product lies inside the safe-row
+relation intersected with `F₁ ×ˢ F₂`. -/
+theorem safe_feasible_iff (hC : PreservesUnions₂ C) {F₁ R₁ : Set ρ₁} {F₂ R₂ : Set ρ₂}
+    {T : SetRel γ δ} (h₁ : R₁ ⊆ F₁) (h₂ : R₂ ⊆ F₂) :
+    C R₁ R₂ ⊆ T ↔ R₁ ×ˢ R₂ ⊆ {x | SafeRows C T x.1 x.2} ∩ F₁ ×ˢ F₂ := by
+  rw [le_safeRows_iff hC, Set.subset_inter_iff, and_iff_left (Set.prod_mono h₁ h₂)]
+  exact ⟨fun h x hx => h hx.2 hx.1, fun h q hq p hp => h (Set.mk_mem_prod hp hq)⟩
+
+/-- With producible rows: a pair of producible relations keeps the composite inside `T` iff it
+lies inside a formal concept of the safe pairs of producible rows. -/
+theorem safe_feasible_iff_le_concept (hC : PreservesUnions₂ C) {F₁ R₁ : Set ρ₁}
+    {F₂ R₂ : Set ρ₂} {T : SetRel γ δ} (h₁ : R₁ ⊆ F₁) (h₂ : R₂ ⊆ F₂) :
+    C R₁ R₂ ⊆ T ↔ ∃ c : Concept F₁ F₂ (SafeRows (cut C F₁ F₂) T),
+      R₁ ⊆ Subtype.val '' c.extent ∧ R₂ ⊆ Subtype.val '' c.intent := by
+  have h := safe_iff_le_concept (hC.cut F₁ F₂) (R₁ := Subtype.val ⁻¹' R₁)
+    (R₂ := Subtype.val ⁻¹' R₂) (T := T)
+  simp only [CategoricalTriz.cut, image_preimage_of_subset h₁, image_preimage_of_subset h₂] at h
+  rw [h]
+  refine exists_congr fun c => and_congr ?_ ?_
+  · rw [← Set.image_subset_image_iff Subtype.val_injective, image_preimage_of_subset h₁]
+  · rw [← Set.image_subset_image_iff Subtype.val_injective, image_preimage_of_subset h₂]
+
+/-- With producible rows, the concepts of the safe pairs of producible rows are the maximal safe
+pairs of producible relations: a safe pair of producible relations containing one is that one. -/
+theorem concept_feasible_maximal (hC : PreservesUnions₂ C) {F₁ : Set ρ₁} {F₂ : Set ρ₂}
+    {T : SetRel γ δ} (c : Concept F₁ F₂ (SafeRows (cut C F₁ F₂) T)) {R₁ : Set ρ₁} {R₂ : Set ρ₂}
+    (h : C R₁ R₂ ⊆ T) (hF₁ : R₁ ⊆ F₁) (hF₂ : R₂ ⊆ F₂) (h₁ : Subtype.val '' c.extent ⊆ R₁)
+    (h₂ : Subtype.val '' c.intent ⊆ R₂) :
+    R₁ = Subtype.val '' c.extent ∧ R₂ = Subtype.val '' c.intent := by
+  have hc : cut C F₁ F₂ (Subtype.val ⁻¹' R₁) (Subtype.val ⁻¹' R₂) ⊆ T := by
+    simpa only [CategoricalTriz.cut, image_preimage_of_subset hF₁, image_preimage_of_subset hF₂]
+      using h
+  obtain ⟨e₁, e₂⟩ := concept_maximal (hC.cut F₁ F₂) c hc (Set.image_subset_iff.1 h₁)
+    (Set.image_subset_iff.1 h₂)
+  rw [← e₁, ← e₂, image_preimage_of_subset hF₁, image_preimage_of_subset hF₂]
+  exact ⟨rfl, rfl⟩
+
+/-- With producible rows, some pair of producible relations achieves `T` iff the composite of some
+concept of the safe pairs of producible rows covers `T`. -/
+theorem exists_eq₂_feasible_iff (hC : PreservesUnions₂ C) {F₁ : Set ρ₁} {F₂ : Set ρ₂}
+    {T : SetRel γ δ} :
+    (∃ R₁ ⊆ F₁, ∃ R₂ ⊆ F₂, C R₁ R₂ = T) ↔ ∃ c : Concept F₁ F₂ (SafeRows (cut C F₁ F₂) T),
+      T ⊆ C (Subtype.val '' c.extent) (Subtype.val '' c.intent) := by
+  refine Iff.trans ?_ (exists_eq₂_iff (hC.cut F₁ F₂))
+  constructor
+  · rintro ⟨R₁, h₁, R₂, h₂, h⟩
+    refine ⟨Subtype.val ⁻¹' R₁, Subtype.val ⁻¹' R₂, ?_⟩
+    simpa only [CategoricalTriz.cut, image_preimage_of_subset h₁, image_preimage_of_subset h₂]
+      using h
+  · rintro ⟨R₁, R₂, h⟩
+    exact ⟨_, Subtype.coe_image_subset _ _, _, Subtype.coe_image_subset _ _, h⟩
 
 end Holes
 

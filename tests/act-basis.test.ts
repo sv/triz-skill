@@ -117,6 +117,16 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     assert.deepEqual([r.verdict, r.boxes], [verdict, ["housing", "sleeve"]]);
     collect(r);
   }
+  // Two boxes within their producible rows: a housing that only leaves the shaft unsupported needs a supporting sleeve
+  // (spec); one that passes the support on as it is, too, leaves no producible pair (infeasible).
+  for (const [sleeve, verdict] of [[undefined, "spec"], [[["supported", "supported"], ["unsupported", "unsupported"]], "impossible"]] as const) {
+    const model: FunctionModel = await twoBoxes(open);
+    model.boxes.find((b) => b.id === "housing")!.producible = [{ in: {}, out: { bore: "unsupported" } }];
+    if (sleeve) model.boxes.find((b) => b.id === "sleeve")!.producible = sleeve.map(([i, o]) => ({ in: { in: i }, out: { out: o } }));
+    const r = await call("triz_behavior", { model, compare_to: open, weakest_spec: true });
+    assert.deepEqual([r.verdict, r.reason], [verdict, verdict === "spec" ? undefined : "infeasible"]);
+    collect(r);
+  }
   const variant = (keep: (lube: string) => boolean) => {
     const m = structuredClone(dry);
     const b = m.boxes.find((x) => x.id === "bearing")!;
@@ -156,6 +166,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
     "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
     "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff",
+    "safe_feasible_iff", "safe_feasible_iff_le_concept", "concept_feasible_maximal", "exists_eq₂_feasible_iff",
     "IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
@@ -169,7 +180,7 @@ test("lemmas no verdict uses exactly are proved but never listed as a verdict ba
   const sanity = ["admits_incomparable", "relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
     "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans",
     // Helpers of the two-box statements the kernel cites, and dynamics read as behaviour, which the kernel does not compute.
-    "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed",
+    "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "PreservesUnions₂.cut", "safeRows_cut", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed",
     "Factors.inf", "Factors.mono", "Factors.onPorts", "exists_isFinest", "IsFinest.unique", "IsFinest.rel_iff", "factors_bot_iff", "factors_empty", "isFinest_onPorts_empty"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
