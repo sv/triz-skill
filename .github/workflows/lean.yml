@@ -42,12 +42,14 @@ jobs:
           cache: pnpm
 
       # The certificate fixtures were built above; this applies the acceptance rule (no warning,
-      # every theorem elaborated, standard axioms only) and checks that tampered copies fail.
+      # every theorem elaborated, standard axioms only) and checks that tampered copies fail, all
+      # in one Lean process.
       - name: Certificates (acceptance + tamper)
         run: node scripts/certify.mjs --local --tamper theory/Certificates/*.lean
 
       # The tests that need Lean (fixtures and hostile generated certificates accepted, tampered
-      # copies rejected) skip without it; TRIZ_REQUIRE_LEAN=1 makes a missing build fail instead.
+      # copies rejected; one Lean process per test) skip without it or with TRIZ_SKIP_LEAN=1;
+      # TRIZ_REQUIRE_LEAN=1 runs them and makes a missing build fail instead.
       - run: pnpm install --frozen-lockfile
 
       - name: Tests with Lean required
