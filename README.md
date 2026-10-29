@@ -91,7 +91,7 @@ missing.
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
 | `triz_transform` | Apply one typed move — segment, take out, interpose (Principles 1, 2, 24), an applied trim, or a rewrite; fails closed |
-| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
+| `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -147,16 +147,20 @@ with no `sorry`:
 - the componentwise order is not total;
 - typing survives relabelling, deletion under the no-dangling condition, gluing, and
   re-attachment to a same-carrier port;
-- restriction composes;
+- restriction composes, and makes typed diagrams a presheaf on the poset of box sets;
+- restriction commutes with every rewrite step restricted to the subsystem, so the subsystem
+  and system rows of the 9 windows, with two steps, form a functor from time × (box sets)ᵒᵖ to
+  sets;
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
   trace is monotone and yanks a swap to the identity.
 
-`theory/Witnesses.lean` checks that none of the typing or behaviour-monotonicity lemmas is
-vacuous. For each, a concrete diagram or relation meets all its hypotheses, and a counterexample
-shows each hypothesis is needed.
+`theory/Witnesses.lean` checks that none of the typing, restriction, rewrite, or
+behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
+hypotheses, and a counterexample shows each hypothesis is needed.
 
-It also states trimming as a left Kan extension, which the kernel does not decide.
-`triz_behavior` decides a finite relational question instead, which is not proved equivalent.
+Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
+relational check, and its verdict depends on the absorber chosen. `theory/` does not state
+trimming as a Kan extension; categorical-model.md says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
