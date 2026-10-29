@@ -79,7 +79,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     collect(await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } }));
   }
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
-  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_pi_iff", "Relation.comp_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -157,7 +157,7 @@ test("behaviour constructions cite what they use: comp_eq for an identity mediat
   assert.deepEqual((await via(undefined)).behavior, undefined);
 
   const split = async (parts: string[][]) => (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } })).behavior.basis;
-  assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff"]);
-  assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff"]);
-  assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff", "eq_projections_pi_iff"]);
+  assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff_rectangle"]);
+  assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_prod_iff"]);
+  assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_pi_iff"]);
 });

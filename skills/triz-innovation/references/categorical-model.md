@@ -26,7 +26,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
-| Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections; interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`), interpose (`behavior.identity`) | `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
+| Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
 | System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`; `supportedOn`, `typedOn`; used by those, never cited: `restrict_restrict`, `restrict_of_subset` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
@@ -208,6 +208,14 @@ is fixed by what was declared:
   port splits off. Since R is always contained in the product of its projections, equality is
   decided by counting distinct rows, |R| = Π|πᵢR|, in about k·|R| steps for k parts, without
   enumerating the product.
+- **Coupling witness.** One part against the rest, R is the product of its projections iff it is
+  a rectangle: whenever (x₁, x₂) and (y₁, y₂) are rows, so is (x₁, y₂)
+  (`eq_projections_prod_iff_rectangle`, cited for both verdicts). For each coupled part,
+  `behavior.witnesses` gives two rows x and y, each shown part by part, and their mix (`absent`):
+  the part's values from x, the rest from y, which is not a row. The witness is the first such
+  pair with rows in lexicographic order of their values (ports in box order, inputs then
+  outputs; values compared by code unit). That order is the one tie-break, and it reads value
+  names and port order, so a witness is label-blind only up to it.
 - **Intermediary.** The mediator may declare `behavior`: rows over its ports `in` and `out`, or
   `identity`, one row per declared value of the wire's carrier with in = out. A relation equal
   to the identity cites Mathlib's `Relation.comp_eq` (r composed with equality is r): with the
@@ -440,7 +448,8 @@ example cohort churn against fee changes. Name it only from that evidence.
 - A segment's split is decided for the declared relation and the given partition. It holds for
   the parts' projections as composed by `triz_behavior`, where a part that cannot reach a
   deliverable is not composed. `behavior.coupled` tests each part against all the others; it
-  does not search for groups of parts that split from each other.
+  does not search for groups of parts that split from each other. A coupling witness depends on
+  value names and port order through its tie-break; whether a part is coupled does not.
 - An identity mediator is the identity on the declared values. Its cost, delay, and new harms
   are not modelled.
 - Double-pushout rewriting is claimed for `triz_rule_apply` only, in the hypergraph encoding

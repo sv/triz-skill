@@ -588,7 +588,7 @@ Mathlib's `Relation.Comp` (some middle value links the two relations), which can
 either way (`Relation.comp_assoc`, which verdicts cite), and which an identity mediator leaves
 unchanged (`Relation.comp_eq`, cited too). The statements below add that series composition is
 monotone, that adding rows never removes a steady state, and they pin down the trace on the
-loops the tests check: semantic sanity lemmas, which no verdict cites. The last two
+loops the tests check: semantic sanity lemmas, which no verdict cites. The last three
 characterise when a box's relation splits over a segmentation of its ports, which `segment`
 cites. The TypeScript evaluator is checked against them by tests, not by extraction.
 
@@ -656,6 +656,22 @@ theorem eq_projections_prod_iff (R : Set (α × β)) :
   refine Set.Subset.antisymm Set.subset_fst_image_prod_snd_image ?_
   rintro ⟨a, b⟩ ⟨⟨p, hp, rfl⟩, ⟨q, hq, rfl⟩⟩
   exact ⟨hp.1, hq.2⟩
+
+/-- The rectangle condition: a relation over two groups of ports is the product of its two
+projections iff, whenever `(a, b)` and `(c, d)` are rows, so is `(a, d)`. `segment` cites it for
+both verdicts, one part against the rest: a split, and a coupling, whose witness is a failing
+quadruple: rows `(a, b)` and `(c, d)` with `(a, d)` not a row. -/
+theorem eq_projections_prod_iff_rectangle (R : Set (α × β)) :
+    R = (Prod.fst '' R) ×ˢ (Prod.snd '' R) ↔
+      ∀ a b c d, (a, b) ∈ R → (c, d) ∈ R → (a, d) ∈ R := by
+  constructor
+  · intro h a b c d hab hcd
+    rw [h]
+    exact ⟨⟨_, hab, rfl⟩, ⟨_, hcd, rfl⟩⟩
+  · intro h
+    refine Set.Subset.antisymm Set.subset_fst_image_prod_snd_image ?_
+    rintro ⟨a, d⟩ ⟨⟨⟨_, b⟩, hab, rfl⟩, ⟨⟨c, _⟩, hcd, rfl⟩⟩
+    exact h _ _ _ _ hab hcd
 
 /-- The same over any family of parts: `segment`'s check over all the parts at once. When it
 holds, each part's projection is that part's behaviour. -/

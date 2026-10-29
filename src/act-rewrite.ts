@@ -26,8 +26,10 @@ import { REWRITE, type Theorem } from "./act-basis.js";
 
 /** An identity mediator composes away: r ∘ (=) = r. */
 const IDENTITY: Theorem[] = ["Relation.comp_eq"];
-/** One part against the rest: R is π₁R × π₂R iff it is a product at all. */
-const SPLIT: Theorem[] = ["eq_projections_prod_iff"];
+/** One part against the rest: R is π₁R × π₂R iff (a, b), (c, d) ∈ R always give (a, d) ∈ R. */
+const RECTANGLE: Theorem[] = ["eq_projections_prod_iff_rectangle"];
+/** Not a product of its projections, so no relations on the parts compose back to R. */
+const NO_FACTORS: Theorem[] = ["eq_projections_prod_iff"];
 /** All parts at once: R is Π πᵢR iff it is a product at all. */
 const SPLIT_ALL: Theorem[] = ["eq_projections_pi_iff"];
 
@@ -88,28 +90,55 @@ export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports
  * the product. A part is coupled when R ≠ πᵢR × π(rest)R, each part tested against all the others
  * together: c = a xor b is independent pairwise, yet no part splits off. R splits over all the
  * parts iff no part is coupled. When it splits, each part gets its projection as its behaviour.
+ *
+ * Each coupled part gets a witness of the rectangle condition failing: rows x = (x₁, x₂) and
+ * y = (y₁, y₂) of R, split into the part's ports and the rest, with (x₁, y₂) not a row. The
+ * witness is the first such pair with rows in lexicographic order of their values (ports in box
+ * order, inputs then outputs; values compared by code unit): the first x whose part value does
+ * not meet every rest value, then the first y whose rest value it misses. That order is the one
+ * tie-break; it reads value names and port order.
  */
 export function splitBehavior(box: Box, parts: Array<{ id: string; ports: string[] }>) {
   const columns = [...(box.inputs ?? []).map((p) => ({ side: "in" as const, id: p.id })), ...(box.outputs ?? []).map((p) => ({ side: "out" as const, id: p.id }))];
+  const lexicographic = (a: string[], b: string[]) => {
+    const i = a.findIndex((x, j) => x !== b[j]);
+    return i < 0 ? 0 : a[i] < b[i] ? -1 : 1;
+  };
   const tuples = [...new Map(box.behavior!.map((row) => {
     const t = columns.map((c) => row[c.side][c.id]);
     return [JSON.stringify(t), t] as const;
-  })).values()];
+  })).values()].sort(lexicographic);
   const of = (part: { ports: string[] }) => columns.flatMap((c, i) => (part.ports.includes(c.id) ? [i] : []));
-  const size = (cols: number[]) => new Set(tuples.map((t) => JSON.stringify(cols.map((i) => t[i])))).size;
+  const key = (t: string[], cols: number[]) => JSON.stringify(cols.map((i) => t[i]));
+  const size = (cols: number[]) => new Set(tuples.map((t) => key(t, cols))).size;
   const all = parts.map(of);
-  const coupled = parts.filter((_, i) => size(all[i]) * size(all.flatMap((cols, j) => (j === i ? [] : cols))) !== tuples.length).map((p) => p.id);
+  const restOf = (i: number) => all.flatMap((cols, j) => (j === i ? [] : cols));
+  const coupledAt = all.flatMap((cols, i) => (size(cols) * size(restOf(i)) !== tuples.length ? [i] : []));
   const independent = all.reduce((n, cols) => n * size(cols), 1) === tuples.length;
+  /** A full tuple shown part by part: part id → port id → value. */
+  const view = (t: string[]) => Object.fromEntries(parts.map((p, j) => [p.id, Object.fromEntries(all[j].map((i) => [columns[i].id, t[i]]))]));
+  const witness = (i: number) => {
+    const cols = all[i], rest = restOf(i);
+    const meets = new Map<string, Set<string>>();
+    for (const t of tuples) meets.set(key(t, cols), (meets.get(key(t, cols)) ?? new Set()).add(key(t, rest)));
+    const restValues = size(rest);
+    const x = tuples.find((t) => meets.get(key(t, cols))!.size < restValues)!;
+    const y = tuples.find((t) => !meets.get(key(x, cols))!.has(key(t, rest)))!;
+    const absent = x.map((v, j) => (cols.includes(j) ? v : y[j]));
+    return { part: parts[i].id, rows: [view(x), view(y)], absent: view(absent) };
+  };
   const project = (cols: number[]) => [...new Map(tuples.map((t) => {
     const row = { in: {} as Record<string, string>, out: {} as Record<string, string> };
     for (const i of cols) row[columns[i].side][columns[i].id] = t[i];
-    return [JSON.stringify(cols.map((i) => t[i])), row] as const;
+    return [key(t, cols), row] as const;
   })).values()];
+  const noFactors = parts.length === 2 ? NO_FACTORS : SPLIT_ALL;
   return {
     independent,
-    coupled,
+    coupled: coupledAt.map((i) => parts[i].id),
+    witnesses: coupledAt.map(witness),
     rows: independent ? new Map(parts.map((p, i) => [p.id, project(all[i])])) : undefined,
-    basis: parts.length === 2 ? SPLIT : independent ? SPLIT_ALL : [...SPLIT, ...SPLIT_ALL],
+    basis: independent ? (parts.length === 2 ? RECTANGLE : SPLIT_ALL) : [...RECTANGLE, ...noFactors],
   };
 }
 
@@ -180,10 +209,11 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
       behaviourallyIndependent: split.independent,
       behavior: {
         coupled: split.coupled,
+        witnesses: split.witnesses,
         basis: split.basis,
         note: split.independent
           ? "The declared relation is the product of its projections onto the parts, so each part carries its projection and together they compose back to it."
-          : `The declared relation is not a product over the parts: no relations on the parts compose back to it. Coupled: ${split.coupled.map((id) => `'${id}'`).join(", ")}. The parts declare no behaviour; declare it to decide the concept with triz_behavior.`,
+          : `The declared relation is not a product over the parts: no relations on the parts compose back to it. Coupled: ${split.coupled.map((id) => `'${id}'`).join(", ")}. Each witness gives two rows whose mix (the part's values from the first, the rest from the second) is not a row. The parts declare no behaviour; declare it to decide the concept with triz_behavior.`,
       },
     } : {}),
     basis: r.basis,

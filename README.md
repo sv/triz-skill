@@ -166,7 +166,8 @@ with no `sorry`:
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
   trace is monotone and yanks a swap to the identity;
 - a relation is the product of its projections iff it is a product at all, for two parts and
-  for any family of parts.
+  for any family of parts, and for two parts iff it is a rectangle: rows (a, b) and (c, d) give
+  the row (a, d).
 
 Verdicts cite only the statements they use exactly; categorical-model.md marks the others as
 never cited, and why.

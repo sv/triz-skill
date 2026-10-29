@@ -471,7 +471,7 @@ example : ¬ relTrace (fun (_ _ : Unit × Unit) => True) ≤
   obtain ⟨_, hu⟩ := h () () ⟨(), trivial⟩
   exact hu
 
-/-! ### `eq_projections_prod_iff`, `eq_projections_pi_iff`
+/-! ### `eq_projections_prod_iff`, `eq_projections_prod_iff_rectangle`, `eq_projections_pi_iff`
 
 Neither has hypotheses. Each is an equivalence, so the witnesses show that both sides can hold
 and both can fail. A non-empty proper product splits. Equality on `Bool` does not. Parity on
@@ -494,6 +494,24 @@ example : ¬ ∃ (A B : Set Bool), sameBit = A ×ˢ B := by
   have h₀ : (false, false) ∈ A ×ˢ B := h ▸ (rfl : false = false)
   have h₁ : (true, true) ∈ A ×ˢ B := h ▸ (rfl : true = true)
   have : (false, true) ∈ sameBit := h ▸ ⟨h₀.1, h₁.2⟩
+  simp [sameBit] at this
+
+/-- The rectangle condition holds on the product. -/
+example : ∀ a b c d, (a, b) ∈ firstFalse → (c, d) ∈ firstFalse → (a, d) ∈ firstFalse :=
+  (eq_projections_prod_iff_rectangle _).mp ((eq_projections_prod_iff _).mpr ⟨_, _, rfl⟩)
+
+/-- It fails on equality, at the witness `segment` reports for the rows `(false, false)` and
+`(true, true)` over parts `{a}` and `{b}` (tests/act-behavior.test.ts): `(false, true)` is not a
+row. -/
+example : (false, false) ∈ sameBit ∧ (true, true) ∈ sameBit ∧ (false, true) ∉ sameBit :=
+  ⟨rfl, rfl, by simp [sameBit]⟩
+
+example : ¬ ∀ a b c d, (a, b) ∈ sameBit → (c, d) ∈ sameBit → (a, d) ∈ sameBit := fun h => by
+  have := h false false true true rfl rfl
+  simp [sameBit] at this
+
+example : sameBit ≠ (Prod.fst '' sameBit) ×ˢ (Prod.snd '' sameBit) := fun h => by
+  have := (eq_projections_prod_iff_rectangle _).mp h false false true true rfl rfl
   simp [sameBit] at this
 
 example : sameBit ≠ (Prod.fst '' sameBit) ×ˢ (Prod.snd '' sameBit) := fun h => by

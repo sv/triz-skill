@@ -20,7 +20,7 @@ export const THEOREMS = [
   "typed_overlay", "typed_dpo",
   "typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost",
   "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
-  "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_pi_iff",
+  "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff",
 ] as const;
 /** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */
 export const MATHLIB_THEOREMS = ["Relation.comp_assoc", "Relation.comp_eq"] as const;

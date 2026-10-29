@@ -343,7 +343,7 @@ test("segment splits behaviour only when the relation is the product of its proj
   const split = segment(bearing(), { box: "bearing", parts: [{ id: "load", ports: ["preload-in", "friction"] }, { id: "race", ports: ["race"] }] });
   assert.ok(split.ok && split.behaviourallyIndependent);
   assert.deepEqual(split.behavior?.coupled, []);
-  assert.deepEqual(box(split.model, "load").behavior, [{ in: { "preload-in": "nominal" }, out: { friction: "low" } }, { in: { "preload-in": "high" }, out: { friction: "high" } }]);
+  assert.deepEqual(box(split.model, "load").behavior, [{ in: { "preload-in": "high" }, out: { friction: "high" } }, { in: { "preload-in": "nominal" }, out: { friction: "low" } }], "projected rows in value order");
   assert.deepEqual(box(split.model, "race").behavior, [{ in: {}, out: { race: "supported" } }]);
   const r = compareBehavior(bearing(), split.model);
   assert.ok(r.ok && r.verdict === "preserved");
@@ -357,6 +357,37 @@ test("segment splits behaviour only when the relation is the product of its proj
   assert.deepEqual(coupled.behavior?.coupled, ["bearing", "rolling"]);
 });
 
+test("a coupled split names the first witness pair: two rows whose mix is not a row", () => {
+  const seg = segment(bearing(), { box: "bearing", parts: [{ id: "races", ports: ["preload-in", "race"] }, { id: "rolling", ports: ["friction"] }] });
+  assert.ok(seg.ok && seg.behaviourallyIndependent === false);
+  // Rows in value order: (high, supported, high) before (nominal, supported, low).
+  const hot = { races: { "preload-in": "high", race: "supported" }, rolling: { friction: "high" } };
+  const cool = { races: { "preload-in": "nominal", race: "supported" }, rolling: { friction: "low" } };
+  assert.deepEqual(seg.behavior?.witnesses, [
+    { part: "races", rows: [hot, cool], absent: { races: hot.races, rolling: cool.rolling } },
+    { part: "rolling", rows: [hot, cool], absent: { races: cool.races, rolling: hot.rolling } },
+  ]);
+  assert.deepEqual(seg.behavior?.basis, ["eq_projections_prod_iff_rectangle", "eq_projections_prod_iff"]);
+
+  const split = segment(bearing(), { box: "bearing", parts: [{ id: "load", ports: ["preload-in", "friction"] }, { id: "race", ports: ["race"] }] });
+  assert.ok(split.ok && split.behaviourallyIndependent);
+  assert.deepEqual([split.behavior?.witnesses, split.behavior?.basis], [[], ["eq_projections_prod_iff_rectangle"]]);
+
+  // Equality on two values: the pair Witnesses.lean checks for `sameBit`.
+  const m: FunctionModel = {
+    domain: "software",
+    carriers: [{ id: "b", layer: "information", dimension: "bit", values: ["false", "true"] }],
+    boxes: [{ id: "same", name: "Same", role: "tool", inputs: [{ id: "a", carrier: "b" }], outputs: [{ id: "b", carrier: "b" }],
+      behavior: [{ in: { a: "true" }, out: { b: "true" } }, { in: { a: "false" }, out: { b: "false" } }] }],
+    wires: [],
+  };
+  const eq = segment(m, { box: "same", parts: [{ id: "p", ports: ["a"] }, { id: "q", ports: ["b"] }] });
+  assert.ok(eq.ok);
+  assert.deepEqual(eq.behavior?.witnesses?.[0], {
+    part: "p", rows: [{ p: { a: "false" }, q: { b: "false" } }, { p: { a: "true" }, q: { b: "true" } }], absent: { p: { a: "false" }, q: { b: "true" } },
+  });
+});
+
 const bits = (id: string) => ({ id, carrier: "c" });
 const rowsBox = (inputs: string[], outputs: string[], rows: string[][]): FunctionModel["boxes"][number] => ({
   id: "r", name: "R", role: "tool", inputs: inputs.map(bits), outputs: outputs.map(bits),
@@ -368,12 +399,27 @@ test("the split is decided on distinct rows: equality with repeated rows is not 
   assert.equal(eq.behavior!.length, 2 * 2, "four raw rows, as many as the product of two two-value projections");
   const r = splitBehavior(eq, [{ id: "p", ports: ["a"] }, { id: "q", ports: ["b"] }]);
   assert.deepEqual([r.independent, r.coupled, r.rows], [false, ["p", "q"], undefined]);
+  assert.deepEqual(r.witnesses[0], { part: "p", rows: [{ p: { a: "0" }, q: { b: "0" } }, { p: { a: "1" }, q: { b: "1" } }], absent: { p: { a: "0" }, q: { b: "1" } } });
 });
 
 test("each part is tested against all the others: parity is independent pairwise, yet every part is coupled", () => {
   const parity = rowsBox(["a", "b"], ["c"], ["0", "1"].flatMap((a) => ["0", "1"].map((b) => [a, b, a === b ? "0" : "1"])));
   const r = splitBehavior(parity, [{ id: "pa", ports: ["a"] }, { id: "pb", ports: ["b"] }, { id: "pc", ports: ["c"] }]);
-  assert.deepEqual([r.independent, r.coupled, r.basis], [false, ["pa", "pb", "pc"], ["eq_projections_prod_iff", "eq_projections_pi_iff"]]);
+  assert.deepEqual([r.independent, r.coupled, r.basis], [false, ["pa", "pb", "pc"], ["eq_projections_prod_iff_rectangle", "eq_projections_pi_iff"]]);
+  // Part c against {a, b}: rows (0,0,0) and (0,1,1) mix into c 0 from the first, a 0 and b 1 from the second: not a row.
+  assert.deepEqual(r.witnesses[2], {
+    part: "pc",
+    rows: [{ pa: { a: "0" }, pb: { b: "0" }, pc: { c: "0" } }, { pa: { a: "0" }, pb: { b: "1" }, pc: { c: "1" } }],
+    absent: { pa: { a: "0" }, pb: { b: "1" }, pc: { c: "0" } },
+  });
+  // Renaming values (0 → z, 1 → a) reverses their order: coupling is unchanged, the witness follows the tie-break.
+  const renamed = { ...parity, behavior: parity.behavior!.map((row) => ({
+    in: Object.fromEntries(Object.entries(row.in).map(([k, v]) => [k, v === "0" ? "z" : "a"])),
+    out: Object.fromEntries(Object.entries(row.out).map(([k, v]) => [k, v === "0" ? "z" : "a"])),
+  })) };
+  const back = splitBehavior(renamed, [{ id: "pa", ports: ["a"] }, { id: "pb", ports: ["b"] }, { id: "pc", ports: ["c"] }]);
+  assert.deepEqual([back.independent, back.coupled], [r.independent, r.coupled]);
+  assert.deepEqual(back.witnesses[2].rows[0], { pa: { a: "a" }, pb: { b: "a" }, pc: { c: "z" } }, "the first row is now (1,1,0), renamed");
   const pairs = [["a", "b"], ["a", "c"], ["b", "c"]].map(([x, y]) => splitBehavior({ ...parity, behavior: parity.behavior!.map((row) => ({
     in: Object.fromEntries(Object.entries(row.in).filter(([k]) => k === x || k === y)), out: Object.fromEntries(Object.entries(row.out).filter(([k]) => k === x || k === y)),
   })), inputs: parity.inputs!.filter((p) => p.id === x || p.id === y), outputs: parity.outputs!.filter((p) => p.id === x || p.id === y) }, [{ id: x, ports: [x] }, { id: y, ports: [y] }]).independent);
@@ -406,6 +452,15 @@ test("property: the counting decision agrees with checking every tuple of the pr
     const r = splitBehavior(rowsBox(ports.slice(0, 2), ports.slice(2), rows), parts);
     assert.equal(r.independent, isProduct(idx), `trial ${trial}`);
     assert.deepEqual(r.coupled, parts.filter((_, j) => !isProduct([idx[j], idx.flatMap((g, i) => (i === j ? [] : g))])).map((p) => p.id), `trial ${trial}`);
+    // Each witness is the first pair, in lexicographic row order, whose mix is not a row.
+    const sortedRows = [...rows].sort((a, b) => { const i = a.findIndex((x, j) => x !== b[j]); return i < 0 ? 0 : a[i] < b[i] ? -1 : 1; });
+    const flat = (v: Record<string, Record<string, string>>) => ports.map((q) => Object.values(v).find((x) => Object.hasOwn(x, q))![q]);
+    for (const w of r.witnesses) {
+      const g = idx[parts.findIndex((p) => p.id === w.part)];
+      const mix = (x: string[], y: string[]) => x.map((v, i) => (g.includes(i) ? v : y[i]));
+      const first = sortedRows.flatMap((x) => sortedRows.map((y) => [x, y])).find(([x, y]) => !member.has(mix(x, y).join()))!;
+      assert.deepEqual([w.rows.map(flat), flat(w.absent)], [first, mix(first[0], first[1])], `trial ${trial}`);
+    }
     if (!(trial % 2)) assert.ok(r.independent, `trial ${trial}: a product of projections splits`);
     if (r.independent) {
       products++;
