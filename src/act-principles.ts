@@ -90,7 +90,8 @@ function replace(model: FunctionModel, spec: { boxes?: Box[]; wires?: Wire[] }):
  * 'identical' requires the same role and the same multiset of carriers on each side; names and
  * actions are labels and are not compared. Every path between boxes maps to a path between their
  * images, but merging can close new loops: negative functions newly on a harm loop are listed, and
- * functions inside the group are hidden and listed. "In space or time" is not modelled.
+ * functions inside the group are hidden and listed. The merged box declares no behavior, so the
+ * boxes whose declared behavior it drops are listed too. "In space or time" is not modelled.
  */
 export function merge(model: FunctionModel, spec: {
   boxes: string[]; into: { id: string; name: string; role?: Box["role"]; action?: string }; reading?: "adjacent" | "identical";
@@ -136,6 +137,7 @@ export function merge(model: FunctionModel, spec: {
     hidden: c.hidden,
     hiddenHarms: c.hiddenHarms,
     newlyLooped: [...looped(c.model)].filter((id) => !before.has(id)).sort(),
+    droppedBehavior: group.filter((b) => b.behavior).map((b) => b.id),
     deliverableKeysChanged: group.some((b) => b.role === "product"),
     basis: [...c.basis, "reach_quotient"] as Theorem[],
     note: "Merged ports are renamed '<box>.<port>'. Functions inside the group are hidden, and newlyLooped lists harms the merge closes into a loop: substantiate that the merged box can really perform every operation.",
@@ -257,8 +259,9 @@ export function retarget(model: FunctionModel, spec: { wire: string; to: Endpoin
  * its id, carrier, rating, and verb. It needs an output port of the carrier on v and an input port
  * of the carrier on u. `ports.from` / `ports.to` name them; a named port the box lacks is added
  * with the carrier. Unnamed, the box's only port of that carrier and side is used, and none or
- * several fail closed. Reversing again with the original ports gives back the original model.
- * "Movable" and "fixed" are not modelled.
+ * several fail closed. A box that declares behavior cannot gain a port here, since its rows would
+ * not name it. Reversing again with the original ports gives back the original model. "Movable"
+ * and "fixed" are not modelled.
  */
 export function reverse(model: FunctionModel, spec: { wire: string; ports?: { from?: string; to?: string } }) {
   const bad = typed(model);
@@ -286,6 +289,8 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   const errors = [from, to].filter((x): x is string => typeof x === "string");
   if (errors.length) return fail(...errors);
   const [src, tgt] = [from, to] as Array<{ port: string; added: boolean }>;
+  const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior).map((b) => b.id);
+  if (declared.length) return fail(...declared.map((id) => `box '${id}' declares behavior: a new port needs a value in every row; declare it with rewrite, then reverse onto it`));
   const extended = new Map<string, Box>();
   const add = (box: Box, side: "outputs" | "inputs", port: string) => {
     const b = extended.get(box.id) ?? box;

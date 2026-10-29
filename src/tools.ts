@@ -15,6 +15,7 @@ import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBas
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
+import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -256,6 +257,20 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing a returned boxMap as box_map.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
+    },
+    {
+      name: "triz_behavior",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `trim`, perform the trim as triz_transform does and decide whether the input→deliverable relation is unchanged: verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's first, is outside the kernel.",
+      shape: {
+        model: act.FunctionModel,
+        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
+        absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
+        max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
+      },
+      handler: async ({ model, trim, absorb, max_states }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_states?: number }) =>
+        text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
+          : absorb ? { ok: false, errors: ["absorb needs trim"] }
+          : externalBehavior(model, { maxStates: max_states })),
     },
     {
       name: "triz_nine_windows",

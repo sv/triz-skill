@@ -26,6 +26,7 @@ recalling principle numbers or matrix cells.
 | `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks, and which principles have none |
 | `triz_nine_windows(present, past?, future?, subsystem[])` | Subsystem, system, and supersystem views per time snapshot, with harm loops per window |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
+| `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

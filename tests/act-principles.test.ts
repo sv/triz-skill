@@ -94,6 +94,22 @@ test("merge (Principle 5): adjacent boxes collapse, internal harms are hidden an
   assert.match(errors(merge(m, { boxes: ["bearing", "shaft"], into: { id: "motor", name: "X", role: "tool" } })), /box id 'motor' is not fresh/);
 });
 
+test("declared behaviour: merge lists what it drops, cheap_copy keeps it, reverse will not add an unnamed port", () => {
+  const m = example("bearing-heat-behavior");
+  const merged = merge(m, { boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } });
+  assert.ok(merged.ok, errors(merged));
+  assert.deepEqual([merged.droppedBehavior, merged.model.boxes.find((b) => b.id === "rotor")!.behavior], [["bearing", "shaft"], undefined]);
+  const plain = merge(example("bearing-heat"), { boxes: ["bearing", "shaft"], into: { id: "rotor", name: "Rotor", role: "product" } });
+  assert.ok(plain.ok);
+  assert.deepEqual(plain.droppedBehavior, []);
+  const bearing = m.boxes.find((b) => b.id === "bearing")!;
+  const copy = cheapCopy(m, { box: "bearing", copy: { cost: { usd_unit: 10 } } });
+  assert.ok(copy.ok, errors(copy));
+  typedOk(copy.model);
+  assert.deepEqual(copy.model.boxes.find((b) => b.id === "bearing")!.behavior, bearing.behavior);
+  assert.match(errors(reverse(m, { wire: "w-support", ports: { from: "push", to: "pushed" } })), /box 'shaft' declares behavior: a new port needs a value in every row; .*box 'bearing' declares behavior/);
+});
+
 test("merge (Principle 5): identical boxes merge by shape alone, and a merge can close a harm loop", () => {
   const r = merge(workers, { boxes: ["worker-a", "worker-b"], into: { id: "pool", name: "Worker pool" }, reading: "identical" });
   assert.ok(r.ok, errors(r));

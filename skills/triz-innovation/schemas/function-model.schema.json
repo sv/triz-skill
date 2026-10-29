@@ -98,6 +98,15 @@
           "type": "string",
           "minLength": 1,
           "description": "Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"
+        },
+        "values": {
+          "description": "Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "required": [
@@ -157,6 +166,14 @@
             "type": "number",
             "minimum": 0
           }
+        },
+        "behavior": {
+          "description": "Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BehaviorRow"
+          }
         }
       },
       "required": [
@@ -188,6 +205,39 @@
         "carrier"
       ],
       "additionalProperties": false
+    },
+    "BehaviorRow": {
+      "type": "object",
+      "properties": {
+        "in": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Input port id → value; names every input port of the box"
+        },
+        "out": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Output port id → value; names every output port of the box"
+        }
+      },
+      "required": [
+        "in",
+        "out"
+      ],
+      "additionalProperties": false,
+      "description": "One admissible (inputs, outputs) pair of the box's relation"
     },
     "Wire": {
       "type": "object",
