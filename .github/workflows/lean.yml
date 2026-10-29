@@ -23,16 +23,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Mathlib oleans come from `lake exe cache get`; --wfail turns any `sorry` warning into a failure.
+      # Elan and the toolchain only; the Mathlib cache and the build are the next two steps.
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: theory
-          use-mathlib-cache: true
+          use-mathlib-cache: false
           use-github-cache: false
-          build: true
-          build-args: "--wfail"
+          build: false
           test: false
           lint: false
+
+      # Prebuilt oleans for the Mathlib modules theory/ imports and their import closure only, not
+      # all of Mathlib, from cache.mathlib.org as lean-action would fetch them.
+      - name: Mathlib cache (the theory's imports)
+        working-directory: theory
+        env:
+          MATHLIB_CACHE_GET_URL: https://cache.mathlib.org/mathlib4
+        run: lake exe cache get $(find . -name '*.lean' -not -path './.lake/*' -exec sed -n 's/^import //p' {} + | tr -s ' ' '\n' | grep '^Mathlib\.' | sort -u)
+
+      # --wfail turns any `sorry` warning into a failure.
+      - name: Build theory (no sorry)
+        working-directory: theory
+        run: lake build --wfail
 
       - uses: pnpm/action-setup@v4
 
