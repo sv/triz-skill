@@ -304,19 +304,30 @@ export function gluingConditions(model: FunctionModel, rule: Rule, match: RuleMa
 }
 
 /**
- * A kept box that declares behaviour must keep its ports: its rows name every port once, so a rule
- * that adds or deletes one of its ports would leave the rows ill-typed. This is not a gluing
- * condition; it is checked with them so that a refused application names its reason.
+ * Declared rows a rule would leave ill-typed on a kept box. Behaviour and transition rows name
+ * every port once, so the box must keep its ports exactly: a rule that adds or deletes one is
+ * refused. Feasibility rows name only some ports (an omitted one provides and needs 0), so the box
+ * may gain ports but must keep every port its rows name. These are not gluing conditions; they
+ * are checked with them so that a refused application names its reason.
  */
-export function behaviourConditions(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
+export function declaredRowConditions(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
   const { K, R } = index(rule);
   const gone = deletedBy(rule, match);
+  const lost = [...gone.ports].map((k) => JSON.parse(k) as [string, string]).filter(([b]) => !gone.boxes.has(b));
   const changed = new Set([
-    ...[...gone.ports].map((k) => (JSON.parse(k) as [string, string])[0]).filter((b) => !gone.boxes.has(b)),
+    ...lost.map(([b]) => b),
     ...[...R.ports].filter(([k, p]) => K.boxes.has(p.box) && !K.ports.has(k)).map(([, p]) => get(match.boxes, p.box)!),
   ]);
-  return model.boxes.filter((b) => b.behavior && changed.has(b.id))
-    .map((b) => `behaviour: the rule changes the ports of box '${b.id}', which declares behavior; restate or remove its behavior first`);
+  return model.boxes.flatMap((b) => {
+    const rows = (["behavior", "transition"] as const).filter((kind) => b[kind] && changed.has(b.id))
+      .map((kind) => `behaviour: the rule changes the ports of box '${b.id}', which declares ${kind}; restate or remove its ${kind} first`);
+    if (!b.feasibility) return rows;
+    const named = new Set(b.feasibility.flatMap((r) => [...Object.keys(r.provides ?? {}), ...Object.keys(r.requires ?? {})]));
+    const deleted = lost.filter(([box, port]) => box === b.id && named.has(port)).map(([, port]) => `'${port}'`);
+    return deleted.length
+      ? [...rows, `feasibility: the rule deletes port${deleted.length > 1 ? "s" : ""} ${deleted.join(", ")} of box '${b.id}', which its feasibility rows name; restate or remove its feasibility first`]
+      : rows;
+  });
 }
 
 export const MAX_STEPS = 100_000;
@@ -424,7 +435,7 @@ export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial
     const verified = checkMatch(model, rule, match);
     if (verified.length) throw new Error(`internal: search returned an unverified match: ${verified.join("; ")}`);
     const g = gluingConditions(model, rule, match);
-    const violations = [...g.identification, ...g.dangling, ...(g.ok ? behaviourConditions(model, rule, match) : [])];
+    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : [])];
     return { match, applicable: !violations.length, violations };
   });
   return {
@@ -474,8 +485,8 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   if (errors.length) return { ok: false, errors };
   const glue = gluingConditions(model, rule, match);
   if (!glue.ok) return { ok: false, errors: [...glue.identification, ...glue.dangling] };
-  const behaviour = behaviourConditions(model, rule, match);
-  if (behaviour.length) return { ok: false, errors: behaviour };
+  const declared = declaredRowConditions(model, rule, match);
+  if (declared.length) return { ok: false, errors: declared };
 
   const gone = deletedBy(rule, match);
   const sigma = (v: string) => bound.get(v)!;
