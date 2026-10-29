@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -19,3 +19,12 @@ name = "Witnesses"
 # target, so CI checks them. tests/act-cert.test.ts keeps them equal to the generator's output.
 [[lean_lib]]
 name = "Certificates"
+
+# The compositional semantics of declared behaviour (series, parallel, feedback, monotonicity, and
+# the functor to RelCat); tests/act-semantics.test.ts checks the evaluator against it.
+[[lean_lib]]
+name = "Semantics"
+
+# Non-vacuity witnesses and counterexamples for Semantics.
+[[lean_lib]]
+name = "SemanticsWitnesses"

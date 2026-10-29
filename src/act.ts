@@ -24,6 +24,7 @@
  * Pure functions (data in, verdict out) so the stdio and hosted entries share them.
  */
 import { z } from "zod";
+import { at, fail, issue, keysHint, quoted, rebase, second, where, zodHint, type Issue } from "./act-issues.js";
 
 const Id = z.string().min(1);
 /**
@@ -33,10 +34,14 @@ const Id = z.string().min(1);
  */
 const Dim = z.string().min(1).regex(/^(?!__proto__$)/, "'__proto__' is not a usable dimension name");
 
-export const Polarity = z.enum(["useful", "insufficient", "excessive", "harmful"])
+export const Polarity = z.enum(["useful", "insufficient", "excessive", "harmful"], {
+  error: zodHint((iss) => (iss.code === "invalid_value" ? "rate a function useful, insufficient, excessive, or harmful; rate it harmful if no level of it is useful" : undefined)),
+})
   .describe("TRIZ function rating: useful at the right level, useful but insufficient, useful but excessive, or harmful");
 export const Layer = z.enum(["material", "energy", "information", "financial", "legal", "temporal"]);
-export const Role = z.enum(["tool", "product", "mediator", "environment", "supersystem"])
+export const Role = z.enum(["tool", "product", "mediator", "environment", "supersystem"], {
+  error: zodHint((iss) => (iss.code === "invalid_value" ? "the box the main function acts on is the product; the box performing it is the tool; boxes between are mediators; resources outside the system are environment or supersystem" : undefined)),
+})
   .describe("Function-analysis role; environment and supersystem boxes are resources outside the engineered system");
 export const Axis = z.enum(["space", "time", "condition", "direction", "level"]);
 export type Polarity = z.infer<typeof Polarity>;
@@ -55,13 +60,13 @@ export const Carrier = z.strictObject({
     .describe("Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior"),
   levels: z.array(CarrierLevel).min(1).optional()
     .describe("Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]"),
-}).meta({ id: "Carrier" });
+}, { error: keysHint({ unit: "the unit goes in dimension", units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
 
 export const Port = z.strictObject({
   id: Id.describe("Unique within its box"),
   carrier: Id.describe("Carrier id"),
   label: z.string().optional(),
-}).meta({ id: "Port" });
+}, { error: keysHint({ type: "carrier names the port's carrier id", direction: "a port's side is the list it is in: inputs or outputs", side: "a port's side is the list it is in: inputs or outputs", name: "use label for a port's display name" }) }).meta({ id: "Port" });
 
 export const BehaviorRow = z.strictObject({
   in: z.record(z.string(), Id).describe("Input port id → value; names every input port of the box"),
@@ -102,9 +107,18 @@ export const Box = z.strictObject({
     .describe("Declared dynamics: rows (state, inputs) → (next state, outputs) over the declared state and carrier values, making the box a nondeterministic Mealy machine. A (state, inputs) pair with no row cannot occur; several rows are alternatives. Requires state; a box declares behavior or transition, not both"),
   feasibility: z.array(FeasibilityRow).min(1).optional()
     .describe("Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. A port has one level shared by every function on it, so additive sharing of a flow needs a splitter box. Omit when unknown"),
+}, {
+  error: keysHint({
+    ports: "list input ports under inputs and output ports under outputs",
+    type: "the function-analysis role goes in role", kind: "the function-analysis role goes in role",
+    label: "a box's display name goes in name", functions: "functions are wires, listed at the model's top level",
+    wires: "functions are wires, listed at the model's top level",
+  }),
 }).meta({ id: "Box" });
 
-export const Endpoint = z.strictObject({ box: Id, port: Id }).meta({ id: "Endpoint" });
+export const Endpoint = z.strictObject({ box: Id, port: Id }, {
+  error: keysHint({ boxId: "use box and port", portId: "use box and port", id: "an endpoint names a box and one of its ports: { box, port }" }, "an endpoint is { box: '<box id>', port: '<port id>' }, not a 'box.port' string"),
+}).meta({ id: "Endpoint" });
 
 export const Wire = z.strictObject({
   id: Id,
@@ -113,6 +127,12 @@ export const Wire = z.strictObject({
   carrier: Id.describe("Carrier id; must equal both port carriers"),
   polarity: Polarity,
   verb: z.string().optional().describe("Function verb in base form, e.g. 'heat', 'cache', 'charge'"),
+}, {
+  error: keysHint({
+    source: "a wire runs from an output endpoint to an input endpoint: use from and to", target: "a wire runs from an output endpoint to an input endpoint: use from and to",
+    rating: "the rating goes in polarity", type: "the rating goes in polarity", kind: "the rating goes in polarity",
+    name: "the function's verb goes in verb", label: "the function's verb goes in verb", function: "the function's verb goes in verb",
+  }),
 }).meta({ id: "Wire", description: "A TRIZ function: a typed wire from an output port of the performing box to an input port of the box acted on" });
 
 export const Flow = z.strictObject({
@@ -161,6 +181,11 @@ export const FunctionModel = z.strictObject({
   weights: z.record(Dim, z.number().positive()).optional()
     .describe("Explicit normalization to a scalar ideality: one weight per cost dimension plus 'harmful'"),
   contradictions: z.array(PhysicalContradiction).optional(),
+}, {
+  error: keysHint({
+    functions: "functions are wires", edges: "functions are wires", links: "functions are wires",
+    components: "components are boxes", nodes: "components are boxes", elements: "components are boxes",
+  }),
 });
 
 export type FunctionModel = z.infer<typeof FunctionModel>;
@@ -183,6 +208,8 @@ export function functionModelJsonSchema() {
 const inputs = (b: Box) => b.inputs ?? [];
 const outputs = (b: Box) => b.outputs ?? [];
 const NEGATIVE: ReadonlySet<Polarity> = new Set(["harmful", "excessive"]);
+/** Useful functions at the wrong level. */
+const LEVEL_DEFECT: ReadonlySet<Polarity> = new Set(["insufficient", "excessive"]);
 const SUPERSYSTEM: ReadonlySet<string> = new Set(["environment", "supersystem"]);
 
 /** Own-property lookup: dimension names are user data, so never read inherited keys like `constructor`. */
@@ -206,38 +233,48 @@ function duplicates(ids: string[]): string[] {
  * together, with initial and every row's state and next among its states, and declares no
  * behavior. Unknown ports, values, and states fail closed.
  */
-function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
-  const errors: string[] = [];
-  if (b.transition && !b.state) errors.push(`box '${b.id}' declares transition without state`);
-  if (b.state && !b.transition) errors.push(`box '${b.id}' declares state without transition`);
-  if (b.initial && !b.state) errors.push(`box '${b.id}' declares initial without state`);
-  if (b.behavior && b.transition) errors.push(`box '${b.id}' declares both behavior and transition: a stateless box declares behavior, a stateful one transition`);
-  for (const s of duplicates(b.state ?? [])) errors.push(`box '${b.id}': duplicate state '${s}'`);
+function rowIssues(b: Box, bi: number, carriers: FunctionModel["carriers"], root: string): Issue[] {
+  const issues: Issue[] = [];
+  const here = (...segments: Array<string | number>) => at(root, "boxes", bi, ...segments);
+  if (b.transition && !b.state) issues.push(issue("incomplete-state-machine", here("transition"), `box '${b.id}' declares transition without state`, `Declare state on '${b.id}': the values it carries from one step to the next, which the rows' state and next name. Or drop transition and declare behavior.`));
+  if (b.state && !b.transition) issues.push(issue("incomplete-state-machine", here("state"), `box '${b.id}' declares state without transition`, `Declare transition rows { state, in, next, out } on '${b.id}', or drop state.`));
+  if (b.initial && !b.state) issues.push(issue("incomplete-state-machine", here("initial"), `box '${b.id}' declares initial without state`, `Declare state on '${b.id}' (initial is a subset of it), or drop initial.`));
+  if (b.behavior && b.transition) issues.push(issue("behavior-and-transition", here("behavior"), `box '${b.id}' declares both behavior and transition: a stateless box declares behavior, a stateful one transition`, `Keep one: behavior if '${b.id}' has no memory, transition (with state) if it does.`));
+  for (const s of duplicates(b.state ?? [])) issues.push(issue("duplicate-id", here("state", second(b.state!, s)), `box '${b.id}': duplicate state '${s}'`, `List state '${s}' once.`));
   const states = new Set(b.state ?? []);
-  if (b.state) for (const s of b.initial ?? []) if (!states.has(s)) errors.push(`box '${b.id}': initial state '${s}' is not declared in state`);
+  if (b.state) (b.initial ?? []).forEach((s, k) => {
+    if (!states.has(s)) issues.push(issue("undeclared-state", here("initial", k), `box '${b.id}': initial state '${s}' is not declared in state`, `Use one of ${quoted(states)}, or add '${s}' to state.`));
+  });
   if (b.state) b.transition?.forEach((row, i) => {
     for (const [field, s] of [["state", row.state], ["next", row.next]] as const) {
-      if (!states.has(s)) errors.push(`box '${b.id}' transition row ${i}: ${field} '${s}' is not declared in state`);
+      if (!states.has(s)) issues.push(issue("undeclared-state", here("transition", i, field), `box '${b.id}' transition row ${i}: ${field} '${s}' is not declared in state`, `Use one of ${quoted(states)}, or add '${s}' to state.`));
     }
   });
   const values = new Map(carriers.map((c) => [c.id, c.values]));
   for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition]] as const) {
     if (!rows) continue;
     for (const p of [...inputs(b), ...outputs(b)]) {
-      if (values.has(p.carrier) && !values.get(p.carrier)) errors.push(`box '${b.id}' declares ${kind}, but carrier '${p.carrier}' of port '${p.id}' declares no values`);
+      if (values.has(p.carrier) && !values.get(p.carrier)) {
+        issues.push(issue("no-declared-values", where.carrier({ carriers, boxes: [], wires: [] }, p.carrier, root), `box '${b.id}' declares ${kind}, but carrier '${p.carrier}' of port '${p.id}' declares no values`, `Declare values on carrier '${p.carrier}' (e.g. ["low", "high"]), or drop ${kind} from '${b.id}'.`));
+      }
     }
     rows.forEach((row, i) => {
-      for (const [side, ports, given] of [["input", inputs(b), row.in], ["output", outputs(b), row.out]] as const) {
-        for (const k of Object.keys(given)) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' ${kind} row ${i}: no ${side} port '${k}'`);
+      for (const [side, field, ports, given] of [["input", "in", inputs(b), row.in], ["output", "out", outputs(b), row.out]] as const) {
+        for (const k of Object.keys(given)) {
+          if (!ports.some((p) => p.id === k)) issues.push(issue("row-unknown-port", here(kind, i, field, k), `box '${b.id}' ${kind} row ${i}: no ${side} port '${k}'`, `Key ${field} by the ${side} ports of '${b.id}': ${quoted(ports.map((p) => p.id))}.`));
+        }
         for (const p of ports) {
-          if (!Object.hasOwn(given, p.id)) { errors.push(`box '${b.id}' ${kind} row ${i}: ${side} port '${p.id}' has no value`); continue; }
           const declared = values.get(p.carrier);
-          if (declared && !declared.includes(given[p.id])) errors.push(`box '${b.id}' ${kind} row ${i}: value '${given[p.id]}' of port '${p.id}' is not declared by carrier '${p.carrier}'`);
+          if (!Object.hasOwn(given, p.id)) {
+            issues.push(issue("row-missing-value", here(kind, i, field), `box '${b.id}' ${kind} row ${i}: ${side} port '${p.id}' has no value`, `Give '${p.id}' a value in this row${declared ? `: one of ${quoted(declared)}` : ""}. A row names every ${side} port.`));
+            continue;
+          }
+          if (declared && !declared.includes(given[p.id])) issues.push(issue("undeclared-value", here(kind, i, field, p.id), `box '${b.id}' ${kind} row ${i}: value '${given[p.id]}' of port '${p.id}' is not declared by carrier '${p.carrier}'`, `Use one of ${quoted(declared)}, or add '${given[p.id]}' to carrier '${p.carrier}' values.`));
         }
       }
     });
   }
-  return errors;
+  return issues;
 }
 
 /**
@@ -247,12 +284,18 @@ function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
  * input port and cost dimension (an omitted entry is 0). Monotone reading makes a dominated row
  * redundant, so it fails closed rather than being dropped silently.
  */
-function feasibilityErrors(b: Box): string[] {
+function feasibilityIssues(b: Box, bi: number, root: string): Issue[] {
   if (!b.feasibility) return [];
-  const errors: string[] = [];
+  const issues: Issue[] = [];
+  const here = (...segments: Array<string | number>) => at(root, "boxes", bi, "feasibility", ...segments);
   b.feasibility.forEach((row, i) => {
-    for (const [field, ports, kind] of [["provides", outputs(b), "output"], ["requires", inputs(b), "input"]] as const) {
-      for (const k of Object.keys(row[field] ?? {})) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' feasibility row ${i}: no ${kind} port '${k}'`);
+    for (const [field, ports, kind, other, otherField] of [["provides", outputs(b), "output", inputs(b), "requires"], ["requires", inputs(b), "input", outputs(b), "provides"]] as const) {
+      for (const k of Object.keys(row[field] ?? {})) {
+        if (ports.some((p) => p.id === k)) continue;
+        issues.push(issue("row-unknown-port", here(i, field, k), `box '${b.id}' feasibility row ${i}: no ${kind} port '${k}'`, other.some((p) => p.id === k)
+          ? `'${k}' is ${kind === "output" ? "an input" : "an output"} port: list it under ${otherField}.`
+          : `${field} names ${kind} ports of '${b.id}': ${quoted(ports.map((p) => p.id))}.`));
+      }
     }
   });
   const dims = [...new Set(b.feasibility.flatMap((r) => Object.keys(r.cost ?? {})))];
@@ -265,11 +308,11 @@ function feasibilityErrors(b: Box): string[] {
     if (i < 0) return;
     const repeat = atLeast(row, b.feasibility![i]);
     if (repeat && i > j) return;
-    errors.push(repeat
-      ? `box '${b.id}' feasibility row ${j} repeats row ${i}: drop one`
-      : `box '${b.id}' feasibility row ${j} is dominated by row ${i}: it provides no more and needs no less; drop it`);
+    issues.push(repeat
+      ? issue("dominated-row", here(j), `box '${b.id}' feasibility row ${j} repeats row ${i}: drop one`, `Delete feasibility row ${j} of '${b.id}' (or row ${i}): they are the same row.`)
+      : issue("dominated-row", here(j), `box '${b.id}' feasibility row ${j} is dominated by row ${i}: it provides no more and needs no less; drop it`, `Delete feasibility row ${j} of '${b.id}': row ${i} provides at least as much for no more. If row ${j} should win somewhere, lower one of its requirements or costs, or raise what it provides.`));
   });
-  return errors;
+  return issues;
 }
 
 /**
@@ -278,73 +321,121 @@ function feasibilityErrors(b: Box): string[] {
  * increase. That makes the reading of amounts as values monotone and a Galois connection
  * (level_monotone, level_gc).
  */
-function levelErrors(c: FunctionModel["carriers"][number]): string[] {
+function levelIssues(c: FunctionModel["carriers"][number], ci: number, root: string): Issue[] {
   if (!c.levels) return [];
-  if (!c.values) return [`carrier '${c.id}' declares levels without values`];
-  const errors: string[] = [];
-  for (const l of c.levels) if (!c.values.includes(l.value)) errors.push(`carrier '${c.id}': level value '${l.value}' is not declared in values`);
-  for (const v of duplicates(c.levels.map((l) => l.value))) errors.push(`carrier '${c.id}': level value '${v}' is listed twice`);
-  if (c.levels[0].from !== 0) errors.push(`carrier '${c.id}': the first level ('${c.levels[0].value}') must start at 0, so that every amount reads as a value; it starts at ${c.levels[0].from}`);
+  const here = (...segments: Array<string | number>) => at(root, "carriers", ci, ...segments);
+  if (!c.values) {
+    return [issue("no-declared-values", here("levels"), `carrier '${c.id}' declares levels without values`,
+      `Declare values on carrier '${c.id}', listing ${quoted(c.levels.map((l) => l.value))} from least to most, or drop levels.`)];
+  }
+  const issues: Issue[] = [];
+  c.levels.forEach((l, k) => {
+    if (!c.values!.includes(l.value)) issues.push(issue("undeclared-value", here("levels", k, "value"), `carrier '${c.id}': level value '${l.value}' is not declared in values`, `Use one of ${quoted(c.values!)}, or add '${l.value}' to values.`));
+  });
+  const named = c.levels.map((l) => l.value);
+  for (const v of duplicates(named)) issues.push(issue("duplicate-id", here("levels", second(named, v)), `carrier '${c.id}': level value '${v}' is listed twice`, `Give value '${v}' one level: each level is the least amount that reads as its value.`));
+  if (c.levels[0].from !== 0) {
+    issues.push(issue("invalid-levels", here("levels", 0, "from"), `carrier '${c.id}': the first level ('${c.levels[0].value}') must start at 0, so that every amount reads as a value; it starts at ${c.levels[0].from}`,
+      `Set the first level's from to 0; to leave amounts below ${c.levels[0].from} out, add a lower value starting at 0 before '${c.levels[0].value}'.`));
+  }
   c.levels.forEach((l, i) => {
     const prev = c.levels![i - 1];
-    if (i && l.from <= prev.from) errors.push(`carrier '${c.id}': levels must increase: '${l.value}' from ${l.from} does not exceed '${prev.value}' from ${prev.from}`);
+    if (i && l.from <= prev.from) {
+      issues.push(issue("invalid-levels", here("levels", i, "from"), `carrier '${c.id}': levels must increase: '${l.value}' from ${l.from} does not exceed '${prev.value}' from ${prev.from}`,
+        `List the levels from least to most amount, each from above the one before: raise '${l.value}' above ${prev.from}, or reorder.`));
+    }
   });
-  return errors;
+  return issues;
 }
 
-export interface CheckResult { ok: boolean; errors: string[]; }
+export interface CheckResult { ok: boolean; errors: string[]; issues: Issue[]; }
 
-/** Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail closed. */
-export function checkModel(model: FunctionModel): CheckResult {
-  const errors: string[] = [];
+/**
+ * Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail
+ * closed. Issue paths start at `root` (default `$`, the model itself).
+ */
+export function checkModel(model: FunctionModel, root = "$"): CheckResult {
+  const issues: Issue[] = [];
   const carriers = new Set(model.carriers.map((c) => c.id));
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
-  for (const id of duplicates(model.carriers.map((c) => c.id))) errors.push(`duplicate carrier id '${id}'`);
-  for (const id of duplicates(model.boxes.map((b) => b.id))) errors.push(`duplicate box id '${id}'`);
-  for (const id of duplicates(model.wires.map((w) => w.id))) errors.push(`duplicate wire id '${id}'`);
-  for (const c of model.carriers) for (const v of duplicates(c.values ?? [])) errors.push(`carrier '${c.id}': duplicate value '${v}'`);
-  for (const c of model.carriers) errors.push(...levelErrors(c));
-  for (const b of model.boxes) {
-    for (const id of duplicates([...inputs(b), ...outputs(b)].map((p) => p.id))) errors.push(`box '${b.id}': duplicate port id '${id}'`);
-    for (const p of [...inputs(b), ...outputs(b)]) {
-      if (!carriers.has(p.carrier)) errors.push(`box '${b.id}' port '${p.id}': unknown carrier '${p.carrier}'`);
+  const carrierIds = model.carriers.map((c) => c.id), boxIds = model.boxes.map((b) => b.id), wireIds = model.wires.map((w) => w.id);
+  for (const [kind, ids] of [["carrier", carrierIds], ["box", boxIds], ["wire", wireIds]] as const) {
+    const list = kind === "carrier" ? "carriers" : kind === "box" ? "boxes" : "wires";
+    for (const id of duplicates(ids)) {
+      issues.push(issue("duplicate-id", at(root, list, second(ids, id)), `duplicate ${kind} id '${id}'`, `Rename one of the two ${kind}s '${id}': ${kind} ids must be unique.`));
     }
-    errors.push(...rowErrors(b, model.carriers), ...feasibilityErrors(b));
   }
-  for (const w of model.wires) {
-    if (!carriers.has(w.carrier)) errors.push(`wire '${w.id}': unknown carrier '${w.carrier}'`);
-    const ends = [["from", w.from, outputs, "output"], ["to", w.to, inputs, "input"]] as const;
-    for (const [side, end, ports, kind] of ends) {
+  model.carriers.forEach((c, ci) => {
+    for (const v of duplicates(c.values ?? [])) issues.push(issue("duplicate-id", at(root, "carriers", ci, "values", second(c.values!, v)), `carrier '${c.id}': duplicate value '${v}'`, `List value '${v}' once.`));
+  });
+  model.carriers.forEach((c, ci) => issues.push(...levelIssues(c, ci, root)));
+  model.boxes.forEach((b, bi) => {
+    const ports = [...inputs(b).map((p, j) => ["inputs", j, p] as const), ...outputs(b).map((p, j) => ["outputs", j, p] as const)];
+    const portIds = ports.map(([, , p]) => p.id);
+    for (const id of duplicates(portIds)) {
+      const [side, j] = ports[second(portIds, id)];
+      issues.push(issue("duplicate-id", at(root, "boxes", bi, side, j), `box '${b.id}': duplicate port id '${id}'`, `Rename one of the two ports '${id}' of '${b.id}': port ids are unique within a box, across inputs and outputs.`));
+    }
+    for (const [side, j, p] of ports) {
+      if (!carriers.has(p.carrier)) {
+        issues.push(issue("unknown-carrier", at(root, "boxes", bi, side, j, "carrier"), `box '${b.id}' port '${p.id}': unknown carrier '${p.carrier}'`, `Declare carrier '${p.carrier}' in carriers, or use one of ${quoted(carrierIds)}.`));
+      }
+    }
+    issues.push(...rowIssues(b, bi, model.carriers, root), ...feasibilityIssues(b, bi, root));
+  });
+  model.wires.forEach((w, wi) => {
+    if (!carriers.has(w.carrier)) issues.push(issue("unknown-carrier", at(root, "wires", wi, "carrier"), `wire '${w.id}': unknown carrier '${w.carrier}'`, `Declare carrier '${w.carrier}' in carriers, or use one of ${quoted(carrierIds)}.`));
+    const ends = [["from", w.from, outputs, "output", "outputs"], ["to", w.to, inputs, "input", "inputs"]] as const;
+    for (const [side, end, ports, kind, list] of ends) {
       const box = boxes.get(end.box);
-      if (!box) { errors.push(`wire '${w.id}' ${side}: unknown box '${end.box}'`); continue; }
+      if (!box) {
+        issues.push(issue("unknown-box", at(root, "wires", wi, side, "box"), `wire '${w.id}' ${side}: unknown box '${end.box}'`, `Use one of the model's box ids ${quoted(boxIds)}, or add box '${end.box}'.`));
+        continue;
+      }
       const port = ports(box).find((p) => p.id === end.port);
       if (!port) {
         const wrongWay = [...inputs(box), ...outputs(box)].some((p) => p.id === end.port);
-        errors.push(wrongWay
-          ? `wire '${w.id}' ${side}: port '${end.port}' of box '${end.box}' is not an ${kind}`
-          : `wire '${w.id}' ${side}: box '${end.box}' has no port '${end.port}'`);
+        issues.push(wrongWay
+          ? issue("wrong-port-side", at(root, "wires", wi, side, "port"), `wire '${w.id}' ${side}: port '${end.port}' of box '${end.box}' is not an ${kind}`,
+            `A function runs from an output port of its performer to an input port of its object. Use one of the ${kind} ports of '${end.box}' (${quoted(ports(box).map((p) => p.id))}), move '${end.port}' to ${list}, or swap from and to if the direction is reversed.`)
+          : issue("unknown-port", at(root, "wires", wi, side, "port"), `wire '${w.id}' ${side}: box '${end.box}' has no port '${end.port}'`,
+            `Use one of the ${kind} ports of '${end.box}' (${quoted(ports(box).map((p) => p.id))}), or add { id: '${end.port}', carrier: '${w.carrier}' } to its ${list}.`));
         continue;
       }
       if (port.carrier !== w.carrier) {
-        errors.push(`wire '${w.id}' ${side}: carrier '${w.carrier}' does not match port '${end.box}.${end.port}' carrier '${port.carrier}'`);
+        issues.push(issue("carrier-mismatch", at(root, "wires", wi, "carrier"), `wire '${w.id}' ${side}: carrier '${w.carrier}' does not match port '${end.box}.${end.port}' carrier '${port.carrier}'`,
+          `A wire carries its ports' carrier: set the wire's carrier to '${port.carrier}', or attach it to a port of carrier '${w.carrier}'.`));
       }
     }
-  }
-  errors.push(...flowErrors(model, carriers, boxes));
-  return { ok: errors.length === 0, errors };
+  });
+  issues.push(...flowIssues(model, carriers, boxes, root));
+  return { ok: issues.length === 0, errors: issues.map((i) => i.message), issues };
 }
 
-/** Typing of flows: unique ids, a known carrier, known boxes, and no box directly after itself. */
-function flowErrors(model: FunctionModel, carriers: Set<string>, boxes: Map<string, Box>): string[] {
+/** Typing of flows: unique ids, a known carrier, known boxes and medium, and no box directly after itself. */
+function flowIssues(model: FunctionModel, carriers: Set<string>, boxes: Map<string, Box>, root: string): Issue[] {
   const flows = model.flows ?? [];
-  const errors = duplicates(flows.map((f) => f.id)).map((id) => `duplicate flow id '${id}'`);
-  for (const f of flows) {
-    if (!carriers.has(f.carrier)) errors.push(`flow '${f.id}': unknown carrier '${f.carrier}'`);
-    for (const id of new Set(f.path)) if (!boxes.has(id)) errors.push(`flow '${f.id}': unknown box '${id}'`);
-    if (f.medium !== undefined && !boxes.has(f.medium)) errors.push(`flow '${f.id}': unknown medium box '${f.medium}'`);
-    f.path.forEach((id, i) => { if (i > 0 && f.path[i - 1] === id) errors.push(`flow '${f.id}': box '${id}' follows itself at position ${i}`); });
-  }
-  return errors;
+  const ids = flows.map((f) => f.id), boxIds = [...boxes.keys()];
+  const issues = duplicates(ids).map((id) => issue("duplicate-id", at(root, "flows", second(ids, id)), `duplicate flow id '${id}'`, `Rename one of the two flows '${id}': flow ids must be unique.`));
+  flows.forEach((f, fi) => {
+    if (!carriers.has(f.carrier)) {
+      issues.push(issue("unknown-carrier", at(root, "flows", fi, "carrier"), `flow '${f.id}': unknown carrier '${f.carrier}'`, `Declare carrier '${f.carrier}' in carriers, or use one of ${quoted(carriers)}.`));
+    }
+    const seen = new Set<string>();
+    f.path.forEach((id, i) => {
+      if (!boxes.has(id) && !seen.has(id)) issues.push(issue("unknown-box", at(root, "flows", fi, "path", i), `flow '${f.id}': unknown box '${id}'`, `List boxes of the model on the path: ${quoted(boxIds)}, or add box '${id}'.`));
+      seen.add(id);
+    });
+    if (f.medium !== undefined && !boxes.has(f.medium)) {
+      issues.push(issue("unknown-box", at(root, "flows", fi, "medium"), `flow '${f.id}': unknown medium box '${f.medium}'`, `Name the box that stands for what flows (${quoted(boxIds)}), or drop medium.`));
+    }
+    f.path.forEach((id, i) => {
+      if (i > 0 && f.path[i - 1] === id) {
+        issues.push(issue("flow-repeats-box", at(root, "flows", fi, "path", i), `flow '${f.id}': box '${id}' follows itself at position ${i}`, `Drop the repeated '${id}': a step joins two different boxes. To return to '${id}' later, list the boxes in between.`));
+      }
+    });
+  });
+  return issues;
 }
 
 /** Tarjan's strongly connected components; deterministic over sorted ids. */
@@ -526,12 +617,13 @@ export function compareIdeality(baseline: FunctionModel, concept: FunctionModel,
 export function mpvComparison(a: IdealityProfile, b: IdealityProfile, weights: Record<string, number>, full: { verdict: Verdict; better: string[]; worse: string[] }) {
   const dims = new Set([...Object.keys(a.costs), ...Object.keys(b.costs)]);
   const names = Object.keys(weights).sort();
-  const errors = [
-    ...(names.length ? [] : ["mpv_weights names no dimension: give each main parameter of value its explicit weight"]),
-    ...names.filter((d) => d !== "harmful" && !dims.has(d)).map((d) => `mpv_weights: '${d}' is not a cost dimension of either model, nor 'harmful'`),
-    ...names.filter((d) => !(own(weights, d)! > 0)).map((d) => `mpv_weights: the weight of '${d}' must be positive`),
+  const known = quoted([...[...dims].sort(), "harmful"]);
+  const issues = [
+    ...(names.length ? [] : [issue("empty-set", "$.mpv_weights", "mpv_weights names no dimension: give each main parameter of value its explicit weight", `Name the main parameters of value with a positive weight each, from ${known}.`)]),
+    ...names.filter((d) => d !== "harmful" && !dims.has(d)).map((d) => issue("unknown-cost-dimension", at("$.mpv_weights", d), `mpv_weights: '${d}' is not a cost dimension of either model, nor 'harmful'`, `Weight a cost dimension of the models or 'harmful': ${known}.`)),
+    ...names.filter((d) => !(own(weights, d)! > 0)).map((d) => issue("invalid-weight", at("$.mpv_weights", d), `mpv_weights: the weight of '${d}' must be positive`, `Give '${d}' a positive weight, or leave it out of mpv_weights.`)),
   ];
-  if (errors.length) return { ok: false as const, errors };
+  if (issues.length) return fail(issues);
   const axisName = (d: string) => (d === "harmful" ? "harmful" : `cost:${d}`);
   const value = (p: IdealityProfile, d: string) => (d === "harmful" ? p.functions.harmful : own(p.costs, d) ?? 0);
   const axes = names.map(axisName);
@@ -567,21 +659,12 @@ export interface Absorber { box: string; port: string; rule: "B" | "C"; supersys
  * condition only: each absorber is a trimming problem to solve and substantiate, not a result.
  */
 export function trimCandidates(model: FunctionModel, trim: string[]) {
-  const check = checkModel(model);
+  const check = checkModel(model, "$.model");
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
-  const unknown = trim.filter((id) => !boxes.has(id));
-  const repeated = duplicates(trim);
-  if (!check.ok || unknown.length || repeated.length || !trim.length) {
-    return {
-      ok: false as const,
-      errors: [
-        ...check.errors,
-        ...unknown.map((id) => `unknown box '${id}' in trim set`),
-        ...repeated.map((id) => `box '${id}' listed twice in trim set`),
-        ...(trim.length ? [] : ["empty trim set"]),
-      ],
-    };
-  }
+  const unknown = trim.flatMap((id, k) => (boxes.has(id) ? [] : [issue("unknown-box", at("$.trim", k), `unknown box '${id}' in trim set`, `Trim boxes of the model: ${quoted(boxes.keys())}.`)]));
+  const repeated = duplicates(trim).map((id) => issue("listed-twice", at("$.trim", second(trim, id)), `box '${id}' listed twice in trim set`, `List '${id}' once in trim.`));
+  const empty = trim.length ? [] : [issue("empty-set", "$.trim", "empty trim set", "Name at least one box to trim.")];
+  if (!check.ok || unknown.length || repeated.length || empty.length) return fail([...check.issues, ...unknown, ...repeated, ...empty]);
   const trimmed = new Set(trim);
   const name = (id: string) => boxes.get(id)!.name;
   const performed = model.wires.filter((w) => trimmed.has(w.from.box) && w.polarity !== "harmful");
@@ -599,8 +682,21 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
   const orphaned = functions.filter((f) => f.rule === null).map((f) => f.wire);
   const touching = model.wires.filter((w) => trimmed.has(w.from.box) || trimmed.has(w.to.box));
   const costRelief = sumCosts(trim.map((id) => boxes.get(id)!.cost));
-  const verb = (wire: string) => model.wires.find((w) => w.id === wire)!.verb ?? "perform its function on";
+  const wire = (id: string) => model.wires.find((w) => w.id === id)!;
+  const verb = (id: string) => wire(id).verb ?? "perform its function on";
   const trimmedNames = trim.map(name).join(" and ");
+  // An excessive or insufficient function is not a function to hand over as it is: the object
+  // needs the flow at the right level, so it is posed as a level problem, not an absorber's.
+  const level = (id: string) => LEVEL_DEFECT.has(wire(id).polarity);
+  const levelProblems = functions.filter((f) => f.rule !== "A" && level(f.wire)).map((f) => {
+    const polarity = wire(f.wire).polarity as "insufficient" | "excessive";
+    return {
+      wire: f.wire, polarity, carrier: f.carrier, object: f.object, absorbers: f.absorbers.map((a) => a.box),
+      problem: polarity === "excessive"
+        ? `[level] ${name(f.object)} gets too much '${f.carrier}' from ${trimmedNames}. Without ${trimmedNames}, what supplies the level ${name(f.object)} needs? If no level of it is useful, rate '${f.wire}' harmful: a harm needs no absorber.`
+        : `[level] ${name(f.object)} gets too little '${f.carrier}' from ${trimmedNames}. Without ${trimmedNames}, what supplies enough of it?`,
+    };
+  });
   return {
     ok: true as const,
     trim,
@@ -610,10 +706,11 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
     dropped: touching.filter((w) => !trimmed.has(w.from.box) && w.polarity !== "harmful").map((w) => w.id),
     removedHarms: touching.filter((w) => w.polarity === "harmful").map((w) => w.id),
     costRelief,
-    trimmingProblems: functions.flatMap((f) => f.absorbers.map((a) => a.rule === "B"
+    trimmingProblems: functions.filter((f) => !level(f.wire)).flatMap((f) => f.absorbers.map((a) => a.rule === "B"
       ? `[B] How can ${name(f.object)} ${verb(f.wire)} itself (carrier '${f.carrier}') without ${trimmedNames}?`
       : `[C] How can ${name(a.box)}${a.supersystem ? " (supersystem)" : ""} ${verb(f.wire)} ${name(f.object)} (carrier '${f.carrier}') without ${trimmedNames}?`)),
-    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility).",
+    levelProblems,
+    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility). Excessive and insufficient functions are posed as levelProblems, not handed to an absorber as they are; their absorbers stay listed under functions.",
   };
 }
 
@@ -631,25 +728,33 @@ const MAX_CELLS = 10_000;
  * principles that apply; a pair overlapping on every axis is irreducible at this resolution.
  */
 /** The finite base of a contradiction: declared (or named) cells per axis. Fails closed on undeclared cells. */
-export function baseOf(pc: PhysicalContradiction) {
-  const errors: string[] = [];
-  for (const id of duplicates(pc.demands.map((d) => d.id))) errors.push(`duplicate demand id '${id}'`);
+export function baseOf(pc: PhysicalContradiction, root = "$") {
+  const issues: Issue[] = [];
+  const ids = pc.demands.map((d) => d.id);
+  for (const id of duplicates(ids)) issues.push(issue("duplicate-id", at(root, "demands", second(ids, id)), `duplicate demand id '${id}'`, `Rename one of the two demands '${id}'.`));
   const universe = {} as Record<Axis, string[]>;
   for (const axis of AXES) {
     const named = [...new Set(pc.demands.flatMap((d) => d[axis] ?? []))];
     const declared = pc.axes?.[axis];
-    if (declared) for (const c of named) if (!declared.includes(c)) errors.push(`axis '${axis}': cell '${c}' is not declared`);
+    if (declared) {
+      for (const c of named) {
+        if (declared.includes(c)) continue;
+        const d = pc.demands.findIndex((x) => (x[axis] ?? []).includes(c));
+        issues.push(issue("undeclared-cell", at(root, "demands", d, axis, pc.demands[d][axis]!.indexOf(c)), `axis '${axis}': cell '${c}' is not declared`, `Add '${c}' to axes.${axis}, or use one of its cells ${quoted(declared)}.`));
+      }
+    }
     universe[axis] = [...new Set(declared ?? named)].sort();
   }
   const cellCount = AXES.reduce((n, a) => n * Math.max(1, universe[a].length), 1);
-  if (cellCount > MAX_CELLS) errors.push(`base has ${cellCount} cells; limit is ${MAX_CELLS}`);
+  if (cellCount > MAX_CELLS) issues.push(issue("cap-exceeded", at(root, "axes"), `base has ${cellCount} cells; limit is ${MAX_CELLS}`, "Declare fewer cells on some axis (coarser zones or stages), or split the contradiction into smaller ones."));
   const region = (d: (typeof pc.demands)[number], axis: Axis) => d[axis] ?? universe[axis];
-  return { errors, universe, region };
+  return { errors: issues.map((i) => i.message), issues, universe, region };
 }
 
-export function separationCheck(pc: PhysicalContradiction) {
-  const { errors, universe, region } = baseOf(pc);
-  if (errors.length) return { ok: false as const, errors };
+/** Separation verdicts of one physical contradiction; issue paths start at `root` (default `$`, the contradiction). */
+export function separationCheck(pc: PhysicalContradiction, root = "$") {
+  const { issues, universe, region } = baseOf(pc, root);
+  if (issues.length) return fail(issues);
 
   const pairs = [];
   for (let i = 0; i < pc.demands.length; i++) for (let j = i + 1; j < pc.demands.length; j++) {
@@ -699,10 +804,13 @@ export function separationCheck(pc: PhysicalContradiction) {
  * conflict is not along this axis alone). With axis 'time' this is the checkable part of
  * Principle 15's "change so they are optimal at each stage": values are admissible, not optimised.
  */
-export function dynamize(pc: PhysicalContradiction, axis: Axis = "time") {
-  const { errors, universe, region } = baseOf(pc);
-  if (!errors.length && !universe[axis].length) errors.push(`axis '${axis}' has no cells: declare them in axes.${axis} or name them in a demand`);
-  if (errors.length) return { ok: false as const, errors };
+export function dynamize(pc: PhysicalContradiction, axis: Axis = "time", root = "$") {
+  const { issues, universe, region } = baseOf(pc, root);
+  if (!issues.length && !universe[axis].length) {
+    const used = AXES.filter((a) => universe[a].length);
+    issues.push(issue("empty-axis", at(root, "axes"), `axis '${axis}' has no cells: declare them in axes.${axis} or name them in a demand`, `Declare cells in axes.${axis} and say where each demand applies along it, or index by an axis that has cells: ${quoted(used)}.`));
+  }
+  if (issues.length) return fail(issues);
   const schedule = universe[axis].map((cell) => {
     const applying = pc.demands.filter((d) => region(d, axis).includes(cell));
     const values = applying.reduce<string[] | null>((acc, d) => (acc === null ? [...new Set(d.values)].sort() : acc.filter((v) => d.values.includes(v))), null);
@@ -733,20 +841,20 @@ export function dynamize(pc: PhysicalContradiction, axis: Axis = "time") {
 
 /** One call for an agent: typing, harm loops, ideality profile, embedded contradictions, optional comparison. */
 export function analyseModel(model: FunctionModel, compareTo?: FunctionModel, opts: { mpvWeights?: Record<string, number> } = {}) {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   if (compareTo) {
-    const base = checkModel(compareTo);
-    if (!base.ok) return { ok: false as const, errors: base.errors.map((e) => `compare_to: ${e}`) };
+    const base = checkModel(compareTo, "$.compare_to");
+    if (!base.ok) return rebase(fail(base.issues), [], "compare_to: ");
   }
   const separation = [];
-  const separationErrors: string[] = [];
-  for (const pc of model.contradictions ?? []) {
-    const r = separationCheck(pc);
+  const separationIssues: Issue[] = [];
+  for (const [k, pc] of (model.contradictions ?? []).entries()) {
+    const r = separationCheck(pc, at("$.model", "contradictions", k));
     if (r.ok) separation.push({ id: pc.id, ...r });
-    else separationErrors.push(...r.errors.map((e) => `contradiction '${pc.id}': ${e}`));
+    else separationIssues.push(...rebase(r, [], `contradiction '${pc.id}': `).issues);
   }
-  if (separationErrors.length) return { ok: false as const, errors: separationErrors };
+  if (separationIssues.length) return fail(separationIssues);
   return {
     ok: true as const,
     domain: model.domain,

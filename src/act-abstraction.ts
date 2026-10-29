@@ -39,6 +39,7 @@ import { checkModel, harmLoops, shortestPath, type FunctionModel, type Polarity 
 import { rowsConsistency, READING, BAND } from "./act-levels.js";
 import { mapFlows, restrictFlows, stepsOf } from "./act-flow.js";
 import type { Theorem } from "./act-basis.js";
+import { at, fail, issue, quoted, rebase, type Issue } from "./act-issues.js";
 
 const Id = z.string().min(1);
 
@@ -60,40 +61,41 @@ const label = (e: { box: string; port: string }) => `${e.box}.${e.port}`;
 const ports = (b: Box) => [...(b.inputs ?? []).map((p) => ({ ...p, side: "in" as Side })), ...(b.outputs ?? []).map((p) => ({ ...p, side: "out" as Side }))];
 const byId = <X extends { id: string }>(xs: X[]) => new Map(xs.map((x) => [x.id, x]));
 
-/** Typing of the map itself: every id it names exists. Fails closed. */
-function mapErrors(detailed: FunctionModel, coarse: FunctionModel, map: AbstractionMap): string[] {
+/** Typing of the map itself: every id it names exists. Fails closed; paths are into `$.map`. */
+function mapIssues(detailed: FunctionModel, coarse: FunctionModel, map: AbstractionMap): Issue[] {
   const dBoxes = byId(detailed.boxes), cBoxes = byId(coarse.boxes);
   const dCarriers = new Set(detailed.carriers.map((c) => c.id)), cCarriers = new Set(coarse.carriers.map((c) => c.id));
-  const errors: string[] = [];
-  if (!Object.keys(map.boxes).length) errors.push("map.boxes is empty: map at least one detailed box onto a coarse box");
+  const issues: Issue[] = [];
+  const push = (code: Issue["code"], path: string, message: string, hint: string) => issues.push(issue(code, path, message, hint));
+  if (!Object.keys(map.boxes).length) push("empty-set", "$.map.boxes", "map.boxes is empty: map at least one detailed box onto a coarse box", `Map detailed boxes (${quoted(dBoxes.keys())}) onto coarse boxes (${quoted(cBoxes.keys())}).`);
   for (const [d, c] of Object.entries(map.boxes)) {
-    if (!dBoxes.has(d)) errors.push(`map.boxes: '${d}' is not a box of the detailed model`);
-    if (!cBoxes.has(c)) errors.push(`map.boxes: '${c}' is not a box of the coarse model`);
+    if (!dBoxes.has(d)) push("unknown-box", at("$.map.boxes", d), `map.boxes: '${d}' is not a box of the detailed model`, `map.boxes keys are detailed box ids: ${quoted(dBoxes.keys())}.`);
+    if (!cBoxes.has(c)) push("unknown-box", at("$.map.boxes", d), `map.boxes: '${c}' is not a box of the coarse model`, `map.boxes values are coarse box ids: ${quoted(cBoxes.keys())}.`);
   }
   for (const [d, pm] of Object.entries(map.ports ?? {})) {
-    if (!Object.hasOwn(map.boxes, d)) { errors.push(`map.ports: box '${d}' is not mapped in map.boxes`); continue; }
+    if (!Object.hasOwn(map.boxes, d)) { push("unmapped-box", at("$.map.ports", d), `map.ports: box '${d}' is not mapped in map.boxes`, `Map '${d}' onto a coarse box in map.boxes first, or drop its entry from map.ports.`); continue; }
     const box = dBoxes.get(d), image = cBoxes.get(map.boxes[d]);
     if (!box || !image) continue;
     for (const [p, q] of Object.entries(pm)) {
-      if (!ports(box).some((x) => x.id === p)) errors.push(`map.ports: box '${d}' has no port '${p}'`);
-      if (!ports(image).some((x) => x.id === q)) errors.push(`map.ports: '${d}.${p}' maps to '${image.id}.${q}', but coarse box '${image.id}' has no port '${q}'`);
+      if (!ports(box).some((x) => x.id === p)) push("unknown-port", at("$.map.ports", d, p), `map.ports: box '${d}' has no port '${p}'`, `Key map.ports.${d} by ports of '${d}': ${quoted(ports(box).map((x) => x.id))}.`);
+      if (!ports(image).some((x) => x.id === q)) push("unknown-port", at("$.map.ports", d, p), `map.ports: '${d}.${p}' maps to '${image.id}.${q}', but coarse box '${image.id}' has no port '${q}'`, `Map '${d}.${p}' to a port of '${image.id}': ${quoted(ports(image).map((x) => x.id))}.`);
     }
   }
   for (const [d, c] of Object.entries(map.carriers ?? {})) {
-    if (!dCarriers.has(d)) errors.push(`map.carriers: '${d}' is not a carrier of the detailed model`);
-    if (!cCarriers.has(c)) errors.push(`map.carriers: '${c}' is not a carrier of the coarse model`);
+    if (!dCarriers.has(d)) push("unknown-carrier", at("$.map.carriers", d), `map.carriers: '${d}' is not a carrier of the detailed model`, `map.carriers keys are detailed carrier ids: ${quoted(dCarriers)}.`);
+    if (!cCarriers.has(c)) push("unknown-carrier", at("$.map.carriers", d), `map.carriers: '${c}' is not a carrier of the coarse model`, `map.carriers values are coarse carrier ids: ${quoted(cCarriers)}.`);
   }
-  return errors;
+  return issues;
 }
 
 /** Decide whether `coarse` is an abstraction of `detailed` under `map`. */
 export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel, map: AbstractionMap) {
   for (const [side, m] of [["detailed", detailed], ["coarse", coarse]] as const) {
-    const check = checkModel(m);
-    if (!check.ok) return { ok: false as const, errors: check.errors.map((e) => `${side}: ${e}`) };
+    const check = checkModel(m, `$.${side}`);
+    if (!check.ok) return rebase(fail(check.issues), [], `${side}: `);
   }
-  const malformed = mapErrors(detailed, coarse, map);
-  if (malformed.length) return { ok: false as const, errors: malformed };
+  const malformed = mapIssues(detailed, coarse, map);
+  if (malformed.length) return fail(malformed);
 
   const dBoxes = byId(detailed.boxes), cBoxes = byId(coarse.boxes);
   const dCarriers = byId(detailed.carriers), cCarriers = byId(coarse.carriers);

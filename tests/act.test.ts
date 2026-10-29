@@ -33,7 +33,7 @@ function graph(edges: Array<[string, string, FunctionModel["wires"][number]["pol
 
 test("shipped domain examples parse and type-check", () => {
   for (const name of ["bearing-heat", "bearing-heat-behavior", "bearing-heat-feasibility", "software-cache", "marketplace-take-rate"]) {
-    assert.deepEqual(checkModel(example(name)), { ok: true, errors: [] }, name);
+    assert.deepEqual(checkModel(example(name)), { ok: true, errors: [], issues: [] }, name);
   }
 });
 
@@ -141,11 +141,16 @@ test("trimming: rule A when the object goes too, blocked when a function is orph
 });
 
 test("trimming fails closed on unknown ids and invalid models", () => {
-  assert.deepEqual(trimCandidates(example("bearing-heat"), ["ghost"]), { ok: false, errors: ["unknown box 'ghost' in trim set"] });
-  assert.deepEqual(trimCandidates(example("bearing-heat"), ["bearing", "bearing"]), { ok: false, errors: ["box 'bearing' listed twice in trim set"] });
+  const ghost = trimCandidates(example("bearing-heat"), ["ghost"]);
+  assert.deepEqual(ghost.ok === false && ghost.errors, ["unknown box 'ghost' in trim set"]);
+  assert.deepEqual(ghost.ok === false && ghost.issues.map((i) => [i.code, i.path]), [["unknown-box", "$.trim[0]"]]);
+  const twice = trimCandidates(example("bearing-heat"), ["bearing", "bearing"]);
+  assert.deepEqual(twice.ok === false && twice.issues.map((i) => [i.code, i.path, i.message]), [["listed-twice", "$.trim[1]", "box 'bearing' listed twice in trim set"]]);
   const bad = example("bearing-heat");
   bad.wires[0].carrier = "heat";
-  assert.equal(trimCandidates(bad, ["bearing"]).ok, false);
+  const mistyped = trimCandidates(bad, ["bearing"]);
+  assert.equal(mistyped.ok, false);
+  assert.deepEqual(mistyped.ok === false && [...new Set(mistyped.issues.map((i) => i.path))], ["$.model.wires[0].carrier"]);
 });
 
 test("ideality: costs stay per dimension; ratio only under explicit weights", () => {

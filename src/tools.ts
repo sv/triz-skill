@@ -23,12 +23,16 @@ import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
 import { levelsConsistency } from "./act-levels.js";
 import { AbstractionMap, checkAbstraction } from "./act-abstraction.js";
+import { fail, issue, quoted, rebase, zodHint, type Issue, type Warning } from "./act-issues.js";
+import { lintModel, lintTrim } from "./act-lint.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
 type GraphModule = typeof import("./graph.js");
 
 const Id = z.string().min(1);
+/** A set of box ids; a bare id is the usual slip. */
+const BoxIds = z.array(Id, { error: zodHint((iss) => (iss.code === "invalid_type" && typeof iss.input === "string" ? `pass an array of box ids, e.g. ["${iss.input}"]` : undefined)) });
 /** A box's name and cost as the model schema has them, so every result a transformation returns parses as a FunctionModel. */
 const Name = act.Box.shape.name;
 const Cost = act.Box.shape.cost.unwrap();
@@ -60,7 +64,7 @@ const Transformation = z.discriminatedUnion("op", [
   }).describe("Principle 24 (Intermediary): route a function through a new mediator box"),
   z.strictObject({
     op: z.literal("trim"),
-    trim: z.array(Id).min(1),
+    trim: BoxIds.min(1),
     absorb: z.record(z.string(), act.Endpoint).optional().describe("Function wire id → absorber output port; default: the first absorber triz_trim lists"),
   }).describe("Apply a typed-feasible trim: delete the boxes and re-attach each kept function to an absorber. A rule-B absorber is Principle 25 (Self-service); one box absorbing every function is Principle 6 (Universality)"),
   z.strictObject({
@@ -109,8 +113,28 @@ const Transformation = z.discriminatedUnion("op", [
     delete: z.strictObject({ boxes: z.array(Id).optional(), wires: z.array(Id).optional(), flows: z.array(Id).optional() }).optional(),
     add: z.strictObject({ boxes: z.array(act.Box).optional(), wires: z.array(act.Wire).optional(), flows: z.array(act.Flow).optional() }).optional(),
   }).describe("General rewrite at an occurrence named by id: no-dangling condition (a flow may pass a deleted box only if a box with that id is added back), fresh ids, typed result"),
-]);
+], {
+  error: zodHint((iss) => (iss.code === "invalid_union"
+    ? "op names one triz_transform operation, and each op takes its own fields (see the tool description); to screen a trim without applying it, call triz_trim"
+    : undefined)),
+});
 type Transformation = z.infer<typeof Transformation>;
+
+/** Paths of a transformation's failure, from the kernel's (`$.model`, `$.<field>`) to triz_transform's arguments. */
+const TRANSFORMATION: Array<[string, string]> = [["$.model", "$.model"], ["$", "$.transformation"]];
+
+/** One issue as a failure. */
+const failWith = (code: Issue["code"], path: string, message: string, hint: string) => fail([issue(code, path, message, hint)]);
+
+const BOX_MAP_WITHOUT_COMPARE_TO = () => issue("box-map-without-compare-to", "$.box_map", "box_map needs compare_to",
+  "Pass the baseline as compare_to: box_map renames the model's (the concept's) boxes to the baseline's ids before comparing. Without a baseline, drop box_map.");
+const ABSORB_WITHOUT_TRIM = () => issue("absorb-without-trim", "$.absorb", "absorb needs trim",
+  "Pass trim with the boxes to remove (absorb picks the absorber for each function they perform), or drop absorb.");
+
+/** Lints of the models a call names, when they type-check. */
+function warnings(models: Array<[act.FunctionModel | undefined, string]>): Warning[] {
+  return models.flatMap(([m, root]) => (m && act.checkModel(m).ok ? lintModel(m, root) : []));
+}
 
 /**
  * Analysis with each verdict's Lean basis. Given a baseline, the comparison also says whether the
@@ -118,15 +142,19 @@ type Transformation = z.infer<typeof Transformation>;
  * boxMap), deliverables are compared after renaming the concept's boxes to the baseline's.
  */
 function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, boxMap?: Record<string, string>, mpvWeights?: Record<string, number>) {
-  const misuse = [...(boxMap && !compareTo ? ["box_map needs compare_to"] : []), ...(mpvWeights && !compareTo ? ["mpv_weights needs compare_to: the MPV view ranks a concept against a baseline"] : [])];
-  if (misuse.length) return { ok: false as const, errors: misuse };
+  const misuse = [
+    ...(boxMap && !compareTo ? [BOX_MAP_WITHOUT_COMPARE_TO()] : []),
+    ...(mpvWeights && !compareTo ? [issue("mpv-weights-without-compare-to", "$.mpv_weights", "mpv_weights needs compare_to: the MPV view ranks a concept against a baseline",
+      "Pass the baseline as compare_to (the MPV view compares the model with it), or drop mpv_weights.")] : []),
+  ];
+  if (misuse.length) return fail(misuse);
   const opts = mpvWeights ? { mpvWeights } : {};
   const r = analysisBasis(act.analyseModel(model, compareTo, opts));
   if (!r.ok || !compareTo || !r.comparison) return r;
   const mapped = boxMap ? mapBoxes(model, compareTo, boxMap) : null;
   if (mapped && !mapped.ok) return mapped;
   const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model, opts)), boxMap } : r.comparison;
-  if (comparison.mpv && !comparison.mpv.ok) return { ok: false as const, errors: comparison.mpv.errors };
+  if (comparison.mpv && !comparison.mpv.ok) return fail(comparison.mpv.issues);
   return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
 }
 
@@ -153,13 +181,15 @@ type BehaviorArgs = {
  */
 function behavior(args: BehaviorArgs) {
   const { model, compare_to, box_map, trim, absorb, max_states: maxStates, weakest_spec } = args;
-  const errors = [
-    ...(trim && compare_to ? ["trim and compare_to are exclusive: trim compares the model with its own trim; to compare a trimmed concept, pass it as model"] : []),
-    ...(box_map && !compare_to ? ["box_map needs compare_to"] : []),
-    ...(absorb && !trim ? ["absorb needs trim"] : []),
-    ...(weakest_spec && !trim && !compare_to ? ["weakest_spec needs compare_to (the baseline whose relation is the target) or trim (the untrimmed model is the target)"] : []),
+  const issues = [
+    ...(trim && compare_to ? [issue("trim-with-compare-to", "$.trim", "trim and compare_to are exclusive: trim compares the model with its own trim; to compare a trimmed concept, pass it as model",
+      "Drop compare_to to decide the model's own trim, or apply the trim with triz_transform and pass the result as model with compare_to.")] : []),
+    ...(box_map && !compare_to ? [BOX_MAP_WITHOUT_COMPARE_TO()] : []),
+    ...(absorb && !trim ? [ABSORB_WITHOUT_TRIM()] : []),
+    ...(weakest_spec && !trim && !compare_to ? [issue("weakest-spec-without-target", "$.weakest_spec", "weakest_spec needs compare_to (the baseline whose relation is the target) or trim (the untrimmed model is the target)",
+      "Add compare_to (the baseline whose relation the box must give) or trim (the untrimmed model's relation is the target), or drop weakest_spec.")] : []),
   ];
-  if (errors.length) return { ok: false as const, errors };
+  if (issues.length) return fail(issues);
   if (weakest_spec) return compare_to ? weakestSpec(model, compare_to, { boxMap: box_map, maxStates }) : weakestTrimSpec(model, { trim: trim!, absorb, maxStates });
   if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates });
   return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates }) : externalBehavior(model, { maxStates });
@@ -187,23 +217,39 @@ function ruleApply(args: {
   model: act.FunctionModel; rule_id?: string; rule?: Rule; at?: Partial<RuleMatch>; match?: RuleMatch;
   carriers?: Record<string, string>; ids?: RuleIds; limit?: number; max_steps?: number;
 }) {
-  const errors = [
-    ...((args.rule === undefined) === (args.rule_id === undefined) ? ["give exactly one of rule_id and rule"] : []),
-    ...(args.match && args.at ? ["'at' seeds the search and 'match' applies: give one of them"] : []),
-    ...(!args.match && (args.carriers || args.ids) ? ["'carriers' and 'ids' are used only when applying, with 'match'"] : []),
+  const builtIn = TREND_RULES.map((r) => r.id);
+  const entry = isListingEntry(args.match);
+  const issues = [
+    ...((args.rule === undefined) === (args.rule_id === undefined) ? [issue("rule-or-rule-id", args.rule === undefined ? "$" : "$.rule", "give exactly one of rule_id and rule",
+      `Pass rule_id for a built-in rule (${quoted(builtIn)}) or rule for an inline one, not both.`)] : []),
+    ...(entry ? [issue("listing-entry-as-match", "$.match", "match is a listing entry ({ match, applicable, violations }), not a match",
+      "pass matches[i].match: the inner match object of the listed entry, not the entry itself.")] : []),
+    ...(args.match && args.at ? [issue("at-and-match", "$.at", "'at' seeds the search and 'match' applies: give one of them",
+      "Drop at to apply match; or drop match to list the matches near the at seed.")] : []),
+    ...(!args.match && (args.carriers || args.ids) ? [issue("apply-args-without-match", args.carriers ? "$.carriers" : "$.ids", "'carriers' and 'ids' are used only when applying, with 'match'",
+      "Listing takes no carriers or ids: list first without them, then call again with match: matches[i].match and the carriers (bindCarriers names them) and ids.")] : []),
   ];
-  if (errors.length) return { ok: false as const, errors };
-  if (TREND_DETECTORS.some((d) => d.id === args.rule_id)) {
+  if (issues.length) return fail(issues);
+  const detectors = TREND_DETECTORS.map((d) => d.id);
+  if ((detectors as string[]).includes(args.rule_id ?? "")) {
     const extra = (["at", "match", "carriers", "ids", "limit", "max_steps"] as const).filter((k) => args[k] !== undefined);
     return extra.length
-      ? { ok: false as const, errors: [`'${args.rule_id}' is a detector, not a rewrite: it takes only the model, not ${extra.map((k) => `'${k}'`).join(", ")}`] }
+      ? failWith("detector-takes-model-only", `$.${extra[0]}`, `'${args.rule_id}' is a detector, not a rewrite: it takes only the model, not ${extra.map((x) => `'${x}'`).join(", ")}`,
+        `Drop ${quoted(extra)}: a detector reads the model and changes nothing.`)
       : laggingSubsystem(args.model);
   }
   const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id);
-  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}; detectors: ${TREND_DETECTORS.map((d) => d.id).join(", ")}`] };
-  return args.match
+  if (!rule) return failWith("unknown-rule-id", "$.rule_id", `unknown rule_id '${args.rule_id}'; built-in rules: ${builtIn.join(", ")}; detectors: ${detectors.join(", ")}`, `Use one of ${quoted([...builtIn, ...detectors])}, or pass an inline rule as rule.`);
+  const r = args.match
     ? applyRule(args.model, rule, args.match, { carriers: args.carriers, ids: args.ids })
     : matchRule(args.model, rule, { at: args.at, limit: args.limit, maxSteps: args.max_steps });
+  // A built-in rule is not in the input: its issues point at rule_id.
+  return !r.ok && args.rule === undefined ? rebase(r, [["$.rule", "$.rule_id", "collapse"]]) : r;
+}
+
+/** A matches[i] entry of a listing ({ match, applicable, violations }) passed where its inner match belongs. */
+function isListingEntry(x: unknown): boolean {
+  return !!x && typeof x === "object" && ["match", "applicable", "violations"].some((k) => Object.hasOwn(x, k));
 }
 
 export interface ToolSpec {
@@ -214,7 +260,19 @@ export interface ToolSpec {
 }
 
 function text(payload: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }] };
+  return { content: [{ type: "text" as const, text: JSON.stringify(withIssues(payload), null, 2) }] };
+}
+
+/**
+ * Every `ok: false` result carries issues beside its errors. Each kernel failure builds them; a
+ * failure that arrives without them would be a kernel bug, so it is reported as internal-error
+ * rather than left bare. Tests check that none does.
+ */
+export function withIssues<T>(payload: T): T {
+  if (!payload || typeof payload !== "object") return payload;
+  const p = payload as { ok?: unknown; errors?: unknown; issues?: unknown };
+  if (p.ok !== false || !Array.isArray(p.errors) || Array.isArray(p.issues)) return payload;
+  return { ...payload, issues: (p.errors as string[]).map((e) => issue("internal-error", "$", e, "This failure carries no structured issue: report it with the input.")) };
 }
 
 export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
@@ -297,7 +355,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
           .describe("With compare_to: the main parameters of value, each a cost dimension or 'harmful' with your explicit weight. Adds comparison.mpv: the comparison over those axes only, componentwise and by the weighted sum (lower is better), with the differing axes it ignores. Never filled in, and never used for the model's scalar ratio"),
       },
       handler: async ({ model, compare_to, box_map, mpv_weights }: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; mpv_weights?: Record<string, number> }) =>
-        text(functionModel(model, compare_to, box_map, mpv_weights)),
+        text({ ...functionModel(model, compare_to, box_map, mpv_weights), warnings: warnings([[model, "$.model"], [compare_to, "$.compare_to"]]) }),
     },
     {
       name: "triz_flow",
@@ -310,9 +368,12 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       description: "Screen a trimming of one or more boxes by the TRIZ trimming rules: A (object trimmed too, function no longer needed), B (the object performs the function itself), C (another remaining box or supersystem resource has an output of the same carrier). Returns per-function absorbers, orphaned functions that block the trim, harms and costs removed, and one trimming problem per absorber. A carrier match is a necessary condition only; every absorber is a hypothesis to solve and substantiate.",
       shape: {
         model: act.FunctionModel,
-        trim: z.array(z.string().min(1)).min(1).describe("Ids of the boxes to remove"),
+        trim: BoxIds.min(1).describe("Ids of the boxes to remove"),
       },
-      handler: async ({ model, trim }: { model: act.FunctionModel; trim: string[] }) => text(trimBasis(act.trimCandidates(model, trim))),
+      handler: async ({ model, trim }: { model: act.FunctionModel; trim: string[] }) => {
+        const r = trimBasis(act.trimCandidates(model, trim));
+        return text({ ...r, warnings: [...warnings([[model, "$.model"]]), ...(r.ok ? lintTrim(r) : [])] });
+      },
     },
     {
       name: "triz_separate",
@@ -323,13 +384,13 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         certificate: z.boolean().optional().describe("Also return a Lean certificate of the separation verdicts (check it with scripts/certify.mjs)"),
       },
       handler: async ({ contradiction, along, certificate }: { contradiction: act.PhysicalContradiction; along?: act.Axis; certificate?: boolean }) => {
-        const result = separationBasis(act.separationCheck(contradiction));
+        const result = separationBasis(act.separationCheck(contradiction, "$.contradiction"));
         if (!result.ok) return text(result);
-        const cert = certificate ? separationCertificate(contradiction) : undefined;
+        const cert = certificate ? separationCertificate(contradiction, { root: "$.contradiction" }) : undefined;
         if (cert && !cert.ok) return text(cert);
         return text({
           ...result,
-          ...(along ? { along: dynamizeBasis(act.dynamize(contradiction, along)) } : {}),
+          ...(along ? { along: dynamizeBasis(act.dynamize(contradiction, along, "$.contradiction")) } : {}),
           ...(cert ? { certificate: { format: "lean", content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } } : {}),
         });
       },
@@ -347,7 +408,10 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       name: "triz_transform",
       description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one; boxes consecutive on a declared flow are adjacent), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. When the segmented box declares behaviour, segment (and take_out) reports behaviourallyIndependent: whether the box's relation is the product of its projections onto the parts; if so each part gets its projection, else no part gets behaviour and each coupled part is named with a witness: two rows whose mix is not a row. interpose's mediator may declare behavior (rows, or 'identity'). A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, or with triz_behavior compare_to when behaviour is declared, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
       shape: { model: act.FunctionModel, transformation: Transformation },
-      handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
+      handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => {
+        const r = transform(model, transformation);
+        return text(r.ok ? r : rebase(r, TRANSFORMATION));
+      },
     },
     {
       name: "triz_rule_apply",
@@ -373,12 +437,13 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         compare_to: act.FunctionModel.optional().describe("Baseline model; with it, decide whether the model preserves the baseline's input→deliverable relation"),
         box_map: z.record(z.string(), Id).optional()
           .describe("With compare_to: concept box id → baseline box id, applied to deliverables and boundary inputs; pass a triz_transform segment or take_out boxMap here"),
-        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
+        trim: BoxIds.min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
         weakest_spec: z.boolean().optional().describe("With compare_to or trim: give the weakest specification for the one box that can reach a deliverable and declares no behaviour, against the same target"),
       },
-      handler: async (args: Parameters<typeof behavior>[0]) => text(behavior(args)),
+      handler: async (args: Parameters<typeof behavior>[0]) =>
+        text({ ...behavior(args), warnings: warnings([[args.model, "$.model"], [args.compare_to, "$.compare_to"]]) }),
     },
     {
       name: "triz_weakness",
@@ -414,7 +479,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       description: "Monotone co-design feasibility (Censi 2015) from declared box `feasibility` rows: each row provides a level per output port against the levels it requires per input port and an operating cost, read monotonically (providing less never needs more; more resources never hurt). The product boxes' rows are the demand. Composes the rows along non-harmful functions, including feedback loops, by Kleene's ascent from nothing demanded to the least fixpoint, and returns the minimal resource vectors (fixed costs of every box plus the chosen rows' operating costs), each with its rows and demanded levels. Verdict against the model's budget: feasible; infeasible (reason over-budget, with the binding dimensions every minimal vector exceeds, or unprovidable, naming the port no row can serve); or undecided (missing-feasibility, no-budget, unbudgeted). With `trim` and `absorb` (as triz_behavior takes them), apply the trim and decide the trimmed model; the baseline is solved only to report each absorber's added resources. When carriers declare `levels` (thresholds reading amounts as declared values), `levels` reports each feasibility row, of a box that also declares behaviour, whose named amounts read as values no matching behaviour row gives (value-mismatch) or at inputs the behaviour rules out (no-behavior-row). Fails closed on ill-typed or dominated rows, a requirement no non-harmful function supplies, and past the caps. No polynomial bound is claimed. The verdict holds for the rows as declared; the absorber's new harms are not modelled.",
       shape: {
         model: act.FunctionModel,
-        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the remaining boxes provide what the trim leaves them within budget"),
+        trim: BoxIds.min(1).optional().describe("Boxes to trim; with it, decide whether the remaining boxes provide what the trim leaves them within budget"),
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_antichain: z.number().int().positive().max(MAX_ANTICHAIN).optional().describe(`Cap on antichain elements per step (default and maximum ${MAX_ANTICHAIN})`),
         max_iterations: z.number().int().positive().max(MAX_ITERATIONS).optional().describe(`Cap on Kleene steps (default and maximum ${MAX_ITERATIONS})`),
@@ -422,7 +487,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       handler: async ({ model, trim, absorb, max_antichain, max_iterations }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_antichain?: number; max_iterations?: number }) => {
         const caps = { maxAntichain: max_antichain, maxIterations: max_iterations };
         const r = trim ? trimFeasibility(model, { trim, absorb, ...caps })
-          : absorb ? { ok: false as const, errors: ["absorb needs trim"] }
+          : absorb ? fail([ABSORB_WITHOUT_TRIM()])
           : feasibility(model, caps);
         const levels = r.ok ? levelsConsistency(model) : undefined;
         return text(levels ? { ...r, levels } : r);

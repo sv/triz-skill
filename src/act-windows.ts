@@ -23,11 +23,12 @@
  * nothing here is a fibration (references/categorical-model.md).
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
-import { rewrite, type RewriteStep } from "./act-rewrite.js";
+import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { flowAnalysis, flowsThrough, mapFlows, restrictFlows } from "./act-flow.js";
 import { compareBehavior, externalBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
 import { feasibility } from "./act-feasibility.js";
 import type { Theorem } from "./act-basis.js";
+import { at, fail, issue, quoted, rebase, second, unknownBox, type Failure, type Issue, type Reroot } from "./act-issues.js";
 
 /** A restriction keeps typing. Each view zooms once, so restriction's composition laws are not cited. */
 const RESTRICT: Theorem[] = ["typed_restrict"];
@@ -42,24 +43,25 @@ function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 }
 
-function knownSet(model: FunctionModel, ids: string[], what: string): string[] {
+/** A box-set argument at `root` names boxes of the model, once each, and at least one. */
+function knownSet(model: FunctionModel, ids: string[], what: string, root: string): Issue[] {
   const known = new Set(model.boxes.map((b) => b.id));
   return [
-    ...ids.filter((id) => !known.has(id)).map((id) => `${what}: unknown box '${id}'`),
-    ...duplicates(ids).map((id) => `${what}: box '${id}' listed twice`),
-    ...(ids.length ? [] : [`${what}: empty box set`]),
+    ...ids.flatMap((id, k) => (known.has(id) ? [] : [unknownBox(model, id, at(root, k), `${what}: `)])),
+    ...duplicates(ids).map((id) => issue("listed-twice", at(root, second(ids, id)), `${what}: box '${id}' listed twice`, `List '${id}' once.`)),
+    ...(ids.length ? [] : [issue("empty-set", root, `${what}: empty box set`, `Name at least one box: ${quoted(known)}.`)]),
   ];
 }
 
 /**
  * Sub-model on `boxes`; crossing wires become the boundary. Budget and contradictions are dropped
  * (they describe the whole). Each flow keeps its runs of consecutive boxes inside (restrictFlows);
- * flows that cross the boundary are listed in it.
+ * flows that cross the boundary are listed in it. Issue paths: `$.model…` and `$.boxes[k]`.
  */
 export function restrict(model: FunctionModel, boxes: string[]) {
-  const check = checkModel(model);
-  const errors = check.ok ? knownSet(model, boxes, "restrict") : check.errors;
-  if (errors.length) return { ok: false as const, errors };
+  const check = checkModel(model, "$.model");
+  const issues = check.ok ? knownSet(model, boxes, "restrict", "$.boxes") : check.issues;
+  if (issues.length) return fail(issues);
   const keep = new Set(boxes);
   const inside = (w: Wire) => keep.has(w.from.box) && keep.has(w.to.box);
   const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
@@ -84,12 +86,12 @@ export function restrict(model: FunctionModel, boxes: string[]) {
  * Replace `group` by one black box. Each kept port is renamed `<box>.<port>`; a collision between
  * such names fails closed. The box's cost is the per-dimension sum over the group. Each flow
  * through the group passes the black box instead, once per visit (mapFlows); a flow wholly inside
- * the group is hidden and listed.
+ * the group is hidden and listed. Issue paths: `$.model…`, `$.group[k]`, and `$.box` for the black box.
  */
 export function collapse(model: FunctionModel, group: string[], box: { id: string; name: string; role: Box["role"]; action?: string }) {
-  const check = checkModel(model);
-  const errors = check.ok ? knownSet(model, group, "collapse") : check.errors;
-  if (errors.length) return { ok: false as const, errors };
+  const check = checkModel(model, "$.model");
+  const issues = check.ok ? knownSet(model, group, "collapse", "$.group") : check.issues;
+  if (issues.length) return fail(issues);
   const members = new Set(group);
   const touching = model.wires.filter((w) => members.has(w.from.box) || members.has(w.to.box));
   const hidden = touching.filter((w) => members.has(w.from.box) && members.has(w.to.box));
@@ -106,7 +108,10 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
   const groupBoxes = model.boxes.filter((b) => members.has(b.id));
   const inputs = groupBoxes.flatMap((b) => kept(b, "in", b.inputs)), outputs = groupBoxes.flatMap((b) => kept(b, "out", b.outputs));
   const clash = duplicates([...inputs, ...outputs].map((p) => p.id));
-  if (clash.length) return { ok: false as const, errors: clash.map((id) => `collapse: port name '${id}' is ambiguous; rename the boxes or ports involved`) };
+  if (clash.length) {
+    return fail(clash.map((id) => issue("ambiguous-port-name", "$.group", `collapse: port name '${id}' is ambiguous; rename the boxes or ports involved`,
+      `Kept ports are renamed '<box>.<port>', and two give '${id}': rename a box or port so the dotted names differ (box ids containing '.' are the usual cause).`)));
+  }
   const total = new Map<string, number>();
   for (const b of groupBoxes) for (const [d, v] of Object.entries(b.cost ?? {})) total.set(d, (total.get(d) ?? 0) + v);
   const cost = Object.fromEntries(total);
@@ -124,7 +129,7 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
     delete: { boxes: group, wires: touching.map((w) => w.id), flows: through.map((f) => f.id) },
     add: { boxes: [black], wires: crossing.map((w) => ({ ...w, from: redirect(w.from), to: redirect(w.to) })), flows: quotient.flows },
   });
-  if (!r.ok) return r;
+  if (!r.ok) return internal(r, [["$.add.boxes[0].id", "$.box.id", "collapse"], ["$.add.boxes[0]", "$.box", "collapse"]]);
   return {
     ok: true as const,
     model: r.model,
@@ -148,8 +153,11 @@ function summary(m: FunctionModel) {
   };
 }
 
-/** What a transformation returns: a typed model, or the reasons it failed closed. */
-export type Applied = { ok: true; model: FunctionModel; basis?: readonly Theorem[] } | { ok: false; errors: string[] };
+/**
+ * What a transformation returns: a typed model, or the reasons it failed closed, with issue paths
+ * `$.model…` for the model and `$.<field>` for the transformation's own fields.
+ */
+export type Applied = { ok: true; model: FunctionModel; basis?: readonly Theorem[] } | Failure;
 
 /** Key-order-free JSON; lists of objects with ids are sorted by id, so port order does not count. */
 function canon(x: unknown): string {
@@ -250,15 +258,24 @@ function transition<T extends { op: string }>(
   models: Partial<Record<Time, FunctionModel>>, from: Time, to: Time, key: string, seq: T[], keep: Set<string>,
   apply?: (model: FunctionModel, t: T) => Applied,
 ) {
-  const invalid = (errors: string[]) => ({ from, to, status: "invalid" as const, errors });
+  const invalid = (issues: Issue[]) => ({ from, to, status: "invalid" as const, errors: issues.map((i) => i.message), issues });
+  const root = `$.transitions.${key}`;
   const start = models[from];
-  if (!start) return invalid([`${key}: no ${from} snapshot; transformations apply forward only`]);
-  if (!apply) return invalid([`${key}: no transformation engine supplied`]);
+  if (!start) {
+    return invalid([issue("no-earlier-snapshot", root, `${key}: no ${from} snapshot; transformations apply forward only`,
+      `Pass ${from}: the ${from} model with the same box ids, which the transformations start from. Or drop transitions.${key}.`)]);
+  }
+  if (!apply) return invalid([issue("internal-error", root, `${key}: no transformation engine supplied`, "Call nineWindows with triz_transform's operations (the tool does); this is a caller bug.")]);
   let model = start;
   const applied: { op: string; basis?: Theorem[] }[] = [];
   for (const [i, t] of seq.entries()) {
     const r = apply(model, t);
-    if (!r.ok) return invalid(r.errors.map((e) => `${key}[${i}] ${t.op}: ${e}`));
+    if (!r.ok) {
+      // Step 0 acts on the input snapshot; later steps act on a model no input holds, so point at the step.
+      const step = at(root, i);
+      const rules: Reroot = [i === 0 ? ["$.model", `$.${from}`] : ["$.model", step, "collapse"], ["$", step]];
+      return invalid(rebase(r, rules, `${key}[${i}] ${t.op}: `).issues);
+    }
     model = r.model;
     applied.push({ op: t.op, ...(r.basis ? { basis: [...r.basis] } : {}) });
   }
@@ -267,13 +284,14 @@ function transition<T extends { op: string }>(
     const reach = sameStructure(model, target);
     if (!reach.same) {
       const where = Object.entries(reach.diff).filter(([, v]) => v.length).map(([k, v]) => `${k} [${v.join(", ")}]`);
-      return invalid([`${key}: the transformations do not reach the ${to} snapshot; they differ at ${where.join("; ")}`]);
+      return invalid([issue("snapshot-not-reached", `$.${to}`, `${key}: the transformations do not reach the ${to} snapshot; they differ at ${where.join("; ")}`,
+        `Make transitions.${key} produce exactly the ${to} snapshot at those ids (boxes, wires, and carriers are compared by id and content), or correct the snapshot.${to === "future" ? " Omit future to derive it from the transformations instead." : ""}`)]);
     }
   }
   const net = netStep(start, model);
-  if (!net.ok) return invalid([`${key}: internal: the net step does not replay; please report`]);
+  if (!net.ok) return invalid([issue("internal-error", root, `${key}: internal: the net step does not replay; please report`, "Report this with the input; the snapshots themselves may be fine.")]);
   const sub = stepInSubsystem(start, model, net.step, keep);
-  if (!sub) return invalid([`${key}: internal: restriction does not commute with the step; please report`]);
+  if (!sub) return invalid([issue("internal-error", root, `${key}: internal: restriction does not commute with the step; please report`, "Report this with the input; the snapshots themselves may be fine.")]);
   const flowsChanged = differing(start.flows ?? [], model.flows ?? []);
   return {
     from, to, status: "ok" as const,
@@ -282,25 +300,31 @@ function transition<T extends { op: string }>(
     step: ids(net.step),
     ...(flowsChanged.length ? { flowsChanged } : {}),
     subsystem: sub,
-    ...(target ? {} : { model }),
+    model,
   };
 }
 
-/** A failure kept inside one verdict: it never fails the grid. */
-const failed = (r: { ok: false; errors: string[] }) => ({ ok: false as const, errors: r.errors });
+/**
+ * A failure kept inside one verdict: it never fails the grid. Its issues are re-rooted from the
+ * kernel call's paths to the grid's input by `rules`; anything left over points at the grid.
+ */
+const failed = (r: Failure, rules: Reroot = []) => {
+  const f = rebase(fail(r.issues), [...rules, ["$", "$", "collapse"]]);
+  return { ok: false as const, errors: f.errors, issues: f.issues };
+};
 
 /** The system view's behaviour at one time: decided or why not, and the size of the relation. */
-function behaviourAt(m: FunctionModel) {
+function behaviourAt(m: FunctionModel, rules: Reroot = []) {
   const r = externalBehavior(m);
-  if (!r.ok) return failed(r);
+  if (!r.ok) return failed(r, rules);
   if (!r.decided) return { ok: true as const, decided: false as const, reason: "missing-behavior" as const, missingBehavior: r.missingBehavior };
   return { ok: true as const, decided: true as const, inputValuations: r.inputValuations, noSteadyState: r.noSteadyState.length, severalSteadyStates: r.severalSteadyStates, basis: r.basis };
 }
 
 /** The system view's feasibility at one time: the verdict, its reason, and the minimal resource vectors. */
-function feasibilityAt(m: FunctionModel) {
+function feasibilityAt(m: FunctionModel, rules: Reroot = []) {
   const r = feasibility(m);
-  if (!r.ok) return failed(r);
+  if (!r.ok) return failed(r, rules);
   return {
     ok: true as const, verdict: r.verdict,
     ...("reason" in r ? { reason: r.reason } : {}),
@@ -311,9 +335,9 @@ function feasibilityAt(m: FunctionModel) {
 }
 
 /** The system view's flows at one time: each flow's path and its triz_flow candidates, by id. */
-function flowsAt(m: FunctionModel) {
+function flowsAt(m: FunctionModel, rules: Reroot = []) {
   const r = flowAnalysis(m);
-  if (!r.ok) return failed(r);
+  if (!r.ok) return failed(r, rules);
   return {
     ok: true as const,
     flows: r.flows.map((f) => ({
@@ -325,8 +349,8 @@ function flowsAt(m: FunctionModel) {
 }
 
 /** How the flows change between two times: added, removed, re-routed, and the candidates each flow gains or loses. */
-function flowDelta(a: FunctionModel, b: FunctionModel) {
-  const [x, y] = [flowsAt(a), flowsAt(b)];
+function flowDelta(a: FunctionModel, b: FunctionModel, rules: [Reroot, Reroot]) {
+  const [x, y] = [flowsAt(a, rules[0]), flowsAt(b, rules[1])];
   if (!x.ok) return x;
   if (!y.ok) return y;
   const before = new Map(x.flows.map((f) => [f.id, f])), after = new Map(y.flows.map((f) => [f.id, f]));
@@ -357,11 +381,11 @@ const canonVectors = (v: ReturnType<typeof feasibilityAt>) => (v.ok && "minimal"
  * `acceptable`. Feasibility: the verdicts at both times, and changed only when both are decided.
  * A failure (say, different deliverables for the ranking) is reported here and does not fail the grid.
  */
-function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, what: { behavior: boolean; feasibility: boolean; flows: boolean }, acceptable?: Acceptable[]) {
+function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, what: { behavior: boolean; feasibility: boolean; flows: boolean }, acceptable: Acceptable[] | undefined, rootOf: (time: Time, path: string) => Reroot[number]) {
   const out: Record<string, unknown> = {};
   if (what.behavior) {
     const c = compareBehavior(a, b);
-    out.behavior = !c.ok ? failed(c) : {
+    out.behavior = !c.ok ? failed(c, [rootOf(from, "$.compare_to"), rootOf(to, "$.model")]) : {
       ok: true as const, verdict: c.verdict,
       ...("reason" in c ? { reason: c.reason } : {}),
       ...("direction" in c ? { direction: c.direction, counterexample: c.counterexample } : {}),
@@ -374,7 +398,7 @@ function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, 
     };
     if (acceptable) {
       const w = weaknessRanking([{ id: from, model: a }, { id: to, model: b }], acceptable);
-      out.weakness = !w.ok ? failed(w) : w.verdict !== "ranked" ? { ok: true as const, verdict: w.verdict, ...("reason" in w ? { reason: w.reason } : {}) } : {
+      out.weakness = !w.ok ? failed(w, [rootOf(from, "$.concepts[0].model"), rootOf(to, "$.concepts[1].model"), ["$.acceptable", "$.acceptable"]]) : w.verdict !== "ranked" ? { ok: true as const, verdict: w.verdict, ...("reason" in w ? { reason: w.reason } : {}) } : {
         ok: true as const, verdict: w.verdict, order: w.pairs[0].order,
         admitted: Object.fromEntries(w.concepts.map((c) => [c.id, c.admitted])), situationCount: w.situationCount,
         ...("onlyFirst" in w.pairs[0] ? { [`only${from[0].toUpperCase()}${from.slice(1)}`]: w.pairs[0].onlyFirst } : {}),
@@ -387,9 +411,9 @@ function verdictDelta(a: FunctionModel, b: FunctionModel, from: Time, to: Time, 
       };
     } else out.weakness = { prompt: "Pass acceptable (per deliverable port or carrier: values, or a threshold through the carrier's levels) to rank the times by the situations they admit." };
   }
-  if (what.flows) out.flows = flowDelta(a, b);
+  if (what.flows) out.flows = flowDelta(a, b, [[rootOf(from, "$.model")], [rootOf(to, "$.model")]]);
   if (what.feasibility) {
-    const [x, y] = [feasibilityAt(a), feasibilityAt(b)];
+    const [x, y] = [feasibilityAt(a, [rootOf(from, "$.model")]), feasibilityAt(b, [rootOf(to, "$.model")])];
     const decided = decidedFeasibility(x) && decidedFeasibility(y);
     const verdictOf = (v: typeof x) => (v.ok ? v.verdict : "error");
     out.feasibility = {
@@ -430,13 +454,26 @@ export function nineWindows<T extends { op: string }>(spec: {
   const models: Partial<Record<Time, FunctionModel>> = { past: spec.past, present: spec.present, future: spec.future };
   const keep = new Set(spec.subsystem);
   const transitions = [];
+  /** The model each transition produced, by the time it leads to; a time with no snapshot takes it. */
+  const derived: Partial<Record<Time, FunctionModel>> = {};
   for (const [from, to, key] of LINKS) {
     const seq = spec.transitions?.[key];
     if (!seq) continue;
     const r = transition(models, from, to, key, seq, keep, apply);
-    if (r.status === "ok" && r.model) models[to] = r.model;
-    transitions.push(r);
+    if (r.status === "ok") {
+      derived[to] = r.model;
+      if (r.snapshot === "derived") models[to] = r.model;
+    }
+    transitions.push(r.status === "ok" && r.snapshot === "reached" ? (({ model: _model, ...rest }) => rest)(r) : r);
   }
+  /** Where a time's model is in the input: its snapshot, or the transition that derived it. */
+  const source = (time: Time) => (spec[time] ? `$.${time}` : `$.transitions.${time === "future" ? "present_to_future" : "past_to_present"}`);
+  /** A kernel path to a time's model, re-rooted to its source; a derived model is not input, so its paths collapse. */
+  const rootOf = (time: Time, from: string): Reroot[number] => (spec[time] ? [from, source(time)] : [from, source(time), "collapse"]);
+  const windowIssues = (time: Time, f: Failure) => rebase(f, [
+    rootOf(time, "$.model"),
+    ["$.boxes", "$.subsystem", "collapse"], ["$.group", "$.system.boxes", "collapse"], ["$.box", "$.system"],
+  ]);
 
   const groupOf = (m: FunctionModel) => {
     const present = new Set(m.boxes.map((b) => b.id));
@@ -453,30 +490,34 @@ export function nineWindows<T extends { op: string }>(spec: {
   const declared = (pick: (b: FunctionModel["boxes"][number]) => unknown) => TIMES.some((t) => models[t]?.boxes.some((b) => pick(b) !== undefined));
   const what = { behavior: declared((b) => b.behavior), feasibility: declared((b) => b.feasibility), flows: TIMES.some((t) => (models[t]?.flows ?? []).length > 0) };
   const any = what.behavior || what.feasibility || what.flows;
-  const verdictsAt = (m: FunctionModel) => ({
-    ...(what.behavior ? { behavior: behaviourAt(m) } : {}),
-    ...(what.feasibility ? { feasibility: feasibilityAt(m) } : {}),
-    ...(what.flows ? { flows: flowsAt(m) } : {}),
+  const verdictsAt = (m: FunctionModel, time: Time) => ({
+    ...(what.behavior ? { behavior: behaviourAt(m, [rootOf(time, "$.model")]) } : {}),
+    ...(what.feasibility ? { feasibility: feasibilityAt(m, [rootOf(time, "$.model")]) } : {}),
+    ...(what.flows ? { flows: flowsAt(m, [rootOf(time, "$.model")]) } : {}),
   });
   const windows = TIMES.map((time) => {
     const m = models[time];
     if (!m) return { time, status: "missing" as const, prompt: `No ${time} snapshot: model the ${time} system with the same box ids, or give the transformations that lead to it, to fill this column.` };
-    const check = checkModel(m);
-    if (!check.ok) return { time, status: "invalid" as const, errors: check.errors };
+    const invalid = (f: Failure) => {
+      const r = windowIssues(time, f);
+      return { time, status: "invalid" as const, errors: r.errors, issues: r.issues };
+    };
+    const check = checkModel(m, "$.model");
+    if (!check.ok) return invalid(fail(check.issues));
     const present = new Set(m.boxes.map((b) => b.id));
     const zoom = spec.subsystem.filter((b) => present.has(b));
     const sub = zoom.length ? restrict(m, zoom) : null;
     const group = groupOf(m);
     const sup = group.length ? collapse(m, group, { id, name: spec.system?.name ?? m.system ?? "System", role: "tool" }) : null;
-    if (sub && !sub.ok) return { time, status: "invalid" as const, errors: sub.errors };
-    if (sup && !sup.ok) return { time, status: "invalid" as const, errors: sup.errors };
+    if (sub && !sub.ok) return invalid(sub);
+    if (sup && !sup.ok) return invalid(sup);
     return {
       time,
       status: "ok" as const,
       subsystem: sub?.ok
         ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)), basis: sub.basis }
         : { empty: true, absent: spec.subsystem },
-      system: { ...summary(m), ...(any ? { verdicts: verdictsAt(m) } : {}) },
+      system: { ...summary(m), ...(any ? { verdicts: verdictsAt(m, time) } : {}) },
       supersystem: sup?.ok
         ? { ...summary(sup.model), collapsed: group, hidden: sup.hidden, hiddenHarms: sup.hiddenHarms, model: sup.model, basis: sup.basis }
         : { empty: true, reason: "no box to collapse into the system" },
@@ -492,16 +533,19 @@ export function nineWindows<T extends { op: string }>(spec: {
       from: TIMES[i] as Time, to: TIMES[i + 1] as Time,
       addedBoxes: [...after].filter((x) => !before.has(x)),
       removedBoxes: [...before].filter((x) => !after.has(x)),
-      ...(typed && any ? { verdicts: verdictDelta(a, b, TIMES[i], TIMES[i + 1], what, spec.acceptable) } : {}),
+      ...(typed && any ? { verdicts: verdictDelta(a, b, TIMES[i], TIMES[i + 1], what, spec.acceptable, rootOf) } : {}),
     });
   }
+  const issues = [...transitions, ...windows].flatMap((x) => (x.status === "invalid" ? x.issues : []));
   return {
-    ok: windows.every((w) => w.status !== "invalid") && transitions.every((t) => t.status !== "invalid"),
+    ok: !issues.length,
+    ...(issues.length ? { errors: issues.map((i) => i.message), issues } : {}),
     systemId: id,
     windows,
     changes,
     transitions,
-    note: "Views are typed restrictions and collapses of each time's model. A transition given as transformations is applied and checked; between snapshots without one, only the box ids added and removed are listed. The supersystem collapse is not checked against transitions. Fill missing windows before drawing conclusions from the grid."
+    ...(Object.keys(derived).length ? { derived } : {}),
+    note: "Views are typed restrictions and collapses of each time's model. A transition given as transformations is applied and checked; between snapshots without one, only the box ids added and removed are listed. derived holds the model each transition produced, by time: a derived future is that column's model, and a reached snapshot equals it up to order. The supersystem collapse is not checked against transitions. Fill missing windows before drawing conclusions from the grid."
       + (what.behavior || what.feasibility
         ? " The snapshots declare rows, so each time's system view carries its behaviour and feasibility verdicts (system.verdicts), and each change between times says how they change (changes[].verdicts). These are computed on the system view only: restriction drops the budget and cuts the deliverables' suppliers, and the collapsed box declares no rows."
         : "")

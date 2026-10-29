@@ -44,7 +44,7 @@ function loop(rows: Array<[x: string, y: string]>): FunctionModel {
 
 test("behaviour typing fails closed: undeclared values, unknown or missing ports, carriers without values", () => {
   const broken = (edit: (m: FunctionModel) => void) => { const m = bearing(); edit(m); return checkModel(m).errors.join("; "); };
-  assert.deepEqual(checkModel(bearing()), { ok: true, errors: [] });
+  assert.deepEqual(checkModel(bearing()), { ok: true, errors: [], issues: [] });
   assert.match(broken((m) => { box(m, "shaft").behavior![0].in["heat-in"] = "warm"; }), /box 'shaft' behavior row 0: value 'warm' of port 'heat-in' is not declared by carrier 'heat'/);
   assert.match(broken((m) => { box(m, "shaft").behavior![0].in.ghost = "low"; }), /behavior row 0: no input port 'ghost'/);
   assert.match(broken((m) => { box(m, "shaft").behavior![1].in.expansion = "high"; }), /behavior row 1: no input port 'expansion'/);

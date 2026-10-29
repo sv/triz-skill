@@ -45,10 +45,14 @@
 import { checkModel, type FunctionModel } from "./act.js";
 import { applyTrim } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
+import { at, fail, issue, rebase, where, type Failure } from "./act-issues.js";
 
 type Box = FunctionModel["boxes"][number];
-type Failure = { ok: false; errors: string[] };
 type Endpoint = { box: string; port: string };
+
+/** A failure past a cap: `path` is the cap's argument, or the model when only it can shrink the search. */
+const capExceeded = (message: string, path: string, hint = "Declare fewer feasibility rows per box, or split the model; the caps can only be lowered.") =>
+  fail([issue("cap-exceeded", path, message, hint)]);
 
 /** Caps per solve: antichain elements, Kleene steps, and row selections tried. */
 export const MAX_ANTICHAIN = 1_000;
@@ -70,9 +74,11 @@ interface Config { f: number[]; c: number[]; rows: number[] }
 
 /** Composed boxes, the boxes among them without feasibility, and the compiled rows; fails closed on unsupplied requirements. */
 function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem) | Failure {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false, errors: check.errors };
-  if (!model.boxes.some((b) => b.role === "product")) return { ok: false, errors: [NO_PRODUCT] };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
+  if (!model.boxes.some((b) => b.role === "product")) {
+    return fail([issue("no-product", "$.model.boxes", NO_PRODUCT, "Set role 'product' on the box the main function acts on, and give it feasibility rows: what it requires is the demand.")]);
+  }
   const feeding = new Map<string, FunctionModel["wires"]>();
   for (const w of model.wires) {
     if (w.polarity === "harmful") continue;
@@ -96,7 +102,7 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
     ...composed.flatMap((b) => (b.feasibility ?? []).flatMap((r) => Object.keys(r.cost ?? {}))),
   ])].sort();
   const fixed = dims.map((d) => model.boxes.reduce((s, b) => s + (own(b.cost, d) ?? 0), 0));
-  const errors: string[] = [];
+  const issues: ReturnType<typeof issue>[] = [];
   const rows = composed.map((b) => (b.feasibility ?? []).map((r, i): Row => ({
     index: i,
     provide: (b.outputs ?? []).map((p) => [index.get(portKey({ box: b.id, port: p.id }))!, own(r.provides, p.id) ?? 0]),
@@ -104,12 +110,15 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
       const level = own(r.requires, p.id) ?? 0;
       if (!level) return [];
       const wires = feeding.get(portKey({ box: b.id, port: p.id })) ?? [];
-      if (!wires.length) errors.push(`box '${b.id}' feasibility row ${i} requires ${level} at input port '${p.id}', but no non-harmful function feeds that port: model its supplier`);
+      if (!wires.length) {
+        issues.push(issue("unsupplied-requirement", at(where.box(model, b.id, "$.model"), "feasibility", i, "requires", p.id), `box '${b.id}' feasibility row ${i} requires ${level} at input port '${p.id}', but no non-harmful function feeds that port: model its supplier`,
+          `Wire a useful function of carrier '${p.carrier}' into '${b.id}.${p.id}' from the box that supplies it (an environment box for an outside resource), or drop the requirement.`));
+      }
       return wires.map((w) => [index.get(portKey(w.from))!, level] as [number, number]);
     }),
     cost: dims.map((d) => own(r.cost, d) ?? 0),
   })));
-  if (errors.length) return { ok: false, errors };
+  if (issues.length) return fail(issues);
   return { ok: true, missing, composed, ports, dims, fixed, rows };
 }
 
@@ -153,11 +162,11 @@ function expand(p: Problem, s: Config, caps: Required<Caps>, work: { candidates:
     }
     let next: Config[] = [];
     for (const a of acc) for (const r of eligible) {
-      if (++work.candidates > caps.maxCandidates) return { ok: false, errors: [`the search tried more than ${caps.maxCandidates} row selections. Declare fewer rows or split the model`] };
+      if (++work.candidates > caps.maxCandidates) return capExceeded(`the search tried more than ${caps.maxCandidates} row selections. Declare fewer rows or split the model`, "$.model");
       const f = [...a.f];
       for (const [i, level] of r.demand) f[i] = Math.max(f[i], level);
       next = insertMin(next, { f, c: a.c.map((x, i) => x + r.cost[i]), rows: [...a.rows, r.index] });
-      if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} partial selections while composing box '${box.id}'. Declare fewer rows or split the model`] };
+      if (next.length > caps.maxAntichain) return capExceeded(`the antichain passed ${caps.maxAntichain} partial selections while composing box '${box.id}'. Declare fewer rows or split the model`, "$.max_antichain");
     }
     acc = next;
   }
@@ -183,7 +192,7 @@ function solve(p: Problem, caps: Required<Caps>): Solution {
       if ("blocked" in e) { blocked ??= e.blocked; continue; }
       for (const x of e.xs) {
         next = insertMin(next, { f: x.f.map((v, i) => Math.max(v, s.f[i])), c: x.c.map((v, i) => Math.max(v, s.c[i])), rows: [] });
-        if (next.length > caps.maxAntichain) return { ok: false, errors: [`the antichain passed ${caps.maxAntichain} configurations at step ${k}. Declare fewer rows or split the model`] };
+        if (next.length > caps.maxAntichain) return capExceeded(`the antichain passed ${caps.maxAntichain} configurations at step ${k}. Declare fewer rows or split the model`, "$.max_antichain");
       }
     }
     peak = Math.max(peak, next.length);
@@ -205,7 +214,8 @@ function solve(p: Problem, caps: Required<Caps>): Solution {
     }
     return { ok: true, minimal, iterations: k, peak, candidates: work.candidates };
   }
-  return { ok: false, errors: [`no fixpoint after ${caps.maxIterations} steps. Raise max_iterations or split the model`] };
+  return capExceeded(`no fixpoint after ${caps.maxIterations} steps. Raise max_iterations or split the model`, "$.max_iterations",
+    `Raise max_iterations (at most ${MAX_ITERATIONS}), or split the model; a long feedback chain needs one step per link.`);
 }
 
 const record = (dims: string[], v: number[]) => Object.fromEntries(dims.map((d, i) => [d, v[i]]));
@@ -301,7 +311,8 @@ export function trimFeasibility(model: FunctionModel, spec: { trim: string[]; ab
   if (!applied.ok) return applied;
   const caps = { maxAntichain: spec.maxAntichain, maxIterations: spec.maxIterations, maxCandidates: spec.maxCandidates };
   const after = feasibility(applied.model, caps);
-  if (!after.ok) return { ok: false as const, errors: after.errors.map((e) => `trimmed: ${e}`) };
+  // The trimmed model is the trim's result, which no input holds.
+  if (!after.ok) return rebase(after, [["$.model", "$.trim", "collapse"]], "trimmed: ");
   const before = feasibility(model, caps);
   const boxes = [...new Set(applied.chosen.map((c) => c.box))];
   const absorbers = boxes.map((box) => {
@@ -318,7 +329,7 @@ export function trimFeasibility(model: FunctionModel, spec: { trim: string[]; ab
     return { box, functions, trimmed, baseline, added: Object.fromEntries(dims.map((d) => [d, (own(t, d) ?? 0) - (own(b, d) ?? 0)])) };
   });
   const baseline = !before.ok
-    ? { ok: false as const, errors: before.errors }
+    ? { ok: false as const, errors: before.errors, issues: before.issues }
     : { verdict: before.verdict, ...("reason" in before ? { reason: before.reason } : {}), ...(solved(before) ? { minimal: before.minimal } : {}), ...("missingFeasibility" in before ? { missingFeasibility: before.missingFeasibility } : {}) };
   return {
     ...after, trim: spec.trim, chosen: applied.chosen, absorbers, baseline,

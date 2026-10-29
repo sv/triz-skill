@@ -37,6 +37,7 @@
  */
 import { checkModel, harmLoops, type Flow, type FunctionModel, type Polarity } from "./act.js";
 import type { Theorem } from "./act-basis.js";
+import { fail } from "./act-issues.js";
 
 const RESISTANT: ReadonlySet<Polarity> = new Set(["insufficient", "excessive", "harmful"]);
 const INSIDE: ReadonlySet<string> = new Set(["tool", "mediator"]);
@@ -105,10 +106,10 @@ export function restrictFlows(flows: Flow[] | undefined, keep: Set<string>) {
   return { flows: out, crossing };
 }
 
-/** The flow analysis of a typed model. Fails closed on a model that does not type-check. */
+/** The flow analysis of a typed model. Fails closed on a model that does not type-check; issue paths start at `$.model`. */
 export function flowAnalysis(model: FunctionModel) {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   const flows = model.flows ?? [];
   const role = new Map(model.boxes.map((b) => [b.id, b.role]));
   const loops = harmLoops(model);

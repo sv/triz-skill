@@ -110,7 +110,7 @@ function loop(rows: Array<[x: string, y: string]>): FunctionModel {
 
 test("state and transition typing fails closed", () => {
   const broken = (edit: (m: FunctionModel) => void) => { const m = escalating(); edit(m); return checkModel(m).errors.join("; "); };
-  assert.deepEqual(checkModel(escalating()), { ok: true, errors: [] });
+  assert.deepEqual(checkModel(escalating()), { ok: true, errors: [], issues: [] });
   assert.match(broken((m) => { delete box(m, "shaft").state; }), /box 'shaft' declares transition without state.*declares initial without state/);
   assert.match(broken((m) => { delete box(m, "shaft").transition; }), /box 'shaft' declares state without transition/);
   assert.match(broken((m) => { box(m, "shaft").behavior = [{ in: { drive: "rated", support: "supported", "heat-in": "low" }, out: { expansion: "nominal" } }]; }), /box 'shaft' declares both behavior and transition/);

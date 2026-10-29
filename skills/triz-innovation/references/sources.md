@@ -114,7 +114,9 @@ it supports here.
   Typed ports and wires: the model's shape.
 - **Fong (2015)**, *Decorated cospans*, Theory and Applications of Categories 30(33), 1096–1120,
   [arXiv:1502.00872](https://arxiv.org/abs/1502.00872).
-  Open systems that compose along their boundaries.
+  Open systems that compose along their boundaries. `theory/Semantics.lean` proves this for
+  declared behaviour: gluing open diagrams along a fully exposed interface composes their
+  steady-state relations.
 - **Fong & Spivak (2019)**, *An Invitation to Applied Category Theory: Seven Sketches in
   Compositionality*, Cambridge University Press, doi:10.1017/9781108668804.
   Monoidal preorders, resource theories, co-design, wiring diagrams.
@@ -172,8 +174,9 @@ Considered and not adopted:
   chapter "Kan Extensions".
   Trimming as a left Kan extension of what remains. It was stated in `theory/`, never decided,
   and then removed. The decided trim (`triz_behavior`) depends on the absorber chosen, a trim
-  that re-attaches a function is not an inclusion of the trimmed model, and no functor from a
-  function model was defined (categorical-model.md).
+  that re-attaches a function is not an inclusion of the trimmed model, and no functor from
+  function models along trims was defined. The functor `theory/Semantics.lean` defines, from open
+  diagrams to relations, takes no trim (categorical-model.md).
 - **Baez & Master (2020)**, *Open Petri nets*, MSCS 30(3), 314–341.
   **Baez & Pollard (2017)**, *A compositional framework for reaction networks*, Rev. Math.
   Phys. 29, 1750028.

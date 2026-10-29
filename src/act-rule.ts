@@ -48,6 +48,8 @@ import { Box, Endpoint, Polarity, Role, checkModel, harmLoops, idealityProfile, 
 import { feasibility } from "./act-feasibility.js";
 import { Budget } from "./act-iso.js";
 import type { Theorem } from "./act-basis.js";
+// `at` is also matchRule's seed, so the path helper goes by `jp` where that is in scope.
+import { at, at as jp, fail, issue, keysHint, quoted, rebase, second, type Failure, type Issue } from "./act-issues.js";
 
 const Id = z.string().min(1);
 
@@ -104,6 +106,8 @@ export const RuleMatch = z.strictObject({
   ports: z.record(z.string(), z.record(z.string(), Id)).describe("Left-side box id → (its port id → port id on the image box)"),
   wires: z.record(z.string(), Id).describe("Left-side wire id → model wire id"),
   carriers: z.record(z.string(), Id).describe("Carrier variable → model carrier id"),
+}, {
+  error: keysHint(Object.fromEntries(["match", "applicable", "violations"].map((k) => [k, "this is a listing entry { match, applicable, violations }: pass matches[i].match"]))),
 }).meta({ id: "RuleMatch" });
 
 export const RuleIds = z.strictObject({
@@ -121,7 +125,6 @@ type PWire = z.infer<typeof RuleWire>;
 type MBox = FunctionModel["boxes"][number];
 type MWire = FunctionModel["wires"][number];
 type Side = "in" | "out";
-type Failure = { ok: false; errors: string[] };
 type Field = { carrier: string; layer: FunctionModel["carriers"][number]["layer"]; dimension: string };
 /** A function the rule re-made on another carrier: the created wire, the deleted wire it is `like`, and both carriers. */
 export type FieldChange = { wire: string; replaces: string; from: Field; to: Field };
@@ -170,108 +173,131 @@ function index(rule: Rule) {
   return { L, K, R, leftVars, rightOnlyVars };
 }
 
-/** Well-formedness of a rule. Fails closed with every error. */
-export function validateRule(rule: Rule): { ok: boolean; errors: string[] } {
-  const errors: string[] = [];
+/** Well-formedness of a rule. Fails closed with every error. Issue paths start at `root` (default `$`, the rule). */
+export function validateRule(rule: Rule, root = "$"): { ok: boolean; errors: string[]; issues: Issue[] } {
+  const issues: Issue[] = [];
   const vars = rule.carriers;
-  for (const v of duplicates(vars)) errors.push(`carrier variable '${v}' declared twice`);
+  const boxAt = (side: "left" | "interface" | "right", id: string) => at(root, side, "boxes", rule[side].boxes.findIndex((b) => b.id === id));
+  const wireAt = (side: "left" | "interface" | "right", id: string) => at(root, side, "wires", wiresOf(rule[side]).findIndex((w) => w.id === id));
+  const malformed = (path: string, message: string, hint: string) => issues.push(issue("rule-malformed", path, message, hint));
+  for (const v of duplicates(vars)) issues.push(issue("rule-ill-typed", at(root, "carriers", second(vars, v)), `carrier variable '${v}' declared twice`, `Declare carrier variable '${v}' once.`));
   for (const [side, p] of [["left", rule.left], ["interface", rule.interface], ["right", rule.right]] as const) {
-    errors.push(...checkModel(asModel(p, [...new Set(vars)])).errors.map((e) => `${side}: ${e.replace(/unknown carrier/g, "undeclared carrier variable")}`));
+    // A pattern read as a model: its boxes and wires keep their indexes; its carriers are the rule's variables.
+    const typed = rebase(fail(checkModel(asModel(p, [...new Set(vars)]), at(root, side)).issues), [[at(root, side, "carriers"), at(root, "carriers"), "collapse"]]);
+    issues.push(...typed.issues.map((x) => issue("rule-ill-typed", x.path,
+      `${side}: ${x.message.replace(/unknown carrier/g, "undeclared carrier variable")}`,
+      x.code === "unknown-carrier" ? `Declare the carrier variable in the rule's carriers (${quoted(vars)}), or use one of them.` : x.hint)));
   }
   const { L, K, R, leftVars, rightOnlyVars } = index(rule);
-  for (const v of vars) if (!leftVars.has(v) && !rightOnlyVars.includes(v)) errors.push(`carrier variable '${v}' is used nowhere`);
-  for (const [a, b] of rule.distinct ?? []) {
-    for (const v of [a, b]) if (!vars.includes(v)) errors.push(`distinct: '${v}' is not a carrier variable of the rule`);
-    if (a === b) errors.push(`distinct: '${a}' is paired with itself`);
-  }
+  vars.forEach((v, k) => {
+    if (!leftVars.has(v) && !rightOnlyVars.includes(v)) issues.push(issue("rule-ill-typed", at(root, "carriers", k), `carrier variable '${v}' is used nowhere`, `Remove '${v}' from carriers, or type a port or wire with it.`));
+  });
+  (rule.distinct ?? []).forEach(([a, b], k) => {
+    for (const [v, j] of [[a, 0], [b, 1]] as const) {
+      if (!vars.includes(v)) malformed(at(root, "distinct", k, j), `distinct: '${v}' is not a carrier variable of the rule`, `Pair carrier variables the rule declares: ${quoted(vars)}.`);
+    }
+    if (a === b) malformed(at(root, "distinct", k), `distinct: '${a}' is paired with itself`, "Pair two different carrier variables, or drop the pair.");
+  });
   for (const [side, X] of [["left", L], ["right", R]] as const) {
     for (const [id, k] of K.boxes) {
       const x = X.boxes.get(id);
-      if (!x) { errors.push(`interface box '${id}' is not in ${side}`); continue; }
-      if (x.role !== k.role) errors.push(`interface box '${id}': role constraint differs in ${side}`);
+      if (!x) { malformed(boxAt("interface", id), `interface box '${id}' is not in ${side}`, `Add box '${id}' to ${side} with the same role: every interface element is in left and right.`); continue; }
+      if (x.role !== k.role) malformed(boxAt(side, id), `interface box '${id}': role constraint differs in ${side}`, `Give box '${id}' the same role in ${side} as in interface${k.role ? ` ('${k.role}')` : " (none)"}.`);
     }
     for (const [pk, q] of K.ports) {
       const x = X.ports.get(pk);
       if (K.boxes.has(q.box) && X.boxes.has(q.box) && (!x || x.side !== q.side || x.carrier !== q.carrier)) {
-        errors.push(`interface port '${q.box}.${q.id}' is not in ${side} with the same side and carrier`);
+        malformed(boxAt(side, q.box), `interface port '${q.box}.${q.id}' is not in ${side} with the same side and carrier`, `Give box '${q.box}' in ${side} the ${q.side === "in" ? "input" : "output"} port '${q.id}' with carrier '${q.carrier}', as in interface.`);
       }
     }
     for (const [id, k] of K.wires) {
       const x = X.wires.get(id);
-      if (!x) { errors.push(`interface wire '${id}' is not in ${side}`); continue; }
+      if (!x) { malformed(wireAt("interface", id), `interface wire '${id}' is not in ${side}`, `Add wire '${id}' to ${side}, as in interface.`); continue; }
       if (key(x.from.box, x.from.port, x.to.box, x.to.port, x.carrier) !== key(k.from.box, k.from.port, k.to.box, k.to.port, k.carrier) || x.polarity !== k.polarity) {
-        errors.push(`interface wire '${id}' differs in ${side}`);
+        malformed(wireAt(side, id), `interface wire '${id}' differs in ${side}`, `Give wire '${id}' the same from, to, carrier, and polarity in ${side} as in interface.`);
       }
     }
   }
   const createdOnly = (b: PBox) => (["like", "name", "action", "cost"] as const).filter((f) => b[f] !== undefined);
   for (const [side, p] of [["left", rule.left], ["interface", rule.interface]] as const) {
-    for (const b of p.boxes) for (const f of createdOnly(b)) errors.push(`${side} box '${b.id}': '${f}' is only for boxes the rule creates`);
-    for (const w of wiresOf(p)) for (const f of (["like", "verb"] as const).filter((f) => w[f] !== undefined)) errors.push(`${side} wire '${w.id}': '${f}' is only for wires the rule creates`);
+    for (const b of p.boxes) for (const f of createdOnly(b)) malformed(at(boxAt(side, b.id), f), `${side} box '${b.id}': '${f}' is only for boxes the rule creates`, `Remove '${f}' from ${side} box '${b.id}'; put it on a right-side box the rule creates.`);
+    for (const w of wiresOf(p)) for (const f of (["like", "verb"] as const).filter((f) => w[f] !== undefined)) malformed(at(wireAt(side, w.id), f), `${side} wire '${w.id}': '${f}' is only for wires the rule creates`, `Remove '${f}' from ${side} wire '${w.id}'; put it on a right-side wire the rule creates.`);
   }
   for (const b of rule.right.boxes) {
     if (K.boxes.has(b.id)) {
-      for (const f of createdOnly(b)) errors.push(`right box '${b.id}': '${f}' is only for boxes the rule creates; '${b.id}' is kept`);
+      for (const f of createdOnly(b)) malformed(at(boxAt("right", b.id), f), `right box '${b.id}': '${f}' is only for boxes the rule creates; '${b.id}' is kept`, `Remove '${f}' from right box '${b.id}': a kept box keeps the matched box's fields.`);
     } else {
-      if (b.like !== undefined && !L.boxes.has(b.like)) errors.push(`right box '${b.id}': like '${b.like}' is not a left-side box`);
-      if (b.like === undefined && (b.role === undefined || b.name === undefined)) errors.push(`right box '${b.id}': a created box needs role and name, or like`);
+      if (b.like !== undefined && !L.boxes.has(b.like)) malformed(at(boxAt("right", b.id), "like"), `right box '${b.id}': like '${b.like}' is not a left-side box`, `Set like to a left-side box id: ${quoted(L.boxes.keys())}.`);
+      if (b.like === undefined && (b.role === undefined || b.name === undefined)) malformed(boxAt("right", b.id), `right box '${b.id}': a created box needs role and name, or like`, `Give right box '${b.id}' a role and a name, or like: a left-side box id to copy them from.`);
     }
   }
   for (const w of wiresOf(rule.right)) {
     if (K.wires.has(w.id)) {
-      for (const f of (["like", "verb"] as const).filter((f) => w[f] !== undefined)) errors.push(`right wire '${w.id}': '${f}' is only for wires the rule creates; '${w.id}' is kept`);
+      for (const f of (["like", "verb"] as const).filter((f) => w[f] !== undefined)) malformed(at(wireAt("right", w.id), f), `right wire '${w.id}': '${f}' is only for wires the rule creates; '${w.id}' is kept`, `Remove '${f}' from right wire '${w.id}': a kept wire keeps the matched wire's fields.`);
     } else {
-      if (w.like !== undefined && !L.wires.has(w.like)) errors.push(`right wire '${w.id}': like '${w.like}' is not a left-side wire`);
-      if (w.like === undefined && w.polarity === undefined) errors.push(`right wire '${w.id}': a created wire needs polarity, or like`);
+      if (w.like !== undefined && !L.wires.has(w.like)) malformed(at(wireAt("right", w.id), "like"), `right wire '${w.id}': like '${w.like}' is not a left-side wire`, `Set like to a left-side wire id: ${quoted(L.wires.keys())}.`);
+      if (w.like === undefined && w.polarity === undefined) malformed(wireAt("right", w.id), `right wire '${w.id}': a created wire needs polarity, or like`, `Give right wire '${w.id}' a polarity, or like: a left-side wire id to copy it from.`);
     }
   }
-  return { ok: errors.length === 0, errors };
+  return { ok: issues.length === 0, errors: issues.map((i) => i.message), issues };
 }
 
 /** Verify that `match` is a typed homomorphism L → model: labels, sides, carriers, and incidences preserved. */
 export function checkMatch(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
-  const errors: string[] = [];
+  return matchIssues(model, rule, match).map((i) => i.message);
+}
+
+/** checkMatch's findings as issues at `$.match` (a carrier binding at `carrierPath(v)`, by default `$.match.carriers[v]`). */
+export function matchIssues(model: FunctionModel, rule: Rule, match: RuleMatch, carrierPath = (v: string) => at("$.match.carriers", v)): Issue[] {
+  const issues: Issue[] = [];
+  const push = (code: Issue["code"], path: string, message: string, hint: string) => issues.push(issue(code, path, message, hint));
   const { L } = index(rule);
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
   const wires = new Map(model.wires.map((w) => [w.id, w]));
   const carriers = new Set(model.carriers.map((c) => c.id));
   for (const v of Object.keys(match.carriers)) {
-    if (!rule.carriers.includes(v)) errors.push(`carrier '${v}' is not a carrier variable of the rule`);
-    else if (!carriers.has(match.carriers[v])) errors.push(`carrier variable '${v}' bound to unknown carrier '${match.carriers[v]}'`);
+    if (!rule.carriers.includes(v)) push("not-a-rule-element", carrierPath(v), `carrier '${v}' is not a carrier variable of the rule`, `Bind the rule's carrier variables only: ${quoted(rule.carriers)}.`);
+    else if (!carriers.has(match.carriers[v])) push("unknown-carrier", carrierPath(v), `carrier variable '${v}' bound to unknown carrier '${match.carriers[v]}'`, `Bind '${v}' to a carrier of the model: ${quoted(carriers)}.`);
   }
   const sigma = (v: string) => get(match.carriers, v);
-  for (const id of Object.keys(match.boxes)) if (!L.boxes.has(id)) errors.push(`box '${id}' is not a left-side box`);
-  for (const id of Object.keys(match.wires)) if (!L.wires.has(id)) errors.push(`wire '${id}' is not a left-side wire`);
+  const mapping = (kind: string, ids: Iterable<string>) => `Key match.${kind} by the rule's left-side ${kind}: ${quoted(ids)}. Copy a match triz_rule_apply listed rather than writing one.`;
+  for (const id of Object.keys(match.boxes)) if (!L.boxes.has(id)) push("not-a-rule-element", at("$.match.boxes", id), `box '${id}' is not a left-side box`, mapping("boxes", L.boxes.keys()));
+  for (const id of Object.keys(match.wires)) if (!L.wires.has(id)) push("not-a-rule-element", at("$.match.wires", id), `wire '${id}' is not a left-side wire`, mapping("wires", L.wires.keys()));
   for (const [b, ps] of Object.entries(match.ports)) {
-    for (const p of Object.keys(ps)) if (!L.ports.has(key(b, p))) errors.push(`port '${b}.${p}' is not a left-side port`);
+    for (const p of Object.keys(ps)) if (!L.ports.has(key(b, p))) push("not-a-rule-element", at("$.match.ports", b, p), `port '${b}.${p}' is not a left-side port`, mapping("ports", [...L.ports.values()].map((q) => `${q.box}.${q.id}`)));
   }
   for (const b of L.boxes.values()) {
     const g = get(match.boxes, b.id);
     const gb = g === undefined ? undefined : boxes.get(g);
-    if (g === undefined) { errors.push(`box '${b.id}' is not mapped`); continue; }
-    if (!gb) { errors.push(`box '${b.id}' maps to unknown box '${g}'`); continue; }
-    if (b.role && gb.role !== b.role) errors.push(`box '${b.id}' (role ${b.role}) maps to '${g}' (role ${gb.role})`);
+    if (g === undefined) { push("match-incomplete", "$.match.boxes", `box '${b.id}' is not mapped`, `Map left-side box '${b.id}' to a model box in match.boxes.`); continue; }
+    if (!gb) { push("unknown-box", at("$.match.boxes", b.id), `box '${b.id}' maps to unknown box '${g}'`, `Map '${b.id}' to a box of the model: ${quoted(boxes.keys())}.`); continue; }
+    if (b.role && gb.role !== b.role) push("match-not-homomorphic", at("$.match.boxes", b.id), `box '${b.id}' (role ${b.role}) maps to '${g}' (role ${gb.role})`, `Map '${b.id}' to a box with role '${b.role}': ${quoted(model.boxes.filter((x) => x.role === b.role).map((x) => x.id))}.`);
     for (const p of portsOf(b)) {
       const gp = get(get(match.ports, b.id), p.id);
       const q = gp === undefined ? undefined : portsOf(gb).find((x) => x.id === gp);
-      if (gp === undefined) errors.push(`port '${b.id}.${p.id}' is not mapped`);
-      else if (!q) errors.push(`port '${b.id}.${p.id}' maps to '${g}.${gp}', which does not exist`);
-      else if (q.side !== p.side) errors.push(`port '${b.id}.${p.id}' (${p.side}) maps to '${g}.${gp}' (${q.side})`);
-      else if (sigma(p.carrier) !== q.carrier) errors.push(`port '${b.id}.${p.id}' carrier '${p.carrier}' is bound to ${sigma(p.carrier) === undefined ? "nothing" : `'${sigma(p.carrier)}'`}, but '${g}.${gp}' carries '${q.carrier}'`);
+      const fitting = () => quoted(portsOf(gb).filter((x) => x.side === p.side && (sigma(p.carrier) === undefined || x.carrier === sigma(p.carrier))).map((x) => x.id));
+      if (gp === undefined) push("match-incomplete", at("$.match.ports", b.id), `port '${b.id}.${p.id}' is not mapped`, `Map port '${p.id}' of '${b.id}' to a port of '${g}' in match.ports: ${fitting()}.`);
+      else if (!q) push("unknown-port", at("$.match.ports", b.id, p.id), `port '${b.id}.${p.id}' maps to '${g}.${gp}', which does not exist`, `Map '${b.id}.${p.id}' to a port of '${g}': ${fitting()}.`);
+      else if (q.side !== p.side) push("match-not-homomorphic", at("$.match.ports", b.id, p.id), `port '${b.id}.${p.id}' (${p.side}) maps to '${g}.${gp}' (${q.side})`, `Map '${b.id}.${p.id}' to an ${p.side === "in" ? "input" : "output"} port of '${g}': ${fitting()}.`);
+      else if (sigma(p.carrier) !== q.carrier) {
+        push("match-not-homomorphic", at("$.match.ports", b.id, p.id), `port '${b.id}.${p.id}' carrier '${p.carrier}' is bound to ${sigma(p.carrier) === undefined ? "nothing" : `'${sigma(p.carrier)}'`}, but '${g}.${gp}' carries '${q.carrier}'`,
+          sigma(p.carrier) === undefined ? `Bind carrier variable '${p.carrier}' to '${q.carrier}' in match.carriers.` : `Map '${b.id}.${p.id}' to a port of carrier '${sigma(p.carrier)}' (${fitting()}), or bind '${p.carrier}' to '${q.carrier}'.`);
+      }
     }
   }
   for (const w of L.wires.values()) {
     const g = get(match.wires, w.id);
     const gw = g === undefined ? undefined : wires.get(g);
-    if (g === undefined) { errors.push(`wire '${w.id}' is not mapped`); continue; }
-    if (!gw) { errors.push(`wire '${w.id}' maps to unknown wire '${g}'`); continue; }
+    if (g === undefined) { push("match-incomplete", "$.match.wires", `wire '${w.id}' is not mapped`, `Map left-side wire '${w.id}' to a model wire in match.wires.`); continue; }
+    if (!gw) { push("unknown-wire", at("$.match.wires", w.id), `wire '${w.id}' maps to unknown wire '${g}'`, `Map '${w.id}' to a wire of the model: ${quoted(wires.keys())}.`); continue; }
     const end = (e: { box: string; port: string }) => key(get(match.boxes, e.box) ?? "", get(get(match.ports, e.box), e.port) ?? "");
-    if (end(w.from) !== key(gw.from.box, gw.from.port)) errors.push(`wire '${w.id}' source does not map to wire '${g}' source`);
-    if (end(w.to) !== key(gw.to.box, gw.to.port)) errors.push(`wire '${w.id}' target does not map to wire '${g}' target`);
-    if (sigma(w.carrier) !== gw.carrier) errors.push(`wire '${w.id}' carrier '${w.carrier}' does not map to wire '${g}' carrier '${gw.carrier}'`);
-    if (w.polarity && gw.polarity !== w.polarity) errors.push(`wire '${w.id}' (${w.polarity}) maps to '${g}' (${gw.polarity})`);
+    const incidence = `The images of '${w.id}''s ends must be '${g}''s ends: map the boxes and ports so they agree, or map '${w.id}' to another wire.`;
+    if (end(w.from) !== key(gw.from.box, gw.from.port)) push("match-not-homomorphic", at("$.match.wires", w.id), `wire '${w.id}' source does not map to wire '${g}' source`, incidence);
+    if (end(w.to) !== key(gw.to.box, gw.to.port)) push("match-not-homomorphic", at("$.match.wires", w.id), `wire '${w.id}' target does not map to wire '${g}' target`, incidence);
+    if (sigma(w.carrier) !== gw.carrier) push("match-not-homomorphic", at("$.match.wires", w.id), `wire '${w.id}' carrier '${w.carrier}' does not map to wire '${g}' carrier '${gw.carrier}'`, `Bind '${w.carrier}' to '${gw.carrier}', or map '${w.id}' to a wire of carrier '${sigma(w.carrier) ?? w.carrier}'.`);
+    if (w.polarity && gw.polarity !== w.polarity) push("match-not-homomorphic", at("$.match.wires", w.id), `wire '${w.id}' (${w.polarity}) maps to '${g}' (${gw.polarity})`, `Map '${w.id}' to a ${w.polarity} wire: ${quoted(model.wires.filter((x) => x.polarity === w.polarity).map((x) => x.id))}.`);
   }
-  return errors;
+  return issues;
 }
 
 /** The images of L \ K: what the rule deletes. */
@@ -306,31 +332,42 @@ export function gluingConditions(model: FunctionModel, rule: Rule, match: RuleMa
   clash("wires", [...L.wires.keys()].map((w) => [w, `wire '${get(match.wires, w)}'`, K.wires.has(w)]));
   const gone = deletedBy(rule, match);
   const dangling: string[] = [];
+  const issues: Issue[] = identification.map((m) => issue("match-identifies", "$.match", m,
+    "Map these left-side elements to distinct model elements, or keep all of them in the rule's interface."));
+  const dangle = (message: string, hint: string) => { dangling.push(message); issues.push(issue("dangling-wire", "$.match", message, hint)); };
   for (const b of model.boxes) {
     if (!gone.boxes.has(b.id)) continue;
-    for (const p of portsOf(b)) if (!gone.ports.has(key(b.id, p.id))) dangling.push(`dangling: port '${b.id}.${p.id}' of deleted box '${b.id}' is not on the rule's left side`);
+    for (const p of portsOf(b)) {
+      if (!gone.ports.has(key(b.id, p.id))) dangle(`dangling: port '${b.id}.${p.id}' of deleted box '${b.id}' is not on the rule's left side`, `The rule deletes '${b.id}' but not its port '${p.id}': add that port to the deleted box on the rule's left side, or match a box without it.`);
+    }
   }
   for (const w of model.wires) {
     if (gone.wires.has(w.id)) continue;
     for (const e of [w.from, w.to]) {
-      if (gone.boxes.has(e.box)) dangling.push(`dangling: wire '${w.id}' touches deleted box '${e.box}'`);
-      else if (gone.ports.has(key(e.box, e.port))) dangling.push(`dangling: wire '${w.id}' touches deleted port '${e.box}.${e.port}'`);
+      if (gone.boxes.has(e.box)) dangle(`dangling: wire '${w.id}' touches deleted box '${e.box}'`, `The rule deletes '${e.box}' but not wire '${w.id}' on it: add the wire to the rule's left side (outside the interface), or match elsewhere.`);
+      else if (gone.ports.has(key(e.box, e.port))) dangle(`dangling: wire '${w.id}' touches deleted port '${e.box}.${e.port}'`, `The rule deletes port '${e.box}.${e.port}' but not wire '${w.id}' on it: add the wire to the rule's left side, or match elsewhere.`);
     }
   }
   // A flow is a hyperedge on boxes that no pattern names, so a rule may not delete a box it passes.
   for (const f of model.flows ?? []) {
-    for (const id of new Set(f.path)) if (gone.boxes.has(id)) dangling.push(`dangling: flow '${f.id}' passes deleted box '${id}'`);
-    if (f.medium !== undefined && gone.boxes.has(f.medium)) dangling.push(`dangling: flow '${f.id}' names deleted box '${f.medium}' as its medium`);
+    const flowDangle = (message: string, hint: string) => { dangling.push(message); issues.push(issue("dangling-flow", "$.match", message, hint)); };
+    for (const id of new Set(f.path)) {
+      if (gone.boxes.has(id)) flowDangle(`dangling: flow '${f.id}' passes deleted box '${id}'`, `The rule deletes '${id}', which flow '${f.id}' passes, and no rule names flows: restate the flow without '${id}' first (triz_transform rewrite), or match elsewhere.`);
+    }
+    if (f.medium !== undefined && gone.boxes.has(f.medium)) flowDangle(`dangling: flow '${f.id}' names deleted box '${f.medium}' as its medium`, `Restate flow '${f.id}' with another medium first (triz_transform rewrite), or match elsewhere.`);
   }
-  return { identification, dangling, ok: !identification.length && !dangling.length };
+  return { identification, dangling, ok: !identification.length && !dangling.length, issues };
 }
 
 /** The `distinct` application condition on bound carrier variables; a variable not yet bound is skipped. */
-function distinctViolations(rule: Rule, bound: Record<string, string> | Map<string, string>): string[] {
-  const at = (v: string) => (bound instanceof Map ? bound.get(v) : get(bound, v));
+function distinctIssues(rule: Rule, bound: Record<string, string> | Map<string, string>, path: (v: string) => string = (v) => jp("$.match.carriers", v)): Issue[] {
+  const bind = (v: string) => (bound instanceof Map ? bound.get(v) : get(bound, v));
   return (rule.distinct ?? []).flatMap(([a, b]) => {
-    const x = at(a), y = at(b);
-    return x !== undefined && x === y ? [`distinct: carrier variables '${a}' and '${b}' both bind carrier '${x}'; the rule needs them different`] : [];
+    const x = bind(a), y = bind(b);
+    return x !== undefined && x === y
+      ? [issue("distinct-carriers", path(b), `distinct: carrier variables '${a}' and '${b}' both bind carrier '${x}'; the rule needs them different`,
+        `Bind '${b}' to a carrier other than '${x}'${rule.id === "working-field" ? ": the new field's carrier (add it to the model's carriers if it is missing)" : ""}.`)]
+      : [];
   });
 }
 
@@ -342,6 +379,16 @@ function distinctViolations(rule: Rule, bound: Record<string, string> | Map<stri
  * are checked with them so that a refused application names its reason.
  */
 export function declaredRowConditions(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
+  return declaredRowIssues(model, rule, match).map((i) => i.message);
+}
+
+/** declaredRowConditions as issues at `$.match`. */
+function declaredRowIssues(model: FunctionModel, rule: Rule, match: RuleMatch): Issue[] {
+  return declaredRowMessages(model, rule, match).map((m) => issue("declared-rows-block-change", "$.match", m,
+    "Restate or remove that box's declared rows first (triz_transform rewrite), or match a box that declares none."));
+}
+
+function declaredRowMessages(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
   const { K, R } = index(rule);
   const gone = deletedBy(rule, match);
   const lost = [...gone.ports].map((k) => JSON.parse(k) as [string, string]).filter(([b]) => !gone.boxes.has(b));
@@ -361,6 +408,14 @@ export function declaredRowConditions(model: FunctionModel, rule: Rule, match: R
   });
 }
 
+/** The model type-checks (`$.model`) and the rule is well formed (`$.rule`). */
+function preconditions(model: FunctionModel, rule: Rule): Issue[] {
+  return [
+    ...rebase(fail(checkModel(model, "$.model").issues), [], "model: ").issues,
+    ...rebase(fail(validateRule(rule, "$.rule").issues), [], `rule '${rule.id}': `).issues,
+  ];
+}
+
 export const MAX_STEPS = 100_000;
 export const MAX_MATCHES = 50;
 
@@ -369,17 +424,18 @@ export const MAX_MATCHES = 50;
  * Deterministic: model elements are tried in id order. Fails closed on an invalid model or rule.
  */
 export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial<RuleMatch>; limit?: number; maxSteps?: number } = {}) {
-  const pre = [...checkModel(model).errors.map((e) => `model: ${e}`), ...validateRule(rule).errors.map((e) => `rule '${rule.id}': ${e}`)];
-  if (pre.length) return { ok: false as const, errors: pre };
+  const pre = preconditions(model, rule);
+  if (pre.length) return fail(pre);
   const limit = opts.limit ?? MAX_MATCHES, maxSteps = opts.maxSteps ?? MAX_STEPS, at = opts.at ?? {};
   const { L, leftVars, rightOnlyVars } = index(rule);
+  const seed = (kind: string, ids: Iterable<string>) => `Seed with the rule's left-side ${kind}: ${quoted(ids)}.`;
   const unknown = [
-    ...Object.keys(at.boxes ?? {}).filter((b) => !L.boxes.has(b)).map((b) => `at: '${b}' is not a left-side box`),
-    ...Object.keys(at.wires ?? {}).filter((w) => !L.wires.has(w)).map((w) => `at: '${w}' is not a left-side wire`),
-    ...Object.entries(at.ports ?? {}).flatMap(([b, ps]) => Object.keys(ps).filter((p) => !L.ports.has(key(b, p))).map((p) => `at: '${b}.${p}' is not a left-side port`)),
-    ...Object.keys(at.carriers ?? {}).filter((v) => !leftVars.has(v)).map((v) => `at: '${v}' is not a carrier variable of the left side`),
+    ...Object.keys(at.boxes ?? {}).filter((b) => !L.boxes.has(b)).map((b) => issue("not-a-rule-element", jp("$.at.boxes", b), `at: '${b}' is not a left-side box`, seed("boxes", L.boxes.keys()))),
+    ...Object.keys(at.wires ?? {}).filter((w) => !L.wires.has(w)).map((w) => issue("not-a-rule-element", jp("$.at.wires", w), `at: '${w}' is not a left-side wire`, seed("wires", L.wires.keys()))),
+    ...Object.entries(at.ports ?? {}).flatMap(([b, ps]) => Object.keys(ps).filter((p) => !L.ports.has(key(b, p))).map((p) => issue("not-a-rule-element", jp("$.at.ports", b, p), `at: '${b}.${p}' is not a left-side port`, seed("ports", [...L.ports.values()].map((q) => `${q.box}.${q.id}`))))),
+    ...Object.keys(at.carriers ?? {}).filter((v) => !leftVars.has(v)).map((v) => issue("not-a-rule-element", jp("$.at.carriers", v), `at: '${v}' is not a carrier variable of the left side`, `Seed carrier variables of the left side only: ${quoted(leftVars)}.`)),
   ];
-  if (unknown.length) return { ok: false as const, errors: unknown };
+  if (unknown.length) return fail(unknown);
   const byId = <T extends { id: string }>(xs: T[]) => [...xs].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const gBoxes = byId(model.boxes), gWires = byId(model.wires);
   const gBox = new Map(model.boxes.map((b) => [b.id, b]));
@@ -466,7 +522,7 @@ export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial
     const verified = checkMatch(model, rule, match);
     if (verified.length) throw new Error(`internal: search returned an unverified match: ${verified.join("; ")}`);
     const g = gluingConditions(model, rule, match);
-    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : []), ...distinctViolations(rule, match.carriers)];
+    const violations = [...g.identification, ...g.dangling, ...(g.ok ? declaredRowConditions(model, rule, match) : []), ...distinctIssues(rule, match.carriers).map((i) => i.message)];
     return { match, applicable: !violations.length, violations };
   });
   return {
@@ -500,43 +556,54 @@ const freshId = (base: string, taken: Set<string>) => {
 export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, opts: { carriers?: Record<string, string>; ids?: RuleIds } = {}):
   | { ok: true; model: FunctionModel; rule: string; created: { boxes: Record<string, string>; ports: Record<string, Record<string, string>>; wires: Record<string, string> }; deleted: { boxes: string[]; ports: Array<{ box: string; port: string }>; wires: string[] }; fieldChanges?: FieldChange[]; deliverableKeysChanged: boolean; basis: Theorem[]; note: string }
   | Failure {
-  const pre = [...checkModel(model).errors.map((e) => `model: ${e}`), ...validateRule(rule).errors.map((e) => `rule '${rule.id}': ${e}`)];
-  if (pre.length) return { ok: false, errors: pre };
+  const pre = preconditions(model, rule);
+  if (pre.length) return fail(pre);
   const { L, K, R, rightOnlyVars } = index(rule);
   const bound = new Map(Object.entries(match.carriers));
-  const errors: string[] = [];
+  const issues: Issue[] = [];
+  const carriers = quoted(model.carriers.map((c) => c.id));
   for (const [v, c] of Object.entries(opts.carriers ?? {})) {
-    if (!rightOnlyVars.includes(v)) errors.push(`carriers: '${v}' is not a carrier variable used only on the right side`);
-    else bound.set(v, c);
+    if (!rightOnlyVars.includes(v)) {
+      issues.push(issue("not-right-only-variable", jp("$.carriers", v), `carriers: '${v}' is not a carrier variable used only on the right side`,
+        rightOnlyVars.length ? `carriers binds the right-only variables ${quoted(rightOnlyVars)}; the match binds the rest.` : "This rule has no right-only variable: drop carriers; the match binds every variable."));
+    } else bound.set(v, c);
   }
   for (const v of rightOnlyVars) {
-    if (!bound.has(v)) errors.push(`carriers: variable '${v}' appears only on the right side; bind it to a model carrier (add one to the model if it has none)`);
+    if (!bound.has(v)) issues.push(issue("unbound-carrier-variable", "$.carriers", `carriers: variable '${v}' appears only on the right side; bind it to a model carrier (add one to the model if it has none)`, `Pass carriers: { '${v}': <a carrier id of the model: ${carriers}> }.`));
   }
-  errors.push(...checkMatch(model, rule, { ...match, carriers: Object.fromEntries(bound) }).map((e) => `match: ${e}`));
-  if (errors.length) return { ok: false, errors };
+  const fromOpts = new Set(Object.keys(opts.carriers ?? {}));
+  issues.push(...rebase(fail(matchIssues(model, rule, { ...match, carriers: Object.fromEntries(bound) }, (v) => jp(fromOpts.has(v) ? "$.carriers" : "$.match.carriers", v))), [], "match: ").issues);
+  if (issues.length) return fail(issues);
   const glue = gluingConditions(model, rule, match);
-  if (!glue.ok) return { ok: false, errors: [...glue.identification, ...glue.dangling] };
-  const declared = declaredRowConditions(model, rule, match);
-  if (declared.length) return { ok: false, errors: declared };
-  const apart = distinctViolations(rule, bound);
-  if (apart.length) return { ok: false, errors: apart };
+  if (!glue.ok) return fail(glue.issues);
+  const declared = declaredRowIssues(model, rule, match);
+  if (declared.length) return fail(declared);
+  const apart = distinctIssues(rule, bound, (v) => (fromOpts.has(v) ? jp("$.carriers", v) : jp("$.match.carriers", v)));
+  if (apart.length) return fail(apart);
 
   const gone = deletedBy(rule, match);
   const sigma = (v: string) => bound.get(v)!;
   const boxIds = new Set(model.boxes.map((b) => b.id)), wireIds = new Set(model.wires.map((w) => w.id));
   const portIds = new Map(model.boxes.map((b) => [b.id, new Set(portsOf(b).map((p) => p.id))]));
   const gBox = new Map(model.boxes.map((b) => [b.id, b])), gWire = new Map(model.wires.map((w) => [w.id, w]));
-  const claim = (taken: Set<string>, wanted: string | undefined, base: string, what: string) => {
-    if (wanted !== undefined && taken.has(wanted)) { errors.push(`ids: ${what} id '${wanted}' is not fresh`); return wanted; }
+  const claim = (taken: Set<string>, wanted: string | undefined, base: string, what: string, path = "$.ids") => {
+    if (wanted !== undefined && taken.has(wanted)) {
+      issues.push(issue("id-not-fresh", path, `ids: ${what} id '${wanted}' is not fresh`, `Pick an id nothing there uses, e.g. '${freshId(wanted, taken)}', or omit it for a fresh default.`));
+      return wanted;
+    }
     const id = wanted ?? freshId(base, taken);
     taken.add(id);
     return id;
   };
   const ids = opts.ids ?? {};
-  for (const id of Object.keys(ids.boxes ?? {})) if (!R.boxes.has(id) || K.boxes.has(id)) errors.push(`ids: '${id}' is not a box the rule creates`);
-  for (const id of Object.keys(ids.wires ?? {})) if (!R.wires.has(id) || K.wires.has(id)) errors.push(`ids: '${id}' is not a wire the rule creates`);
+  const createdKeys = (kind: string, xs: Iterable<string>) => `ids.${kind} keys are the ${kind} the rule creates: ${quoted(xs)}.`;
+  const createdBoxIds = [...R.boxes.keys()].filter((id) => !K.boxes.has(id)), createdWireIds = [...R.wires.keys()].filter((id) => !K.wires.has(id));
+  for (const id of Object.keys(ids.boxes ?? {})) if (!R.boxes.has(id) || K.boxes.has(id)) issues.push(issue("not-a-rule-element", jp("$.ids.boxes", id), `ids: '${id}' is not a box the rule creates`, createdKeys("boxes", createdBoxIds)));
+  for (const id of Object.keys(ids.wires ?? {})) if (!R.wires.has(id) || K.wires.has(id)) issues.push(issue("not-a-rule-element", jp("$.ids.wires", id), `ids: '${id}' is not a wire the rule creates`, createdKeys("wires", createdWireIds)));
   for (const [b, ps] of Object.entries(ids.ports ?? {})) {
-    for (const p of Object.keys(ps)) if (!R.ports.has(key(b, p)) || K.ports.has(key(b, p))) errors.push(`ids: '${b}.${p}' is not a port the rule creates`);
+    for (const p of Object.keys(ps)) {
+      if (!R.ports.has(key(b, p)) || K.ports.has(key(b, p))) issues.push(issue("not-a-rule-element", jp("$.ids.ports", b, p), `ids: '${b}.${p}' is not a port the rule creates`, createdKeys("ports", [...R.ports].filter(([k]) => !K.ports.has(k)).map(([, q]) => `${q.box}.${q.id}`))));
+    }
   }
 
   // Images of right-side boxes and ports: kept ones through the match, created ones fresh.
@@ -544,7 +611,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   for (const b of R.boxes.values()) {
     if (K.boxes.has(b.id)) continue;
     const base = b.like !== undefined ? get(match.boxes, b.like)! : b.id;
-    createdBoxes.set(b.id, claim(boxIds, get(ids.boxes, b.id), base, "box"));
+    createdBoxes.set(b.id, claim(boxIds, get(ids.boxes, b.id), base, "box", jp("$.ids.boxes", b.id)));
   }
   // A created box's ports: given ids first, then each port's rule id, or the id of the port it
   // copies through `like`, made unique within the box.
@@ -554,7 +621,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
     for (const p of portsOf(b)) {
       const wanted = get(get(ids.ports, rb), p.id);
       if (wanted === undefined) continue;
-      if (taken.has(wanted)) errors.push(`ids: port id '${wanted}' is given twice on created box '${rb}'`);
+      if (taken.has(wanted)) issues.push(issue("duplicate-id", jp("$.ids.ports", rb, p.id), `ids: port id '${wanted}' is given twice on created box '${rb}'`, `Give each port of created box '${rb}' its own id.`));
       taken.add(wanted);
       assigned.set(p.id, wanted);
     }
@@ -569,7 +636,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   for (const [k, p] of R.ports) {
     if (!K.boxes.has(p.box) || K.ports.has(k)) continue;
     const g = get(match.boxes, p.box)!;
-    const id = claim(portIds.get(g)!, get(get(ids.ports, p.box), p.id), p.id, `port of '${g}'`);
+    const id = claim(portIds.get(g)!, get(get(ids.ports, p.box), p.id), p.id, `port of '${g}'`, jp("$.ids.ports", p.box, p.id));
     createdPorts.set(p.box, (createdPorts.get(p.box) ?? new Map()).set(p.id, id));
     newPorts.set(g, [...(newPorts.get(g) ?? []), { id, carrier: sigma(p.carrier), side: p.side }]);
   }
@@ -577,9 +644,9 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   for (const w of wiresOf(rule.right)) {
     if (K.wires.has(w.id)) continue;
     const base = w.like !== undefined ? get(match.wires, w.like)! : w.id;
-    createdWires.set(w.id, claim(wireIds, get(ids.wires, w.id), base, "wire"));
+    createdWires.set(w.id, claim(wireIds, get(ids.wires, w.id), base, "wire", jp("$.ids.wires", w.id)));
   }
-  if (errors.length) return { ok: false, errors };
+  if (issues.length) return fail(issues);
   const boxImage = (b: string) => (K.boxes.has(b) ? get(match.boxes, b)! : createdBoxes.get(b)!);
   const portImage = (b: string, p: string) => (K.ports.has(key(b, p)) ? get(get(match.ports, b), p)! : createdPorts.get(b)!.get(p)!);
 
@@ -626,7 +693,10 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   });
   const result: FunctionModel = { ...model, boxes: [...kept, ...created], wires: [...model.wires.filter((w) => !gone.wires.has(w.id)), ...glued] };
   const after = checkModel(result);
-  if (!after.ok) return { ok: false, errors: after.errors.map((e) => `result: ${e}`) };
+  if (!after.ok) {
+    return fail(after.issues.map((x) => issue("ill-typed-result", "$.rule.right", `result: ${x.message}`,
+      `Applying the rule here leaves the model ill-typed: ${x.hint} Check the rule's right side and the carriers bound to its variables.`)));
+  }
   // A created wire `like` a deleted one on another carrier is the same function in another field: record both carriers.
   const carrier = new Map(model.carriers.map((c) => [c.id, c]));
   const field = (id: string) => ({ carrier: id, layer: carrier.get(id)!.layer, dimension: carrier.get(id)!.dimension });
@@ -760,8 +830,8 @@ type Reason =
  * rows that do not type-check, and past feasibility's caps.
  */
 export function laggingSubsystem(model: FunctionModel) {
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false as const, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   const [d] = TREND_DETECTORS;
   const detector = { id: d.id, name: d.name, source: d.source };
   const loops = harmLoops(model);
