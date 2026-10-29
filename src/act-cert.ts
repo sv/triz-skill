@@ -17,6 +17,14 @@
  *                          and `glue_of_disjoint_regions`; irreducible: disjoint values, a shared
  *                          cell, and `no_section_of_overlap`); gluable or not, by
  *                          `exists_section_iff`.
+ *  - boundedDynamics     — a reachable escalation: the composed boxes' rows as a `Sync` table,
+ *                          the initial and unsafe sets as Bool tables, and the kernel's shortest
+ *                          trace; `reach_of_trace` with each step and the end decided on the
+ *                          tables. Only reachability is certified, never its absence.
+ *  - weaknessRanking     — each strictly ordered pair: both concepts' rows as `Rows` tables, the
+ *                          relation each composes, strict inclusion of what they admit
+ *                          (`AtLeastAsWeak` one way and not the other), and the strictly larger
+ *                          count (`card_lt_of_strictly_weaker`), all decided over every valuation.
  *
  * Statements come from the kernel's result, not from a second implementation. The generator only
  * finds witnesses (the wire behind a step, a shared cell) and fails closed when one is missing.
@@ -24,6 +32,8 @@
  * hosted Worker bundles it.
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
+import { plan as behaviorPlan, portVariables, weaknessRanking } from "./act-behavior.js";
+import { boundedDynamics, type DynamicsSpec } from "./act-dynamics.js";
 
 /** Cap on cells × demands × values per contradiction; at the cap `decide` takes about ten seconds. */
 export const MAX_CERT_WORK = 100_000;
@@ -325,4 +335,273 @@ export function separationCertificate(pc: PhysicalContradiction, opts: { namespa
   const s = separationSection(pc, "Separation0", certifies, ns);
   if (!Array.isArray(s)) return s;
   return { ok: true, namespace: ns, content: assemble("one physical contradiction", ns, [s]), certifies };
+}
+
+/** Cap on the work of deciding a dynamics or weakness certificate; see `rowWork`. */
+export const MAX_CERT_ROWS = 2_000_000;
+
+type Box = FunctionModel["boxes"][number];
+type Side = "in" | "out";
+interface EncodedPort { box: string; side: Side; port: string; carrier: string; }
+
+/** Every port of `boxes` (inputs, then outputs, box by box), then the `extra` input ports, once each. */
+function encodedPorts(boxes: Box[], extra: Array<{ box: string; port: string; carrier: string }> = []): EncodedPort[] {
+  const out: EncodedPort[] = [];
+  const seen = new Set<string>();
+  const add = (p: EncodedPort) => { const k = JSON.stringify([p.box, p.side, p.port]); if (!seen.has(k)) { seen.add(k); out.push(p); } };
+  for (const b of boxes) {
+    for (const q of b.inputs ?? []) add({ box: b.id, side: "in", port: q.id, carrier: q.carrier });
+    for (const q of b.outputs ?? []) add({ box: b.id, side: "out", port: q.id, carrier: q.carrier });
+  }
+  for (const d of extra) add({ box: d.box, side: "in", port: d.port, carrier: d.carrier });
+  return out;
+}
+
+const portKeyOf = (box: string, side: Side, port: string) => JSON.stringify([box, side, port]);
+
+/** The functions whose two ends are both encoded ports. Every function into an encoded port comes from one. */
+function encodedWires(model: FunctionModel, at: Map<string, number>) {
+  return model.wires.filter((w) => at.has(portKeyOf(w.to.box, "in", w.to.port)))
+    .map((w) => ({ id: w.id, src: at.get(portKeyOf(w.from.box, "out", w.from.port)), tgt: at.get(portKeyOf(w.to.box, "in", w.to.port))! }));
+}
+
+/** A box's rows as tables over the encoded ports: which ports each row fixes, and to which value index. */
+function rowTables(boxes: Box[], ports: EncodedPort[], at: Map<string, number>, index: (p: number, value: string) => number) {
+  const rows: Array<{ box: number; fixes: boolean[]; values: number[]; mach?: number; state: number; next: number }> = [];
+  boxes.forEach((b, bi) => {
+    const own = [...(b.inputs ?? []).map((q) => ["in", q.id] as const), ...(b.outputs ?? []).map((q) => ["out", q.id] as const)];
+    const fixes = ports.map((_, p) => own.some(([side, id]) => at.get(portKeyOf(b.id, side, id)) === p));
+    const valuesOf = (r: { in: Record<string, string>; out: Record<string, string> }) => ports.map((q, p) => (fixes[p] ? index(p, q.side === "in" ? r.in[q.port] : r.out[q.port]) : 0));
+    for (const r of b.behavior ?? []) rows.push({ box: bi, fixes, values: valuesOf(r), state: 0, next: 0 });
+    for (const r of b.transition ?? []) rows.push({ box: bi, fixes, values: valuesOf(r), mach: -1, state: b.state!.indexOf(r.state), next: b.state!.indexOf(r.next) });
+  });
+  return rows;
+}
+
+const nested = <T>(rows: T[][], cell: (x: T) => string) => `![${rows.map((r) => vec(r.map(cell))).join(", ")}]`;
+/** Lean string literals, padded with empty ones to `n`. */
+const padded = (xs: string[], n: number) => [...xs, ...Array<string>(n - xs.length).fill(leanString(""))];
+
+/** The declarations every row-table certificate shares: ids, then the rows and functions as tables. */
+function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[] }, rows: ReturnType<typeof rowTables>, wires: Array<{ src?: number; tgt: number }>, valueNames: (p: number) => string[], values: number) {
+  return [
+    `abbrev Box := ${fin(ids.boxes.length)}`,
+    `abbrev Port := ${fin(ids.ports.length)}`,
+    `abbrev Fn := ${fin(wires.length)}`,
+    `abbrev Row := ${fin(rows.length)}`,
+    "",
+    `def boxId : Box → String := ${vec(ids.boxes.map(leanString))}`,
+    "/-- Each port's box and id. -/",
+    `def portOwner : Port → String := ${vec(ids.ports.map((p) => leanString(p.box)))}`,
+    `def portId : Port → String := ${vec(ids.ports.map((p) => leanString(p.port)))}`,
+    `def fnId : Fn → String := ${vec(ids.wires.map(leanString))}`,
+    "/-- The value each index stands for, per port. -/",
+    `def portValueId : Port → Value → String := ${nested(ids.ports.map((_, p) => padded(valueNames(p).map(leanString), values)), (x) => x)}`,
+    "",
+    `def rowBox : Row → Box := ${vec(rows.map((r) => r.box))}`,
+    `def rowFixes : Row → Port → Bool := ${nested(rows.map((r) => r.fixes), String)}`,
+    `def rowValue : Row → Port → Value := ${nested(rows.map((r) => r.values), String)}`,
+    `def fnSource : Fn → Port := ${vec(wires.map((w) => w.src!))}`,
+    `def fnTarget : Fn → Port := ${vec(wires.map((w) => w.tgt))}`,
+  ];
+}
+
+/**
+ * Work of deciding over row tables: configurations or valuations checked, times the rows and ports
+ * each check reads. Above MAX_CERT_ROWS generation fails closed.
+ */
+const rowWork = (checks: number, rows: number, ports: number, wires: number) => checks * (rows * (ports + 1) + wires);
+
+/**
+ * Certificate of a `triz_dynamics` escalation: from an initial state, a run reaches the unsafe set
+ * within the trace's length. The composed boxes' rows are the data; the kernel's shortest trace
+ * is the witness. Fails closed on anything else: an unreachable or undecided escalation (whose
+ * claim is universal), a trace that ends blocked, and an input sequence.
+ */
+export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, opts: { namespace?: string } = {}): Certificate {
+  const ns = namespaceOf(opts);
+  if (typeof ns !== "string") return ns;
+  if (spec.inputs) return { ok: false, errors: ["an input sequence indexes the runs by time; a certificate covers runs without inputs"] };
+  if (!spec.unsafe) return { ok: false, errors: ["pass unsafe: the certificate states an escalation into it"] };
+  const r = boundedDynamics(model, spec);
+  if (!r.ok) return r;
+  if (!r.decided) return { ok: false, errors: [r.note] };
+  const esc = r.escalation!;
+  if (esc.verdict !== "reachable") return { ok: false, errors: [`the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, is certified`] };
+  const last = esc.trace[esc.trace.length - 1];
+  if (!last.values) return { ok: false, errors: ["the trace ends in a blocked state, which has no valuation to certify"] };
+
+  const byId = new Map(model.boxes.map((b) => [b.id, b]));
+  const composed = r.composed.map((id) => byId.get(id)!);
+  const vars = portVariables(model, composed);
+  const ports = encodedPorts(composed);
+  const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
+  const carrierValues = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
+  const names = (p: number) => carrierValues.get(ports[p].carrier)!;
+  const values = Math.max(1, ...ports.map((_, p) => names(p).length));
+  const machines = r.machines;
+  const states = Math.max(1, ...machines.map((m) => m.states.length));
+  const rows = rowTables(composed, ports, at, (p, v) => names(p).indexOf(v));
+  for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
+  const wires = encodedWires(model, at);
+  const work = rowWork(esc.trace.length + 2, rows.length, ports.length, wires.length);
+  if (work > MAX_CERT_ROWS) return { ok: false, errors: [`deciding the trace reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`] };
+
+  // Targets as Bool tables: a condition on a box's state or a port's value; several on one intersect.
+  const stateOk = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length));
+  const valueOk = ports.map((_, p) => Array.from({ length: values }, (_, v) => v < names(p).length));
+  for (const c of spec.unsafe) {
+    if ("state" in c) {
+      const k = machines.findIndex((m) => m.box === c.box);
+      stateOk[k] = stateOk[k].map((ok, s) => ok && c.state.includes(machines[k].states[s]));
+    } else {
+      const p = ports.findIndex((q) => q.box === c.box && q.port === c.port);
+      valueOk[p] = valueOk[p].map((ok, v) => ok && c.values.includes(names(p)[v]));
+    }
+  }
+  const initial = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length && m.initial.includes(m.states[s])));
+  const config = (step: { state: string[]; values?: string[] }) => {
+    const st = machines.map((m, k) => m.states.indexOf(step.state[k]));
+    const vl = ports.map((q, p) => names(p).indexOf(step.values![vars.at(q.box, q.side, q.port)]));
+    return `(${vec(st)}, ${vec(vl)})`;
+  };
+  // Every step of the trace except the last steps on; the last is the unsafe configuration.
+  if (esc.trace.slice(0, -1).some((st) => !st.values)) return { ok: false, errors: ["the trace blocks before its end"] };
+  const k = esc.time;
+  const lines = [
+    "/-! ## The composed boxes as finite data -/",
+    "",
+    `abbrev Machine := ${fin(machines.length)}`,
+    `abbrev State := ${fin(states)}`,
+    `abbrev Value := ${fin(values)}`,
+    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values),
+    `def machineId : Machine → String := ${vec(machines.map((m) => leanString(m.box)))}`,
+    `def stateId : Machine → State → String := ${nested(machines.map((m) => padded(m.states.map(leanString), states)), (x) => x)}`,
+    `def rowMachine : Row → Option Machine := ${vec(rows.map((row) => (row.mach === undefined ? "none" : `some ${row.mach}`)))}`,
+    `def rowState : Row → State := ${vec(rows.map((row) => row.state))}`,
+    `def rowNext : Row → State := ${vec(rows.map((row) => row.next))}`,
+    "",
+    "/-- The composed boxes' rows, read as one synchronous step (`Sync.Step`). -/",
+    "def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩",
+    "",
+    "/-- The states each machine may start in. -/",
+    `def initial : Machine → State → Bool := ${nested(initial, String)}`,
+    "/-- The unsafe set: the states and values it allows, per machine and per port. -/",
+    `def unsafeState : Machine → State → Bool := ${nested(stateOk, String)}`,
+    `def unsafeValue : Port → Value → Bool := ${nested(valueOk, String)}`,
+    "/-- The kernel's shortest trace: each machine's state and each port's value, at times 0 to the end. -/",
+    `def trace : ${fin(esc.trace.length)} → (Machine → State) × (Port → Value) := ${vec(esc.trace.map(config))}`,
+    "",
+    "/-! ## Verdicts -/",
+    "",
+    ...theorem(`\`boundedDynamics\`: from an initial state, a run reaches the unsafe set within ${k} steps (\`reach_of_trace\`).`,
+      "escalation", `∃ a ∈ system.starts initial, ∃ b ∈ system.target unsafeState unsafeValue, reachWithin system.Step ${k} a b`,
+      "⟨traceOf trace 0, by decide +kernel, reach_of_trace (τ := traceOf trace) (by decide +kernel) le_rfl (by decide +kernel)⟩"),
+  ];
+  const certifies = [{ theorem: `${ns}.escalation`, verdict: `boundedDynamics: a run reaches the unsafe set at time ${k}` }];
+  return { ok: true, namespace: ns, content: assemble("one escalation trace", ns, [lines]), certifies };
+}
+
+/**
+ * Certificate of every strictly ordered pair of a `triz_weakness` ranking: the weaker concept admits
+ * every situation the other admits and one more, so its count is strictly larger. Each concept's
+ * rows are the data, in its own namespace. Fails closed when no pair is strictly ordered, and past
+ * MAX_CERT_ROWS: deciding enumerates every valuation of each concept's ports.
+ */
+export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Array<{ box: string; port: string; values: string[] }>, opts: { namespace?: string; maxStates?: number } = {}): Certificate {
+  const ns = namespaceOf(opts);
+  if (typeof ns !== "string") return ns;
+  const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates });
+  if (!r.ok) return r;
+  if (r.verdict !== "ranked") return { ok: false, errors: [`the ranking is ${r.verdict}: ${r.note}`] };
+  const strict = r.pairs.filter((p) => p.order === "first-weaker" || p.order === "second-weaker");
+  if (!strict.length) return { ok: false, errors: ["no pair is strictly ordered: only a strict inclusion (first-weaker or second-weaker) is certified"] };
+
+  // Value indices: a situation input or a deliverable over the union of its values in every concept, sorted; any other port over its carrier's.
+  const situations = r.situations, deliverables = r.deliverables;
+  const unionOf = (match: (q: { box: string; port: string }) => boolean, carrier: string) =>
+    [...new Set(concepts.flatMap((c) => c.model.carriers.find((x) => x.id === carrier)?.values ?? []))].sort()
+      .filter((v) => concepts.some((c) => c.model.boxes.some((b) => (b.inputs ?? []).some((q) => match({ box: b.id, port: q.id }) && q.carrier === carrier)) && (c.model.carriers.find((x) => x.id === carrier)?.values ?? []).includes(v)));
+  const same = (a: { box: string; port: string }) => (q: { box: string; port: string }) => q.box === a.box && q.port === a.port;
+  const inputValues = situations.map((q) => unionOf(same(q), q.carrier));
+  const deliverableValues = deliverables.map((d) => unionOf(same(d), d.carrier));
+
+  const encoded = concepts.map((c) => {
+    const composed = behaviorPlan(c.model, deliverables).composed;
+    const ports = encodedPorts(composed, deliverables);
+    const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
+    const wires = encodedWires(c.model, at);
+    const fed = new Set(wires.map((w) => w.tgt));
+    const carrierValues = new Map(c.model.carriers.map((x) => [x.id, x.values ?? []]));
+    const names = ports.map((q, p) => {
+      const s = q.side === "in" && !fed.has(p) ? situations.findIndex(same(q)) : -1;
+      const d = q.side === "in" ? deliverables.findIndex(same(q)) : -1;
+      return s >= 0 ? inputValues[s] : d >= 0 ? deliverableValues[d] : carrierValues.get(q.carrier)!;
+    });
+    const rows = rowTables(composed, ports, at, (p, v) => names[p].indexOf(v));
+    const reads = situations.map((q) => ports.findIndex((p, i) => p.side === "in" && !fed.has(i) && same(q)(p)));
+    const delivers = deliverables.map((d) => at.get(portKeyOf(d.box, "in", d.port))!);
+    return { id: c.id, composed, ports, wires, names, rows, reads, delivers };
+  });
+  const values = Math.max(1, ...encoded.flatMap((e) => e.names.map((n) => n.length)), ...inputValues.map((n) => n.length), ...deliverableValues.map((n) => n.length));
+  for (const p of strict) {
+    const pair = p.concepts.map((id) => encoded.find((e) => e.id === id)!);
+    const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.ports.length), e.rows.length, e.ports.length, e.wires.length), 0);
+    if (work > MAX_CERT_ROWS) return { ok: false, errors: [`concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`] };
+  }
+
+  const relation = (i: number) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
+  const lines = [
+    "/-! ## The situations and the deliverables -/",
+    "",
+    `abbrev Input := ${fin(situations.length)}`,
+    `abbrev Deliverable := ${fin(deliverables.length)}`,
+    `abbrev Value := ${fin(values)}`,
+    `def inputId : Input → String := ${vec(situations.map((q) => leanString(`${q.box}.${q.port}`)))}`,
+    `def deliverableId : Deliverable → String := ${vec(deliverables.map((d) => leanString(`${d.box}.${d.port}`)))}`,
+    `def inputValueId : Input → Value → String := ${nested(inputValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
+    `def deliverableValueId : Deliverable → Value → String := ${nested(deliverableValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
+    "/-- The situations: each input at one of its declared values. -/",
+    `def inputDomain : Input → Value → Bool := ${nested(inputValues.map((n) => Array.from({ length: values }, (_, v) => v < n.length)), String)}`,
+    "/-- The acceptable values of each deliverable. -/",
+    `def acceptable : Deliverable → Value → Bool := ${nested(deliverables.map((d, i) => Array.from({ length: values }, (_, v) => v < deliverableValues[i].length && acceptable.find(same(d))!.values.includes(deliverableValues[i][v]))), String)}`,
+    "",
+  ];
+  encoded.forEach((e, i) => {
+    lines.push(
+      `/-! ## Concept${i}: the concept named by \`conceptId\` -/`,
+      "",
+      `namespace Concept${i}`,
+      "",
+      `def conceptId : String := ${leanString(e.id)}`,
+      ...rowSection({ boxes: e.composed.map((b) => b.id), ports: e.ports, wires: e.wires.map((w) => w.id) }, e.rows, e.wires, (p) => e.names[p], values),
+      "/-- The port each situation input is, where the concept reads it. -/",
+      `def reads : Input → Option Port := ${vec(e.reads.map((p) => (p < 0 ? "none" : `some ${p}`)))}`,
+      `def delivers : Deliverable → Port := ${vec(e.delivers)}`,
+      "/-- The composed boxes' rows; `rows.relation inputDomain reads delivers` is the concept's input→deliverable relation. -/",
+      "def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩",
+      "",
+      `end Concept${i}`,
+      "",
+    );
+  });
+  lines.push("/-! ## Verdicts -/", "");
+  const certifies: Certified[] = [];
+  for (const p of strict) {
+    const [a, b] = p.concepts.map((id) => concepts.findIndex((c) => c.id === id));
+    const [w, s] = p.order === "first-weaker" ? [a, b] : [b, a];
+    lines.push(
+      ...theorem(`\`weaknessRanking\`: concept ${w} admits every situation concept ${s} admits, and one it does not.`,
+        `weaker_${w}_${s}`, `AtLeastAsWeak (accepts acceptable) ${relation(w)} ${relation(s)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(s)} ${relation(w)}`,
+        "by decide +kernel"),
+      ...theorem(`\`weaknessRanking\`: so concept ${w} admits strictly more situations (\`card_lt_of_strictly_weaker\`).`,
+        `count_${w}_${s}`, `(admitted (accepts acceptable) ${relation(s)}).card < (admitted (accepts acceptable) ${relation(w)}).card`,
+        "card_lt_of_strictly_weaker (by decide +kernel)"),
+    );
+    certifies.push(
+      { theorem: `${ns}.weaker_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' is strictly weaker than '${concepts[s].id}'` },
+      { theorem: `${ns}.count_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' admits strictly more situations than '${concepts[s].id}'` },
+    );
+  }
+  return { ok: true, namespace: ns, content: assemble("strict inclusions of a weakness ranking", ns, [lines]), certifies };
 }

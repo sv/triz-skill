@@ -16,6 +16,7 @@ import { fromHypergraph, toHypergraph } from "../src/act-export.js";
 import { externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking } from "../src/act-behavior.js";
 import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
+import { supportConcept, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -409,36 +410,8 @@ test("the spec's cap: candidate rows are checked before the search, and the sear
   assert.match(errors(weakestTrimSpec(openHousing(), { trim: ["ghost"] })), /ghost/);
 });
 
-/**
- * One support concept: a box `support` reading the lubrication and the temperature (the
- * situations) and supporting the shaft where `ok` says so. Every concept uses the same box and port
- * ids, so they read the same situations.
- */
-function concept(name: string, ok: (lube: string, temp: string) => boolean | "none"): FunctionModel {
-  const rows = ["oiled", "dry"].flatMap((lube) => ["normal", "hot"].flatMap((temp) => {
-    const v = ok(lube, temp);
-    return v === "none" ? [] : [{ in: { lube, temp }, out: { race: v ? "supported" : "unsupported" } }];
-  }));
-  return {
-    domain: "physical",
-    carriers: [
-      { id: "torque", layer: "energy", dimension: "N·m", values: ["rated"] },
-      { id: "radial-load", layer: "energy", dimension: "N radial support", values: ["supported", "unsupported"] },
-      { id: "lube", layer: "material", dimension: "lubricant film", values: ["oiled", "dry"] },
-      { id: "temp", layer: "energy", dimension: "K ambient", values: ["normal", "hot"] },
-    ],
-    boxes: [
-      { id: "motor", name: "Drive motor", role: "tool", outputs: [{ id: "shaft-out", carrier: "torque" }], behavior: [{ in: {}, out: { "shaft-out": "rated" } }] },
-      { id: "support", name, role: "mediator", inputs: [{ id: "lube", carrier: "lube" }, { id: "temp", carrier: "temp" }], outputs: [{ id: "race", carrier: "radial-load" }], behavior: rows },
-      { id: "shaft", name: "Shaft", role: "product", inputs: [{ id: "drive", carrier: "torque" }, { id: "support", carrier: "radial-load" }] },
-    ],
-    wires: [
-      { id: "w-drive", from: { box: "motor", port: "shaft-out" }, to: { box: "shaft", port: "drive" }, carrier: "torque", polarity: "useful" },
-      { id: "w-support", from: { box: "support", port: "race" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful" },
-    ],
-  };
-}
-const acceptable = [{ box: "shaft", port: "drive", values: ["rated"] }, { box: "shaft", port: "support", values: ["supported"] }];
+const concept = supportConcept;
+const acceptable = SUPPORT_ACCEPTABLE;
 const ball = concept("Ball bearing", (lube) => lube === "oiled");
 const bushing = concept("Polymer bushing", (_, temp) => temp === "normal");
 const tight = concept("Tight-fit bearing", (lube, temp) => lube === "oiled" && temp === "normal");

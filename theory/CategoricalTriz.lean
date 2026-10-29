@@ -5,6 +5,7 @@ import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Data.Set.Prod
@@ -562,7 +563,8 @@ The file encodes the model as finite tables and states each verdict about them i
 above: `Wiring.Typed`, `Wiring.Acts` with `edge_on_cycle`, and `IsSection` with
 `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`. Lean checks each
 verdict for that one instance; nothing is extracted. The vocabulary those files share is here,
-so a certificate defines data, not meaning. -/
+so a certificate defines data, not meaning. Certificates of dynamics and weakness verdicts read
+declared rows through the row tables at the end of this file. -/
 
 section Certificates
 
@@ -1185,5 +1187,144 @@ theorem codesign_lfp [Finite P] (h : P → P → Prop) :
     exact UpperSet.coe_subset_coe.mpr hlfp (UpperSet.mem_Ici_iff.mpr hst)
 
 end CoDesign
+
+/-! ## Row tables: certificates of dynamics and weakness verdicts
+
+A certificate of a `triz_dynamics` escalation trace, or of a `triz_weakness` strict inclusion,
+encodes the composed boxes' declared rows, not the kernel's results. Every port is a variable
+and every function between two encoded ports says its ends carry the same value. A row of a box
+fixes each of that box's ports to one value (`fixes`, `val`). A transition row also names its
+machine, its current state, and its next state. The definitions below read these tables as the
+kernel's semantics: a steady state is a valuation every function and every box admits; one
+synchronous step goes from a configuration (global state, valuation) every box admits to the
+next states its picked rows name; the input→deliverable relation is the steady states projected
+onto the inputs a concept reads and its deliverables. The certificate then states the verdict
+with `reachWithin` and `reach_of_trace`, or `AtLeastAsWeak` and `card_lt_of_strictly_weaker`,
+and Lean decides it on the tables. -/
+
+section RowTables
+
+/-- Declared stateless rows over port variables, with the functions joining ports. Row `k` belongs
+to box `box k` and fixes each port `x` with `fixes k x` to `val k x`. -/
+structure Rows (Bx Rw Vr Wr Val : Type*) where
+  box : Rw → Bx
+  fixes : Rw → Vr → Bool
+  val : Rw → Vr → Val
+  src : Wr → Vr
+  tgt : Wr → Vr
+
+/-- Declared rows with state: a transition row (`mach k = some m`) also fixes machine `m`'s
+state to `state k` and its next state to `next k`; a behaviour row has `mach k = none`. -/
+structure Sync (Bx Rw Vr Mc Wr St Val : Type*) where
+  box : Rw → Bx
+  fixes : Rw → Vr → Bool
+  val : Rw → Vr → Val
+  mach : Rw → Option Mc
+  state : Rw → St
+  next : Rw → St
+  src : Wr → Vr
+  tgt : Wr → Vr
+
+variable {Bx Rw Vr Mc Wr St Val In Dl : Type*}
+
+namespace Rows
+
+variable (t : Rows Bx Rw Vr Wr Val)
+
+/-- A steady state: every function's ends agree, and every box has a row the valuation fits. -/
+def Steady (v : Vr → Val) : Prop :=
+  (∀ w, v (t.src w) = v (t.tgt w)) ∧ ∀ b, ∃ k, t.box k = b ∧ ∀ x, t.fixes k x = true → v x = t.val k x
+
+/-- The input→deliverable relation over the situations `dom` allows (each input at one of its
+declared values): a steady state that reads `u` on the inputs the concept reads
+(`reads j = some x`) and delivers `y`. -/
+def relation (dom : In → Val → Bool) (reads : In → Option Vr) (delivers : Dl → Vr) (u : In → Val)
+    (y : Dl → Val) : Prop :=
+  (∀ j, dom j (u j) = true) ∧ ∃ v, t.Steady v ∧ (∀ j x, reads j = some x → v x = u j) ∧ ∀ d, v (delivers d) = y d
+
+instance [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Wr] [DecidableEq Bx] [DecidableEq Val]
+    (v : Vr → Val) : Decidable (t.Steady v) :=
+  inferInstanceAs (Decidable ((∀ w, v (t.src w) = v (t.tgt w)) ∧
+    ∀ b, ∃ k, t.box k = b ∧ ∀ x, t.fixes k x = true → v x = t.val k x))
+
+instance [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Wr] [Fintype Val] [Fintype In]
+    [DecidableEq Bx] [DecidableEq Vr] [DecidableEq Val] (dom : In → Val → Bool) (reads : In → Option Vr)
+    (delivers : Dl → Vr) [Fintype Dl] : DecidableRel (t.relation dom reads delivers) := fun u y =>
+  inferInstanceAs (Decidable ((∀ j, dom j (u j) = true) ∧
+    ∃ v, t.Steady v ∧ (∀ j x, reads j = some x → v x = u j) ∧ ∀ d, v (delivers d) = y d))
+
+end Rows
+
+namespace Sync
+
+variable (t : Sync Bx Rw Vr Mc Wr St Val)
+
+/-- Row `k` fits a configuration: its values, and its machine's current state. -/
+def Fits (k : Rw) (c : (Mc → St) × (Vr → Val)) : Prop :=
+  (∀ x, t.fixes k x = true → c.2 x = t.val k x) ∧ ∀ m, t.mach k = some m → c.1 m = t.state k
+
+/-- A configuration every function and every box admits. -/
+def Consistent (c : (Mc → St) × (Vr → Val)) : Prop :=
+  (∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧ ∀ b, ∃ k, t.box k = b ∧ t.Fits k c
+
+/-- One synchronous step: `c` is admitted, and every box has a row that fits `c` and names the
+next state its machine takes in `c'`. -/
+def Step (c c' : (Mc → St) × (Vr → Val)) : Prop :=
+  (∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧
+    ∀ b, ∃ k, t.box k = b ∧ t.Fits k c ∧ ∀ m, t.mach k = some m → c'.1 m = t.next k
+
+/-- The configurations that start each machine in a state `init` allows. -/
+def starts (_t : Sync Bx Rw Vr Mc Wr St Val) (init : Mc → St → Bool) : Set ((Mc → St) × (Vr → Val)) :=
+  {c | ∀ m, init m (c.1 m) = true}
+
+/-- The admitted configurations where every machine's state and every port's value is one a
+target allows. -/
+def target (st : Mc → St → Bool) (vl : Vr → Val → Bool) : Set ((Mc → St) × (Vr → Val)) :=
+  {c | t.Consistent c ∧ (∀ m, st m (c.1 m) = true) ∧ ∀ x, vl x (c.2 x) = true}
+
+variable [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Mc] [Fintype Wr]
+  [DecidableEq Bx] [DecidableEq Mc] [DecidableEq St] [DecidableEq Val]
+
+instance (k : Rw) (c : (Mc → St) × (Vr → Val)) : Decidable (t.Fits k c) :=
+  inferInstanceAs (Decidable ((∀ x, t.fixes k x = true → c.2 x = t.val k x) ∧ ∀ m, t.mach k = some m → c.1 m = t.state k))
+
+instance : DecidableRel t.Step := fun c c' =>
+  inferInstanceAs (Decidable ((∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧
+    ∀ b, ∃ k, t.box k = b ∧ t.Fits k c ∧ ∀ m, t.mach k = some m → c'.1 m = t.next k))
+
+instance (init : Mc → St → Bool) : DecidablePred (· ∈ t.starts init) := fun c =>
+  inferInstanceAs (Decidable (∀ m, init m (c.1 m) = true))
+
+instance (st : Mc → St → Bool) (vl : Vr → Val → Bool) : DecidablePred (· ∈ t.target st vl) := fun c =>
+  inferInstanceAs (Decidable (((∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧ ∀ b, ∃ k, t.box k = b ∧ t.Fits k c) ∧
+    (∀ m, st m (c.1 m) = true) ∧ ∀ x, vl x (c.2 x) = true))
+
+end Sync
+
+/-- A trace given as a table over times `0` to `k`, read at every time (it stays at time `k`
+after it), so `reach_of_trace` takes it. -/
+def traceOf {σ : Type*} {k : ℕ} (τ : Fin (k + 1) → σ) (i : ℕ) : σ :=
+  τ ⟨min i k, Nat.lt_succ_of_le (Nat.min_le_right i k)⟩
+
+/-- Every deliverable's value is one the table accepts. -/
+def accepts (ok : Dl → Val → Bool) (y : Dl → Val) : Prop := ∀ d, ok d (y d) = true
+
+instance [Fintype Dl] (ok : Dl → Val → Bool) : DecidablePred (accepts ok) := fun y =>
+  inferInstanceAs (Decidable (∀ d, ok d (y d) = true))
+
+instance {α β : Type*} [Fintype β] (R : α → β → Prop) [DecidableRel R] (ok : β → Prop) [DecidablePred ok] :
+    DecidablePred (· ∈ admits R ok) := fun u =>
+  inferInstanceAs (Decidable ((∃ y, R u y) ∧ ∀ y, R u y → ok y))
+
+instance {α β : Type*} [Fintype α] [Fintype β] (ok : β → Prop) [DecidablePred ok] (R S : α → β → Prop)
+    [DecidableRel R] [DecidableRel S] : Decidable (AtLeastAsWeak ok R S) :=
+  inferInstanceAs (Decidable (∀ u, u ∈ admits S ok → u ∈ admits R ok))
+
+/-- The situations a concept admits, as a finite set, so they can be counted. -/
+def admitted {α β : Type*} [Fintype α] [Fintype β] (ok : β → Prop) [DecidablePred ok] (R : α → β → Prop)
+    [DecidableRel R] : Finset α :=
+  Finset.univ.filter (· ∈ admits R ok)
+
+end RowTables
 
 end CategoricalTriz

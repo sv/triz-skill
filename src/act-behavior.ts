@@ -66,8 +66,8 @@ export function deliverablePorts(model: FunctionModel): Typed[] {
 
 interface Plan { composed: Box[]; downstream: string[]; missing: string[]; partialDownstream: string[]; }
 
-/** The boxes that can reach an observed port (backwards along wires), and what they lack. */
-function plan(model: FunctionModel, observe: Endpoint[]): Plan {
+/** The boxes that can reach an observed port (backwards along wires), and what they lack. Exported for certificates (src/act-cert.ts). */
+export function plan(model: FunctionModel, observe: Endpoint[]): Plan {
   const into = new Map<string, FunctionModel["wires"]>();
   for (const w of model.wires) {
     const k = portKey(w.to.box, "in", w.to.port);

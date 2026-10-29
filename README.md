@@ -169,7 +169,9 @@ on; a test checks that every cited name is a theorem there. Typing, harm-loop wi
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
 and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. Nothing is extracted from Lean. The structured verdicts of the
+AXLE service. `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
+reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
+pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions

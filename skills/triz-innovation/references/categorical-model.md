@@ -31,7 +31,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
-| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
+| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate`, `triz_dynamics`, and `triz_weakness` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; row tables `Sync.Step`, `Rows.relation` with `reach_of_trace`, `AtLeastAsWeak`, `card_lt_of_strictly_weaker` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
@@ -180,8 +180,9 @@ list.
 ## Certificates
 
 Tests check the kernel against `theory/`. A certificate checks one run of it instead
-(translation validation). `triz_export` with format `lean`, and `triz_separate` with
-`certificate: true`, return a Lean file that imports `CategoricalTriz`. The file encodes the
+(translation validation). `triz_export` with format `lean`, and `triz_separate`,
+`triz_dynamics`, and `triz_weakness` with `certificate: true`, return a Lean file that imports
+`CategoricalTriz`. The file encodes the
 model as finite tables. It states the kernel's verdicts about those tables in the theory's
 terms, and proves each by `decide` and the theorem the verdict cites. `certifies` lists the
 verdicts. Model ids appear only in escaped string tables, which show the encoding, so no id can
@@ -196,6 +197,21 @@ inject Lean.
 | A separated pair | no common value; disjoint regions on exactly the listed axes and overlap on the others; an assignment that meets both | `separated_iff_axis`, `glue_of_disjoint_regions` |
 | An irreducible pair | no common value; overlap on every axis; no assignment meets both | `no_section_of_overlap` |
 | Gluable, or not | `∃ s, IsSection support values s`, or its negation at a conflict cell | `exists_section_iff` |
+| A reachable escalation (`triz_dynamics`) | from a state the initial table allows, some admitted configuration in the unsafe set is reached within the trace's length: `∃ a ∈ system.starts initial, ∃ b ∈ system.target unsafeState unsafeValue, reachWithin system.Step k a b` | `reach_of_trace`, each step and the end by `decide` |
+| A strictly ordered pair (`triz_weakness`) | the weaker concept admits every situation the other admits, and the other does not admit every situation it admits (`AtLeastAsWeak` one way, not the other); its admitted count is strictly larger | `decide` over every situation and valuation; `card_lt_of_strictly_weaker` |
+
+The dynamics and weakness certificates encode the composed boxes' declared rows, not the kernel's
+results. Every port is a variable; every function between two encoded ports says its ends carry
+the same value; a row fixes each port of its box, and a transition row also its machine's
+current and next state (`Rows`, `Sync` in `theory/`). `Sync.Step` is one synchronous step:
+every box has a row that fits the configuration and names the next state. `Rows.relation` is a
+steady state projected onto the inputs a concept reads and its deliverables, over the situations
+`inputDomain` allows. Only a witness backs the escalation: the kernel's shortest trace, checked
+step by step. The weakness inclusions are decided over every situation and every valuation of
+each concept's ports. An unreachable escalation, an invariant, or an incomparable or equal pair
+is not certified: its claim is universal over runs the trace does not list, or there is no
+strict inclusion to state. Generation fails closed on an input sequence, a trace that ends
+blocked, and past the cap on table reads.
 
 Check a certificate with `node scripts/certify.mjs <file>`:
 
@@ -216,23 +232,30 @@ A certificate is accepted only if all of these hold:
 - Every theorem is elaborated, and each depends on no axiom beyond `propext`,
   `Classical.choice`, and `Quot.sound`. That rules out `native_decide` and an axiom of the
   file's own. With `--tamper`, the script also checks that a
-copy with every verdict negated, or with one function's carrier changed, fails at the theorems
-it must. CI builds the certificates of the bearing and cached-API examples
-(`theory/Certificates/`), which a test keeps equal to the generator's output, and runs both
-checks on them.
+copy with every verdict negated, with one function's carrier changed, with the unsafe set
+emptied, or with no deliverable value acceptable, fails at the theorems it must. CI builds the
+certificates of the bearing and cached-API models, the bearing's escalation, and a ranking of
+three support concepts (`theory/Certificates/`), which a test keeps equal to the generator's
+output, and runs both checks on them.
 
 A certificate does not show:
 
 - that the file encodes your model. The trust base is the Lean kernel, the theory's
   definitions, and the encoding of ids as indices, which the id tables show. Generate the file
   again and compare to check it;
-- more than the listed verdicts. Duplicate ids and behaviour rows are not encoded, and the list
-  of harm loops is not certified complete. Ideality, trimming, transformations, nine windows,
-  isomorphism, and `triz_behavior` verdicts are not certified;
+- more than the listed verdicts. Duplicate ids are not encoded, behaviour rows only in the
+  dynamics and weakness certificates, and the list of harm loops is not certified complete.
+  Ideality, trimming, transformations, nine windows, isomorphism, and `triz_behavior` verdicts
+  are not certified. Of `triz_dynamics`, only a reachable escalation is; of `triz_weakness`,
+  only strict inclusions. Boxes outside the composed set are not encoded: the certificate holds
+  under the same assumption the kernel states (`assumption`), that they accept whatever they
+  receive;
 - anything about the kernel on other inputs. Nothing is extracted from Lean.
 
-Generation fails closed past functions × ports = 250000, or cells × demands × values = 100000
-for a contradiction.
+Generation fails closed past functions × ports = 250000, cells × demands × values = 100000
+for a contradiction, or 2000000 table reads for an escalation trace or a weakness pair. A
+weakness pair's reads grow with the values to the power of its ports, so only small concepts
+are certified.
 
 ## Declared behaviour
 

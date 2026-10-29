@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Function-model JSON Schema and six example models: bearing, bearing with declared behaviour, bearing with declared dynamics, cached API, marketplace, connection pool.
 - `categorical-model.md`: modelling protocol, and what is and is not claimed.
 - CI and Lean workflows can be started by hand (`workflow_dispatch`).
+- Sharper verdicts: `triz_behavior` `weakest_spec` keeps only a box's `producible` rows and names the rows the target needs but the box cannot produce (`infeasible`); `triz_separate` suggests constructions per separating axis; `triz_dynamics` and `triz_weakness` return Lean certificates of a reachable escalation and of strict inclusions.
 
 ### Changed
 
