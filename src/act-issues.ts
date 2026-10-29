@@ -144,6 +144,7 @@ export const ISSUE_CODES = {
   "product-without-deliverable": "Lint: a product box receives no non-harmful function",
   "unused-carrier": "Lint (info): a carrier types no port and no wire",
   "unwired-port": "Lint (info): a port has no wire",
+  "unbacked-producible-row": "Lint: a producible row's output level is reached by no feasibility row of its box, read through the carriers' levels",
 } as const;
 
 export type IssueCode = keyof typeof ISSUE_CODES;

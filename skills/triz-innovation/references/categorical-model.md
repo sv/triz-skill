@@ -294,6 +294,12 @@ changes a verdict:
 - `unwired-port` (info): a port with no wire. An unwired input is a boundary input, the
   operating condition `triz_behavior` and `triz_dynamics` read; an unwired output is capacity
   `triz_trim` may offer as an absorber.
+- `unbacked-producible-row`: a box declares `producible` and `feasibility`, and a producible
+  row's output level is reached by no feasibility row of the box. The feasibility rows are read
+  through the carriers' `levels` as the `levels` check reads them, only at the ports they name,
+  and monotonically, as `triz_feasibility` reads them: a row reaches an output value when the
+  amount it provides there reads as that value or above, at inputs where each amount it requires
+  reads as the producible row's value or below.
 
 The loss lexicon is a heuristic over carrier ids, dimensions, and verbs; a warning is a prompt
 to check the rating, not a finding.
@@ -417,6 +423,7 @@ to check the rating, not a finding.
 | `product-without-deliverable` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A product box receives no non-harmful function |
 | `unused-carrier` | lint (info) | A carrier types no port and no wire |
 | `unwired-port` | lint (info) | A port has no wire |
+| `unbacked-producible-row` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A producible row's output level is reached by no feasibility row of its box, read through the carriers' levels |
 
 ## Certificates
 
@@ -1485,9 +1492,14 @@ The implemented guarantees are separated from future work in
   - It is named for what it computes. It is not abduction, and it does not search for
     mechanisms.
   - `producible` is declared, not derived. The kernel does not check that a physical box can
-    produce those rows and no others, and it does not read `feasibility` levels as rows.
-    `requiredInfeasible` names the rows the target needs that the declaration excludes; it does
-    not say which of them is cheapest to make producible.
+    produce those rows and no others. Where the box also declares `feasibility` and its carriers
+    `levels`, the `unbacked-producible-row` lint names each producible row whose output level no
+    feasibility row reaches; it changes no verdict. It does not check the other way: a level the
+    feasibility rows reach that no producible row lists is not flagged, and producible rows are
+    never derived from feasibility rows. Ports on carriers without levels, values without a level,
+    and ports no feasibility row provides at are not read. `requiredInfeasible` names the rows the
+    target needs that the declaration excludes; it does not say which of them is cheapest to make
+    producible.
 - Lean proves the residual's properties for every context that preserves unions, and that
   composition and the trace preserve unions. The semantics of `theory/Semantics.lean`, with one
   box left open as a hole, is such a context for every diagram and every box declared by rows

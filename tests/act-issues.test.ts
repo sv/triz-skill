@@ -363,7 +363,7 @@ const cases: Case[] = [
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
-const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port"];
+const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row"];
 
 test("every failure carries issues: one per error, a registered code, a path into the input, and a hint", async () => {
   const covered = new Set<IssueCode>();
