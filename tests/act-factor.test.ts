@@ -171,7 +171,7 @@ test("segment reports the suggested partition: the blocks the given parts cut, a
   assert.equal(coupled.behaviourallyIndependent, false);
   assert.deepEqual(coupled.behavior?.suggested, {
     decided: true, parts: [["preload-in", "friction"], ["race"]], basis: ["IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff"],
-    cut: [["preload-in", "friction"]], splitsFurther: ["part-0"],
+    cut: [["preload-in", "friction"]], splitsFurther: [],
     note: "The parts cut the suggested blocks ['preload-in', 'friction']; a split holds iff each part is a union of suggested blocks. Segment into ['preload-in', 'friction'], ['race'], or unions of them, and each part keeps its projection.",
   });
   const finest = seg([["preload-in", "friction"], ["race"]]);

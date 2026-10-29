@@ -220,15 +220,15 @@ export function finestFactorisation(box: Box, opts: { maxSteps?: number } = {}):
 
 /**
  * The finest split of a segmented box, set against the given parts: `cut` lists each suggested
- * block whose ports lie in several parts, and `splitsFurther` each part that holds several
- * blocks. The given parts split iff nothing is cut (`IsFinest.factors_iff`).
+ * block whose ports lie in several parts. The given parts split iff nothing is cut
+ * (`IsFinest.factors_iff`), and then `splitsFurther` lists each part that holds several blocks.
  */
 function suggestParts(box: Box, parts: PartSpec[]) {
   const finest = finestFactorisation(box);
   if (!finest.decided) return finest;
   const owner = new Map(parts.flatMap((p) => p.ports.map((port) => [port, p.id] as const)));
   const cut = finest.parts.filter((b) => new Set(b.map((port) => owner.get(port))).size > 1);
-  const splitsFurther = parts.filter((p) => finest.parts.filter((b) => b.some((port) => p.ports.includes(port))).length > 1).map((p) => p.id);
+  const splitsFurther = cut.length ? [] : parts.filter((p) => finest.parts.filter((b) => b.some((port) => p.ports.includes(port))).length > 1).map((p) => p.id);
   const listed = (bs: string[][]) => bs.map((b) => `[${b.map((p) => `'${p}'`).join(", ")}]`).join(", ");
   return {
     ...finest, cut, splitsFurther,

@@ -641,8 +641,8 @@ is fixed by what was declared:
   port (`exists_isFinest`, `IsFinest.unique`): if R factors over two partitions, it factors over
   their common refinement (`Factors.inf`). A partition splits R iff each of its parts is a union
   of suggested blocks (`IsFinest.factors_iff`), so `behaviourallyIndependent` holds iff `cut`,
-  the suggested blocks whose ports lie in several parts, is empty. `splitsFurther` names the
-  parts that hold several blocks. Two ports share a block iff no split of the ports into two
+  the suggested blocks whose ports lie in several parts, is empty. When it is, `splitsFurther`
+  names the parts that hold several blocks. Two ports share a block iff no split of the ports into two
   groups that R factors over separates them (`IsFinest.rel_iff`). The kernel adds the ports one
   at a time, in box order (inputs, then outputs). It keeps the finest blocks of R's projection
   onto the ports so far, and each new port joins exactly the blocks the rectangle test couples
