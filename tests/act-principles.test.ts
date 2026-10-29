@@ -2,7 +2,7 @@
  * Principle constructions in src/act-principles.ts, plus the trim readings of Principles 6 and 25.
  * Each has a typed result, a mistyped application that fails closed, and its structural property,
  * on the shipped examples and as properties over generated models. The last tests check the
- * classification table in categorical-model.md against data/principles.json.
+ * classification table in docs/theory-map.md against data/principles.json.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -573,8 +573,10 @@ test("principle constructions answer over the shared triz_transform spec", async
   assert.throws(() => input.parse({ model: bearing, transformation: { op: "segment", box: "bearing", parts: [{ id: "a", name: "", ports: ["race", "preload-in"] }, { id: "b", ports: ["friction"] }] } }));
 });
 
-/** Rows of the classification table in categorical-model.md. */
-const doc = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/categorical-model.md"), "utf8");
+/** Rows of the classification table, which the theory map holds for the agent reference. */
+const doc = fs.readFileSync(path.resolve(here, "../docs/theory-map.md"), "utf8");
+/** The agent reference, which keeps the construction table and its disclaimer. */
+const agentDoc = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/categorical-model.md"), "utf8");
 /** The triz_principle tool's data, never recalled text. */
 const principles = lookUpPrinciples();
 const rows = [...doc.matchAll(/^\| (\d+) \| ([^|]+) \| "([^"]+)" \| (structural|parametric|analogy only) \| (.+) \|$/gm)]
@@ -599,6 +601,7 @@ test("every structural row names an operation triz_transform has", () => {
   const structural = rows.filter((r) => r.kind === "structural").map((r) => r.id);
   assert.deepEqual(structural, [1, 2, 5, 6, 11, 13, 16, 22, 23, 24, 25, 26, 27]);
   assert.deepEqual(rows.filter((r) => r.kind === "parametric").map((r) => r.id), [3, 15, 19, 20, 32, 33, 35]);
-  // The disclaimer rule stays next to the table.
-  assert.match(doc, /makes the structural part of the principle checkable\. That does not show the\s+principle solves the problem/);
+  // The disclaimer rule stays next to the construction table in the agent reference, which links the classification.
+  assert.match(agentDoc, /makes the structural part of the principle checkable\. That does not show the\s+principle solves the problem/);
+  assert.match(agentDoc, /\]\(\.\.\/\.\.\/\.\.\/docs\/theory-map\.md#all-40-principles\)/);
 });

@@ -815,7 +815,7 @@ const functionPattern = {
 /**
  * Evolution lines as rules. A line is encoded only when its text in evolution-trends.md describes
  * a structural move on the wiring; the rule encodes that move and no more. The other lines are
- * recorded, with the reason, in categorical-model.md.
+ * recorded in categorical-model.md, with the full reason in docs/theory-map.md.
  */
 export const TREND_RULES: Rule[] = [
   {

@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `categorical-model.md` states that a box declaring `feasibility` joins the `triz_feasibility` solve wherever it sits, and what follows from that.
 - The Lean workflow also runs `TRIZ_REQUIRE_LEAN=1 pnpm test` after the build, and runs on changes to the kernel, tests, examples, and data those tests use.
 - A port-target unreachable certificate (`triz_dynamics` `certificate: true`) also states the kernel's blocked check: no run blocks in a state that meets the unsafe set's state conditions (`Sync.unreachable_of_holding`). A tamper variant that only this conjunct catches, and a fixture whose runs block (`BearingBlocked`), exercise it.
+- `categorical-model.md` is now the agent's operating reference only: what each verdict means, how to read and act on it, and its limits. It gains a map of which model fields unlock which verdicts, with the chaining rules (`box_map`, `levels`, an impossible `weakest_spec`, `scope`, `priors` versus `joint_prior`, the finite assurance tools), and a short list of each verdict's limits. The theorem inventory, which verdict cites which Lean statement, the compositional semantics and certificate internals, the classification of all 40 principles, and the complete "What is not claimed" moved to `docs/theory-map.md`; the full issue and lint code table moved to `references/error-codes.md`.
 
 ## [0.4.0] - 2026-10-29
 

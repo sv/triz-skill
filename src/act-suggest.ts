@@ -17,17 +17,17 @@
  * A suggestion carries no `basis`: nothing is decided until the move is applied and the result
  * checked (triz_function_model compare_to, triz_behavior, triz_dynamics). Principle texts are looked
  * up through `lookup`, which the tool boundary backs with data/principles.json; none is recalled
- * here. Each principle's classification is the one categorical-model.md gives it (tests check).
+ * here. Each principle's classification is the one docs/theory-map.md gives it (tests check).
  */
 import type { Axis, PhysicalContradiction } from "./act.js";
 import { baseOf, separationCheck } from "./act.js";
 
 export interface PrincipleText { id: number; name: string; classic: string; }
 export type PrincipleLookup = (id: number) => PrincipleText | undefined;
-/** How categorical-model.md classifies a principle: a structural move the kernel makes, a parameter it checks, or an analogy. */
+/** How docs/theory-map.md classifies a principle: a structural move the kernel makes, a parameter it checks, or an analogy. */
 export type Classification = "structural" | "parametric" | "analogy only";
 
-/** The principles a suggestion may cite, with their classification in categorical-model.md. */
+/** The principles a suggestion may cite, with their classification in docs/theory-map.md. */
 export const SUGGESTED_PRINCIPLES: ReadonlyMap<number, Classification> = new Map([
   [1, "structural"], [2, "structural"], [11, "structural"], [15, "parametric"], [16, "structural"], [28, "analogy only"],
 ]);

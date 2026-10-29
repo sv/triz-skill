@@ -110,7 +110,8 @@ The kernel behind `triz_function_model`, `triz_trim`, `triz_separate`, `triz_tra
 
 Applied category theory supplies the vocabulary and the shape of each check. It does not
 validate any TRIZ concept, and no result below is computed by the kernel beyond what
-[categorical-model.md](categorical-model.md) states. Each entry gives the reference, then what
+[categorical-model.md](categorical-model.md) states; the [theory map](../../../docs/theory-map.md)
+lists what is not claimed. Each entry gives the reference, then what
 it supports here.
 
 - **Spivak (2013)**, *The operad of wiring diagrams: formalizing a graphical language for
@@ -171,7 +172,8 @@ it supports here.
   - `triz_rule_apply`, which reads a model as a labelled hypergraph for matching and checks both
     conditions before each double-pushout application.
 
-  The encoding of models as hypergraphs is this kernel's own; categorical-model.md gives it.
+  The encoding of models as hypergraphs is this kernel's own; the
+  [theory map](../../../docs/theory-map.md#rules-double-pushout) gives it.
 
 Considered and not adopted:
 
@@ -181,7 +183,7 @@ Considered and not adopted:
   and then removed. The decided trim (`triz_behavior`) depends on the absorber chosen, a trim
   that re-attaches a function is not an inclusion of the trimmed model, and no functor from
   function models along trims was defined. The functor `theory/Semantics.lean` defines, from open
-  diagrams to relations, takes no trim (categorical-model.md).
+  diagrams to relations, takes no trim ([theory map](../../../docs/theory-map.md#what-is-not-claimed)).
 - **Baez & Master (2020)**, *Open Petri nets*, MSCS 30(3), 314–341.
   **Baez & Pollard (2017)**, *A compositional framework for reaction networks*, Rev. Math.
   Phys. 29, 1750028.
@@ -206,7 +208,8 @@ Considered and not adopted:
     (`triz_rule_apply`), with three more evolution lines as rules: mono → bi, self-adjusting
     feedback, and changing the working field. Uneven development of subsystems is a detector
     over the same tool, not a rule.
-  - Not adopted: the other evolution lines. categorical-model.md gives the reason for each.
+  - Not adopted: the other evolution lines. categorical-model.md gives the reason for each, and
+    the [theory map](../../../docs/theory-map.md#evolution-lines-as-rules) gives it in full.
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 

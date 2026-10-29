@@ -4,7 +4,8 @@ This change implements bounded capabilities across the eight workstreams in the 
 It does not remove a limitation merely because a related theorem exists. The remaining work and
 acceptance criteria are in [the separate future plan](categorical-future-plan.md); the ranked
 backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); the bibliography
-is in [theory/REFERENCES.md](../theory/REFERENCES.md).
+is in [theory/REFERENCES.md](../theory/REFERENCES.md). The Lean statement behind each verdict,
+and everything the kernel does not claim, are in the [theory map](theory-map.md).
 The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 
 ## Delivered scope

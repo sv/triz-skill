@@ -12,9 +12,10 @@ they do not cover; item 6 upgrades a tested property to a proved one; item 7 col
 categorical closures. Items 1, 2, 3, and 6 have landed, and parts of 4 and 7. Effort is a focused
 PR (S), a few PRs (M), or a small project (L). The per-workstream acceptance criteria of the
 assurance extension (#35) are in [categorical-future-plan.md](categorical-future-plan.md), and
-what it delivered in [categorical-assurance.md](categorical-assurance.md).
+what it delivered in [categorical-assurance.md](categorical-assurance.md). "What is not claimed",
+which the items close, is in the [theory map](theory-map.md#what-is-not-claimed).
 
-| # | Item | Status | Closes, in categorical-model.md | Effort |
+| # | Item | Status | Closes or adds ("What is not claimed" in the theory map) | Effort |
 |---|---|---|---|---|
 | 1 | Certify unreachability and invariance | **Landed in #39** | Closed | — |
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
@@ -121,4 +122,4 @@ feasibility solver is.
 - **The irreducible not-claims.** Physical truth of declared rows, back-reactions the model
   omits, smooth dynamics and controller synthesis, cross-domain transfer of solutions, and the
   semantic half of analogy stay outside the kernel by design; see "What is not claimed" in
-  [categorical-model.md](../skills/triz-innovation/references/categorical-model.md).
+  the [theory map](theory-map.md#what-is-not-claimed).
