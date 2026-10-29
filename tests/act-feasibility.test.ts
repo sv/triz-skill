@@ -356,6 +356,7 @@ test("a dominated feasibility row fails closed in every tool that takes a model"
     triz_behavior: { model: bad },
     triz_rule_apply: { model: bad, rule_id: "mono-bi" },
     triz_feasibility: { model: bad, trim: ["bearing"] },
+    triz_dynamics: { model: bad },
   };
   const takesModel = toolSpecs().filter((s) => ["model", "present"].some((k) => k in s.shape));
   assert.deepEqual(takesModel.map((s) => s.name).sort(), Object.keys(args).sort());

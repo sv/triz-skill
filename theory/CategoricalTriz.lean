@@ -648,6 +648,144 @@ theorem relTrace_not_loop : ¬ relTrace (fun (p q : PUnit × Bool) => q.2 = !p.2
 
 end Behaviour
 
+/-! ## Declared dynamics (`boundedDynamics`)
+
+A box that declares state and transition rows is a nondeterministic Mealy machine: a relation
+from (state, input) to (next state, output), a map `S × I → Set (S × O)`. A lens or optic with a
+residual is such a machine with the residual as its state; nothing more is claimed. One step
+under the admissible inputs forgets the input and the output. The kernel composes the boxes
+synchronously and searches the step relation on configurations breadth first, up to a horizon.
+The statements below hold for any step relation `r`, so they cover that configuration graph. A
+trace is a sequence `τ : ℕ → σ` whose first `n` steps are admitted. The TypeScript search is
+checked against them by tests, not by extraction. -/
+
+section Dynamics
+
+variable {S I O σ : Type*}
+
+/-- A nondeterministic Mealy machine: `T s i s' o` admits moving from `s` to `s'` on input `i`,
+emitting `o`. -/
+abbrev Mealy (S I O : Type*) := S → I → S → O → Prop
+
+/-- One step under the admissible inputs `X`: some admissible input and some output. -/
+def mealyStep (T : Mealy S I O) (X : Set I) : S → S → Prop := fun s s' => ∃ i ∈ X, ∃ o, T s i s' o
+
+/-- More rows, or more admissible inputs, never remove a step. -/
+theorem mealyStep_mono {T T' : Mealy S I O} {X X' : Set I} (hT : T ≤ T') (hX : X ⊆ X') :
+    mealyStep T X ≤ mealyStep T' X' :=
+  fun _ _ ⟨i, hi, o, h⟩ => ⟨i, hX hi, o, hT _ _ _ _ h⟩
+
+/-- Reachable in exactly `n` steps. -/
+def reachIn (r : σ → σ → Prop) : ℕ → σ → σ → Prop
+  | 0 => Eq
+  | n + 1 => Relation.Comp (reachIn r n) r
+
+/-- Reachable within `n` steps. -/
+def reachWithin (r : σ → σ → Prop) (n : ℕ) (a b : σ) : Prop := ∃ k ≤ n, reachIn r k a b
+
+variable {r r' : σ → σ → Prop}
+
+/-- More admissible steps never remove a configuration reachable in exactly `n` steps. -/
+theorem reachIn_mono (h : r ≤ r') (n : ℕ) : reachIn r n ≤ reachIn r' n := by
+  induction n with
+  | zero => exact le_rfl
+  | succ n ih => exact relation_comp_mono ih h
+
+/-- More admissible steps never remove a configuration reachable within `n` steps. -/
+theorem reachWithin_mono (h : r ≤ r') (n : ℕ) : reachWithin r n ≤ reachWithin r' n :=
+  fun _ _ ⟨k, hk, hr⟩ => ⟨k, hk, reachIn_mono h k _ _ hr⟩
+
+/-- Reachable in exactly `n` steps iff some trace of `n` admitted steps runs from `a` to `b`. -/
+theorem reachIn_iff_trace {n : ℕ} {a b : σ} :
+    reachIn r n a b ↔ ∃ τ : ℕ → σ, τ 0 = a ∧ τ n = b ∧ ∀ i < n, r (τ i) (τ (i + 1)) := by
+  induction n generalizing b with
+  | zero =>
+    constructor
+    · intro h
+      exact ⟨fun _ => a, rfl, h, fun i hi => absurd hi (Nat.not_lt_zero i)⟩
+    · rintro ⟨τ, h0, h1, -⟩
+      exact h0.symm.trans h1
+  | succ n ih =>
+    constructor
+    · rintro ⟨c, hac, hcb⟩
+      obtain ⟨τ, h0, hn, hτ⟩ := ih.mp hac
+      refine ⟨fun i => if i ≤ n then τ i else b, by simp [h0], by simp, fun i hi => ?_⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hi | rfl
+      · simp only [hi.le, Nat.succ_le_of_lt hi, if_true]
+        exact hτ i hi
+      · simp only [le_refl, if_true, Nat.not_succ_le_self, if_false]
+        exact hn ▸ hcb
+    · rintro ⟨τ, h0, hn, hτ⟩
+      exact ⟨τ n, ih.mpr ⟨τ, h0, rfl, fun i hi => hτ i (Nat.lt_succ_of_lt hi)⟩, hn ▸ hτ n (Nat.lt_succ_self n)⟩
+
+/-- Reachable within `n` steps iff some trace of at most `n` admitted steps runs from `a` to `b`:
+a search that exhausts the configurations within `n` steps rules out every such trace. -/
+theorem reachWithin_iff_trace {n : ℕ} {a b : σ} :
+    reachWithin r n a b ↔ ∃ k ≤ n, ∃ τ : ℕ → σ, τ 0 = a ∧ τ k = b ∧ ∀ i < k, r (τ i) (τ (i + 1)) :=
+  exists_congr fun _ => and_congr_right fun _ => reachIn_iff_trace
+
+/-- Every point of one trace is reached at its own time, along that one run: a witness that
+visits two target sets at two times is a single run (separation in time). -/
+theorem reachIn_of_trace {n i : ℕ} {τ : ℕ → σ} (hτ : ∀ j < n, r (τ j) (τ (j + 1))) (hi : i ≤ n) :
+    reachIn r i (τ 0) (τ i) :=
+  reachIn_iff_trace.mpr ⟨τ, rfl, rfl, fun j hj => hτ j (by omega)⟩
+
+/-- Counterexample soundness: a trace of at most `n` admitted steps that ends in `U` makes `U`
+reachable within `n` steps. -/
+theorem reach_of_trace {U : Set σ} {n k : ℕ} {τ : ℕ → σ} (hτ : ∀ i < k, r (τ i) (τ (i + 1)))
+    (hk : k ≤ n) (hU : τ k ∈ U) : ∃ b ∈ U, reachWithin r n (τ 0) b :=
+  ⟨τ k, hU, k, hk, reachIn_iff_trace.mpr ⟨τ, rfl, rfl, hτ⟩⟩
+
+/-- Saturation: if every configuration reachable in `k + 1` steps from the initial set `A` is
+already reachable within `k`, then the configurations within `k` steps are all the reachable
+ones, at any horizon. -/
+theorem reachWithin_saturated {A : Set σ} {k : ℕ}
+    (h : ∀ b, (∃ a ∈ A, reachIn r (k + 1) a b) → ∃ a ∈ A, reachWithin r k a b) (n : ℕ) (b : σ) :
+    (∃ a ∈ A, reachWithin r n a b) → ∃ a ∈ A, reachWithin r k a b := by
+  rintro ⟨a, ha, m, -, hm⟩
+  induction m generalizing b with
+  | zero => exact ⟨a, ha, 0, Nat.zero_le k, hm⟩
+  | succ m ih =>
+    obtain ⟨c, hac, hcb⟩ := hm
+    obtain ⟨a', ha', j, hj, hj'⟩ := ih c hac
+    rcases Nat.lt_or_eq_of_le hj with hj | rfl
+    · exact ⟨a', ha', j + 1, hj, c, hj', hcb⟩
+    · exact h b ⟨a', ha', c, hj', hcb⟩
+
+/-! ### Loop classification
+
+The kernel classifies the closed strongly connected components of the reachable state graph. A
+component is closed when no step leaves it. -/
+
+/-- No step leaves `C`. -/
+def Closed (r : σ → σ → Prop) (C : Set σ) : Prop := ∀ a ∈ C, ∀ b, r a b → b ∈ C
+
+/-- A fixed point lies on a cycle: the run can stay there forever. -/
+theorem fixed_on_cycle {s : σ} (h : r s s) : Relation.TransGen r s s :=
+  Relation.TransGen.single h
+
+/-- A run that enters a closed set never leaves it, at any number of steps (a trap). -/
+theorem closed_reachIn {C : Set σ} (hC : Closed r C) {a : σ} (ha : a ∈ C) (n : ℕ) {b : σ}
+    (h : reachIn r n a b) : b ∈ C := by
+  induction n generalizing b with
+  | zero => exact (show a = b from h) ▸ ha
+  | succ n ih =>
+    obtain ⟨c, hac, hcb⟩ := h
+    exact hC c (ih hac) b hcb
+
+/-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
+cycles have length two or more. -/
+theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc : reachIn r n s s) :
+    2 ≤ n := by
+  rcases n with _ | _ | n
+  · exact absurd hn (lt_irrefl 0)
+  · obtain ⟨c, hsc, hcs⟩ := hc
+    obtain rfl : s = c := hsc
+    exact (h s hcs).elim
+  · omega
+
+end Dynamics
+
 /-! ## Co-design feasibility (`feasibility`, `trimFeasibility`)
 
 Censi's monotone design problems (A Mathematical Theory of Co-Design, arXiv:1512.08055): a

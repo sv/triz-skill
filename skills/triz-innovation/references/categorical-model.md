@@ -8,7 +8,8 @@ carry one flow type and a rating. The checks are finite and deterministic, and t
 Schema: [function-model.schema.json](../schemas/function-model.schema.json). The repository's
 `examples/function-models/` holds worked models of a bearing, a cached API read path, a
 marketplace, and a connection pool. The connection pool has the bearing's wiring shape.
-`bearing-heat-behavior.json` is the bearing with declared behaviour, and
+`bearing-heat-behavior.json` is the bearing with declared behaviour,
+`bearing-heat-dynamics.json` the bearing with a declared shaft temperature, and
 `bearing-heat-feasibility.json` the bearing with declared feasibility.
 
 ## What each piece means
@@ -21,6 +22,8 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
+| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, escalating (a trap, with a shortest trace), oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `return_ge_two` |
 | Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
@@ -43,6 +46,14 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
 2. **Harm loops.** For each reported loop, name the causal mechanism and the evidence for every
    function in the witness cycle. A loop is a candidate to examine, not a finding. Useful-only
    feedback, such as a control loop, is not reported.
+
+   When the loop may escalate over time, declare state on the boxes that hold it, such as a
+   temperature, a queue length, or a balance. Call `triz_dynamics` with the unsafe set as
+   `unsafe`. A `reachable` verdict comes with a shortest trace: the mechanism to substantiate,
+   row by row. Model a damped concept and check that the set is `unreachable`, or pass a safe
+   set to check invariance (see [Declared dynamics](#declared-dynamics)). The result's `loops`
+   says whether the loop runs away into a trap, settles in one of several wells, or oscillates
+   (see [Loop classification](#loop-classification)).
 3. **Trim.** Call `triz_trim` with the boxes to remove. The output holds three things:
    - each orphaned function, which blocks the trim;
    - each absorber, ordered rule B (the object serves itself) and then rule C (another
@@ -71,6 +82,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - `separated`: the listed axes separate the demands. Assign the parameter piecewise.
    - `irreducible`: the demands overlap on every axis. Refine an axis, try another system level,
      or escalate to ARIZ.
+
+   For a separation in time, the snapshot check says which value each stage needs. When the
+   boxes declare state, `triz_dynamics` with `separation` says whether one run of the declared
+   dynamics meets each demand within its time window.
 
 5. **Transform.** Use `triz_transform` to apply one structural move and get the new model back.
    Every result type-checks, or the call fails closed:
@@ -172,6 +187,127 @@ inputs where both models have steady states. If one model has steady states at a
 the other has none, the verdict is `changed`, and the counterexample says which side is empty.
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
+
+## Declared dynamics
+
+A box may declare `state`, the finite set of values it carries from one step to the next, its
+`initial` states, and `transition` rows. A row gives a state, a value for every input port, a
+next state, and a value for every output port. The rows are a relation: a state and inputs with
+no row cannot occur, and several rows are alternatives. `state` and `transition` come together,
+and a box declares `behavior` or `transition`, not both. Every row is type-checked, and an
+undeclared state, port, or value fails closed.
+
+Such a box is a nondeterministic Mealy machine, a map `S × I → P(S × O)`. A lens or optic with a
+residual is exactly such a machine, with the residual as its state. Only that identification is
+claimed: no lens laws, no optic composition beyond the one below, no profunctor formula.
+
+`triz_dynamics` composes the machines:
+
+- **Synchronous steps.** Wires are instantaneous within a step, as in `triz_behavior`, and
+  memory lives only in declared state. A step from a global state is a valuation of the composed
+  ports that every box admits: a stateless box by its `behavior`, a stateful one by its rows at
+  its current state. The rows picked name the next state. A loop through stateless boxes
+  resolves within the step by the relational trace. To model a delay, declare it as state.
+- **Configurations.** The configuration at time t is the global state and the valuation of the
+  step taken at t. A state with no consistent valuation is a blocked configuration: it has no
+  valuation and no successor. The result counts blocked runs and gives a shortest one. A target
+  holds at a blocked configuration when its state conditions hold and it names no port. If it
+  names a port, it is undetermined there, and a verdict it would decide is `undecided` (reason
+  `blocked`), never safe.
+- **Composed boxes.** Every box that declares `transition`, every box a target names, and every
+  box upstream of them. Each must declare `behavior` or `transition`; otherwise the result is
+  undecided and names the boxes. Every other box is assumed to accept whatever it receives, and
+  `partialDownstream` lists those with partial rows.
+- **Inputs.** Without `inputs`, every unwired input port takes every declared value at every
+  step, and the system is time-invariant. With `inputs`, entry t lists the values allowed at
+  time t, and the horizon defaults to its length minus one.
+- **Search.** Runs are explored breadth first from the initial states, up to `horizon` steps
+  (default 20, at most 1000). Every trace is a shortest one, and every trace returned is
+  re-checked against the declared rows, independently of the search. Configurations and search
+  states are capped (`max_states`, at most 100000); past the cap the call fails closed. Only the
+  loop classification, which has no horizon, returns a partial result past the cap instead
+  (`complete: false`; see [Loop classification](#loop-classification)).
+
+A target set is a list of conditions that must all hold at one time: `{ box, state }` names
+states of a stateful box, and `{ box, port, values }` names values of a port, such as
+`{ box: "bearing", port: "friction", values: ["high"] }`. The verdicts:
+
+- **Escalation** (`unsafe`): `reachable`, with a shortest trace from an initial state into the
+  set; `unreachable`, when the reachable configurations stopped growing within the horizon, so
+  no run reaches the set at any horizon; `unreachable-within-horizon`; or `undecided`, when a
+  run blocks where the set is undetermined. With `inputs`,
+  configurations are indexed by time, so the set never stops growing and the verdict stays
+  within the horizon.
+- **Invariance** (`safe`): `violated`, with a shortest trace out of the set; `invariant`;
+  `invariant-within-horizon`; or `undecided`, on the same terms.
+- **Separation in time** (`separation`): two to four demands, each a target set with an
+  inclusive time window; the windows must not overlap. `realizable` means one run visits each
+  target set at some time within its window; the trace and the visit times are the witness.
+  `unrealizable` gives the reason: `demand-never-met`, when no run meets some demand within its
+  window, or `not-in-one-run`, when each demand is met by some run but no single run meets them
+  all. `undecided` means a blocked run might meet them all. The search tracks which demands each
+  run has met, so it never mixes two runs. This
+  extends Principle 15 and separation in time from snapshots to trajectories.
+
+The result also lists the reached fixed points: configurations whose step can leave the state
+unchanged. Tests check, on the examples, that the steps staying at a reached fixed point are
+exactly the steady states `triz_behavior` finds when each stateful box is frozen at that state.
+For stateless boxes every configuration is such a fixed point, and every step's valuations are
+the steady states. The agreement holds only at fixed points a run reaches. A run may never
+settle: a delay in a negation loop oscillates. A steady state may never be reached from the
+declared initial states. Nothing is claimed about convergence.
+
+### Loop classification
+
+Without `inputs`, `triz_dynamics` also classifies how the loops behave in the long run, in
+`loops`. It works on the reachable state graph: the global states of the boxes that declare
+`transition`, with an edge from s to s' when some step from s can move to s'. Steady-state
+`behavior` rows are never read as transitions: a model whose composed boxes declare no
+`transition` is not classified, and neither is one with `inputs`, whose runs vary with time.
+
+- **Exploration.** Breadth first, without a horizon, up to the cap. It starts from the initial
+  states and, when `safe` names states, from every state that meets the safe set's state
+  conditions. Past the cap the result says `complete: false`: every closed component it lists is
+  closed, but others may be missed. When the global states are too many to scan for safe ones,
+  only the initial states are starts, and `safeStartsSkipped` says so. Listings stop at 50, with
+  `closedCount` giving the total.
+- **Closed components.** A strongly connected component is closed when no edge leaves it, so a
+  run that enters it never leaves. Each closed component settles (it has a fixed point, a state
+  that can step to itself), oscillates (a cycle and no fixed point), or blocks (one state with no
+  step, which is not classified).
+- **Classes.** Every class that applies is listed:
+  - `bistable`: fixed points in two or more closed components;
+  - `escalating`: a closed component meets the unsafe set, a trap. A shortest trace from a start
+    into it is the counterexample, and says whether it starts from an initial or a safe state;
+  - `oscillating`: a closed component with a cycle and no fixed point. The result gives one
+    shortest cycle, whose length is at least two, and the period, the gcd of the cycle lengths.
+    A period of 1 means cycles of coprime lengths, not a fixed point.
+
+  `none` means no closed component was found within the cap. A model whose only closed
+  component settles at one fixed point outside the unsafe set has no class. `harmLoops` lists
+  the harm loops through the stateful boxes; the classification is of the composite they run in.
+
+In `theory/`, `Closed` says no step leaves a set. Lean proves that a fixed point lies on a cycle
+(`fixed_on_cycle`), that a closed set holds every run that enters it at any number of steps
+(`closed_reachIn`), and that without a fixed point every return takes at least two steps
+(`return_ge_two`).
+
+In `bearing-heat-dynamics.json` the shaft has a temperature state. From `cold`, the
+heat → preload loop reaches `hot` in two steps, and `hot` is a trap: the loop is `escalating`.
+The tests also check a damped variant, where a warm shaft sheds the extra friction heat: there
+`hot` is unreachable, `cold` or `warm` is invariant at any horizon, and the shaft settles warm.
+
+In `theory/`, `mealyStep` is one step of a machine under the admissible inputs, and `reachIn`
+and `reachWithin` are reachability in exactly and within n steps. Lean proves:
+
+- `reachIn_iff_trace`, `reachWithin_iff_trace`: reachability is an existential over traces;
+- `reach_of_trace`: a counterexample trace is sound;
+- `reachIn_of_trace`: every point of one trace is reached at its own time;
+- `reachWithin_saturated`: a layer that adds nothing completes the reachable set;
+- `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono`: more rows or inputs remove no step.
+
+They hold for any step relation, so they cover the kernel's configuration graph. Lean does not
+prove that the search computes that graph; tests check it.
 
 ## Co-design feasibility
 
@@ -441,7 +577,9 @@ example cohort churn against fee changes. Name it only from that evidence.
     by rule A alone is a restriction; there the statement would be well typed.
   - No functor from a function model to a category of systems was ever defined, so it
     constrained nothing the kernel computes.
-- Nothing computes an optic or lens, or a Grothendieck fibration.
+- Nothing computes a Grothendieck fibration. The one optic computed is a lens with a residual
+  read as a Mealy machine: its bounded runs ([Declared dynamics](#declared-dynamics)), and
+  nothing else about optics.
   - The system operator is not claimed to be a fibration. What is proved is a functor from the
     time chain times the opposite poset of box sets to sets (`Wiring.restrictionGrid`). It
     covers the subsystem and system rows, not the supersystem collapse, and no Grothendieck
@@ -462,6 +600,14 @@ example cohort churn against fee changes. Name it only from that evidence.
   fixpoint: its values are unordered, so there is no least value to iterate from, and iterating
   from no value delivers nothing on an unseeded loop. Feasibility uses one because its levels are
   ordered and its relations monotone ([Co-design feasibility](#co-design-feasibility)).
+  `triz_dynamics` adds bounded runs only where state and initial states are declared.
+- Dynamics are finite and discrete. Smooth dynamics (ODEs, tangent bundles), controller
+  synthesis, double categories, and profunctor coend formulas are not adopted. A `reachable`
+  trace is a candidate mechanism whose rows must be substantiated. `unreachable` holds for the
+  rows and initial states as declared. A loop class describes the declared state graph:
+  `escalating` means a closed component meets the unsafe set, not that a physical quantity
+  grows without bound. Dynamics verdicts are not covered by the label-blindness
+  property tests, and traces break ties in declaration order.
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are
   refused (`undecided`, `no-steady-state`).
@@ -491,9 +637,9 @@ example cohort churn against fee changes. Name it only from that evidence.
   They depend on the wiring shape, not on ids, names, verbs, domain, or carrier layer and
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
   `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize`. The isomorphism check
-  (`comparison.isomorphism`) does not compare carrier values, declared behaviour, or
-  feasibility, so isomorphic models can get different `triz_behavior` and `triz_feasibility`
-  verdicts.
+  (`comparison.isomorphism`) does not compare carrier values, declared behaviour, feasibility,
+  or dynamics, so isomorphic models can get different `triz_behavior`, `triz_feasibility`, and
+  `triz_dynamics` verdicts.
   - Property tests check this over 200 seeded random models with every array permuted.
   - Excluded by design: free text, witness-cycle tie-breaks (which follow id order), absorber
     port tie-breaks (which follow port order), and the truncated conflict-cell list.

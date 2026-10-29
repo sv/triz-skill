@@ -26,7 +26,7 @@ const golden = (file: string, actual: string) => {
 };
 
 test("golden DOT and hypergraph exports for every shipped example", () => {
-  assert.deepEqual(examples, ["bearing-heat", "bearing-heat-behavior", "bearing-heat-feasibility", "connection-pool", "marketplace-take-rate", "software-cache"]);
+  assert.deepEqual(examples, ["bearing-heat", "bearing-heat-behavior", "bearing-heat-dynamics", "bearing-heat-feasibility", "connection-pool", "marketplace-take-rate", "software-cache"]);
   for (const name of examples) {
     const dot = exportModel(example(name), "dot");
     const hyper = exportModel(example(name), "hypergraph");
