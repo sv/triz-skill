@@ -195,7 +195,7 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
 test("constructions do not invent behaviour: coupled parts and an undeclared mediator declare none", () => {
   const seg = segment(bearing(), { box: "bearing", parts: [{ id: "races", ports: ["preload-in", "race"] }, { id: "rolling", ports: ["friction"] }] });
   assert.ok(seg.ok);
-  assert.deepEqual([seg.behaviourallyIndependent, seg.behaviour?.coupled], [false, ["races", "rolling"]]);
+  assert.deepEqual([seg.behaviourallyIndependent, seg.behavior?.coupled], [false, ["races", "rolling"]]);
   assert.ok(seg.model.boxes.every((b) => !["races", "rolling"].includes(b.id) || !b.behavior));
   const r = externalBehavior(seg.model);
   assert.deepEqual(r.ok && !r.decided && r.missingBehavior, ["races", "rolling"]);
@@ -320,7 +320,9 @@ test("a mismatched, ambiguous, or unknown box_map is rejected, and so are inputs
   wider.carriers[0].values = ["0", "1", "2"];
   assert.match(errors(compareBehavior(copier(), wider)), /input port 'src.a' reads carrier 'c' \[0, 1\] in the baseline and 'c' \[0, 1, 2\] in the concept/);
   assert.match(errors(compareBehavior({ ...copier(), wires: [] }, copier())), /^no deliverables/);
-  assert.match(errors(compareBehavior(copier(), { ...copier(), wires: [copier().wires[0], { ...copier().wires[1], carrier: "ghost" }] })), /^concept: /);
+  const illTyped = { ...copier(), wires: [copier().wires[0], { ...copier().wires[1], carrier: "ghost" }] };
+  assert.match(errors(compareBehavior(copier(), illTyped)), /^concept: wire 'wy'/);
+  assert.match(errors(compareBehavior(illTyped, copier())), /^baseline: wire 'wy'/);
 });
 
 test("triz_behavior compare_to: the model is the concept; trim and compare_to exclude each other; box_map needs compare_to", async () => {
@@ -340,7 +342,7 @@ test("triz_behavior compare_to: the model is the concept; trim and compare_to ex
 test("segment splits behaviour only when the relation is the product of its projections onto the parts", () => {
   const split = segment(bearing(), { box: "bearing", parts: [{ id: "load", ports: ["preload-in", "friction"] }, { id: "race", ports: ["race"] }] });
   assert.ok(split.ok && split.behaviourallyIndependent);
-  assert.deepEqual(split.behaviour?.coupled, []);
+  assert.deepEqual(split.behavior?.coupled, []);
   assert.deepEqual(box(split.model, "load").behavior, [{ in: { "preload-in": "nominal" }, out: { friction: "low" } }, { in: { "preload-in": "high" }, out: { friction: "high" } }]);
   assert.deepEqual(box(split.model, "race").behavior, [{ in: {}, out: { race: "supported" } }]);
   const r = compareBehavior(bearing(), split.model);
@@ -352,7 +354,7 @@ test("segment splits behaviour only when the relation is the product of its proj
   assert.ok(compareBehavior(bearing(), out.model, { boxMap: out.boxMap }).ok);
   const coupled = takeOut(bearing(), { box: "bearing", ports: ["friction"], part: { id: "rolling" } });
   assert.ok(coupled.ok && coupled.behaviourallyIndependent === false);
-  assert.deepEqual(coupled.behaviour?.coupled, ["bearing", "rolling"]);
+  assert.deepEqual(coupled.behavior?.coupled, ["bearing", "rolling"]);
 });
 
 const bits = (id: string) => ({ id, carrier: "c" });

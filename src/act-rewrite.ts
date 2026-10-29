@@ -178,7 +178,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
     between,
     ...(split ? {
       behaviourallyIndependent: split.independent,
-      behaviour: {
+      behavior: {
         coupled: split.coupled,
         basis: split.basis,
         note: split.independent

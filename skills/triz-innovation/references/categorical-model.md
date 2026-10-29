@@ -203,7 +203,7 @@ is fixed by what was declared:
   (`behaviourallyIndependent`). If it holds, each part gets its projection as its behaviour, and
   the parts compose back to R. If not, no relations on the parts compose back to R
   (`eq_projections_prod_iff`, `eq_projections_pi_iff`): the parts get no behaviour, and
-  `behaviour.coupled` names each part whose ports are not independent of all the other parts
+  `behavior.coupled` names each part whose ports are not independent of all the other parts
   together. A pairwise test would not do: in c = a xor b, any two ports range freely, yet no
   port splits off. Since R is always contained in the product of its projections, equality is
   decided by counting distinct rows, |R| = Π|πᵢR|, in about k·|R| steps for k parts, without
@@ -439,7 +439,7 @@ example cohort churn against fee changes. Name it only from that evidence.
   say that the parts are the box, physically or economically.
 - A segment's split is decided for the declared relation and the given partition. It holds for
   the parts' projections as composed by `triz_behavior`, where a part that cannot reach a
-  deliverable is not composed. `behaviour.coupled` tests each part against all the others; it
+  deliverable is not composed. `behavior.coupled` tests each part against all the others; it
   does not search for groups of parts that split from each other.
 - An identity mediator is the identity on the declared values. Its cost, delay, and new harms
   are not modelled.

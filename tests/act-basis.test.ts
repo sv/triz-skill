@@ -156,7 +156,7 @@ test("behaviour constructions cite what they use: comp_eq for an identity mediat
   assert.deepEqual([lossy.behavior.identity, lossy.behavior.basis], [false, undefined]);
   assert.deepEqual((await via(undefined)).behavior, undefined);
 
-  const split = async (parts: string[][]) => (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } })).behaviour.basis;
+  const split = async (parts: string[][]) => (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } })).behavior.basis;
   assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff"]);
   assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff"]);
   assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff", "eq_projections_pi_iff"]);
