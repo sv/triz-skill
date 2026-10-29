@@ -186,14 +186,15 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    such as different deliverables at two times, is reported there and never fails the grid.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape. Use
-   format `lean` for a certificate that Lean can check (see Certificates).
+   format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
+   `triz_dynamics`, and `triz_weakness` return one with `certificate: true`.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the last column above, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
-extracted from Lean. Typing, harm-loop witness, and separation verdicts can also be certified
-per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
+extracted from Lean. Typing, harm-loop witness, separation, reachable-escalation, and strict
+weakness verdicts can also be certified per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
 verdict that needs no theorem, such as a compatible pair, cites none. A theorem is cited only
 where its statement is exactly what the verdict uses. The table marks the others as never cited.
 Most are semantic sanity lemmas: they pin the semantics down on the tests' own examples
@@ -1011,7 +1012,9 @@ example cohort churn against fee changes. Name it only from that evidence.
   that the trace is monotone, that the trace of a swap is the identity, that every value is a
   steady state of an identity loop, and that a negation loop has none. These are semantic sanity
   lemmas; no verdict cites them. The evaluator is checked by tests, not extracted from these
-  statements, and its verdicts are not certified per instance.
+  statements, and `triz_behavior`'s verdicts are not certified per instance. The weakness
+  certificates restate composition from the declared rows (`Rows.relation`) and decide it
+  there; they do not certify the evaluator either.
 - The weakest specification is decided for one box without behaviour only. With several, the
   safe relations are not a product of per-box residuals, so none is computed.
   - It is the residual of the declared context. It says what the box must do for the concept's
@@ -1047,8 +1050,19 @@ example cohort churn against fee changes. Name it only from that evidence.
   rows and initial states as declared. A loop class describes the declared state graph:
   `trapped` means a closed component lies inside the unsafe set, and `recurrent` that one meets
   it and holds a safe configuration; neither says that a physical quantity grows without bound,
-  and `recurrent` does not say how often, or whether, a run returns to the unsafe set. Dynamics verdicts are not covered by the label-blindness
-  property tests, and traces break ties in declaration order.
+  and `recurrent` does not say how often, or whether, a run returns to the unsafe set.
+  Dynamics verdicts are not covered by the label-blindness property tests, and traces break
+  ties in declaration order.
+- The dynamics and weakness certificates certify what a witness or an exhaustive decision
+  supports, and nothing else:
+  - of `triz_dynamics`, only a reachable escalation, witnessed by one trace. Unreachability,
+    invariance, separation in time, and loop classes are not certified, and runs under an
+    input sequence are not encoded;
+  - of `triz_weakness`, only strict inclusions, decided over every situation and valuation
+    within the cap on table reads, so only small concepts are certified. Incomparable and equal
+    pairs are not;
+  - only the composed boxes are encoded. Each certificate holds under the kernel's stated
+    `assumption`: every other box accepts whatever it receives.
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are
   refused (`undecided`, `no-steady-state`).

@@ -349,6 +349,13 @@ test("a weakness certificate states each strictly ordered pair, and only those",
   assert.match(c.content, /^def conceptId : String := "tight"$/m);
   assert.match(c.content, /^theorem count_1_2 : \(admitted \(accepts acceptable\) \(Concept2\.rows\.relation inputDomain Concept2\.reads Concept2\.delivers\)\)\.card < /m);
   assert.deepEqual(lint(c.content), []);
+  // Declared value order does not matter: every port of a carrier uses one sorted order, so a
+  // function's two ends, and a deliverable across concepts, compare indices of one order.
+  const reordered = supportConcepts().map((x) => {
+    for (const k of x.model.carriers) if (k.values) k.values = [...k.values].reverse();
+    return x;
+  });
+  assert.equal(content(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), c.content);
   // Acceptability given per carrier, or as a threshold through the carrier's levels: the same table.
   const byCarrier = weaknessCertificate(concepts, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", values: ["supported"] }]);
   assert.equal(content(byCarrier), c.content);
@@ -441,7 +448,7 @@ test("the checker's grammar pins the new verdicts and their namespaces", () => {
   }
 });
 
-leanTest("Lean accepts escalation and weakness certificates of hostile ids and asymmetric situations", async () => {
+leanTest("Lean accepts escalation and weakness certificates of hostile ids, asymmetric situations, and unsorted values", async () => {
   const magnetic = supportConcept("Magnetic bearing", () => true);
   // The magnetic concept also reads a one-valued mode its rival ignores: situations stay at declared values.
   magnetic.carriers.push({ id: "mode", layer: "information", dimension: "mode", values: ["on"] });
@@ -452,6 +459,20 @@ leanTest("Lean accepts escalation and weakness certificates of hostile ids and a
     dynamicsCertificate(hostileDynamics(), { unsafe: [{ box: "s -/ #exit /- \"x\"", state: ["h😀"] }] }, { namespace: "HostileRun" }),
     dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: [{ box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "PortRun" }),
     weaknessCertificate([{ id: "magnetic", model: magnetic }, supportConcepts()[0]], SUPPORT_ACCEPTABLE, { namespace: "Asymmetric" }),
+    // Values declared out of sorted order, on a deliverable's carrier and on a function between two composed boxes.
+    weaknessCertificate(supportConcepts().map((x) => {
+      const m = x.model;
+      m.carriers.find((k) => k.id === "radial-load")!.values = ["unsupported", "supported"];
+      m.carriers.push({ id: "grip", layer: "energy", dimension: "grip", values: ["tight", "loose"] });
+      const support = m.boxes.find((b) => b.id === "support")!;
+      support.outputs = [{ id: "grip", carrier: "grip" }];
+      support.behavior = support.behavior!.map((row) => ({ in: row.in, out: { grip: row.out.race === "supported" ? "tight" : "loose" } }));
+      m.boxes.push({ id: "sleeve", name: "Sleeve", role: "mediator", inputs: [{ id: "grip", carrier: "grip" }], outputs: [{ id: "race", carrier: "radial-load" }],
+        behavior: [{ in: { grip: "tight" }, out: { race: "supported" } }, { in: { grip: "loose" }, out: { race: "unsupported" } }] });
+      m.wires = m.wires.map((w) => (w.id === "w-support" ? { ...w, from: { box: "sleeve", port: "race" } } : w));
+      m.wires.push({ id: "w-grip", from: { box: "support", port: "grip" }, to: { box: "sleeve", port: "grip" }, carrier: "grip", polarity: "useful" });
+      return x;
+    }), SUPPORT_ACCEPTABLE, { namespace: "Unsorted" }),
   ];
   const combined = ["import CategoricalTriz", ...parts.map((p) => content(p).split("\n").slice(1).join("\n"))].join("\n");
   const r = await check(combined, { mode: "local" });

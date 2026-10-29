@@ -517,14 +517,16 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
   const strict = r.pairs.filter((p) => p.order === "first-weaker" || p.order === "second-weaker");
   if (!strict.length) return { ok: false, errors: ["no pair is strictly ordered: only a strict inclusion (first-weaker or second-weaker) is certified"] };
 
-  // Value indices: a situation input or a deliverable over the union of its values in every concept, sorted; any other port over its carrier's.
+  // Value indices: one order per carrier id, the sorted union of its values in every concept. A
+  // function's two ends share a carrier, and a situation or deliverable is read the same way in
+  // every concept, so every equality the tables state compares indices of one order.
   const situations = r.situations, deliverables = r.deliverables;
-  const unionOf = (match: (q: { box: string; port: string }) => boolean, carrier: string) =>
-    [...new Set(concepts.flatMap((c) => c.model.carriers.find((x) => x.id === carrier)?.values ?? []))].sort()
-      .filter((v) => concepts.some((c) => c.model.boxes.some((b) => (b.inputs ?? []).some((q) => match({ box: b.id, port: q.id }) && q.carrier === carrier)) && (c.model.carriers.find((x) => x.id === carrier)?.values ?? []).includes(v)));
+  const orders = new Map<string, string[]>();
+  const order = (carrier: string) => orders.get(carrier)
+    ?? orders.set(carrier, [...new Set(concepts.flatMap((c) => c.model.carriers.find((x) => x.id === carrier)?.values ?? []))].sort()).get(carrier)!;
   const same = (a: { box: string; port: string }) => (q: { box: string; port: string }) => q.box === a.box && q.port === a.port;
-  const inputValues = situations.map((q) => unionOf(same(q), q.carrier));
-  const deliverableValues = deliverables.map((d) => unionOf(same(d), d.carrier));
+  const inputValues = situations.map((q) => order(q.carrier));
+  const deliverableValues = deliverables.map((d) => order(d.carrier));
 
   const encoded = concepts.map((c) => {
     const composed = behaviorPlan(c.model, deliverables).composed;
@@ -532,18 +534,18 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
     const wires = encodedWires(c.model, at);
     const fed = new Set(wires.map((w) => w.tgt));
-    const carrierValues = new Map(c.model.carriers.map((x) => [x.id, x.values ?? []]));
-    const names = ports.map((q, p) => {
-      const s = q.side === "in" && !fed.has(p) ? situations.findIndex(same(q)) : -1;
-      const d = q.side === "in" ? deliverables.findIndex(same(q)) : -1;
-      return s >= 0 ? inputValues[s] : d >= 0 ? deliverableValues[d] : carrierValues.get(q.carrier)!;
-    });
+    const names = ports.map((q) => order(q.carrier));
     const rows = rowTables(composed, ports, at, (p, v) => names[p].indexOf(v));
     const reads = situations.map((q) => ports.findIndex((p, i) => p.side === "in" && !fed.has(i) && same(q)(p)));
     const delivers = deliverables.map((d) => at.get(portKeyOf(d.box, "in", d.port))!);
     return { id: c.id, composed, ports, wires, names, rows, reads, delivers };
   });
   const values = Math.max(1, ...encoded.flatMap((e) => e.names.map((n) => n.length)), ...inputValues.map((n) => n.length), ...deliverableValues.map((n) => n.length));
+  // A situation input ranges over the values its carrier declares in a concept that reads it as a boundary input (the readers agree).
+  const declaredInput = situations.map((q, j) => {
+    const k = encoded.findIndex((e) => e.reads[j] >= 0);
+    return concepts[k].model.carriers.find((x) => x.id === q.carrier)!.values ?? [];
+  });
   for (const p of strict) {
     const pair = p.concepts.map((id) => encoded.find((e) => e.id === id)!);
     const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.ports.length), e.rows.length, e.ports.length, e.wires.length), 0);
@@ -565,7 +567,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     `def inputValueId : Input → Value → String := ${nested(inputValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
     `def deliverableValueId : Deliverable → Value → String := ${nested(deliverableValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
     "/-- The situations: each input at one of its declared values. -/",
-    `def inputDomain : Input → Value → Bool := ${nested(inputValues.map((n) => Array.from({ length: values }, (_, v) => v < n.length)), String)}`,
+    `def inputDomain : Input → Value → Bool := ${nested(inputValues.map((n, j) => Array.from({ length: values }, (_, v) => v < n.length && declaredInput[j].includes(n[v]))), String)}`,
     "/-- The acceptable values of each deliverable. -/",
     `def acceptable : Deliverable → Value → Bool := ${nested(deliverables.map((d, i) => Array.from({ length: values }, (_, v) => v < deliverableValues[i].length && accepted(d).includes(deliverableValues[i][v]))), String)}`,
     "",
