@@ -31,13 +31,14 @@ const SEEDS = 200;
 const sorted = <T>(xs: T[]) => xs.map((x) => JSON.stringify(x)).sort();
 
 /** Maps ids of a relabelled model back to the original; identity for the original itself. */
-interface Back { box(id: string): string; wire(id: string): string; carrier(id: string): string; dim(id: string): string; demand(id: string): string; value(id: string): string; cell(id: string): string; }
-const identity: Back = { box: (x) => x, wire: (x) => x, carrier: (x) => x, dim: (x) => x, demand: (x) => x, value: (x) => x, cell: (x) => x };
+interface Back { box(id: string): string; port(box: string, id: string): string; wire(id: string): string; carrier(id: string): string; dim(id: string): string; demand(id: string): string; value(id: string): string; cell(id: string): string; }
+const identity: Back = { box: (x) => x, port: (_, x) => x, wire: (x) => x, carrier: (x) => x, dim: (x) => x, demand: (x) => x, value: (x) => x, cell: (x) => x };
 function backOf(maps: Maps): Back {
   const inv = { box: invert(maps.box), wire: invert(maps.wire), carrier: invert(maps.carrier), dim: invert(maps.dim), demand: invert(maps.demand), value: invert(maps.value), cell: invert(maps.cell) };
   const get = (m: Map<string, string>, x: string) => { assert.ok(m.has(x), `unmapped id '${x}'`); return m.get(x)!; };
   return {
     box: (x) => get(inv.box, x), wire: (x) => get(inv.wire, x), carrier: (x) => get(inv.carrier, x),
+    port: (b, x) => get(invert(maps.port.get(get(inv.box, b))!), x),
     dim: (x) => (x === "harmful" ? x : get(inv.dim, x)), demand: (x) => get(inv.demand, x), value: (x) => get(inv.value, x), cell: (x) => get(inv.cell, x),
   };
 }
@@ -45,7 +46,8 @@ function backOfMapping(mapping: ModelMapping): Back {
   const inv = (r: Record<string, string>) => new Map(Object.entries(r).map(([k, v]) => [v, k]));
   const [box, wire, carrier, dim] = [inv(mapping.boxes), inv(mapping.wires), inv(mapping.carriers), inv(mapping.dims)];
   const opaque = () => "(contradiction ids are not part of the wiring isomorphism)";
-  return { box: (x) => box.get(x)!, wire: (x) => wire.get(x)!, carrier: (x) => carrier.get(x)!, dim: (x) => dim.get(x)!, demand: opaque, value: opaque, cell: opaque };
+  const port = (b: string, x: string) => inv(mapping.ports[box.get(b)!]).get(x)!;
+  return { box: (x) => box.get(x)!, port, wire: (x) => wire.get(x)!, carrier: (x) => carrier.get(x)!, dim: (x) => dim.get(x)!, demand: opaque, value: opaque, cell: opaque };
 }
 
 /** A witness cycle must start along its wire, follow wires, close, and stay in its loop. */
@@ -73,7 +75,7 @@ function wiringVerdicts(m: FunctionModel, back: Back, trim: string[]) {
     }))),
     ideality: {
       functions: p.functions,
-      deliverables: sorted(p.deliverables.map((d) => [back.box(d.box), back.carrier(d.carrier), d.polarity])),
+      deliverables: sorted(p.deliverables.map((d) => [back.box(d.box), back.port(d.box, d.port), back.carrier(d.carrier), d.polarity])),
       costs: sorted(Object.entries(p.costs).map(([d, v]) => [back.dim(d), v])),
       budget: p.budget && { over: sorted(p.budget.overBudget.map(back.dim)), unbudgeted: sorted(p.budget.unbudgeted.map(back.dim)), within: p.budget.withinBudget },
       ratio: p.ratio.computable ? p.ratio.value : "not computable",
@@ -96,7 +98,7 @@ function separationVerdicts(m: FunctionModel, back: Back) {
     const s = separationCheck(pc), d = dynamize(pc, "time");
     return {
       separation: !s.ok ? { ok: false, errors: s.errors.length } : {
-        contradiction: s.contradiction, gluable: s.gluable, conflictCells: s.conflictCellCount,
+        contradiction: s.contradiction, gluable: s.gluable, conflictCells: s.conflictCellCount, sharedValues: sorted(s.sharedValues.map(back.value)),
         pairs: sorted(s.pairs.map((x) => ({
           demands: sorted(x.demands.map(back.demand)), status: x.status,
           shared: x.sharedValues ? sorted(x.sharedValues.map(back.value)) : null,
@@ -125,7 +127,7 @@ function compareVerdict(a: FunctionModel, b: FunctionModel, back: Back) {
   const axis = (x: string) => (x.startsWith("cost:") ? `cost:${back.dim(x.slice(5))}` : x);
   const key = (k: string, list: FunctionModel) => {
     const d = idealityProfile(list).deliverables.find((x) => x.key === k)!;
-    return [back.box(d.box), back.carrier(d.carrier)];
+    return [back.box(d.box), back.port(d.box, d.port), back.carrier(d.carrier)];
   };
   return {
     verdict: c.verdict, better: sorted(c.better.map(axis)), worse: sorted(c.worse.map(axis)),

@@ -77,6 +77,9 @@ test("exports fail closed on a mistyped model; decoding fails closed on a tamper
 
 test("DOT escapes hostile ids and labels (checked with Graphviz when it is installed)", (t) => {
   const models = Array.from({ length: 50 }, (_, i) => genModel(rng(500 + i)));
+  const spaced = genModel(rng(1));
+  spaced.boxes.push({ ...structuredClone(spaced.boxes[0]), id: ` ${spaced.boxes[0].id}  ` });
+  models.push(spaced);
   for (const m of models) {
     const dot = toDot(m);
     for (const b of m.boxes) assert.ok(dot.includes(`"${b.id.replace(/[\\"]/g, "\\$&")}" [label=`), b.id);
@@ -88,6 +91,8 @@ test("DOT escapes hostile ids and labels (checked with Graphviz when it is insta
     const r = spawnSync("dot", ["-Tplain"], { input: toDot(m) });
     assert.equal(r.status, 0, r.stderr.toString());
     assert.doesNotMatch(r.stderr.toString(), /warning|error/i, r.stderr.toString());
+    // Distinct ids stay distinct nodes (ids differing only in whitespace included).
+    assert.equal(r.stdout.toString().split("\n").filter((l) => l.startsWith("node ")).length, m.boxes.length);
   }
 });
 

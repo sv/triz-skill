@@ -80,8 +80,9 @@ export function collapse(model: FunctionModel, group: string[], box: { id: strin
   const inputs = groupBoxes.flatMap((b) => kept(b, "in", b.inputs)), outputs = groupBoxes.flatMap((b) => kept(b, "out", b.outputs));
   const clash = duplicates([...inputs, ...outputs].map((p) => p.id));
   if (clash.length) return { ok: false as const, errors: clash.map((id) => `collapse: port name '${id}' is ambiguous; rename the boxes or ports involved`) };
-  const cost: Record<string, number> = {};
-  for (const b of groupBoxes) for (const [d, v] of Object.entries(b.cost ?? {})) cost[d] = (cost[d] ?? 0) + v;
+  const total = new Map<string, number>();
+  for (const b of groupBoxes) for (const [d, v] of Object.entries(b.cost ?? {})) total.set(d, (total.get(d) ?? 0) + v);
+  const cost = Object.fromEntries(total);
   const black: Box = {
     id: box.id, name: box.name, role: box.role,
     ...(box.action !== undefined ? { action: box.action } : {}),

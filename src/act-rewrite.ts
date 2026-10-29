@@ -100,14 +100,14 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
   const partIds = spec.parts.map((p) => p.id);
   const costTo = spec.costTo ?? {};
   for (const [dim, part] of Object.entries(costTo)) {
-    if (!(dim in (box.cost ?? {}))) errors.push(`costTo: box '${box.id}' has no cost dimension '${dim}'`);
+    if (!Object.hasOwn(box.cost ?? {}, dim)) errors.push(`costTo: box '${box.id}' has no cost dimension '${dim}'`);
     if (!partIds.includes(part)) errors.push(`costTo: '${dim}' assigned to unknown part '${part}'`);
   }
   if (errors.length) return { ok: false as const, errors };
 
   const parts: Box[] = spec.parts.map((part, i) => {
     const pick = (list: Port[] | undefined) => (list ?? []).filter((p) => owner.get(p.id) === part.id);
-    const cost = Object.fromEntries(Object.entries(box.cost ?? {}).filter(([dim]) => (costTo[dim] ?? partIds[0]) === part.id));
+    const cost = Object.fromEntries(Object.entries(box.cost ?? {}).filter(([dim]) => (Object.hasOwn(costTo, dim) ? costTo[dim] : partIds[0]) === part.id));
     const inputs = pick(box.inputs), outputs = pick(box.outputs);
     return {
       id: part.id,
@@ -164,7 +164,7 @@ export function takeOut(model: FunctionModel, spec: {
       ? [`useful functions [${usefulLeft.join(", ")}] stay on the remainder: the taken ports are not the only needed part`]
       : [`no useful function touches ports [${spec.ports.join(", ")}] of '${box.id}'`] };
   }
-  const costTo = Object.fromEntries(Object.keys(box.cost ?? {}).map((d) => [d, spec.costTo?.[d] ?? box.id]));
+  const costTo = Object.fromEntries(Object.keys(box.cost ?? {}).map((d) => [d, spec.costTo && Object.hasOwn(spec.costTo, d) ? spec.costTo[d] : box.id]));
   const s = segment(model, {
     box: box.id,
     parts: [

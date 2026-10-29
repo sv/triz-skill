@@ -22,8 +22,10 @@ export type ExportFormat = "dot" | "hypergraph";
 
 /** Record-label text: backslash-escape the characters records treat as structure. */
 const recordText = (s: string) => s.replace(/\s+/g, " ").replace(/[\\{}|<>"]/g, "\\$&");
-/** Quoted DOT string (ids and plain labels). */
-const quoted = (s: string) => `"${s.replace(/\s+/g, " ").replace(/[\\"]/g, "\\$&")}"`;
+/** Quoted DOT id: only quote and backslash are escaped, so distinct ids stay distinct. */
+const quoted = (s: string) => `"${s.replace(/[\\"]/g, "\\$&")}"`;
+/** Quoted DOT label: whitespace collapsed for display. */
+const label = (s: string) => quoted(s.replace(/\s+/g, " "));
 
 const EDGE_STYLE: Record<Polarity, string> = {
   useful: `color="black"`,
@@ -49,7 +51,7 @@ export function toDot(model: FunctionModel): string {
   const key = (box: string, side: "in" | "out", port: string) => JSON.stringify([box, side, port]);
   const lines = [
     "digraph function_model {",
-    `  graph [rankdir=LR${model.system ? `, label=${quoted(model.system)}, labelloc=t` : ""}];`,
+    `  graph [rankdir=LR${model.system ? `, label=${label(model.system)}, labelloc=t` : ""}];`,
     `  node [shape=record, fontname="Helvetica", fontsize=11];`,
     `  edge [fontname="Helvetica", fontsize=9];`,
   ];
@@ -67,8 +69,8 @@ export function toDot(model: FunctionModel): string {
   for (const w of model.wires) {
     const from = `${quoted(w.from.box)}:${portName.get(key(w.from.box, "out", w.from.port))}:e`;
     const to = `${quoted(w.to.box)}:${portName.get(key(w.to.box, "in", w.to.port))}:w`;
-    const label = [w.verb ?? w.id, ...(w.polarity === "useful" ? [] : [`[${w.polarity}]`])].join(" ");
-    lines.push(`  ${from} -> ${to} [label=${quoted(label)}, ${EDGE_STYLE[w.polarity]}];`);
+    const text = [w.verb ?? w.id, ...(w.polarity === "useful" ? [] : [`[${w.polarity}]`])].join(" ");
+    lines.push(`  ${from} -> ${to} [label=${label(text)}, ${EDGE_STYLE[w.polarity]}];`);
   }
   lines.push("}");
   return lines.join("\n") + "\n";

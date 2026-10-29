@@ -24,7 +24,9 @@ export interface ModelMapping {
   dims: Record<string, string>;
 }
 
+/** Own-property lookups: ids and dimension names are user data, so inherited keys never count. */
 const own = (r: Record<string, unknown> | undefined, k: string) => r !== undefined && Object.hasOwn(r, k);
+const val = (r: Record<string, number> | undefined, k: string) => (own(r, k) ? r![k] : null);
 const dimsOf = (m: FunctionModel) => [...new Set([
   ...m.boxes.flatMap((b) => Object.keys(b.cost ?? {})),
   ...Object.keys(m.budget ?? {}),
@@ -65,7 +67,7 @@ export function checkIsomorphism(a: FunctionModel, b: FunctionModel, map: ModelM
     const y = boxesB.get(map.boxes[x.id])!;
     if (x.role !== y.role) errors.push(`box '${x.id}' (${x.role}) maps to '${y.id}' (${y.role})`);
     for (const d of dimsA) {
-      const u = x.cost?.[d] ?? null, v = y.cost?.[dim(d)] ?? null;
+      const u = val(x.cost, d), v = val(y.cost, dim(d));
       if (u !== v) errors.push(`box '${x.id}' cost '${d}' ${u} ≠ '${y.id}' cost '${dim(d)}' ${v}`);
     }
     const portsA = [...(x.inputs ?? []).map((p) => ({ ...p, side: "in" })), ...(x.outputs ?? []).map((p) => ({ ...p, side: "out" }))];
@@ -91,10 +93,10 @@ export function checkIsomorphism(a: FunctionModel, b: FunctionModel, map: ModelM
     if (w.polarity !== v.polarity) errors.push(`wire '${w.id}' (${w.polarity}) maps to '${v.id}' (${v.polarity})`);
   }
   for (const d of dimsA) {
-    if ((a.budget?.[d] ?? null) !== (b.budget?.[dim(d)] ?? null)) errors.push(`budget '${d}' does not match budget '${dim(d)}'`);
-    if ((a.weights?.[d] ?? null) !== (b.weights?.[dim(d)] ?? null)) errors.push(`weight '${d}' does not match weight '${dim(d)}'`);
+    if (val(a.budget, d) !== val(b.budget, dim(d))) errors.push(`budget '${d}' does not match budget '${dim(d)}'`);
+    if (val(a.weights, d) !== val(b.weights, dim(d))) errors.push(`weight '${d}' does not match weight '${dim(d)}'`);
   }
-  if ((a.weights?.harmful ?? null) !== (b.weights?.harmful ?? null)) errors.push("weight 'harmful' differs");
+  if (val(a.weights, "harmful") !== val(b.weights, "harmful")) errors.push("weight 'harmful' differs");
   return { ok: errors.length === 0, errors };
 }
 
@@ -112,7 +114,7 @@ function incidence(m: FunctionModel): Incidence {
   const node = (colour: string, ref: Incidence["ref"][number]) => { g.colour.push(colour); g.out.push([]); g.inc.push([]); g.ref.push(ref); return g.colour.length - 1; };
   const edge = (x: number, label: string, y: number) => { g.out[x].push([label, y]); g.inc[y].push([label, x]); };
   const carrier = new Map(m.carriers.map((c) => [c.id, node("carrier", { kind: "carrier", id: c.id })]));
-  const dim = new Map(dimsOf(m).map((d) => [d, node(`dim budget=${m.budget?.[d] ?? "-"} weight=${m.weights?.[d] ?? "-"}`, { kind: "dim", id: d })]));
+  const dim = new Map(dimsOf(m).map((d) => [d, node(`dim budget=${val(m.budget, d) ?? "-"} weight=${val(m.weights, d) ?? "-"}`, { kind: "dim", id: d })]));
   const port = new Map<string, number>();
   for (const b of m.boxes) {
     const x = node(`box ${b.role}`, { kind: "box", id: b.id });
@@ -158,7 +160,7 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
   if (!ca.ok || !cb.ok) return { ok: false as const, errors: [...ca.errors.map((e) => `a: ${e}`), ...cb.errors.map((e) => `b: ${e}`)] };
   const ga = incidence(a), gb = incidence(b);
   const n = ga.colour.length;
-  const counts = (m: FunctionModel) => JSON.stringify([m.boxes.length, m.wires.length, m.carriers.length, dimsOf(m).length, m.weights?.harmful ?? null]);
+  const counts = (m: FunctionModel) => JSON.stringify([m.boxes.length, m.wires.length, m.carriers.length, dimsOf(m).length, val(m.weights, "harmful")]);
   if (counts(a) !== counts(b) || n !== gb.colour.length) {
     return { ok: true as const, decided: true as const, isomorphic: false as const, reason: "different numbers of boxes, ports, wires, carriers, or cost dimensions" };
   }
@@ -217,13 +219,13 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
     throw e;
   }
   if (!image) return { ok: true as const, decided: true as const, isomorphic: false as const, reason: "no bijection preserves roles, port sides, shared carriers, wiring, polarities, and costs" };
-  const mapping: ModelMapping = { boxes: {}, ports: {}, wires: {}, carriers: {}, dims: {} };
-  image.forEach((w, v) => {
-    const [x, y] = [ga.ref[v], gb.ref[w]];
-    if (x.kind === "port") (mapping.ports[x.box!] ??= {})[x.id] = y.id;
-    else mapping[x.kind === "box" ? "boxes" : x.kind === "wire" ? "wires" : x.kind === "carrier" ? "carriers" : "dims"][x.id] = y.id;
-  });
-  for (const x of a.boxes) mapping.ports[x.id] ??= {};
+  // Built from entries, never by assignment, so an id like '__proto__' becomes an own key.
+  const pairs = (kind: Incidence["ref"][number]["kind"], box?: string) =>
+    Object.fromEntries(image.flatMap((w, v) => (ga.ref[v].kind === kind && ga.ref[v].box === box ? [[ga.ref[v].id, gb.ref[w].id]] : [])));
+  const mapping: ModelMapping = {
+    boxes: pairs("box"), wires: pairs("wire"), carriers: pairs("carrier"), dims: pairs("dim"),
+    ports: Object.fromEntries(a.boxes.map((x) => [x.id, pairs("port", x.id)])),
+  };
   const verified = checkIsomorphism(a, b, mapping);
   if (!verified.ok) throw new Error(`internal: search returned an unverified mapping: ${verified.errors.join("; ")}`);
   return { ok: true as const, decided: true as const, isomorphic: true as const, mapping };

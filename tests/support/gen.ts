@@ -31,17 +31,24 @@ export function shuffle<T>(r: Rng, xs: readonly T[]): T[] {
 }
 
 const ALPHABET = "abcxyz:.|\"<>{}\\ -_é";
-/** Fresh ids: random tricky prefix plus a counter, so a family never repeats an id. */
+/**
+ * Fresh ids: random tricky prefix plus a counter, so a family never repeats an id. The first two
+ * ids of a family are sometimes Object.prototype names, which plain-object lookups get wrong.
+ */
 export function ids(r: Rng, tag: string) {
   let n = 0;
-  return () => `${Array.from({ length: int(r, 1, 4) }, () => pick(r, [...ALPHABET])).join("")}${tag}${n++}`;
+  return () => {
+    const i = n++;
+    if (i < 2 && r() < 0.25) return ["constructor", "__proto__"][i];
+    return `${Array.from({ length: int(r, 1, 4) }, () => pick(r, [...ALPHABET])).join("")}${tag}${i}`;
+  };
 }
 
 const ROLES = ["tool", "product", "mediator", "environment", "supersystem"] as const;
 const POLARITIES = ["useful", "insufficient", "excessive", "harmful"] as const;
 const LAYERS = ["material", "energy", "information", "financial", "legal", "temporal"] as const;
 const DOMAINS = ["physical", "software", "business", "cyber-physical"] as const;
-const DIMS = ["usd", "ms", "kg"];
+const DIMS = ["usd", "ms", "constructor"];
 
 type Box = FunctionModel["boxes"][number];
 

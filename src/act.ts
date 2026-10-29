@@ -329,11 +329,9 @@ export type Verdict = "concept-dominates" | "baseline-dominates" | "equal" | "tr
  */
 export function compareIdeality(baseline: FunctionModel, concept: FunctionModel) {
   const a = idealityProfile(baseline), b = idealityProfile(concept);
-  // Keyed by the (box, carrier) pair itself: the display key `box:carrier` is ambiguous when ids contain ':'.
-  const pairs = (p: IdealityProfile) => new Map(p.deliverables.map((d) => [JSON.stringify([d.box, d.carrier]), d.key]));
-  const before = pairs(a), after = pairs(b);
-  const lostDeliverables = [...before].filter(([k]) => !after.has(k)).map(([, key]) => key);
-  const gainedDeliverables = [...after].filter(([k]) => !before.has(k)).map(([, key]) => key);
+  const after = new Set(b.deliverables.map((d) => d.key)), before = new Set(a.deliverables.map((d) => d.key));
+  const lostDeliverables = [...before].filter((k) => !after.has(k));
+  const gainedDeliverables = [...after].filter((k) => !before.has(k));
   const better: string[] = [], worse: string[] = [];
   const axis = (name: string, x: number, y: number) => { if (y < x) better.push(name); else if (y > x) worse.push(name); };
   axis("harmful", a.functions.harmful, b.functions.harmful);
