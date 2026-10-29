@@ -81,6 +81,8 @@ const TRACE: Theorem[] = ["reach_of_trace"];
 const EXHAUSTED: Theorem[] = ["reachWithin_iff_trace"];
 /** A layer that adds nothing: the bounded reachable set is the whole reachable set. */
 const SATURATED: Theorem[] = ["reachWithin_iff_trace", "reachWithin_saturated"];
+/** That whole set holds every start, is closed under steps, and misses the target: an inductive invariant. */
+const UNREACHABLE: Theorem[] = [...SATURATED, "unreachable_of_invariant"];
 /** Every point of one trace is reached at its own time, along that one run. */
 const TIMED: Theorem[] = ["reachIn_of_trace"];
 /** A configuration at exactly time t iff some trace of exactly t steps ends there. */
@@ -473,7 +475,7 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
         note: `A run from the initial states reaches the unsafe set at time ${reached.time}; the trace is a shortest one${reached.trace[reached.trace.length - 1].values ? "" : ", and the run blocks there"}. It is a candidate mechanism: substantiate every row on it.` }
     : unsure.unsafe ? UNDETERMINED("unsafe", unsure.unsafe)
     : saturated
-      ? { verdict: "unreachable" as const, basis: SATURATED,
+      ? { verdict: "unreachable" as const, basis: UNREACHABLE,
           note: `The reachable configurations stopped growing after time ${deepest}: no run from these initial states and inputs reaches the unsafe set, at any horizon.` }
       : { verdict: "unreachable-within-horizon" as const, horizon, basis: EXHAUSTED,
           note: `No run reaches the unsafe set within ${horizon} steps. Longer runs are not explored${s.sequence ? " (the inputs vary with time)" : ""}.` });
@@ -522,6 +524,35 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
     assumption: ASSUMPTION,
     note: SEMANTICS + (blocked.size ? ` ${blocked.size} runs block: a state with no row for its inputs. The declared rows say nothing after it; a target is checked there on its state conditions only.` : ""),
   };
+}
+
+/**
+ * Every global state a run from the initial states reaches, blocked ones included, explored
+ * without a horizon up to the cap, with the step boundedDynamics takes. The set is closed under
+ * steps, so an unreachable escalation's certificate (src/act-cert.ts) states it as the invariant.
+ * Undefined under an input sequence, on missing behaviour or a failed compile, and past the cap.
+ */
+export function reachedStates(model: FunctionModel, spec: DynamicsSpec): string[][] | undefined {
+  const s = compile(model, spec);
+  if (s.kind !== "system" || s.sequence) return undefined;
+  const max = spec.maxStates ?? MAX_STATES;
+  const budget = { explored: 0, max };
+  const steps = stepper(s, budget);
+  const seen = new Set<string>(), states: string[][] = [];
+  const add = (state: string[]) => {
+    if (seen.has(tupleKey(state))) return true;
+    if (++budget.explored > max) return false;
+    seen.add(tupleKey(state));
+    states.push(state);
+    return true;
+  };
+  for (const s0 of initialStates(s)) if (!add(s0)) return undefined;
+  for (let i = 0; i < states.length; i++) {
+    const out = steps(states[i], 0);
+    if (!out) return undefined;
+    for (const st of out) for (const n of st.next) if (!add(n)) return undefined;
+  }
+  return states;
 }
 
 /** Strongly connected components, iteratively: a state graph can be deeper than the call stack. */

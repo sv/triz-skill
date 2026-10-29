@@ -17,14 +17,20 @@
  *                          and `glue_of_disjoint_regions`; irreducible: disjoint values, a shared
  *                          cell, and `no_section_of_overlap`); gluable or not, by
  *                          `exists_section_iff`.
- *  - boundedDynamics     — a reachable escalation: the composed boxes' rows as a `Sync` table,
- *                          the initial and unsafe sets as Bool tables, and the kernel's shortest
- *                          trace; `reach_of_trace` with each step and the end decided on the
- *                          tables. Only reachability is certified, never its absence.
+ *  - boundedDynamics     — an escalation: the composed boxes' rows as a `Sync` table, and the
+ *                          initial and unsafe sets as Bool tables. Reachable: the kernel's shortest
+ *                          trace, and `reach_of_trace` with each step and the end decided on the
+ *                          tables. Unreachable: the global states the search reached as an
+ *                          inductive invariant, and `unreachable_of_invariant` with its three
+ *                          checks (it holds every start, is closed under steps, misses the unsafe
+ *                          set) decided over every valuation of the composed ports.
  *  - weaknessRanking     — each strictly ordered pair: both concepts' rows as `Rows` tables, the
  *                          relation each composes, strict inclusion of what they admit
  *                          (`AtLeastAsWeak` one way and not the other), and the strictly larger
  *                          count (`card_lt_of_strictly_weaker`), all decided over every valuation.
+ *  - compareBehavior     — a preserved verdict (`triz_behavior` with compare_to or trim): both
+ *                          models' rows as `Rows` tables, their relations equal and not empty,
+ *                          decided over every situation and valuation.
  *
  * Statements come from the kernel's result, not from a second implementation. The generator only
  * finds witnesses (the wire behind a step, a shared cell) and fails closed when one is missing.
@@ -33,8 +39,9 @@
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
 import { at, fail, issue, quoted, type Failure } from "./act-issues.js";
-import { plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable } from "./act-behavior.js";
-import { boundedDynamics, type DynamicsSpec } from "./act-dynamics.js";
+import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, trimPreservesBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
+import { applyTrim } from "./act-rewrite.js";
+import { boundedDynamics, reachedStates, type DynamicsSpec } from "./act-dynamics.js";
 
 /** Cap on cells × demands × values per contradiction; at the cap `decide` takes about ten seconds. */
 export const MAX_CERT_WORK = 100_000;
@@ -339,7 +346,7 @@ export function separationCertificate(pc: PhysicalContradiction, opts: { namespa
   return { ok: true, namespace: ns, content: assemble("one physical contradiction", ns, [s]), certifies };
 }
 
-/** Cap on the work of deciding a dynamics or weakness certificate; see `rowWork`. */
+/** Cap on the work of deciding a dynamics, weakness, or behaviour certificate; see `rowWork`. An invariant near the cap takes Lean about six seconds. */
 export const MAX_CERT_ROWS = 2_000_000;
 
 type Box = FunctionModel["boxes"][number];
@@ -415,10 +422,15 @@ function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[
 const rowWork = (checks: number, rows: number, ports: number, wires: number) => checks * (rows * (ports + 1) + wires);
 
 /**
- * Certificate of a `triz_dynamics` escalation: from an initial state, a run reaches the unsafe set
- * within the trace's length. The composed boxes' rows are the data; the kernel's shortest trace
- * is the witness. Fails closed on anything else: an unreachable or undecided escalation (whose
- * claim is universal), a trace that ends blocked, and an input sequence.
+ * Certificate of a `triz_dynamics` escalation verdict. The composed boxes' rows are the data.
+ *  - reachable: from an initial state, a run reaches the unsafe set within the trace's length;
+ *    the kernel's shortest trace is the witness (`reach_of_trace`).
+ *  - unreachable: no run from an initial state reaches it, at any horizon; the global states the
+ *    search reached are the witness, an inductive invariant (`unreachable_of_invariant`). Lean
+ *    decides that they hold every start, that every step from them at every valuation names one
+ *    of them, and that none of them meets the unsafe set at any valuation.
+ * Fails closed on anything else: an escalation unreachable only within the horizon or undecided,
+ * a trace that ends blocked, an input sequence, and past MAX_CERT_ROWS.
  */
 export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, opts: { namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
@@ -437,12 +449,13 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     return fail([issue("not-certifiable", "$.model", r.note, `Declare behavior or transition for ${quoted(r.missingBehavior)}; the runs depend on them, so nothing is decided to certify.`)]);
   }
   const esc = r.escalation!;
-  if (esc.verdict !== "reachable") {
-    return fail([issue("not-certifiable", "$.unsafe", `the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, is certified`,
-      esc.verdict === "unreachable-within-horizon" ? "Raise horizon if a longer run may reach the set; an unreachable verdict is a claim about every run, which a trace cannot witness." : "Read the verdict without a certificate: it is a claim about every run, which a trace cannot witness.")]);
+  if (esc.verdict !== "reachable" && esc.verdict !== "unreachable") {
+    return fail([issue("not-certifiable", "$.unsafe", `the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, or an unreachable one, which an invariant witnesses, is certified`,
+      esc.verdict === "unreachable-within-horizon"
+        ? "Raise horizon until the reachable set stops growing (verdict unreachable); a bound within the horizon has no invariant to state."
+        : "Declare the rows the blocked state lacks (the trace ends there), so the verdict is decided.")]);
   }
-  const last = esc.trace[esc.trace.length - 1];
-  if (!last.values) {
+  if (esc.verdict === "reachable" && !esc.trace[esc.trace.length - 1].values) {
     return fail([issue("not-certifiable", "$.unsafe", "the trace ends in a blocked state, which has no valuation to certify",
       "Declare the rows the blocked state lacks (blocked.first names it), so the run has a valuation there.")]);
   }
@@ -460,10 +473,19 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   const rows = rowTables(composed, ports, at, (p, v) => names(p).indexOf(v));
   for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
   const wires = encodedWires(model, at);
-  const work = rowWork(esc.trace.length + 2, rows.length, ports.length, wires.length);
+  // The witness: the trace, or the reached global states. Deciding the invariant enumerates every
+  // valuation of the ports at each listed state, and every global state once per admitted one.
+  const reached = esc.verdict === "unreachable" ? reachedStates(model, spec) : undefined;
+  if (esc.verdict === "unreachable" && !reached) {
+    return fail([issue("internal-error", "$.model", "the search that saturated did not list its reached states", "Report this with the model; the kernel's verdict and its invariant disagree.")]);
+  }
+  const globals = states ** machines.length;
+  const work = rowWork(esc.verdict === "reachable" ? esc.trace.length + 2 : reached!.length * values ** ports.length * (globals + 2) + globals, rows.length, ports.length, wires.length);
   if (work > MAX_CERT_ROWS) {
-    return fail([issue("cap-exceeded", "$.model", `deciding the trace reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
-      "Remove repeated rows, declare fewer ports or rows on the composed boxes, or certify a smaller part of the model.")]);
+    return fail([issue("cap-exceeded", "$.model", `deciding the ${reached ? "invariant" : "trace"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
+      reached
+        ? "Declare fewer ports, values, or states on the composed boxes, or certify a smaller part of the model: the invariant is decided over every valuation of their ports."
+        : "Remove repeated rows, declare fewer ports or rows on the composed boxes, or certify a smaller part of the model.")]);
   }
 
   // Targets as Bool tables: a condition on a box's state or a port's value; several on one intersect.
@@ -479,16 +501,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     }
   }
   const initial = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length && m.initial.includes(m.states[s])));
-  const config = (step: { state: string[]; values?: string[] }) => {
-    const st = machines.map((m, k) => m.states.indexOf(step.state[k]));
-    const vl = ports.map((q, p) => names(p).indexOf(step.values![vars.at(q.box, q.side, q.port)]));
-    return `(${vec(st)}, ${vec(vl)})`;
-  };
-  // Every step of the trace except the last steps on; the last is the unsafe configuration.
-  if (esc.trace.slice(0, -1).some((st) => !st.values)) {
-    return fail([issue("internal-error", "$.unsafe", "the trace blocks before its end", "Report this: a returned trace blocks only at its last step.")]);
-  }
-  const k = esc.time;
+  const stateIndices = (state: string[]) => vec(machines.map((m, k) => m.states.indexOf(state[k])));
   const lines = [
     "/-! ## The composed boxes as finite data -/",
     "",
@@ -510,6 +523,29 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     "/-- The unsafe set: the states and values it allows, per machine and per port. -/",
     `def unsafeState : Machine → State → Bool := ${nested(stateOk, String)}`,
     `def unsafeValue : Port → Value → Bool := ${nested(valueOk, String)}`,
+  ];
+  if (esc.verdict === "unreachable") {
+    lines.push(
+      "/-- The global states the kernel's search reached, blocked ones included: each machine's state. -/",
+      `def invariant : ${fin(reached!.length)} → Machine → State := ${vec(reached!.map(stateIndices))}`,
+      "",
+      "/-! ## Verdicts -/",
+      "",
+      ...theorem("`boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon. The reached states hold every start, every step from them names one of them, and none meets the unsafe set (`unreachable_of_invariant`).",
+        "unreachable", "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
+        "unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))"),
+    );
+    const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches the unsafe set, at any horizon" }];
+    return { ok: true, namespace: ns, content: assemble("one unreachable escalation", ns, [lines]), certifies };
+  }
+  const config = (step: { state: string[]; values?: string[] }) =>
+    `(${stateIndices(step.state)}, ${vec(ports.map((q, p) => names(p).indexOf(step.values![vars.at(q.box, q.side, q.port)])))})`;
+  // Every step of the trace except the last steps on; the last is the unsafe configuration.
+  if (esc.trace.slice(0, -1).some((st) => !st.values)) {
+    return fail([issue("internal-error", "$.unsafe", "the trace blocks before its end", "Report this: a returned trace blocks only at its last step.")]);
+  }
+  const k = esc.time;
+  lines.push(
     "/-- The kernel's shortest trace: each machine's state and each port's value, at times 0 to the end. -/",
     `def trace : ${fin(esc.trace.length)} → (Machine → State) × (Port → Value) := ${vec(esc.trace.map(config))}`,
     "",
@@ -518,7 +554,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     ...theorem(`\`boundedDynamics\`: from an initial state, a run reaches the unsafe set within ${k} steps (\`reach_of_trace\`).`,
       "escalation", `∃ a ∈ system.starts initial, ∃ b ∈ system.target unsafeState unsafeValue, reachWithin system.Step ${k} a b`,
       "⟨traceOf trace 0, by decide +kernel, reach_of_trace (τ := traceOf trace) (by decide +kernel) le_rfl (by decide +kernel)⟩"),
-  ];
+  );
   const certifies = [{ theorem: `${ns}.escalation`, verdict: `boundedDynamics: a run reaches the unsafe set at time ${k}` }];
   return { ok: true, namespace: ns, content: assemble("one escalation trace", ns, [lines]), certifies };
 }
@@ -638,4 +674,132 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     );
   }
   return { ok: true, namespace: ns, content: assemble("strict inclusions of a weakness ranking", ns, [lines]), certifies };
+}
+
+type Comparison = Extract<ReturnType<typeof compareBehavior>, { ok: true }>;
+
+/**
+ * Certificate of a `triz_behavior` comparison whose verdict is `preserved`: the concept's
+ * input→deliverable relation equals the baseline's, and is not empty. Both models' composed rows
+ * are the data, as weakness certificates encode them, each in its own namespace and its own box
+ * ids. The situations are the union of both models' boundary inputs in the baseline's ids (the
+ * concept's renamed through `box_map`); each model reads its own, and an input only one reads
+ * ranges over that model's declared values. The deliverables are the baseline's; the concept is
+ * composed for those alone, so `gainedDeliverables` stay out of the relation, as in the kernel.
+ * Fails closed on any other verdict, and past MAX_CERT_ROWS: deciding enumerates every valuation
+ * of each model's ports.
+ */
+export function behaviorCertificate(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number; namespace?: string } = {}): Certificate {
+  const ns = namespaceOf(opts);
+  if (typeof ns !== "string") return ns;
+  const r = compareBehavior(baseline, concept, { boxMap: opts.boxMap, maxStates: opts.maxStates });
+  return r.ok ? preservedCertificate(baseline, concept, opts.boxMap ?? {}, r, ns) : r;
+}
+
+/** Certificate of a trim's `preserved` verdict (triz_behavior with trim): the model against its own trim (applyTrim). */
+export function trimCertificate(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, { box: string; port: string }>; maxStates?: number }, opts: { namespace?: string } = {}): Certificate {
+  const ns = namespaceOf(opts);
+  if (typeof ns !== "string") return ns;
+  const r = trimPreservesBehavior(model, spec);
+  if (!r.ok) return r;
+  const applied = applyTrim(model, spec);
+  if (!applied.ok) return applied;
+  return preservedCertificate(model, applied.model, {}, r, ns);
+}
+
+function preservedCertificate(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>, r: Comparison, ns: string): Certificate {
+  if (r.verdict !== "preserved") {
+    return fail([issue("not-certifiable", "$.model", `the verdict is ${r.verdict} (${r.reason}): only a preserved verdict is certified`,
+      r.verdict === "changed"
+        ? "Read the counterexample without a certificate: it names the input and the outputs only one model has."
+        : "Decide the comparison first (declare the missing behaviour, or check the loops when neither model has a steady state); only an equality is certified.")]);
+  }
+  const align = alignment(baseline, concept, boxMap);
+  if (!align.ok) return align;
+  const situations = r.inputs, deliverables = r.deliverables;
+  const key = (d: { box: string; port: string; carrier: string }) => JSON.stringify([d.box, d.port, d.carrier]);
+  const offered = new Map(deliverablePorts(concept).map((d) => [key(align.toBaseline(d)), d]));
+  const observed = deliverables.map((d) => offered.get(key(d)));
+  if (observed.some((d) => !d)) return fail([issue("internal-error", "$.model", "a preserved concept lacks a baseline deliverable", "Report this with the models; the kernel's verdict and its certificate disagree.")]);
+
+  // Value indices: one order per carrier id, the sorted union of its values in both models, so a
+  // situation or deliverable is read the same way in both and every equality compares one order.
+  const orders = new Map<string, string[]>();
+  const order = (carrier: string) => orders.get(carrier)
+    ?? orders.set(carrier, [...new Set([baseline, concept].flatMap((m) => m.carriers.find((x) => x.id === carrier)?.values ?? []))].sort()).get(carrier)!;
+  const sides = [
+    { name: "Baseline", doc: "the baseline (`compare_to`, or the model before its trim)", model: baseline, observe: deliverables, toBaseline: (box: string) => box },
+    { name: "Concept", doc: "the concept (`model`, or the model after its trim)", model: concept, observe: observed.map((d) => d!), toBaseline: (box: string) => align.toBaseline({ box, port: "", carrier: "" }).box },
+  ].map((side) => {
+    const composed = behaviorPlan(side.model, side.observe).composed;
+    const ports = encodedPorts(composed, side.observe);
+    const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
+    const wires = encodedWires(side.model, at);
+    const fed = new Set(wires.map((w) => w.tgt));
+    const names = ports.map((q) => order(q.carrier));
+    const rows = rowTables(composed, ports, at, (p, v) => names[p].indexOf(v));
+    const reads = situations.map((q) => ports.findIndex((p, i) => p.side === "in" && !fed.has(i) && side.toBaseline(p.box) === q.box && p.port === q.port));
+    const delivers = side.observe.map((d) => at.get(portKeyOf(d.box, "in", d.port))!);
+    return { ...side, composed, ports, wires, names, rows, reads, delivers };
+  });
+  if (situations.some((_, j) => sides.every((s) => s.reads[j] < 0))) {
+    return fail([issue("internal-error", "$.model", "a compared input is read by neither model", "Report this with the models; the kernel's inputs and the certificate's disagree.")]);
+  }
+  const inputValues = situations.map((q) => order(q.carrier));
+  const deliverableValues = deliverables.map((d) => order(d.carrier));
+  const values = Math.max(1, ...sides.flatMap((s) => s.names.map((n) => n.length)), ...inputValues.map((n) => n.length), ...deliverableValues.map((n) => n.length));
+  // An input ranges over the values its carrier declares in the baseline when the baseline reads it, else in the concept.
+  const declaredInput = situations.map((q, j) => sides.find((s) => s.reads[j] >= 0)!.model.carriers.find((x) => x.id === q.carrier)!.values ?? []);
+  const work = sides.reduce((n, s) => n + rowWork(values ** (situations.length + deliverables.length + s.ports.length), s.rows.length, s.ports.length, s.wires.length), 0);
+  if (work > MAX_CERT_ROWS) {
+    return fail([issue("cap-exceeded", "$.model", `deciding the equality reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
+      "Certify smaller models: fewer ports or values on the composed boxes. The decision enumerates every valuation of each model's ports.")]);
+  }
+
+  const relation = (side: string) => `${side}.rows.relation inputDomain ${side}.reads ${side}.delivers`;
+  const lines = [
+    "/-! ## The situations and the deliverables -/",
+    "",
+    `abbrev Input := ${fin(situations.length)}`,
+    `abbrev Deliverable := ${fin(deliverables.length)}`,
+    `abbrev Value := ${fin(values)}`,
+    "/-- Inputs and deliverables in the baseline's box ids. -/",
+    `def inputId : Input → String := ${vec(situations.map((q) => leanString(`${q.box}.${q.port}`)))}`,
+    `def deliverableId : Deliverable → String := ${vec(deliverables.map((d) => leanString(`${d.box}.${d.port}`)))}`,
+    `def inputValueId : Input → Value → String := ${nested(inputValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
+    `def deliverableValueId : Deliverable → Value → String := ${nested(deliverableValues.map((n) => padded(n.map(leanString), values)), (x) => x)}`,
+    "/-- The situations: each input at one of its declared values. -/",
+    `def inputDomain : Input → Value → Bool := ${nested(inputValues.map((n, j) => Array.from({ length: values }, (_, v) => v < n.length && declaredInput[j].includes(n[v]))), String)}`,
+    "",
+  ];
+  for (const s of sides) {
+    lines.push(
+      `/-! ## ${s.name}: ${s.doc}, in its own box ids -/`,
+      "",
+      `namespace ${s.name}`,
+      "",
+      ...rowSection({ boxes: s.composed.map((b) => b.id), ports: s.ports, wires: s.wires.map((w) => w.id) }, s.rows, s.wires, (p) => s.names[p], values),
+      "/-- The port each situation input is, where this model reads it. -/",
+      `def reads : Input → Option Port := ${vec(s.reads.map((p) => (p < 0 ? "none" : `some ${p}`)))}`,
+      `def delivers : Deliverable → Port := ${vec(s.delivers)}`,
+      "/-- The composed boxes' rows; `rows.relation inputDomain reads delivers` is the model's input→deliverable relation. -/",
+      "def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩",
+      "",
+      `end ${s.name}`,
+      "",
+    );
+  }
+  lines.push(
+    "/-! ## Verdicts -/",
+    "",
+    ...theorem("`compareBehavior`: the concept relates every situation to exactly the deliverable values the baseline does, decided over every situation and valuation.",
+      "preserved", `${relation("Baseline")} = ${relation("Concept")}`, "by funext u y; apply propext; revert u y; decide +kernel"),
+    ...theorem("`compareBehavior`: the relations are not empty: some situation has a steady state, so the equality is not vacuous.",
+      "nonempty", `∃ u y, ${relation("Baseline")} u y`, "by decide +kernel"),
+  );
+  const certifies: Certified[] = [
+    { theorem: `${ns}.preserved`, verdict: "compareBehavior: preserved, the input→deliverable relations are equal" },
+    { theorem: `${ns}.nonempty`, verdict: "compareBehavior: the relations are not empty" },
+  ];
+  return { ok: true, namespace: ns, content: assemble("a preserved input→deliverable relation", ns, [lines]), certifies };
 }
