@@ -14,6 +14,7 @@ import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
+import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
 import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_HORIZON } from "./act-dynamics.js";
@@ -132,6 +133,24 @@ function transform(model: act.FunctionModel, t: Transformation) {
     case "standby": return standby(model, { box: t.box, standby: t.standby });
     case "cheap_copy": return cheapCopy(model, { box: t.box, copy: t.copy });
   }
+}
+
+/** List the matches of a rule, or apply it at one. Exactly one of a built-in rule id and an inline rule. */
+function ruleApply(args: {
+  model: act.FunctionModel; rule_id?: string; rule?: Rule; at?: Partial<RuleMatch>; match?: RuleMatch;
+  carriers?: Record<string, string>; ids?: RuleIds; limit?: number; max_steps?: number;
+}) {
+  const errors = [
+    ...((args.rule === undefined) === (args.rule_id === undefined) ? ["give exactly one of rule_id and rule"] : []),
+    ...(args.match && args.at ? ["'at' seeds the search and 'match' applies: give one of them"] : []),
+    ...(!args.match && (args.carriers || args.ids) ? ["'carriers' and 'ids' are used only when applying, with 'match'"] : []),
+  ];
+  if (errors.length) return { ok: false as const, errors };
+  const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id);
+  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}`] };
+  return args.match
+    ? applyRule(args.model, rule, args.match, { carriers: args.carriers, ids: args.ids })
+    : matchRule(args.model, rule, { at: args.at, limit: args.limit, maxSteps: args.max_steps });
 }
 
 export interface ToolSpec {
@@ -260,6 +279,22 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
+    },
+    {
+      name: "triz_rule_apply",
+      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly) or 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`). Each built-in rule cites the evolution-trends.md line it encodes. Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match, both conditions, and that a kept box declaring behavior keeps its ports, then deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
+      shape: {
+        model: act.FunctionModel,
+        rule_id: z.enum(TREND_RULES.map((r) => r.id) as [string, ...string[]]).optional().describe("A built-in evolution-line rule"),
+        rule: Rule.optional().describe("An inline rule; give this or rule_id"),
+        at: RuleMatch.partial().optional().describe("Partial match that seeds the search, e.g. { wires: { f: 'w-drive' } }"),
+        match: RuleMatch.optional().describe("The match to apply at; omit to list matches"),
+        carriers: z.record(z.string(), Id).optional().describe("Carrier variable used only on the right side → model carrier id"),
+        ids: RuleIds.optional().describe("Ids for created elements; default: fresh ids based on the rule's or the copied element's"),
+        limit: z.number().int().min(1).max(200).optional().describe("Most matches to list (default 50)"),
+        max_steps: z.number().int().min(1).max(1_000_000).optional().describe("Search step budget (default 100000)"),
+      },
+      handler: async (args: Parameters<typeof ruleApply>[0]) => text(ruleApply(args)),
     },
     {
       name: "triz_behavior",

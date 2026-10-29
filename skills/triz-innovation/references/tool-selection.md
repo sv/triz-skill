@@ -24,6 +24,7 @@ recalling principle numbers or matrix cells.
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it |
 | `triz_separate(contradiction, along?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis |
 | `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks, and which principles have none |
+| `triz_rule_apply(model, rule_id \| rule, at?, match?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback) |
 | `triz_nine_windows(present, past?, future?, subsystem[], transitions?)` | Subsystem, system, and supersystem views per time, with harm loops per window; transitions as `triz_transform` sequences, checked against the snapshots and restricted to the subsystem |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
 | `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |

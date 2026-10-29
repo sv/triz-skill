@@ -13,6 +13,7 @@ import {
   analyseModel, functionModelJsonSchema, shortestPath, type PhysicalContradiction,
 } from "../src/act.js";
 import { toolSpecs } from "../src/tools.js";
+import { ruleJsonSchema } from "../src/act-rule.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -250,14 +251,16 @@ test("separation: system level, direction, and fail-closed undeclared cells", ()
   assert.deepEqual(spring.pairs[0], { demands: ["stiff", "compliant"], status: "separated", separatingAxes: ["direction"] });
 });
 
-test("committed JSON Schema matches the zod model (regenerate with pnpm schema)", () => {
-  const committed = JSON.parse(fs.readFileSync(path.resolve(here, "../skills/triz-innovation/schemas/function-model.schema.json"), "utf8"));
-  assert.deepEqual(committed, JSON.parse(JSON.stringify(functionModelJsonSchema())));
+test("committed JSON Schemas match the zod models (regenerate with pnpm schema)", () => {
+  for (const [file, schema] of [["function-model.schema.json", functionModelJsonSchema()], ["rule.schema.json", ruleJsonSchema()]] as const) {
+    const committed = JSON.parse(fs.readFileSync(path.resolve(here, `../skills/triz-innovation/schemas/${file}`), "utf8"));
+    assert.deepEqual(committed, JSON.parse(JSON.stringify(schema)), file);
+  }
 });
 
 test("kernel tools are registered and answer over the shared spec", async () => {
   const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
-  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) assert.ok(specs[name], name);
+  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior"]) assert.ok(specs[name], name);
   const out = JSON.parse((await specs.triz_trim.handler({ model: example("bearing-heat"), trim: ["bearing"] })).content[0].text);
   assert.equal(out.verdict, "typed-feasible");
 });
