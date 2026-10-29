@@ -107,6 +107,16 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     assert.equal(r.verdict, verdict);
     collect(r);
   }
+  // Two boxes without behaviour, the housing and an interposed sleeve: a spec, and an impossible target the lubrication decides.
+  const twoBoxes = async (model: FunctionModel) => {
+    const trimmed = await call("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
+    return (await call("triz_transform", { model: trimmed.model, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve" } } })).model;
+  };
+  for (const [model, verdict] of [[open, "spec"], [dry, "impossible"]] as const) {
+    const r = await call("triz_behavior", { model: await twoBoxes(model), compare_to: model, weakest_spec: true });
+    assert.deepEqual([r.verdict, r.boxes], [verdict, ["housing", "sleeve"]]);
+    collect(r);
+  }
   const variant = (keep: (lube: string) => boolean) => {
     const m = structuredClone(dry);
     const b = m.boxes.find((x) => x.id === "bearing")!;
@@ -144,7 +154,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
     "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
     "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
-    "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
+    "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -156,8 +167,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
 test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
   const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
     "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans",
-    // Two boxes without behaviour, and dynamics read as behaviour: computations the kernel does not make.
-    "PreservesUnions₂.mono", "le_safeRows_iff", "safe_iff_le_concept", "concept_safe", "concept_maximal", "exists_eq₂_iff", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed"];
+    // Helpers of the two-box statements the kernel cites, and dynamics read as behaviour, which the kernel does not compute.
+    "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
     assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);
