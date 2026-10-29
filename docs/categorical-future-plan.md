@@ -46,8 +46,11 @@ Incomplete capped evidence must remain sound without a promise of identical sele
    has the advertised connectivity. Useful-only cycles must remain admissible.
 3. Time-indexed negative dynamics certificates, initial-state coverage and bounded input
    schedules. Preserve blocked-state uncertainty for port predicates.
-4. Valid-configuration safety for port predicates, separation-in-time and loop properties.
-5. State/box mapping transport, lost-interface comparison cases, and richer resource certificates.
+4. Safe port-predicate invariants, separation-in-time and loop properties. Merged PR #39 supplies
+   admitted-configuration unreachability for saturated unsafe port targets, which does not certify
+   the kernel's extra blocked-state conservatism.
+5. Further state/value transport, lost-interface comparison cases, and richer resource certificates.
+   Declared behavior box maps and one-sided inputs are supported by the shared PR #39 encoder.
 
 **Acceptance:** an unsaturated BFS frontier is never an unbounded invariant; removing an initial
 state/successor invalidates a proof; one machine state with safe and unsafe valuations is handled;
@@ -168,7 +171,7 @@ the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
 |---|---|
 | 1 negative dynamics | Supported state-only inductive certificates delivered; bounded inputs and port predicates remain §3. |
 | 2 incomparability | Delivered with generic witnesses and complete admission/rejection obligations. |
-| 3 behavior certificates | Delivered for supported aligned finite comparisons; remaining mappings/interfaces in §3. |
+| 3 behavior certificates | Shared PR #39 encoder covers box maps, gained deliverables and one-sided inputs; this branch adds changed/whole-scope proofs and binding. Remaining interfaces are in §3. |
 | 4 label-blindness | Extended tests and semantic mapping search delivered; sorting ids alone was rejected as a proof of equivariance. |
 | 5 model encoding check | Authoritative request binding and independent table comparison delivered; verified encoder remains §1. |
 | 6 weighted weakness | Joint operating coverage delivered separately from inclusion; no extension of Bennett's task-prior theorem. |

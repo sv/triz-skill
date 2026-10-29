@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Check a Lean certificate: the `content` of triz_export format "lean", or of the `certificate`
- * that triz_separate, triz_dynamics, or triz_weakness returns, saved as a .lean file.
+ * that triz_separate, triz_dynamics, triz_weakness, or triz_behavior returns, saved as a .lean file.
  *
  *   node scripts/certify.mjs [--local | --remote] [--tamper] [--request request.json] <file.lean>...
  *
@@ -26,15 +26,18 @@
  *
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
- * must fail; with the unsafe set emptied, `escalation` must fail; with no deliverable value
- * acceptable, the strict-inclusion and opposed membership witnesses must fail; with the
- * invariant emptied, initial containment must fail. Errors outside a theorem do not count.
+ * must fail; with the unsafe set emptied, `escalation` must fail; with the unsafe set filled,
+ * `unreachable` must fail; with no deliverable value acceptable, strict-inclusion and opposed
+ * membership witnesses must fail; with no situation allowed, `nonempty` must fail; with the
+ * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
+ * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
  * Without --request, this checks the statements about the file's tables. --request binds the
  * manifest to authoritative request JSON, independently compares normalized row/wiring/interface
  * data, then regenerates to detect staleness. Regeneration is not an encoder-correctness proof.
- * Negative certificates currently cover state-only inductive invariants. Time-varying inputs,
- * port-target negative claims, and negatives supported only to a horizon remain unsupported.
+ * State-only negative claims use invariants over all port valuations. Saturated port-target
+ * negatives use finite state invariants against consistent target configurations. Time-varying
+ * inputs and negatives supported only to a horizon remain unsupported.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -154,6 +157,7 @@ const DECLARATIONS = [
   re(`def unsafeValue : Port → Value → Bool := ${rows(BOOLS)}`),
   re(`def (?:acceptable : Deliverable|inputDomain : Input) → Value → Bool := ${rows(BOOLS)}`),
   re(`def trace : Fin \\d+ → \\(Machine → State\\) × \\(Port → Value\\) := ${rows(`\\(${NUMS}, ${NUMS}\\)`)}`),
+  re(`def invariant : Fin \\d+ → Machine → State := ${rows(NUMS)}`),
   re(`def reads : Input → Option Port := ${OPTS}`),
   re(`def delivers : Deliverable → Port := ${NUMS}`),
   re(`def portBox : Port → Box := ${NUMS}`),
@@ -196,12 +200,21 @@ function statementOk(name, s) {
   if (name === "invariantClosed") return s === "Closed system.Step invariant";
   if (name === "invariantDisjoint") return s === "Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true}";
   if (name === "invariantSafe") return s === "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true";
-  if (name === "unreachable") return s === "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)";
+  if (name === "unreachable") return [
+    "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)",
+    "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
+  ].includes(s);
   if (name === "safetyInvariant") return s === "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ∀ m, safeState m (b.1 m) = true";
   if (name === "escalation") return /^∃ a ∈ system\.starts initial, ∃ b ∈ system\.target unsafeState unsafeValue, reachWithin system\.Step \d+ a b$/.test(s);
+  const model = (side) => `${side}.rows.relation inputDomain ${side}.reads ${side}.delivers`;
+  if (name === "preserved") return s === `${model("Baseline")} = ${model("Concept")}`;
+  if (name === "nonempty") return s === `∃ u y, ${model("Baseline")} u y`;
   const relation = (i) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
   if (name === "behaviorPreserved") return s === `${relation(0)} = ${relation(1)}`;
-  if (name === "behaviorChanged") return [ [0,1], [1,0] ].some(([a,b]) => s === `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`);
+  if (name === "behaviorChanged") return [
+    ...[[0, 1], [1, 0]].map(([a, b]) => `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`),
+    ...[["Baseline", "Concept"], ["Concept", "Baseline"]].map(([a, b]) => `∃ u y, ${model(a)} u y ∧ ¬ ${model(b)} u y`),
+  ].includes(s);
   if ((m = /^equal_(\d+)_(\d+)$/.exec(name))) return m[1] !== m[2] && s === `admits ${relation(m[1])} (accepts acceptable) = admits ${relation(m[2])} (accepts acceptable)`;
   if ((m = /^incomparable_(\d+)_(\d+)$/.exec(name))) return m[1] !== m[2] && s === `¬ AtLeastAsWeak (accepts acceptable) ${relation(m[1])} ${relation(m[2])} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(m[2])} ${relation(m[1])}`;
   if ((m = /^(firstOnly|secondOnly)_(\d+)_(\d+)$/.exec(name))) {
@@ -256,7 +269,7 @@ export function lint(content) {
     let m;
     if (row++ === 0) { if (line !== "import CategoricalTriz") problems.push(`${at}: the only import is CategoricalTriz`); return; }
     if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) {
-      if (stack.length > 1 || (stack.length === 1 && !/^(?:Separation|Concept)\d+$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
+      if (stack.length > 1 || (stack.length === 1 && !/^(?:(?:Separation|Concept)\d+|Baseline|Concept)$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
       stack.push(m[1]);
     } else if ((m = /^end (\S+)$/.exec(line))) {
       if (stack.pop() !== m[1]) problems.push(`${at}: end does not close the open namespace`);
@@ -404,7 +417,13 @@ export async function check(content, { mode } = {}) {
   return { ...accept(content, run), info: run.info };
 }
 
-/** Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied; nothing acceptable. */
+/**
+ * Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied
+ * or filled; nothing acceptable; no situation allowed. A data tamper is kept only where some
+ * verdict must fail under it: emptying the unsafe set leaves an unreachable verdict true. Filling
+ * it assumes some listed state admits a valuation; when every reached state blocks, the target
+ * stays empty and the filled copy still checks.
+ */
 export function tamperVariants(content) {
   const variants = [{
     name: "every verdict negated",
@@ -420,17 +439,20 @@ export function tamperVariants(content) {
       mustFail: theorems(content).filter((t) => t.name.endsWith(".typed") && t.name.split(".").length === 2).map((t) => t.name),
     });
   }
-  // A data tamper per row-table kind: every entry of the table set to false.
-  const emptied = (pattern) => content.replace(pattern, (line) => line.replace(/\btrue\b/g, "false"));
-  const unsafe = emptied(/^def (?:unsafeState|unsafeValue) : .*$/gm);
-  if (unsafe !== content && theorems(content).some((t) => t.short === "escalation")) {
-    variants.push({ name: "the unsafe set emptied", content: unsafe, mustFail: theorems(content).filter((t) => t.short === "escalation" && t.depth === 1).map((t) => t.name) });
-  }
-  const refused = emptied(/^def acceptable : Deliverable → Value → Bool := .*$/m);
-  if (refused !== content && theorems(content).some((t) => /^(?:weaker|count|firstOnly|secondOnly)_/.test(t.short))) {
-    variants.push({ name: "no deliverable value acceptable", content: refused, mustFail: theorems(content).filter((t) => /^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/.test(t.short) && t.depth === 1).map((t) => t.name) });
-  }
-  if (/^def invariantStates :/m.test(content)) variants.push({name:"invariant emptied",content:content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m,"def invariantStates : List (Machine → State) := []"),mustFail:theorems(content).filter((t)=>t.short==="invariantInitial").map((t)=>t.name)});
+  // A data tamper per row-table kind: every entry of the table set to false, or to true.
+  const set = (pattern, to) => content.replace(pattern, (line) => line.replace(to ? /\bfalse\b/g : /\btrue\b/g, String(to)));
+  const verdicts = (short) => theorems(content).filter((t) => short.test(t.short) && t.depth === 1).map((t) => t.name);
+  const data = (name, tampered, mustFail) => { if (tampered !== content && mustFail.length) variants.push({ name, content: tampered, mustFail }); };
+  data("the unsafe set emptied", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, false), verdicts(/^escalation$/));
+  const names = new Set(theorems(content).map((t) => t.name));
+  const unsafeProofs = verdicts(/^unreachable$/).map((name) => {
+    const disjoint = name.replace(/\.unreachable$/, ".invariantDisjoint");
+    return names.has(disjoint) ? disjoint : name;
+  });
+  data("the unsafe set filled", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, true), unsafeProofs);
+  data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/));
+  data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
+  data("invariant emptied", content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m, "def invariantStates : List (Machine → State) := []"), verdicts(/^invariantInitial$/));
   return variants;
 }
 
@@ -533,21 +555,28 @@ export function checkCorrespondence(content, request) {
     const concepts = request.kind === "weakness" ? request.concepts : request.kind === "behavior" ? [{model:request.baseline,id:"baseline"},{model:request.concept,id:"concept"}] : [{model:request.model}];
     const delivered = (m) => m.boxes.filter((b)=>b.role === "product").flatMap((b)=>(b.inputs??[]).filter((p)=>m.wires.some((w)=>w.to.box===b.id&&w.to.port===p.id&&w.polarity!=="harmful")).map((p)=>({box:b.id,port:p.id,carrier:p.carrier})));
     const target = delivered(concepts[0].model), orders = new Map();
+    const toBaseline = (box) => request.kind === "behavior" && Object.hasOwn(request.boxMap ?? {}, box) ? request.boxMap[box] : box;
+    const endpoint = (p) => JSON.stringify([p.box, p.port, p.carrier]);
+    const offered = request.kind === "behavior" ? new Map(delivered(request.concept).map((p) => [endpoint({ ...p, box: toBaseline(p.box) }), p])) : null;
+    if (offered && target.some((p) => !offered.has(endpoint(p)))) return [...problems, "the concept does not supply the baseline deliverable interface"];
     const order = (id) => { if (!orders.has(id)) orders.set(id,[...new Set(concepts.flatMap(({model:m})=>m.carriers.find((c)=>c.id===id)?.values??[]))].sort()); return orders.get(id); };
     const entries = concepts.map(({model:m,id},ci) => {
-      const reached = new Set(request.kind === "dynamics" ? [...m.boxes.filter((b)=>b.transition).map((b)=>b.id),...[...request.spec.unsafe??[],...request.spec.safe??[],...(request.spec.separation??[]).flatMap((d)=>d.where)].map((c)=>c.box)] : normalized.scope === "whole" ? m.boxes.map((b)=>b.id) : m.wires.filter((w)=>target.some((d)=>d.box===w.to.box&&d.port===w.to.port)).map((w)=>w.from.box));
+      const observe = request.kind === "behavior" && ci === 1 ? target.map((p) => offered.get(endpoint(p))) : target;
+      const namespace = request.kind === "dynamics" ? "" : request.kind === "behavior" ? ["Baseline", "Concept"][ci] : `Concept${ci}`;
+      const rename = request.kind === "behavior" && ci === 1 ? toBaseline : (box) => box;
+      const reached = new Set(request.kind === "dynamics" ? [...m.boxes.filter((b)=>b.transition).map((b)=>b.id),...[...request.spec.unsafe??[],...request.spec.safe??[],...(request.spec.separation??[]).flatMap((d)=>d.where)].map((c)=>c.box)] : normalized.scope === "whole" ? m.boxes.map((b)=>b.id) : m.wires.filter((w)=>observe.some((d)=>d.box===w.to.box&&d.port===w.to.port)).map((w)=>w.from.box));
       for (let size=-1;size!==reached.size;) { size=reached.size; for (const w of m.wires) if (reached.has(w.to.box)) reached.add(w.from.box); }
-      const boxes=m.boxes.filter((b)=>reached.has(b.id)), ports=portsOf(boxes,request.kind==="dynamics"?[]:target), pi=new Map(ports.map((p,i)=>[key(p.box,p.side,p.port),i]));
+      const boxes=m.boxes.filter((b)=>reached.has(b.id)), ports=portsOf(boxes,request.kind==="dynamics"?[]:observe), pi=new Map(ports.map((p,i)=>[key(p.box,p.side,p.port),i]));
       const wires=m.wires.filter((w)=>pi.has(key(w.to.box,"in",w.to.port))), names=ports.map((p)=>request.kind==="dynamics"?m.carriers.find((c)=>c.id===p.carrier).values:order(p.carrier));
       const rows=boxes.flatMap((b,bi)=>[...b.behavior??[],...b.transition??[]].map((row)=>({box:bi,fixes:ports.map((p)=>p.box===b.id),values:ports.map((p,i)=>p.box===b.id?names[i].indexOf((p.side==="in"?row.in:row.out)[p.port]):0),row,b})));
-      return {m,id,ci,boxes,ports,pi,wires,names,rows};
+      return {m,id,ci,namespace,rename,observe,boxes,ports,pi,wires,names,rows};
     });
     const valueWidth=Math.max(1,...entries.flatMap((e)=>e.names.map((n)=>n.length)));
     if (request.kind !== "dynamics") {
       const situations = [];
       for (const e of entries) {
         const fed = new Set(e.wires.map((w)=>e.pi.get(key(w.to.box,"in",w.to.port))));
-        for (const [i,p] of e.ports.entries()) if (p.side === "in" && !fed.has(i) && !situations.some((q)=>q.box===p.box&&q.port===p.port)) situations.push({...p,declared:e.m.carriers.find((c)=>c.id===p.carrier).values});
+        for (const [i,p] of e.ports.entries()) if (p.side === "in" && !fed.has(i) && !situations.some((q)=>q.box===e.rename(p.box)&&q.port===p.port)) situations.push({...p,box:e.rename(p.box),declared:e.m.carriers.find((c)=>c.id===p.carrier).values});
       }
       eq("inputId",situations.map((p)=>`${p.box}.${p.port}`)); eq("deliverableId",target.map((p)=>`${p.box}.${p.port}`));
       eq("inputValueId",situations.map((p)=>[...order(p.carrier),...Array(valueWidth-order(p.carrier).length).fill("")]));
@@ -555,10 +584,10 @@ export function checkCorrespondence(content, request) {
       eq("inputDomain",situations.map((p)=>Array.from({length:valueWidth},(_,v)=>v<order(p.carrier).length && p.declared.includes(order(p.carrier)[v]))));
       for (const e of entries) {
         const fed = new Set(e.wires.map((w)=>e.pi.get(key(w.to.box,"in",w.to.port))));
-        const expected = `![${situations.map((q)=>{const p=e.ports.findIndex((p,i)=>p.side==="in"&&!fed.has(i)&&p.box===q.box&&p.port===q.port);return p<0?"none":`some ${p}`;}).join(", ")}]`;
-        const block=content.split(`namespace Concept${e.ci}\n`)[1]?.split(`end Concept${e.ci}\n`)[0]??"";
-        if (!block.includes(`def reads : Input → Option Port := ${expected}`)) problems.push(`table Concept${e.ci}.reads does not encode the authoritative request`);
-        eq(`Concept${e.ci}.delivers`,target.map((p)=>e.pi.get(key(p.box,"in",p.port))));
+        const expected = `![${situations.map((q)=>{const p=e.ports.findIndex((p,i)=>p.side==="in"&&!fed.has(i)&&e.rename(p.box)===q.box&&p.port===q.port);return p<0?"none":`some ${p}`;}).join(", ")}]`;
+        const block=content.split(`namespace ${e.namespace}\n`)[1]?.split(`end ${e.namespace}\n`)[0]??"";
+        if (!block.includes(`def reads : Input → Option Port := ${expected}`)) problems.push(`table ${e.namespace}.reads does not encode the authoritative request`);
+        eq(`${e.namespace}.delivers`,e.observe.map((p)=>e.pi.get(key(p.box,"in",p.port))));
       }
       if (request.kind === "weakness") eq("acceptable",target.map((p)=>{
         const entry=request.acceptable.find((a)=>a.box===p.box&&a.port===p.port)??request.acceptable.find((a)=>a.carrier===p.carrier);
@@ -568,7 +597,7 @@ export function checkCorrespondence(content, request) {
       }));
     }
     for (const e of entries) {
-      const prefix=request.kind==="dynamics"?"":`Concept${e.ci}.`, set=(n,v)=>eq(prefix+n,v);
+      const prefix=e.namespace ? `${e.namespace}.` : "", set=(n,v)=>eq(prefix+n,v);
       set("boxId",e.boxes.map((b)=>b.id)); set("portOwner",e.ports.map((p)=>p.box)); set("portId",e.ports.map((p)=>p.port)); set("fnId",e.wires.map((w)=>w.id));
       set("portValueId",e.names.map((n)=>[...n,...Array(valueWidth-n.length).fill("")]));
       set("rowBox",e.rows.map((r)=>r.box)); set("rowFixes",e.rows.map((r)=>r.fixes)); set("rowValue",e.rows.map((r)=>r.values));
@@ -592,7 +621,7 @@ export async function checkRequest(content, request, opts = {}) {
   catch (e) { return {ok:false,mode:"binding",certified:[],problems:[`malformed authoritative request: ${e.message ?? e}`]}; }
   if (problems.length) return { ok:false,mode:"binding",certified:[],problems };
   const manifest = JSON.parse(literalTables(content).get("certificateManifest"));
-  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,prior:r.prior}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
+  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,prior:r.prior,boxMap:r.boxMap}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
   const regen = spawnSync(process.execPath,["--import","tsx","--input-type=module","-e",program],{cwd:path.resolve(here,".."),input:JSON.stringify(request),encoding:"utf8",maxBuffer:64<<20});
   if (regen.status !== 0) return {ok:false,mode:"binding",certified:[],problems:[`cannot regenerate the authoritative request: ${regen.stderr.trim()}`]};
   let generated; try { generated=JSON.parse(regen.stdout); } catch { return {ok:false,mode:"binding",certified:[],problems:["generator returned invalid JSON"]}; }

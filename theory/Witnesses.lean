@@ -1053,6 +1053,72 @@ example : Closed wearOrRenew Set.univ ∧ (Set.univ ∩ {true} : Set Bool).Nonem
     reachIn wearOrRenew 1 true false ∧ false ∉ ({true} : Set Bool) :=
   ⟨fun _ _ _ _ => trivial, ⟨true, trivial, rfl⟩, ⟨true, rfl, trivial⟩, by simp⟩
 
+/-! ### `unreachable_of_invariant`
+
+Under wear only, `{true}` holds the start `true`, is closed, and misses `{false}`: no run from
+thick returns to thin, though the run goes on (`true` to `true` in two steps). Each hypothesis is
+needed: without `A ⊆ I`, a start `false` outside the invariant is in the target at time zero;
+without closedness, negation leaves the invariant `{false}` for the target `{true}` in one step;
+without disjointness, the start `true` is in the target `{true}` at time zero. -/
+
+example : (∀ n, ∀ a ∈ ({true} : Set Bool), ∀ b ∈ ({false} : Set Bool), ¬ reachIn wearOnly n a b) ∧
+    reachIn wearOnly 2 true true :=
+  ⟨unreachable_of_invariant subset_rfl (fun _ ha _ hb => hb ha) (by simp),
+    ⟨true, ⟨true, rfl, fun _ => rfl⟩, fun _ => rfl⟩⟩
+
+example : Closed wearOnly {true} ∧ Disjoint ({true} : Set Bool) {false} ∧ ¬ ({false} : Set Bool) ⊆ {true} ∧
+    reachIn wearOnly 0 false false :=
+  ⟨fun _ ha _ hb => hb ha, by simp, by simp, rfl⟩
+
+example : ({false} : Set Bool) ⊆ {false} ∧ ¬ Closed negStep {false} ∧ Disjoint ({false} : Set Bool) {true} ∧
+    reachIn negStep 1 false true :=
+  ⟨subset_rfl, fun h => by simpa [negStep] using h false rfl true rfl, by simp, ⟨false, rfl, rfl⟩⟩
+
+example : Closed wearOnly {true} ∧ ¬ Disjoint ({true} : Set Bool) {true} ∧ reachIn wearOnly 0 true true :=
+  ⟨fun _ ha _ hb => hb ha, by simp, rfl⟩
+
+/-! ### `Sync.starts_subset_holding`, `Sync.closed_holding`, `Sync.disjoint_holding_target`
+
+`wearSync` is one box with one machine on states `0` (thin) and `1` (thick), one port with one
+value, and no function: row 0 wears thin to thick, row 1 keeps thick. Each bridge's table check
+holds on it while its set is not empty (a start, a step, a target configuration), and fails, with
+the conclusion, when the table lists the wrong state: thick misses the start thin; thin is left
+for thick in one step; thin is the target. -/
+
+/-- One box, one machine on `Fin 2`, one port with one value, no function. -/
+def wearSync : Sync (Fin 1) (Fin 2) (Fin 1) (Fin 1) (Fin 0) (Fin 2) (Fin 1) :=
+  ⟨fun _ => 0, fun _ _ => true, fun _ _ => 0, fun _ => some 0, ![0, 1], ![1, 1], Fin.elim0, Fin.elim0⟩
+
+/-- The one configuration with the machine in state `s`. -/
+def wearAt (s : Fin 2) : (Fin 1 → Fin 2) × (Fin 1 → Fin 1) := (fun _ => s, fun _ => 0)
+
+example : wearAt 0 ∈ wearSync.starts ![![true, false]] ∧
+    wearSync.starts ![![true, false]] ⊆ wearSync.holding ![fun _ => (0 : Fin 2)] :=
+  ⟨by decide, wearSync.starts_subset_holding (by decide)⟩
+
+example : wearAt 1 ∈ wearSync.starts ![![false, true]] ∧
+    ¬ wearSync.starts ![![false, true]] ⊆ wearSync.holding ![fun _ => (0 : Fin 2)] :=
+  ⟨by decide, fun h => absurd (h (show wearAt 1 ∈ wearSync.starts ![![false, true]] by decide)) (by
+    rintro ⟨i, hi⟩
+    have := congrFun hi 0
+    simp [wearAt] at this)⟩
+
+example : wearSync.Step (wearAt 1) (wearAt 1) ∧ Closed wearSync.Step (wearSync.holding ![fun _ => (1 : Fin 2)]) :=
+  ⟨by decide, wearSync.closed_holding (by decide)⟩
+
+example : wearSync.Step (wearAt 0) (wearAt 1) ∧ ¬ Closed wearSync.Step (wearSync.holding ![fun _ => (0 : Fin 2)]) :=
+  ⟨by decide, fun h => absurd (h (wearAt 0) ⟨0, rfl⟩ (wearAt 1) (by decide)) (by
+    rintro ⟨i, hi⟩
+    have := congrFun hi 0
+    simp [wearAt] at this)⟩
+
+example : wearAt 0 ∈ wearSync.target ![![true, false]] ![![true]] ∧
+    Disjoint (wearSync.holding ![fun _ => (1 : Fin 2)]) (wearSync.target ![![true, false]] ![![true]]) :=
+  ⟨by decide, wearSync.disjoint_holding_target (by decide)⟩
+
+example : ¬ Disjoint (wearSync.holding ![fun _ => (0 : Fin 2)]) (wearSync.target ![![true, false]] ![![true]]) :=
+  fun h => Set.disjoint_left.mp h ⟨0, rfl⟩ (show wearAt 0 ∈ wearSync.target ![![true, false]] ![![true]] by decide)
+
 /-! ### `return_ge_two`
 
 Negation on `Bool` has no fixed point and returns in two steps. Without `h`, the identity returns
@@ -1402,17 +1468,11 @@ example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
   have := (h 0 3).mpr bot_le
   exact absurd this (by decide)
 
-/-! ## Generic opposed witnesses and an actual inductive invariant -/
+/-! ## Generic opposed witnesses -/
 example :
     ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) ∧
       ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = !u) (fun u y => y = u) :=
   incomparable_of_witnesses (u := true) (v := false)
     (by decide) (by decide) (by decide) (by decide)
-
-example : ∀ a ∈ ({false} : Set Bool), ∀ n b,
-    reachIn (fun a b : Bool => b = a) n a b → b ∉ ({true} : Set Bool) :=
-  unreachable_of_inductive (I := ({false} : Set Bool)) subset_rfl
-    (fun a ha b hab => by rw [hab]; exact ha)
-    (Set.disjoint_left.mpr (by decide))
 
 end CategoricalTriz.Witnesses

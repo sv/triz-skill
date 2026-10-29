@@ -23,13 +23,19 @@ These checks share typed models, strict request validation, and explicit work ca
 incomplete decision, never proof of infeasibility, non-isomorphism, or nonconfluence. Search
 results state the candidate space and distinguish display truncation from search completeness.
 
-## Relationship to companion theory work
+## Relationship to merged and companion work
 
 [PR #32](https://github.com/sv/triz-skill/pull/32) proposes general one/two-hole union preservation,
 two-hole safe-pair theory via formal concepts, Mealy fixed-point statements, and recurrent
 reachability. This PR keeps its distinct row/OpenDiagram adapters and certificate lemmas, and
 removes its unused overlapping one-hole theorem layer. The runtime and certificate APIs remain
 independent of that open PR; no unmerged theory is imported or claimed as delivered here.
+
+Merged [PR #39](https://github.com/sv/triz-skill/pull/39) supplies preserved-behavior and
+unreachable-escalation certificates, including comparison mappings and one-sided inputs. This
+branch extends that shared implementation with request binding, whole scope, changed comparisons,
+all weakness pair outcomes and stronger state-only safety. The duplicate generic invariant lemma
+was removed in favor of `unreachable_of_invariant`; both certificate target meanings remain explicit.
 
 ## Behavioral scope and adequacy
 
@@ -71,7 +77,7 @@ and its model data to AXLE, whose execution and Mathlib revision are then truste
 The request is a certificate request record: `kind: "model"` with `model`;
 `kind: "separation"` with `contradiction`; `kind: "dynamics"` with `model` and `spec`;
 `kind: "weakness"` with `concepts`, `acceptable` and optional `scope`/`maxStates`;
-or `kind: "behavior"` with `baseline`, `concept` and optional `scope`/`maxStates`.
+or `kind: "behavior"` with `baseline`, `concept` and optional `scope`/`maxStates`/`boxMap`.
 Use the exact request used for generation. Internal `spec` options use camelCase, as the
 library does, rather than MCP's snake_case wrapper.
 
@@ -81,18 +87,23 @@ generator alone would not detect a common encoding bug. This is correspondence c
 translation validation, not a general correctness proof of the TypeScript encoder or evaluator.
 The grammar/axiom checks and tampered-certificate rejection still apply.
 
-New behavior certificates support equal interfaces with aligned box ids. Unsupported mappings,
-missing declarations, residual queries and lost deliverables give an explicit reason rather than
+Behavior certificates use the declared `boxMap` to align interfaces, include inputs read by only
+one model, and compare the baseline deliverables; gained deliverables stay outside that comparison.
+Equality also proves the relation has at least one pair, without establishing adequacy at every input.
+Missing declarations, residual queries and lost deliverables give an explicit reason rather than
 a misleading certificate. Weakness certificates cover strict order, equality and incomparability;
 prior probability mass is not certified. A distinguishing situation includes proof of admission
 (existence and universal acceptable outputs) or rejection (an unacceptable output or no output).
 
-Negative dynamics certificates currently support state-only predicates without time-varying
-inputs, and require a genuinely closed invariant. They contain every valuation for each selected
-state, matching the successor-valuation semantics of `Sync.Step`; a visited list of consistent
-configurations would not automatically be closed. Port predicates, input schedules, bounded-only
-negative results and loop-class certificates remain future work. A generated proof certifies
-only the statements listed in `certifies` under its scope.
+State-only negative dynamics certificates require a genuinely closed invariant and cover unsafe
+states regardless of whether a valuation is admitted. They contain every valuation for each
+selected state, matching the successor-valuation semantics of `Sync.Step`; a visited list of
+consistent configurations would not automatically be closed. Saturated unreachable port-target
+certificates instead exclude admitted unsafe configurations (`Sync.target`); they do not certify
+the absence of unsafe blocked states, whose port values are unknown. Input schedules, bounded-only
+negatives, safe port-invariance claims and loop-class certificates remain unsupported. A combined
+request can return only the supported escalation proof. A generated proof certifies only the
+statements listed in `certifies` under its scope.
 
 ## Implementations, resources and evidence
 

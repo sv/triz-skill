@@ -397,7 +397,7 @@ to check the rating, not a finding.
 | `no-earlier-snapshot` | `triz_nine_windows` | A transition starts from a time with no snapshot |
 | `snapshot-not-reached` | `triz_nine_windows` | A transition's result differs from the snapshot it must reach |
 | `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
-| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe target |
+| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe or safe target |
 | `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
 | `not-certifiable` | `triz_dynamics`, `triz_weakness` `certificate` | The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair |
 | `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a loss-like flow (pressure drop, leakage, noise, …) |
@@ -419,16 +419,20 @@ request and records scope, source SHA256, schema/generator/theory versions and t
 | Separation | The finite compatibility, separation, conflict and gluing statements listed in `certifies` |
 | Reachable dynamics escalation | An initial admitted trace reaches the unsafe target within its length |
 | Supported state-only negative dynamics | An invariant contains initial states, is closed under `Sync.Step`, and excludes unsafe states or lies in the safe set |
+| Saturated unreachable port target | An invariant excludes every admitted unsafe configuration; blocked-state port uncertainty is outside this theorem |
 | Weakness strict order, equality or incomparability | The actual composed row relations have the stated admission inclusions or distinguishing admitted/rejected situations |
-| `triz_behavior` comparison | The aligned finite relations are equal, or an input/output pair belongs to just one of them |
+| `triz_behavior` comparison | The aligned finite relations are equal and nonempty, or an input/output pair belongs to just one of them |
 
 `triz_export` format `lean`, `triz_separate`, `triz_behavior`, `triz_dynamics`, and `triz_weakness`
 with `certificate: true` return supported certificates. Unsupported cases return a reason, never
-a certificate for a different claim. Behavior certificates currently need aligned box ids and a
-preserved deliverable interface; residual specifications are not certified. Weakness prior masses
-are not certified. Negative dynamics certificates require state-only predicates, no input schedule,
-and checked closure; bounded-only negatives, port predicates, separation and loop classes are not
-yet certified. Blocked-state port uncertainty remains explicit.
+a certificate for a different claim. Behavior certificates support declared `box_map`, inputs read
+by only one model, and concept-only gained deliverables outside the baseline interface. Residual
+specifications and lost deliverables are not certified. Weakness prior masses are not certified.
+Negative dynamics require no input schedule and checked closure: state-only certificates exclude
+unsafe states regardless of admitted valuations; saturated port-target certificates exclude only
+admitted unsafe configurations. Bounded-only negatives, safe port-invariance claims, separation and loop
+classes remain unsupported. A combined request can return only the supported escalation proof;
+`certifies` lists exactly which claims were proved. Blocked-state port uncertainty remains explicit.
 
 The `Rows` encoding says each box admits its port valuation and every wire equates its ends.
 Weakness admission requires a nonempty output set and every output acceptable, so a favorable
@@ -1329,8 +1333,9 @@ The implemented guarantees are separated from future work in
 - **Dynamics.** Dynamics are finite, discrete and declared. Possible settling, recovery or return
   does not imply every run eventually settles, recovers or returns. A finite trapped component
   does not show a physical quantity grows without bound. Supported state-only inductive safety is
-  certifiable; port-target negative results, timed inputs, bounded negative layers, separation and
-  loop-class certificates remain future work. Traces can choose different valid ties after relabeling.
+  certifiable. Saturated port-target unreachability certificates concern admitted configurations,
+  not unsafe blocked states. Timed inputs, safe port predicates, bounded negative layers, separation
+  and loop-class certificates remain future work. Traces can choose different valid ties after relabeling.
 - **Feasibility.** Monotone resource interpretation is assumed. Overload or deterioration with
   more input needs explicit behavior/dynamics rather than being inferred from a rating. Shared
   intensive levels use max; extensive consumption needs an explicit split/balance model. The

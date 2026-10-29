@@ -270,10 +270,12 @@ interpretation; replace its provenance note if the original source is identified
 
 ## Matrix provenance
 
-`data/matrix.json` was imported from the matrix workbook linked in its metadata. Its parameter and
-principle numbering is canonical; the English descriptions in this repository are concise
-paraphrases. The underlying table is Altshuller's and widely republished; regenerate the file from
-a source of your own choosing with the importer if needed.
+Current `data/matrix.json` metadata links the official classical-matrix reference. The original
+source notes describe a workbook import, but the current metadata does not retain a workbook URL;
+that provenance gap is recorded in [R63](../../../theory/REFERENCES.md#r63). Parameter and principle
+numbering is canonical; the English descriptions here are concise paraphrases. The underlying
+table is Altshuller's and widely republished; regenerate it from an explicitly attributed source
+with the importer when needed.
 
 ## Assurance extension and future work
 

@@ -329,9 +329,9 @@ function externalBehaviorScoped(model: FunctionModel, opts: BehaviorOptions) {
  * baseline id. Only input ports are compared (deliverables and boundary inputs), so each mapped
  * box's input ports must exist on its baseline box with the same carrier (else mismatch), and no
  * two concept boxes may land one input port on the same baseline port (else ambiguous). Fails
- * closed on both.
+ * closed on both. Exported for certificates (src/act-cert.ts).
  */
-function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>) {
+export function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>) {
   const mapped = mapBoxes(concept, baseline, boxMap);
   if (!mapped.ok) return mapped;
   const toBaseline = new Map(concept.boxes.map((b, i) => [b.id, mapped.model.boxes[i].id]));

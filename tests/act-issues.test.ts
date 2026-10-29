@@ -324,6 +324,7 @@ const cases: Case[] = [
     pick: (r) => r.certificate, path: "$.inputs" },
   { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
     pick: (r) => r.certificate, path: "$.horizon", hint: /increase the horizon/ },
+  { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
   { code: "prior-malformed", tool: "triz_weakness", args: { concepts: [{ id: "a", model: thermo() }, { id: "b", model: thermo() }], acceptable: [{ box: "plant", port: "sig", values: ["on"] }], prior: [{ input: [], weight: 1 }] }, path: "$.prior[0].input" },
   { code: "required-input-malformed", tool: "triz_adequacy", args: { model: thermo(), scope: "upstream", acceptable: [{ box: "plant", port: "sig", values: ["on"] }], required_inputs: [[]] }, path: "$.required_inputs[0]" },
   { code: "invalid-argument", kernel: () => globalSeparation({ variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }), input: { variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }, path: "$.regions['0'].variables['0']" },

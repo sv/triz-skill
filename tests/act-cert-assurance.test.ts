@@ -58,7 +58,7 @@ test("all weakness pairs have certificate verdicts, including equal and incompar
 
 test("changed behavior certificates require a member and nonmember at the same pair", () => {
   const same = content(behaviorCertificate(model(), model(), { scope: "whole" }));
-  assert.match(same, /^theorem behaviorPreserved : .* = .* :=$/m); assert.deepEqual(lint(same), []);
+  assert.match(same, /^theorem preserved : .* = .* :=$/m); assert.deepEqual(lint(same), []);
   const changed = content(behaviorCertificate(model(), model(() => "1"), { scope: "whole" }));
   assert.match(changed, /^theorem behaviorChanged : ∃ u y, .* u y ∧ ¬ .* u y :=$/m); assert.deepEqual(lint(changed), []);
 });

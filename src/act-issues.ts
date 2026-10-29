@@ -133,7 +133,7 @@ export const ISSUE_CODES = {
   "snapshot-not-reached": "A transition's result differs from the snapshot it must reach",
   // Certificates
   "invalid-namespace": "The certificate namespace is not a usable Lean identifier",
-  "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe target",
+  "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe or safe target",
   "certificate-input-sequence": "A dynamics certificate was asked for runs under an input sequence, which it does not encode",
   "not-certifiable": "The requested verdict or scope is unsupported by the finite certificate generator",
   // Lints (warnings channel)

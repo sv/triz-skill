@@ -25,7 +25,7 @@ export const THEOREMS = [
   "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
   "incomparable_of_witnesses", "card_lt_of_strictly_weaker",
-  "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated",
+  "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated", "unreachable_of_invariant",
   "fixed_on_cycle", "closed_reachIn", "trapped_reachIn", "return_ge_two",
   "kleene_lfp", "kleeneStep_upperClosure", "codesign_lfp",
   "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
