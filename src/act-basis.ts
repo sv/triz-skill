@@ -31,7 +31,7 @@ export const REWRITE: Theorem[] = ["typed_delete", "typed_glue"];
 
 type Separation = ReturnType<typeof separationCheck>;
 
-export function separationBasis<T extends Separation>(r: T) {
+export function separationBasis(r: Separation) {
   if (!r.ok) return r;
   return {
     ...r,

@@ -224,18 +224,18 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     specs.push(
       {
         name: "triz_graph",
-        description: "Optional project extension: analyse an OTSM Network of Problems (contradiction graph) and its verifier-backed purpose gates. Requires a project graph via TRIZ_GRAPH; not part of the neutral skill core.",
+        description: "Optional project extension: analyse an OTSM Network of Problems (contradiction graph) and its verifier-backed purpose gates. A node may carry a PhysicalContradiction; each is checked by separationCheck (irreducible, separable, no-contradiction, or invalid, which fails closed for that node), and the core-conflict ranking breaks ties on dissolves in favour of irreducible nodes and flags a top node that already separates. Requires a project graph via TRIZ_GRAPH; not part of the neutral skill core.",
         shape: {},
         handler: async () => text(graph.analyse()),
       },
       {
         name: "triz_purpose",
-        description: "Optional project extension: inspect the invariant and purpose gate for one contradiction node of the project graph.",
+        description: "Optional project extension: inspect the invariant, purpose gate, and separation check of one contradiction node of the project graph.",
         shape: { id: z.string().describe("Node id as used in the project graph, e.g. S1") },
         handler: async ({ id }: { id: string }) => {
           const node = graph.loadGraph().nodes.find((n) => n.id === id);
           if (!node) return text({ error: "no node " + id });
-          return text({ id, purpose: node.purpose, refs: node.refs, gate: graph.purposeGate(node, graph.loadRegistryById()) });
+          return text({ id, purpose: node.purpose, refs: node.refs, gate: graph.purposeGate(node, graph.loadRegistryById()), separation: graph.nodeSeparation(node) });
         },
       },
     );
