@@ -154,7 +154,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
     "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
     "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
-    "trapped_reachIn", "closed_reachIn", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
+    "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
     "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });

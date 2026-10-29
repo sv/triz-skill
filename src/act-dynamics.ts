@@ -89,8 +89,8 @@ const TIMED_EXHAUSTED: Theorem[] = ["reachIn_iff_trace"];
 const BISTABLE: Theorem[] = ["fixed_on_cycle", "closed_reachIn"];
 /** A sound trace into a closed component inside the unsafe set: every configuration reachable from it is unsafe. */
 const TRAPPED: Theorem[] = ["trapped_reachIn", "reach_of_trace"];
-/** A sound trace into a closed component that meets the unsafe set, which the run never leaves. */
-const RECURRENT: Theorem[] = ["closed_reachIn", "reach_of_trace"];
+/** A sound trace into a closed component that meets the unsafe set, which the run never leaves; its states reach each other, so unsafe and safe states both stay reachable. */
+const RECURRENT: Theorem[] = ["closed_reachIn", "recurrent_reach", "reach_of_trace"];
 /** A closed component without a fixed point: every return takes two steps or more. */
 const OSCILLATING: Theorem[] = ["closed_reachIn", "return_ge_two"];
 

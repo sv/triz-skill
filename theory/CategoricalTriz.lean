@@ -1210,7 +1210,10 @@ theorem reachWithin_saturated {A : Set σ} {k : ℕ}
 The kernel classifies the closed strongly connected components of the reachable state graph. A
 component is closed when no step leaves it. Its configurations form a closed set of the
 configuration graph: a trapped component is one inside the unsafe set (`trapped_reachIn`), a
-recurrent one meets the unsafe set without lying inside it. -/
+recurrent one meets the unsafe set without lying inside it. Its states reach each other, so from
+every state a run reaches inside it, an unsafe and a safe state both stay reachable
+(`recurrent_reach`): the run can recover and can relapse, at any number of steps. Whether it does
+is not stated; that needs a fairness assumption. -/
 
 /-- No step leaves `C`. -/
 def Closed (r : σ → σ → Prop) (C : Set σ) : Prop := ∀ a ∈ C, ∀ b, r a b → b ∈ C
@@ -1234,6 +1237,19 @@ run too, but may reach safe states again (recurrent, not trapped). -/
 theorem trapped_reachIn {C U : Set σ} (hC : Closed r C) (hCU : C ⊆ U) {a : σ} (ha : a ∈ C) (n : ℕ)
     {b : σ} (h : reachIn r n a b) : b ∈ U :=
   hCU (closed_reachIn hC ha n h)
+
+/-- A recurrent component: a closed set whose states all reach each other, holding a state of `U`
+(an unsafe configuration there) and a state of `S` (a safe one). From every state a run reaches
+from inside it, at any number of steps, both stay reachable: the run can recover and can relapse,
+but need not do either. -/
+theorem recurrent_reach {C U S : Set σ} (hC : Closed r C)
+    (hSC : ∀ a ∈ C, ∀ b ∈ C, Relation.ReflTransGen r a b) (hU : (C ∩ U).Nonempty)
+    (hS : (C ∩ S).Nonempty) {a : σ} (ha : a ∈ C) (n : ℕ) {b : σ} (h : reachIn r n a b) :
+    (∃ u ∈ U, Relation.ReflTransGen r b u) ∧ ∃ s ∈ S, Relation.ReflTransGen r b s :=
+  have hb := closed_reachIn hC ha n h
+  let ⟨u, huC, huU⟩ := hU
+  let ⟨s, hsC, hsS⟩ := hS
+  ⟨⟨u, huU, hSC b hb u huC⟩, ⟨s, hsS, hSC b hb s hsC⟩⟩
 
 /-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
 cycles have length two or more. -/

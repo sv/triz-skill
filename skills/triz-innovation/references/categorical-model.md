@@ -26,7 +26,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation; for two such boxes, the maximal pairs of relations that stay inside (formal concepts of the safe row pairs) and cover it | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; for two boxes, `safe_iff_le_concept`, `concept_maximal`, `exists_eq₂_iff`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq`; for two boxes, never cited: `PreservesUnions₂.mono`, `le_safeRows_iff`, `concept_safe` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
-| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `return_ge_two` |
+| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `recurrent_reach`, `return_ge_two` |
 | Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
 | Numeric amount read as a qualitative value | carrier `levels`: a threshold per value, from 0, increasing; an amount reads as the last value whose threshold it reaches | checkModel (fail closed); `triz_feasibility` `levels`: each feasibility row against the box's behaviour rows; `triz_abstraction` across the map; `triz_weakness` `acceptable` by `at_least` or `below` | `level_monotone`, `level_gc`, `level_band` |
 | A detailed and a coarse model of one system | an abstraction map: detailed box → coarse box (many to one), port → port per box, carrier → carrier | `triz_abstraction`: total, typed, every coarse function an image of its class, every coarse harm loop the image of a detailed one | `typed_map`, `reach_map`, `cycle_map`; definition `Wiring.map` |
@@ -884,7 +884,8 @@ Without `inputs`, `triz_dynamics` also classifies how the loops behave in the lo
     into it is the counterexample, and says whether it starts from an initial or a safe state;
   - `recurrent`: a closed component that meets the unsafe set and also holds a safe
     configuration (`safe` gives one). The run never leaves it, and from each of its states it
-    can reach both: it can recover and escalate again. The trace is given as for `trapped`;
+    can reach both (`recurrent_reach`): it can recover and escalate again. The trace is given as
+    for `trapped`;
   - `oscillating`: a closed component with a cycle and no fixed point. The result gives one
     shortest cycle, whose length is at least two, and the period, the gcd of the cycle lengths.
     A period of 1 means cycles of coprime lengths, not a fixed point.
@@ -900,9 +901,12 @@ Without `inputs`, `triz_dynamics` also classifies how the loops behave in the lo
 In `theory/`, `Closed` says no step leaves a set. Lean proves that a fixed point lies on a cycle
 (`fixed_on_cycle`), that a closed set holds every run that enters it at any number of steps
 (`closed_reachIn`), that from a closed set inside the unsafe set every reachable state is unsafe
-(`trapped_reachIn`), and that without a fixed point every return takes at least two steps
+(`trapped_reachIn`), that from every state a run reaches inside a closed set whose states reach
+each other, a state of the unsafe set and a safe one both stay reachable when the set holds one of
+each (`recurrent_reach`), and that without a fixed point every return takes at least two steps
 (`return_ge_two`). `theory/Witnesses.lean` has a closed set that meets the unsafe set without
 lying inside it and reaches a safe state: the recurrent case, which `trapped_reachIn` excludes.
+It also shows that `recurrent_reach` needs each hypothesis.
 
 In `bearing-heat-dynamics.json` the shaft has a temperature state. From `cold`, the
 heat → preload loop reaches `hot` in two steps, and `hot` is a trap: the loop is `trapped`.
@@ -1445,8 +1449,11 @@ example cohort churn against fee changes. Name it only from that evidence.
   trace is a candidate mechanism whose rows must be substantiated. `unreachable` holds for the
   rows and initial states as declared. A loop class describes the declared state graph:
   `trapped` means a closed component lies inside the unsafe set, and `recurrent` that one meets
-  it and holds a safe configuration; neither says that a physical quantity grows without bound,
-  and `recurrent` does not say how often, or whether, a run returns to the unsafe set.
+  it and holds a safe configuration; neither says that a physical quantity grows without bound.
+  `recurrent` says that from every state the run reaches inside the component, an unsafe and a
+  safe state both stay reachable (`recurrent_reach`): the run can return to the unsafe set, and
+  can recover. It does not say how often, or whether, a run does return; that needs a fairness
+  assumption, which the kernel does not make.
   Dynamics verdicts are not covered by the label-blindness property tests, and traces break
   ties in declaration order.
 - The dynamics and weakness certificates certify what a witness or an exhaustive decision
