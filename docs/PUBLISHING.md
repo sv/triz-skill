@@ -7,8 +7,9 @@ npm comes first.
 
 ## Prerequisites (one-time)
 
-- **npm trusted publishing.** The Release workflow publishes with no token: npm authenticates it
-  by its GitHub OIDC identity and attaches provenance automatically. Set this up once on
+- **npm trusted publishing.** The Release workflow publishes with `pnpm publish` and no token:
+  pnpm exchanges the workflow's GitHub OIDC identity with npm, which attaches provenance
+  automatically. Set this up once on
   npmjs.com:
   1. Open `triz-mcp` → **Settings** → **Trusted publishing**, then choose **GitHub Actions**.
   2. Enter user `sv`, repository `triz-skill`, and workflow `release.yml`. Leave the environment
@@ -18,7 +19,8 @@ npm comes first.
 
   The CLI equivalent is `npm trust github` (npm >= 11.15 and account 2FA required); see
   `npm trust github --help` for its flags. Only one trusted-publisher configuration exists per
-  package. For the manual path, run `npm login` locally.
+  package. For the manual path, authenticate with `npm login` locally; pnpm reads the same
+  `~/.npmrc`.
 - **MCP Registry.** Nothing to set up: the workflow's `mcp-publisher login github-oidc` proves
   it runs in `sv/triz-skill`, which owns the `io.github.sv/` namespace.
 - The npm name `triz-mcp` is verified free; if you ever rename it, update `server.json`
@@ -47,11 +49,11 @@ Release flow:
 
 3. The Release workflow runs two jobs:
    - `publish` checks that all three versions match the tag, runs typecheck, build, tests, and
-     the smoke test, then publishes to npm via OIDC and creates the GitHub release.
+     the smoke test, then runs `pnpm publish` via OIDC and creates the GitHub release.
    - `mcp-registry` then publishes `server.json`, using a pinned, Sigstore-verified
      `mcp-publisher`. Re-run this job on its own if the registry hiccups.
 
-Manual fallback: `npm publish --provenance --access public` after running the same gates
+Manual fallback: `pnpm publish --access public` (no provenance outside CI) after running the same gates
 locally (`pnpm build && pnpm typecheck && pnpm test && node scripts/smoke-mcp.mjs dist/server.js`).
 
 Consumers then get the one-liner: `npx -y triz-mcp`.

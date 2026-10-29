@@ -13,21 +13,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
-      id-token: write   # npm trusted publishing (OIDC); provenance is generated automatically
+      id-token: write   # npm trusted publishing via pnpm (OIDC); provenance is attached automatically
       contents: write   # GitHub release
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
 
+      # No registry-url: its generated .npmrc would point pnpm at a placeholder NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          registry-url: https://registry.npmjs.org
-
-      # Trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.
-      - run: npm install -g npm@^11.5.1 && npm --version
 
       - name: Versions match tag
         run: |
@@ -42,8 +39,10 @@ jobs:
       - run: pnpm test
       - run: node scripts/smoke-mcp.mjs dist/server.js
 
+      # pnpm (>= 11) publishes natively and exchanges the job's OIDC token with npm; the tag
+      # checkout is a detached HEAD, so skip pnpm's publish-branch check (the tag gate above holds).
       - name: Publish
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
 
       - name: GitHub release
         uses: softprops/action-gh-release@v2
