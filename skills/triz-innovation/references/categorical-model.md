@@ -20,6 +20,8 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
@@ -56,6 +58,12 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    `absorb`. It decides whether the trim preserves the input→deliverable relation (see
    [Declared behaviour](#declared-behaviour)). A `preserved` verdict holds for the relations as
    declared; substantiate each of them, the absorber's first.
+
+   When every box that matters declares behaviour except the absorber, add `weakest_spec`. The
+   result is the absorber's weakest specification: what it must do for the trim to preserve the
+   relation, and nothing more. Or it says that no behaviour of the absorber can (see
+   [Weakest box specification](#weakest-box-specification)). The specification is the trimming
+   problem stated as a relation; it is still a problem to solve.
 4. **Separate.** For a physical contradiction, give each demand its admissible values and the
    cells where it applies on each axis. Use `space`, `time`, `condition`, `direction`, and
    `level`, which are MATRIZ's five separation types; `condition` is MATRIZ's "relation
@@ -86,6 +94,9 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    and regained. `merge` renames the merged ports as well, so no box map recovers them. When the boxes
    that matter declare behaviour, decide the result with `triz_behavior` and `compare_to` (the
    same `box_map`); see [Behaviour through the constructions](#behaviour-through-the-constructions).
+
+   When several modelled concepts are adequate, rank them with `triz_weakness` (see
+   [Weakness ranking](#weakness-ranking)).
 6. **Windows.** Use `triz_nine_windows` with the present model, any past or future snapshots
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
@@ -223,6 +234,80 @@ is fixed by what was declared:
 
 Decide the result with `triz_behavior` and `compare_to`. Without declared behaviour, new boxes
 stay undecided.
+
+## Weakest box specification
+
+`triz_behavior` with `weakest_spec` takes a concept in which exactly one box that can reach a
+deliverable declares no behaviour, and a target relation. The target is the relation of the
+baseline given as `compare_to` (with `box_map` when a segmentation moved deliverables), or, with
+`trim`, the untrimmed model's. With every other box fixed, the context `C` sends a relation `R`
+for the box to the concept's input→deliverable relation `C[R]`. The concept is aligned with the
+baseline as `compare_to` aligns it, and the relations are compared over the union of boundary
+inputs.
+
+- **Spec.** `W` is every row of the box, over its ports' declared values, whose composite stays
+  inside the target at every input. Composition and the trace preserve unions
+  (`relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`). The box occurs once
+  in the join, so `C[R]` is the union of its rows' composites. Then `R ⊆ W` iff `C[R]` stays
+  inside the target (`le_residual_iff`; `gc_residual`, a Galois connection). So `W` is the
+  weakest box specification, the residual in Rel. One search finds every row's composite: the
+  box admits every row, and each steady state is grouped by the row it uses.
+- **Covering.** The empty relation always stays inside the target (`map_empty`), so staying
+  inside proves nothing. The verdict is `spec`, with `preserves: true`, only when `C[W]` covers
+  the target. Declaring `W` then gives exactly the target, and every behaviour that does is
+  contained in `W`. Otherwise the verdict is `impossible`: no behaviour of the box gives the
+  target (`covers_iff_exists_eq`, `not_covers_iff`). `uncovered` gives an input and the target
+  outputs `W` cannot deliver there. An empty `W` is always `impossible`.
+- **Reading the spec.** `excluded` gives, for each excluded row, an input where its composite
+  leaves the target. `unusedRows` counts rows that no steady state presents: they constrain
+  nothing. `blockedInputs` lists input tuples of the box with no row in `W`. The box must rule
+  out those steady states, and the physics must substantiate that.
+- **Fail closed.**
+  - A target deliverable the concept lacks gives `impossible` (`lost-deliverables`) before any
+    search. A deliverable needs a function into it, which is wiring, not behaviour. Deliverables
+    only the concept has are listed (`gainedDeliverables`) and not compared, as in
+    `compare_to`.
+  - Two or more boxes without behaviour give `undecided` (`several-holes`). The largest safe
+    relation for one depends on the relation chosen for the others, so no box has a single
+    weakest choice.
+  - Missing baseline behaviour, and a target empty at every input (`no-steady-state`), give
+    `undecided`.
+  - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
+    `max_states`.
+  - A carrier of the box without `values` fails closed.
+- **Re-check.** The kernel declares `W`, recomputes the concept's relation, and compares it with
+  the target before it answers.
+
+## Weakness ranking
+
+`triz_weakness` performs [weakness.md](weakness.md)'s steps 1–3 for concepts that declare
+behaviour.
+
+- **Situations.** A situation is a valuation of the concepts' boundary inputs over their
+  carriers' declared values. This declared input space is weakness.md's list of operating
+  situations, its measuring instrument. Boundary inputs are matched across concepts by box and
+  port id. An input that several concepts read must range over the same values.
+- **Admits.** A concept admits a situation when it has a steady state there and every
+  deliverable output there is acceptable (`admits`). `acceptable` gives, per deliverable port,
+  the acceptable values, and it is required. A situation with no steady state is not admitted
+  (`admits_bot`), so having no behaviour never makes a concept weak.
+- **Ranking.** Concepts are ranked by inclusion of what they admit (`AtLeastAsWeak`, a preorder).
+  The output gives:
+  - `weakest`: a concept that admits everything any other admits, if one exists;
+  - `maximal`: the concepts no other strictly contains;
+  - each pair as `equal`, `first-weaker`, `second-weaker`, or `incomparable`, with a situation
+    only one of the two admits, each way. Inclusion is not total (`admits_incomparable`).
+- **Count.** The count of admitted situations (`byCount`) is secondary. A strict inclusion gives
+  a strictly larger count (`card_lt_of_strictly_weaker`), so the two never disagree there.
+  Between incomparable concepts, the count depends on how finely the carriers' values are
+  declared: splitting one value into two changes it. Bennett (2023, cited in weakness.md)
+  measures weakness as that count, under a uniform distribution over tasks.
+- **Fail closed.** The concepts must deliver the same ports. A concept that drops a deliverable
+  has fewer outputs to be acceptable, so it would look weaker; the ranking refuses instead. Missing
+  behaviour and the state cap give `undecided`.
+- **Adequacy first.** Rank only concepts that resolve the contradiction; that check stays with
+  you. For a safety, integrity, or authorisation decision, admitting more is the wrong direction
+  (weakness.md).
 
 ## Principle constructions
 
@@ -432,6 +517,25 @@ example cohort churn against fee changes. Name it only from that evidence.
   steady state of an identity loop, and that a negation loop has none. These are semantic sanity
   lemmas; no verdict cites them. The evaluator is checked by tests, not extracted from these
   statements.
+- The weakest specification is decided for one box without behaviour only. With several, the
+  safe relations are not a product of per-box residuals, so none is computed.
+  - It is the residual of the declared context. It says what the box must do for the concept's
+    relation to equal the target. It does not say that a physical box can do it, at what cost,
+    or with what new harms.
+  - It is named for what it computes. It is not abduction, and it does not search for
+    mechanisms.
+- Lean proves the residual's properties for every context that preserves unions, and that
+  composition and the trace preserve unions. It does not prove that the kernel's join is such a
+  context, or that the evaluator computes it. Two things are tested instead:
+  - the grouping of steady states by the box's row, by a brute force over every relation the
+    box could declare (the bearing's housing, and a correlated two-deliverable case);
+  - the result, by a re-check that declares the spec.
+- Behaviour rows stay steady-state relations, for the spec and for the ranking. They are not
+  reread as one-step transitions.
+- The weakness ranking holds for the declared values and the given `acceptable`. It does not
+  check that a concept resolves the contradiction. Bennett's result assumes a uniform
+  distribution over tasks, and a real prior overrides it (weakness.md). Neither the spec nor the
+  ranking makes a principle claim.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
   dynamics, convergence, or which steady state the system reaches. A least fixpoint (iteration
   from no value) is not used: it needs initial loop values the model does not declare, and on an

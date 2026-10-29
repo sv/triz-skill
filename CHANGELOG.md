@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
 - `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
 - `triz_behavior` `compare_to`/`box_map` decides transform results against a baseline; mediators declare `behavior`; segment splits behaviour over independent parts or names a coupling witness.
+- `triz_behavior` `weakest_spec`: the weakest specification (residual in Rel) for the one box without behaviour, against `compare_to` or the untrimmed model: `spec`, `impossible`, or `undecided`; `triz_weakness` ranks modelled concepts by the situations they admit, by inclusion.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
 - `theory/Witnesses.lean`: each typing lemma's and behaviour-monotonicity lemma's hypotheses hold on a concrete diagram or relation, and dropping any one breaks it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
