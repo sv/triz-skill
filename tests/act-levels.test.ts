@@ -9,6 +9,7 @@ import assert from "node:assert/strict";
 import { checkModel, type FunctionModel } from "../src/act.js";
 import { levelOf, bandOf, thresholdValues, levelsConsistency, type Levels } from "../src/act-levels.js";
 import { weaknessRanking } from "../src/act-behavior.js";
+import { toHypergraph, fromHypergraph } from "../src/act-export.js";
 import { toolSpecs } from "../src/tools.js";
 import { example, box, carrier, withLevels, bearingWithRows, RADIAL_LEVELS } from "./support/bearing.js";
 import { rng, int } from "./support/gen.js";
@@ -33,6 +34,11 @@ test("levels typing fails closed: values required and declared, once each, from 
   assert.match(broken([{ value: "unsupported", from: 0 }, { value: "supported", from: 0 }], ["supported", "unsupported"]), /levels must increase: 'supported' from 0 does not exceed 'unsupported' from 0/);
   // The levels order the values; the values array need not.
   assert.deepEqual(carrier(example("bearing-heat-behavior"), "radial-load").values, ["supported", "unsupported"]);
+  // Levels ride on the carrier through the hypergraph export, losslessly.
+  const levelled = bearingWithRows();
+  const back = fromHypergraph(toHypergraph(levelled));
+  assert.ok(back.ok);
+  assert.deepEqual(back.model, levelled);
 });
 
 test("property: reading amounts through increasing thresholds from 0 is a Galois connection, each amount in its band", () => {

@@ -666,8 +666,9 @@ in the band of the value it reads as (`level_band`).
   listed under `declared`.
 
 Inconsistencies are reported, not failed closed: either side may be the one to fix, or the
-thresholds. With radial-load levels `unsupported` from 0 and `supported` from 2500 N, the
-bearing with both behaviour and feasibility reads the shaft's 2500 N requirement and the
+thresholds. Take `bearing-heat-behavior.json`, add the feasibility rows of
+`bearing-heat-feasibility.json`, and give radial-load the levels `unsupported` from 0 and
+`supported` from 2500 N. Then `triz_feasibility` reads the shaft's 2500 N requirement and the
 bearing's 3000 N as `supported`, consistent with their behaviour, but the housing's cheaper row,
 400 N, reads as `unsupported` while the housing's behaviour declares its bore `supported`.
 `triz_abstraction` runs the same check across a map (below), and `triz_weakness` turns a
@@ -698,8 +699,8 @@ with the failing checks:
    coarse boxes has an image: a coarse function with the mapped endpoints, the mapped carrier,
    and the same class.
 2. **Typed.** Each mapped port lands on a port of the same side whose carrier is its own
-   carrier's image, in the same layer. Then the image of the typed detailed model is typed
-   (`typed_map`); the map need not be injective, so `typed_rename` would not do.
+   carrier's image, in the same layer. Then the image of the detailed model's mapped part is
+   typed (`typed_map`); the map need not be injective, so `typed_rename` would not do.
 3. **Wires.** Every coarse function is the image of a mapped detailed function of its class.
 4. **Harm loops.** Every coarse harm loop is the image of a detailed one. Each harmful or
    excessive coarse function on it needs a negative preimage whose object reaches its performer
