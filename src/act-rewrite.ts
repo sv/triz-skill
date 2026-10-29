@@ -24,6 +24,13 @@
 import { checkModel, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
 import { REWRITE, type Theorem } from "./act-basis.js";
 
+/** An identity mediator composes away: r ∘ (=) = r. */
+const IDENTITY: Theorem[] = ["Relation.comp_eq"];
+/** One part against the rest: R is π₁R × π₂R iff it is a product at all. */
+const SPLIT: Theorem[] = ["eq_projections_prod_iff"];
+/** All parts at once: R is Π πᵢR iff it is a product at all. */
+const SPLIT_ALL: Theorem[] = ["eq_projections_pi_iff"];
+
 type Box = FunctionModel["boxes"][number];
 type Wire = FunctionModel["wires"][number];
 type Port = NonNullable<Box["inputs"]>[number];
@@ -75,6 +82,38 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
 export interface PartSpec { id: string; name?: string; role?: Box["role"]; ports: string[]; }
 
 /**
+ * Whether a box's declared relation R splits over its parts: R equals the product of its
+ * projections πᵢR onto each part's ports. R ⊆ Π πᵢR always holds, so after removing duplicate rows
+ * equality is |R| = Π |πᵢR|: about k·|R| steps for k parts, with no membership check per tuple of
+ * the product. A part is coupled when R ≠ πᵢR × π(rest)R, each part tested against all the others
+ * together: c = a xor b is independent pairwise, yet no part splits off. R splits over all the
+ * parts iff no part is coupled. When it splits, each part gets its projection as its behaviour.
+ */
+export function splitBehavior(box: Box, parts: Array<{ id: string; ports: string[] }>) {
+  const columns = [...(box.inputs ?? []).map((p) => ({ side: "in" as const, id: p.id })), ...(box.outputs ?? []).map((p) => ({ side: "out" as const, id: p.id }))];
+  const tuples = [...new Map(box.behavior!.map((row) => {
+    const t = columns.map((c) => row[c.side][c.id]);
+    return [JSON.stringify(t), t] as const;
+  })).values()];
+  const of = (part: { ports: string[] }) => columns.flatMap((c, i) => (part.ports.includes(c.id) ? [i] : []));
+  const size = (cols: number[]) => new Set(tuples.map((t) => JSON.stringify(cols.map((i) => t[i])))).size;
+  const all = parts.map(of);
+  const coupled = parts.filter((_, i) => size(all[i]) * size(all.flatMap((cols, j) => (j === i ? [] : cols))) !== tuples.length).map((p) => p.id);
+  const independent = all.reduce((n, cols) => n * size(cols), 1) === tuples.length;
+  const project = (cols: number[]) => [...new Map(tuples.map((t) => {
+    const row = { in: {} as Record<string, string>, out: {} as Record<string, string> };
+    for (const i of cols) row[columns[i].side][columns[i].id] = t[i];
+    return [JSON.stringify(cols.map((i) => t[i])), row] as const;
+  })).values()];
+  return {
+    independent,
+    coupled,
+    rows: independent ? new Map(parts.map((p, i) => [p.id, project(all[i])])) : undefined,
+    basis: parts.length === 2 ? SPLIT : independent ? SPLIT_ALL : [...SPLIT, ...SPLIT_ALL],
+  };
+}
+
+/**
  * Principle 1 (Segmentation), structural part: replace a box by parts whose ports partition the
  * box's ports. Each wire follows its port to the part that now owns it. Each cost dimension goes
  * wholesale to one part (`costTo`, default the first part), so cost totals are unchanged. Parts
@@ -107,10 +146,12 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
   }
   if (errors.length) return { ok: false as const, errors };
 
+  const split = box.behavior ? splitBehavior(box, spec.parts) : undefined;
   const parts: Box[] = spec.parts.map((part, i) => {
     const pick = (list: Port[] | undefined) => (list ?? []).filter((p) => owner.get(p.id) === part.id);
     const cost = Object.fromEntries(Object.entries(box.cost ?? {}).filter(([dim]) => (Object.hasOwn(costTo, dim) ? costTo[dim] : partIds[0]) === part.id));
     const inputs = pick(box.inputs), outputs = pick(box.outputs);
+    const behavior = split?.rows?.get(part.id);
     return {
       id: part.id,
       name: part.name ?? `${box.name} (part ${i + 1})`,
@@ -119,6 +160,7 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
       ...(inputs.length ? { inputs } : {}),
       ...(outputs.length ? { outputs } : {}),
       ...(Object.keys(cost).length ? { cost } : {}),
+      ...(behavior ? { behavior } : {}),
     };
   });
   const moved = model.wires.filter((w) => touches(w, box.id));
@@ -134,6 +176,16 @@ export function segment(model: FunctionModel, spec: { box: string; parts: PartSp
     deliverableKeysChanged: box.role === "product" && partIds.some((p) => p !== box.id),
     independent: between.length === 0,
     between,
+    ...(split ? {
+      behaviourallyIndependent: split.independent,
+      behaviour: {
+        coupled: split.coupled,
+        basis: split.basis,
+        note: split.independent
+          ? "The declared relation is the product of its projections onto the parts, so each part carries its projection and together they compose back to it."
+          : `The declared relation is not a product over the parts: no relations on the parts compose back to it. Coupled: ${split.coupled.map((id) => `'${id}'`).join(", ")}. The parts declare no behaviour; declare it to decide the concept with triz_behavior.`,
+      },
+    } : {}),
     basis: r.basis,
     note: box.role === "product"
       ? "Typing is preserved. The product's deliverables now arrive at part ids: compare with triz_function_model compare_to and box_map set to boxMap, or the comparison reports them lost and regained."
@@ -226,19 +278,25 @@ export function takeOut(model: FunctionModel, spec: {
  */
 export function interpose(model: FunctionModel, spec: {
   wire: string;
-  mediator: { id: string; name: string; role?: Box["role"]; action?: string; cost?: Record<string, number> };
+  mediator: { id: string; name: string; role?: Box["role"]; action?: string; cost?: Record<string, number>; behavior?: Box["behavior"] | "identity" };
   polarity?: { in?: Polarity; out?: Polarity };
   ids?: { in?: string; out?: string };
 }) {
   const w = model.wires.find((x) => x.id === spec.wire);
   if (!w) return { ok: false as const, errors: [`unknown wire '${spec.wire}'`] };
   const m = spec.mediator;
+  const values = model.carriers.find((c) => c.id === w.carrier)?.values;
+  if (m.behavior === "identity" && !values) {
+    return { ok: false as const, errors: [`mediator behavior 'identity' needs carrier '${w.carrier}' to declare values`] };
+  }
+  const behavior = m.behavior === "identity" ? values!.map((v) => ({ in: { in: v }, out: { out: v } })) : m.behavior;
   const mediator: Box = {
     id: m.id, name: m.name, role: m.role ?? "mediator",
     ...(m.action !== undefined ? { action: m.action } : {}),
     inputs: [{ id: "in", carrier: w.carrier }],
     outputs: [{ id: "out", carrier: w.carrier }],
     ...(m.cost !== undefined ? { cost: m.cost } : {}),
+    ...(behavior ? { behavior } : {}),
   };
   const leg = (id: string, from: Wire["from"], to: Wire["to"], polarity: Polarity): Wire => ({ ...w, id, from, to, polarity });
   const legs = [
@@ -247,11 +305,19 @@ export function interpose(model: FunctionModel, spec: {
   ];
   const r = rewrite(model, { delete: { wires: [w.id] }, add: { boxes: [mediator], wires: legs } });
   if (!r.ok) return r;
+  // The declared relation is the identity iff its rows are exactly {(v, v)} over the carrier's values.
+  const rows = new Set((behavior ?? []).map((row) => JSON.stringify([row.in.in, row.out.out])));
+  const identity = !!behavior && rows.size === values!.length && values!.every((v) => rows.has(JSON.stringify([v, v])));
   return {
     ok: true as const,
     model: r.model,
     legs: legs.map((l) => l.id),
     basis: r.basis,
+    ...(behavior ? {
+      behavior: identity
+        ? { identity, basis: IDENTITY, note: "The mediator relates each value to itself, so the composite through it is the original relation: r composed with equality is r. That holds while the legs keep the original rating." }
+        : { identity, note: "Compare with the baseline via triz_behavior compare_to to decide whether the mediator preserves the input→deliverable relation." },
+    } : {}),
     note: "The mediator's cost and any new harms it brings are modelled only if you add them; legs inherit the original rating unless overridden.",
   };
 }

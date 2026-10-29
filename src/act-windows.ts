@@ -24,8 +24,8 @@ import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./ac
 import { rewrite, type RewriteStep } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
 
-/** A restriction keeps typing, and zooming twice is zooming once. */
-const RESTRICT: Theorem[] = ["typed_restrict", "restrict_restrict"];
+/** A restriction keeps typing. Each view zooms once, so restriction's composition laws are not cited. */
+const RESTRICT: Theorem[] = ["typed_restrict"];
 /** A step restricted to the subsystem commutes with restriction; its boundary changes by the crossing wires it cuts and adds. */
 const STEP_IN_SUBSYSTEM: Theorem[] = ["restrict_rewrite", "boundary_rewrite"];
 

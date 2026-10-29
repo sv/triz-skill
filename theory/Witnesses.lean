@@ -430,7 +430,9 @@ example : ((Wiring.restrictionGrid (P := Unit) (C := Unit) addWire addWire).map
 /-! ## Behaviour
 
 The behaviour lemmas with hypotheses are the two monotonicity statements. Lemmas without
-hypotheses (`relTrace_swap`, `loopStates_id`, `relTrace_not_loop`) need no witness. -/
+hypotheses (`relTrace_swap`, `loopStates_id`, `relTrace_not_loop`) need no witness. The two
+product characterisations are equivalences, so they get examples where each side holds and
+where each fails. -/
 
 /-! ### `relation_comp_mono`
 
@@ -468,5 +470,55 @@ example : ¬ relTrace (fun (_ _ : Unit × Unit) => True) ≤
   intro h
   obtain ⟨_, hu⟩ := h () () ⟨(), trivial⟩
   exact hu
+
+/-! ### `eq_projections_prod_iff`, `eq_projections_pi_iff`
+
+Neither has hypotheses. Each is an equivalence, so the witnesses show that both sides can hold
+and both can fail. A non-empty proper product splits. Equality on `Bool` does not. Parity on
+three bits, `c = a xor b`, splits over no partition into single bits, although any two of its
+bits range freely: testing parts pairwise is not enough, which is why `segment` tests each part
+against all the others. -/
+
+/-- A non-empty proper product: the first bit is `false`, the second is free. -/
+def firstFalse : Set (Bool × Bool) := {false} ×ˢ Set.univ
+
+example : firstFalse = (Prod.fst '' firstFalse) ×ˢ (Prod.snd '' firstFalse) ∧
+    (false, true) ∈ firstFalse ∧ (true, true) ∉ firstFalse :=
+  ⟨(eq_projections_prod_iff _).mpr ⟨_, _, rfl⟩, by simp [firstFalse], by simp [firstFalse]⟩
+
+/-- Equality on `Bool`: two rows, `(false, false)` and `(true, true)`. -/
+def sameBit : Set (Bool × Bool) := {p | p.1 = p.2}
+
+example : ¬ ∃ (A B : Set Bool), sameBit = A ×ˢ B := by
+  rintro ⟨A, B, h⟩
+  have h₀ : (false, false) ∈ A ×ˢ B := h ▸ (rfl : false = false)
+  have h₁ : (true, true) ∈ A ×ˢ B := h ▸ (rfl : true = true)
+  have : (false, true) ∈ sameBit := h ▸ ⟨h₀.1, h₁.2⟩
+  simp [sameBit] at this
+
+example : sameBit ≠ (Prod.fst '' sameBit) ×ˢ (Prod.snd '' sameBit) := fun h => by
+  obtain ⟨A, B, hAB⟩ := (eq_projections_prod_iff _).mp h
+  have h₀ : (false, false) ∈ A ×ˢ B := hAB ▸ (rfl : false = false)
+  have h₁ : (true, true) ∈ A ×ˢ B := hAB ▸ (rfl : true = true)
+  have : (false, true) ∈ sameBit := hAB ▸ ⟨h₀.1, h₁.2⟩
+  simp [sameBit] at this
+
+/-- Parity on three bits. -/
+def parity : Set (Fin 3 → Bool) := {f | f 2 = xor (f 0) (f 1)}
+
+/-- Bits 0 and 1 range freely: every pair of values occurs. -/
+example (a b : Bool) : ∃ f ∈ parity, f 0 = a ∧ f 1 = b :=
+  ⟨![a, b, xor a b], rfl, rfl, rfl⟩
+
+/-- Yet no product of single-bit sets is parity, so its projections do not compose back to it. -/
+example : parity ≠ Set.univ.pi (fun i => Function.eval i '' parity) := fun h => by
+  obtain ⟨A, hA⟩ := (eq_projections_pi_iff _).mp h
+  have h₁ : ![true, false, true] ∈ Set.univ.pi A := hA ▸ (rfl : true = xor true false)
+  have h₂ : ![false, true, true] ∈ Set.univ.pi A := hA ▸ (rfl : true = xor false true)
+  have : ![true, true, true] ∈ parity := hA ▸ fun i _ => match i with
+    | 0 => h₁ 0 trivial
+    | 1 => h₂ 1 trivial
+    | 2 => h₁ 2 trivial
+  simp [parity] at this
 
 end CategoricalTriz.Witnesses

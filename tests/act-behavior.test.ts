@@ -1,8 +1,10 @@
 /**
  * Declared behaviour: typing of carrier values and behaviour rows (fail closed), the external
  * relation under the relational trace (identity loop, empty trace, several steady states,
- * fan-in, downstream boxes), and the decided trim: preserved, changed with a counterexample and
- * a direction, a lost deliverable, undecided, and the state cap.
+ * fan-in, downstream boxes), the decided trim (preserved, changed with a counterexample and a
+ * direction, a lost deliverable, undecided, the state cap), comparing any concept with a
+ * baseline (interposed mediators, segments through a box map, rejected maps), and whether a
+ * segmented box's relation splits over its parts.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -10,8 +12,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel } from "../src/act.js";
-import { externalBehavior, trimPreservesBehavior, deliverablePorts, MAX_STATES } from "../src/act-behavior.js";
-import { segment, interpose } from "../src/act-rewrite.js";
+import { externalBehavior, trimPreservesBehavior, compareBehavior, deliverablePorts, MAX_STATES } from "../src/act-behavior.js";
+import { segment, interpose, takeOut, splitBehavior } from "../src/act-rewrite.js";
 import { findIsomorphism } from "../src/act-iso.js";
 import { toolSpecs } from "../src/tools.js";
 
@@ -122,9 +124,9 @@ test("decided trim: removing the bearing and letting the housing support the sha
   assert.equal(r.verdict, "preserved");
   assert.ok(r.verdict === "preserved");
   assert.deepEqual(r.chosen, [{ wire: "w-support", box: "housing", port: "bore", rule: "C", defaulted: true }]);
-  assert.deepEqual(r.baseline.relation[0].outputs, r.trimmed.relation[0].outputs);
+  assert.deepEqual(r.baseline.relation[0].outputs, r.concept.relation[0].outputs);
   assert.equal(r.baseline.relation[0].steadyStateCount, 2);
-  assert.deepEqual(r.trimmed.composed, ["motor", "housing"]);
+  assert.deepEqual(r.concept.composed, ["motor", "housing"]);
 });
 
 test("decided trim: a counterexample names the input where the outputs differ", () => {
@@ -137,12 +139,12 @@ test("decided trim: a counterexample names the input where the outputs differ", 
   assert.ok(r.ok && r.verdict === "changed" && r.reason === "counterexample");
   assert.deepEqual(r.counterexample, {
     input: [{ box: "housing", port: "fit", value: "loose" }],
-    baseline: [["rated", "supported"]], trimmed: [["rated", "unsupported"]],
-    onlyBaseline: [["rated", "supported"]], onlyTrimmed: [["rated", "unsupported"]],
+    baseline: [["rated", "supported"]], concept: [["rated", "unsupported"]],
+    onlyBaseline: [["rated", "supported"]], onlyConcept: [["rated", "unsupported"]],
   });
   assert.equal(r.direction, "incomparable");
   assert.deepEqual([r.differingInputs, r.inputValuations], [1, 2]);
-  assert.deepEqual(r.inputsOnlyIn, { baseline: [], trimmed: [{ box: "housing", port: "fit", carrier: "fit" }] });
+  assert.deepEqual(r.inputsOnlyIn, { baseline: [], concept: [{ box: "housing", port: "fit", carrier: "fit" }] });
 });
 
 test("decided trim: strict containment is changed, with its direction", () => {
@@ -150,14 +152,14 @@ test("decided trim: strict containment is changed, with its direction", () => {
   box(loose, "housing").behavior = [{ in: {}, out: { bore: "supported" } }, { in: {}, out: { bore: "unsupported" } }];
   const wider = trimPreservesBehavior(loose, { trim: ["bearing"] });
   assert.ok(wider.ok && wider.verdict === "changed" && wider.reason === "counterexample");
-  assert.equal(wider.direction, "trimmed-contains-baseline");
-  assert.deepEqual(wider.counterexample.onlyTrimmed, [["rated", "unsupported"]]);
+  assert.equal(wider.direction, "concept-contains-baseline");
+  assert.deepEqual(wider.counterexample.onlyConcept, [["rated", "unsupported"]]);
 
   const worn = bearing();
   box(worn, "bearing").behavior!.push({ in: { "preload-in": "high" }, out: { race: "unsupported", friction: "high" } });
   const narrower = trimPreservesBehavior(worn, { trim: ["bearing"] });
   assert.ok(narrower.ok && narrower.verdict === "changed" && narrower.reason === "counterexample");
-  assert.equal(narrower.direction, "baseline-contains-trimmed");
+  assert.equal(narrower.direction, "baseline-contains-concept");
   assert.deepEqual(narrower.counterexample.onlyBaseline, [["rated", "unsupported"]]);
 });
 
@@ -170,7 +172,7 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
   delete box(noShaft, "shaft").behavior;
   const u = trimPreservesBehavior(noShaft, { trim: ["bearing"] });
   assert.ok(u.ok && u.verdict === "undecided" && u.reason === "missing-behavior");
-  assert.deepEqual([u.missingBehavior, u.missingIn], [["shaft"], { baseline: ["shaft"], trimmed: [] }]);
+  assert.deepEqual([u.missingBehavior, u.missingIn], [["shaft"], { baseline: ["shaft"], concept: [] }]);
   const e = externalBehavior(noShaft);
   assert.deepEqual(e.ok && !e.decided && e.missingBehavior, ["shaft"]);
 
@@ -178,7 +180,7 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
   delete box(noHousing, "housing").behavior;
   const v = trimPreservesBehavior(noHousing, { trim: ["bearing"] });
   assert.ok(v.ok && v.verdict === "undecided" && v.reason === "missing-behavior");
-  assert.deepEqual(v.missingIn, { baseline: [], trimmed: ["housing"] });
+  assert.deepEqual(v.missingIn, { baseline: [], concept: ["housing"] });
   const before = externalBehavior(noHousing);
   assert.ok(before.ok && before.decided, "the housing is downstream until the trim");
 
@@ -189,15 +191,216 @@ test("decided trim: a lost deliverable is changed without behaviour; missing beh
   assert.deepEqual(deliverablePorts(noProduct), []);
 });
 
-test("constructions do not invent behaviour: new boxes from segment and interpose declare none", () => {
+test("constructions do not invent behaviour: coupled parts and an undeclared mediator declare none", () => {
   const seg = segment(bearing(), { box: "bearing", parts: [{ id: "races", ports: ["preload-in", "race"] }, { id: "rolling", ports: ["friction"] }] });
   assert.ok(seg.ok);
+  assert.deepEqual([seg.behaviourallyIndependent, seg.behaviour?.coupled], [false, ["races", "rolling"]]);
+  assert.ok(seg.model.boxes.every((b) => !["races", "rolling"].includes(b.id) || !b.behavior));
   const r = externalBehavior(seg.model);
   assert.deepEqual(r.ok && !r.decided && r.missingBehavior, ["races", "rolling"]);
   const via = interpose(bearing(), { wire: "w-support", mediator: { id: "sleeve", name: "Sleeve" } });
   assert.ok(via.ok);
+  assert.equal(via.behavior, undefined);
   const s = externalBehavior(via.model);
   assert.deepEqual(s.ok && !s.decided && s.missingBehavior, ["sleeve"]);
+  const plain = segment(example("bearing-heat"), { box: "bearing", parts: [{ id: "races", ports: ["preload-in", "race"] }, { id: "rolling", ports: ["friction"] }] });
+  assert.ok(plain.ok && !("behaviourallyIndependent" in plain), "a box without behaviour reports no behavioural split");
+});
+
+const sleeve = (behavior?: "identity" | Array<{ in: Record<string, string>; out: Record<string, string> }>) => {
+  const via = interpose(bearing(), { wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", ...(behavior ? { behavior } : {}) } });
+  assert.ok(via.ok, errors(via));
+  return via;
+};
+
+test("compare a concept: an identity mediator preserves the relation, a lossy one changes it", () => {
+  const id = sleeve("identity");
+  assert.deepEqual(box(id.model, "sleeve").behavior, [{ in: { in: "supported" }, out: { out: "supported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }]);
+  assert.equal(id.behavior?.identity, true);
+  const kept = compareBehavior(bearing(), id.model);
+  assert.ok(kept.ok && kept.verdict === "preserved");
+  assert.deepEqual([kept.concept.composed, kept.gainedDeliverables], [["motor", "shaft", "bearing", "sleeve"], []]);
+
+  const lossy = sleeve([{ in: { in: "supported" }, out: { out: "unsupported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }]);
+  assert.equal(lossy.behavior?.identity, false);
+  const r = compareBehavior(bearing(), lossy.model);
+  assert.ok(r.ok && r.verdict === "changed" && r.reason === "counterexample");
+  assert.deepEqual([r.direction, r.counterexample], ["incomparable", {
+    input: [], baseline: [["rated", "supported"]], concept: [["rated", "unsupported"]],
+    onlyBaseline: [["rated", "supported"]], onlyConcept: [["rated", "unsupported"]],
+  }]);
+
+  const undeclared = compareBehavior(bearing(), sleeve().model);
+  assert.ok(undeclared.ok && undeclared.verdict === "undecided" && undeclared.reason === "missing-behavior");
+  assert.deepEqual(undeclared.missingIn, { baseline: [], concept: ["sleeve"] });
+
+  const noValues = bearing();
+  delete noValues.carriers.find((c) => c.id === "radial-load")!.values;
+  for (const b of noValues.boxes) delete b.behavior;
+  assert.match(errors(interpose(noValues, { wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior: "identity" } })), /^mediator behavior 'identity' needs carrier 'radial-load' to declare values$/);
+  assert.match(errors(interpose(bearing(), { wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior: [{ in: { x: "supported" }, out: { out: "supported" } }] } })), /result: box 'sleeve' behavior row 0: no input port 'x'/);
+});
+
+test("compare a concept: deliverables only the concept has are listed, not compared", () => {
+  const via = interpose(bearing(), { wire: "w-heat", mediator: { id: "fin", name: "Fin", behavior: "identity" }, polarity: { out: "useful" } });
+  assert.ok(via.ok);
+  const r = compareBehavior(bearing(), via.model);
+  assert.ok(r.ok && r.verdict === "preserved");
+  assert.deepEqual(r.gainedDeliverables, [{ box: "shaft", port: "heat-in", carrier: "heat" }]);
+});
+
+/** A source whose outputs copy two unwired inputs, x = a and y = b, delivered to a product. */
+function copier(): FunctionModel {
+  return {
+    domain: "software",
+    carriers: [{ id: "c", layer: "information", dimension: "bit", values: ["0", "1"] }],
+    boxes: [
+      { id: "src", name: "Source", role: "tool",
+        inputs: [{ id: "a", carrier: "c" }, { id: "b", carrier: "c" }], outputs: [{ id: "x", carrier: "c" }, { id: "y", carrier: "c" }],
+        behavior: ["0", "1"].flatMap((a) => ["0", "1"].map((b) => ({ in: { a, b }, out: { x: a, y: b } }))) },
+      { id: "p", name: "P", role: "product", inputs: [{ id: "px", carrier: "c" }, { id: "py", carrier: "c" }] },
+    ],
+    wires: [
+      { id: "wx", from: { box: "src", port: "x" }, to: { box: "p", port: "px" }, carrier: "c", polarity: "useful" },
+      { id: "wy", from: { box: "src", port: "y" }, to: { box: "p", port: "py" }, carrier: "c", polarity: "useful" },
+    ],
+  };
+}
+
+test("segment, then compare through box_map: deliverables and boundary inputs map back to the baseline box", () => {
+  const shaft = segment(bearing(), { box: "shaft", parts: [{ id: "shaft-load", ports: ["drive", "support"] }, { id: "shaft-thermal", ports: ["heat-in", "expansion"] }] });
+  assert.ok(shaft.ok && shaft.behaviourallyIndependent && shaft.deliverableKeysChanged);
+  assert.deepEqual(box(shaft.model, "shaft-load").behavior, [{ in: { drive: "rated", support: "supported" }, out: {} }, { in: { drive: "rated", support: "unsupported" }, out: {} }]);
+  const mapped = compareBehavior(bearing(), shaft.model, { boxMap: shaft.boxMap });
+  assert.ok(mapped.ok && mapped.verdict === "preserved");
+  assert.deepEqual(mapped.boxMap, { "shaft-load": "shaft", "shaft-thermal": "shaft" });
+  const unmapped = compareBehavior(bearing(), shaft.model);
+  assert.ok(unmapped.ok && unmapped.verdict === "changed" && unmapped.reason === "lost-deliverables");
+  assert.deepEqual(unmapped.lostDeliverables.map((d) => `${d.box}.${d.port}`), ["shaft.drive", "shaft.support"]);
+
+  const src = segment(copier(), { box: "src", parts: [{ id: "s1", ports: ["a", "x"] }, { id: "s2", ports: ["b", "y"] }] });
+  assert.ok(src.ok && src.behaviourallyIndependent);
+  const r = compareBehavior(copier(), src.model, { boxMap: src.boxMap });
+  assert.ok(r.ok && r.verdict === "preserved");
+  assert.deepEqual([r.inputs.map((q) => `${q.box}.${q.port}`), r.inputsOnlyIn, r.inputValuations], [["src.a", "src.b"], { baseline: [], concept: [] }, 4]);
+  assert.deepEqual(r.concept.inputs.map((q) => `${q.box}.${q.port}`), ["s1.a", "s2.b"], "the concept is evaluated in its own ids");
+  const apart = compareBehavior(copier(), src.model);
+  assert.ok(apart.ok && apart.verdict === "changed" && apart.reason === "counterexample", "without the map the parts' inputs are new ports, ranging apart from the baseline's");
+  assert.deepEqual(apart.inputsOnlyIn.concept.map((q) => `${q.box}.${q.port}`), ["s1.a", "s2.b"]);
+});
+
+test("a mismatched, ambiguous, or unknown box_map is rejected, and so are inputs whose values differ", () => {
+  const src = segment(copier(), { box: "src", parts: [{ id: "s1", ports: ["a", "x"] }, { id: "s2", ports: ["b", "y"] }] });
+  assert.ok(src.ok);
+  assert.match(errors(compareBehavior(copier(), src.model, { boxMap: { s1: "p", s2: "src" } })), /box_map: 's1' maps to 'p', which has no input port 'a' of carrier 'c'/);
+  assert.match(errors(compareBehavior(copier(), src.model, { boxMap: { ghost: "src" } })), /box_map: 'ghost' is not a box of the concept model/);
+  assert.match(errors(compareBehavior(copier(), src.model, { boxMap: { s1: "ghost" } })), /box_map: 'ghost' is not a box of the baseline/);
+  const twice = structuredClone(src.model);
+  twice.boxes.push({ id: "s3", name: "S3", role: "tool", inputs: [{ id: "a", carrier: "c" }], behavior: [{ in: { a: "0" }, out: {} }, { in: { a: "1" }, out: {} }] });
+  assert.match(errors(compareBehavior(copier(), twice, { boxMap: { ...src.boxMap, s3: "src" } })), /box_map: input port 'a' of 's1' and of 's3' both map to 'src.a': ambiguous/);
+
+  const spare = bearing();
+  spare.boxes.push({ id: "spare", name: "Spare", role: "environment", inputs: [{ id: "drive", carrier: "torque" }] });
+  assert.match(errors(compareBehavior(bearing(), spare, { boxMap: { spare: "shaft" } })), /input port 'drive' of 'shaft' and of 'spare' both map to 'shaft.drive': ambiguous/);
+
+  const wider = copier();
+  wider.carriers[0].values = ["0", "1", "2"];
+  assert.match(errors(compareBehavior(copier(), wider)), /input port 'src.a' reads carrier 'c' \[0, 1\] in the baseline and 'c' \[0, 1, 2\] in the concept/);
+  assert.match(errors(compareBehavior({ ...copier(), wires: [] }, copier())), /^no deliverables/);
+  assert.match(errors(compareBehavior(copier(), { ...copier(), wires: [copier().wires[0], { ...copier().wires[1], carrier: "ghost" }] })), /^concept: /);
+});
+
+test("triz_behavior compare_to: the model is the concept; trim and compare_to exclude each other; box_map needs compare_to", async () => {
+  const spec = toolSpecs().find((s) => s.name === "triz_behavior")!;
+  const call = async (args: unknown) => JSON.parse((await spec.handler(args)).content[0].text);
+  assert.equal((await call({ model: sleeve("identity").model, compare_to: bearing() })).verdict, "preserved");
+  const shaft = segment(bearing(), { box: "shaft", parts: [{ id: "shaft-load", ports: ["drive", "support"] }, { id: "shaft-thermal", ports: ["heat-in", "expansion"] }] });
+  assert.ok(shaft.ok);
+  assert.equal((await call({ model: shaft.model, compare_to: bearing(), box_map: shaft.boxMap })).verdict, "preserved");
+  assert.match((await call({ model: bearing(), compare_to: bearing(), trim: ["bearing"] })).errors.join(), /trim and compare_to are exclusive/);
+  assert.match((await call({ model: bearing(), box_map: { shaft: "shaft" } })).errors.join(), /box_map needs compare_to/);
+  const transform = toolSpecs().find((s) => s.name === "triz_transform")!;
+  assert.equal(transform.shape.transformation.safeParse({ op: "interpose", wire: "w", mediator: { id: "m", name: "M", behavior: "identity" } }).success, true);
+  assert.equal(transform.shape.transformation.safeParse({ op: "interpose", wire: "w", mediator: { id: "m", name: "M", behavior: "inverse" } }).success, false);
+});
+
+test("segment splits behaviour only when the relation is the product of its projections onto the parts", () => {
+  const split = segment(bearing(), { box: "bearing", parts: [{ id: "load", ports: ["preload-in", "friction"] }, { id: "race", ports: ["race"] }] });
+  assert.ok(split.ok && split.behaviourallyIndependent);
+  assert.deepEqual(split.behaviour?.coupled, []);
+  assert.deepEqual(box(split.model, "load").behavior, [{ in: { "preload-in": "nominal" }, out: { friction: "low" } }, { in: { "preload-in": "high" }, out: { friction: "high" } }]);
+  assert.deepEqual(box(split.model, "race").behavior, [{ in: {}, out: { race: "supported" } }]);
+  const r = compareBehavior(bearing(), split.model);
+  assert.ok(r.ok && r.verdict === "preserved");
+
+  // take_out goes through segment, so it splits behaviour the same way.
+  const out = takeOut(bearing(), { box: "bearing", ports: ["preload-in", "friction"], part: { id: "load" } });
+  assert.ok(out.ok && out.behaviourallyIndependent);
+  assert.ok(compareBehavior(bearing(), out.model, { boxMap: out.boxMap }).ok);
+  const coupled = takeOut(bearing(), { box: "bearing", ports: ["friction"], part: { id: "rolling" } });
+  assert.ok(coupled.ok && coupled.behaviourallyIndependent === false);
+  assert.deepEqual(coupled.behaviour?.coupled, ["bearing", "rolling"]);
+});
+
+const bits = (id: string) => ({ id, carrier: "c" });
+const rowsBox = (inputs: string[], outputs: string[], rows: string[][]): FunctionModel["boxes"][number] => ({
+  id: "r", name: "R", role: "tool", inputs: inputs.map(bits), outputs: outputs.map(bits),
+  behavior: rows.map((t) => ({ in: Object.fromEntries(inputs.map((p, i) => [p, t[i]])), out: Object.fromEntries(outputs.map((p, i) => [p, t[inputs.length + i]])) })),
+});
+
+test("the split is decided on distinct rows: equality with repeated rows is not a product", () => {
+  const eq = rowsBox(["a"], ["b"], [["0", "0"], ["1", "1"], ["1", "1"], ["0", "0"]]);
+  assert.equal(eq.behavior!.length, 2 * 2, "four raw rows, as many as the product of two two-value projections");
+  const r = splitBehavior(eq, [{ id: "p", ports: ["a"] }, { id: "q", ports: ["b"] }]);
+  assert.deepEqual([r.independent, r.coupled, r.rows], [false, ["p", "q"], undefined]);
+});
+
+test("each part is tested against all the others: parity is independent pairwise, yet every part is coupled", () => {
+  const parity = rowsBox(["a", "b"], ["c"], ["0", "1"].flatMap((a) => ["0", "1"].map((b) => [a, b, a === b ? "0" : "1"])));
+  const r = splitBehavior(parity, [{ id: "pa", ports: ["a"] }, { id: "pb", ports: ["b"] }, { id: "pc", ports: ["c"] }]);
+  assert.deepEqual([r.independent, r.coupled, r.basis], [false, ["pa", "pb", "pc"], ["eq_projections_prod_iff", "eq_projections_pi_iff"]]);
+  const pairs = [["a", "b"], ["a", "c"], ["b", "c"]].map(([x, y]) => splitBehavior({ ...parity, behavior: parity.behavior!.map((row) => ({
+    in: Object.fromEntries(Object.entries(row.in).filter(([k]) => k === x || k === y)), out: Object.fromEntries(Object.entries(row.out).filter(([k]) => k === x || k === y)),
+  })), inputs: parity.inputs!.filter((p) => p.id === x || p.id === y), outputs: parity.outputs!.filter((p) => p.id === x || p.id === y) }, [{ id: x, ports: [x] }, { id: y, ports: [y] }]).independent);
+  assert.deepEqual(pairs, [true, true, true], "a pairwise check would call parity independent");
+});
+
+test("property: the counting decision agrees with checking every tuple of the product of the projections", () => {
+  let seed = 7;
+  const rand = (n: number) => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed % n; };
+  const ports = ["p0", "p1", "p2", "p3"];
+  let products = 0;
+  for (let trial = 0; trial < 300; trial++) {
+    const values = ["0", "1", "2"].slice(0, 2 + rand(2));
+    const all = ports.reduce<string[][]>((acc) => acc.flatMap((t) => values.map((v) => [...t, v])), [[]]);
+    const k = 2 + rand(2);
+    const owner = ports.map((_, i) => (i < k ? i : rand(k)));
+    const parts = Array.from({ length: k }, (_, j) => ({ id: `q${j}`, ports: ports.filter((_, i) => owner[i] === j) }));
+    const idx = parts.map((p) => p.ports.map((q) => ports.indexOf(q)));
+    const proj = (rows: string[][], g: number[]) => [...new Set(rows.map((t) => JSON.stringify(g.map((i) => t[i]))))].map((x) => JSON.parse(x) as string[]);
+    /** Every tuple of π(groups[0]) × π(groups[1]) × …, by membership in no relation: enumerated. */
+    const productOf = (rows: string[][], groups: number[][]) => groups
+      .reduce<Array<Map<number, string>>>((acc, g) => acc.flatMap((m) => proj(rows, g).map((t) => new Map([...m, ...g.map((i, j) => [i, t[j]] as const)]))), [new Map()])
+      .map((m) => ports.map((_, i) => m.get(i)!));
+    const sample = all.filter(() => rand(3) === 0);
+    if (!sample.length) sample.push(all[0]);
+    // Odd trials keep the random relation; even ones take the product of its projections, a product by construction.
+    const rows = trial % 2 ? sample : productOf(sample, idx);
+    const member = new Set(rows.map((t) => t.join()));
+    const isProduct = (groups: number[][]) => productOf(rows, groups).every((t) => member.has(t.join()));
+    const r = splitBehavior(rowsBox(ports.slice(0, 2), ports.slice(2), rows), parts);
+    assert.equal(r.independent, isProduct(idx), `trial ${trial}`);
+    assert.deepEqual(r.coupled, parts.filter((_, j) => !isProduct([idx[j], idx.flatMap((g, i) => (i === j ? [] : g))])).map((p) => p.id), `trial ${trial}`);
+    if (!(trial % 2)) assert.ok(r.independent, `trial ${trial}: a product of projections splits`);
+    if (r.independent) {
+      products++;
+      // Each part's rows are its projection, and recomposing them gives the relation back.
+      const back = parts.reduce<string[][]>((acc, part) => acc.flatMap((t) => r.rows!.get(part.id)!
+        .map((row) => t.map((x, i) => (part.ports.includes(ports[i]) ? row.in[ports[i]] ?? row.out[ports[i]] : x)))), [ports.map(() => "")]);
+      assert.deepEqual(new Set(back.map((t) => t.join())), member, `trial ${trial}`);
+    }
+  }
+  assert.ok(products >= 150 && products < 300, `${products} products: both outcomes are exercised`);
 });
 
 /**
@@ -229,13 +432,13 @@ function loopWithProxy(mode = false): FunctionModel {
 test("decided trim: when neither relation has a steady state, the verdict is undecided, not preserved", () => {
   const r = trimPreservesBehavior(loopWithProxy(), { trim: ["proxy"] });
   assert.ok(r.ok && r.verdict === "undecided" && r.reason === "no-steady-state");
-  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, trimmed: 1 }, 1, 1]);
+  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, concept: 1 }, 1, 1]);
   assert.match(r.note, /Neither model has a steady state at any of the 1 compared input valuations/);
-  assert.deepEqual([r.baseline.noSteadyState, r.trimmed.noSteadyState], [[[]], [[]]]);
+  assert.deepEqual([r.baseline.noSteadyState, r.concept.noSteadyState], [[[]], [[]]]);
 
   const clean = trimPreservesBehavior(bearing(), { trim: ["bearing"] });
   assert.ok(clean.ok && clean.verdict === "preserved");
-  assert.deepEqual([clean.noSteadyState, clean.emptyInBoth], [{ baseline: 0, trimmed: 0 }, 0]);
+  assert.deepEqual([clean.noSteadyState, clean.emptyInBoth], [{ baseline: 0, concept: 0 }, 0]);
   assert.doesNotMatch(clean.note, /no steady state/);
 });
 
@@ -246,8 +449,8 @@ test("decided trim: steady states in one model only is changed, with the empty s
   box(m, "origin").behavior = [{ in: {}, out: { o: "served", bit: "0" } }];
   const r = trimPreservesBehavior(m, { trim: ["loop"], absorb: { "w-out": { box: "origin", port: "bit" } } });
   assert.ok(r.ok && r.verdict === "changed" && r.reason === "counterexample");
-  assert.equal(r.direction, "trimmed-contains-baseline");
-  assert.deepEqual([r.counterexample.baseline, r.counterexample.trimmed], [[], [["0", "served"]]]);
+  assert.equal(r.direction, "concept-contains-baseline");
+  assert.deepEqual([r.counterexample.baseline, r.counterexample.concept], [[], [["0", "served"]]]);
   assert.match(r.note, /The baseline has no steady state at this input/);
 });
 
@@ -255,7 +458,7 @@ test("decided trim: inputs empty in both models agree, are counted, and do not d
   const r = trimPreservesBehavior(loopWithProxy(true), { trim: ["proxy"] });
   assert.ok(r.ok && r.verdict === "preserved");
   assert.deepEqual(r.inputs.map((q) => `${q.box}.${q.port}`), ["loop.mode"]);
-  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, trimmed: 1 }, 2, 1]);
+  assert.deepEqual([r.noSteadyState, r.inputValuations, r.emptyInBoth], [{ baseline: 1, concept: 1 }, 2, 1]);
   assert.deepEqual(r.baseline.relation.map((row) => [row.input, row.outputs]), [[["id"], [["0", "served"], ["1", "served"]]], [["neg"], []]]);
   assert.match(r.note, /1 of the 2 compared have none in either model and agree only in that/);
 });

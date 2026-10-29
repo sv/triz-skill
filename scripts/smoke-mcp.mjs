@@ -127,6 +127,12 @@ console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
 if (decided.verdict !== "preserved") fail("decided trim wrong");
 const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
 if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
+const support = behaving.wires.find((w) => w.from.box === "bearing" && w.from.port === "race");
+const sleeved = await json("triz_transform", { model: behaving, transformation: { op: "interpose", wire: support.id, mediator: { id: "sleeve", name: "Sleeve", behavior: "identity" } } });
+if (!sleeved.ok || sleeved.behavior?.identity !== true) fail("identity mediator not built");
+const mediated = await json("triz_behavior", { model: sleeved.model, compare_to: behaving });
+console.log(`triz_behavior compare_to (identity mediator) -> ${mediated.verdict}`);
+if (mediated.verdict !== "preserved") fail("identity mediator should preserve the relation");
 
 await client.close();
 console.log("SMOKE OK");

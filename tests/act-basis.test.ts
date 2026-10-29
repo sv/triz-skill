@@ -73,9 +73,26 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     assert.equal(r.ok, true, `${transformation.op}: ${r.errors}`);
     collect(r);
   }
-  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+  const behaving = example("bearing-heat-behavior");
+  collect(await call("triz_transform", { model: behaving, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior: "identity" } } }));
+  for (const parts of [[["preload-in", "friction"], ["race"]], [["preload-in", "race"], ["friction"]], [["preload-in"], ["race"], ["friction"]]]) {
+    collect(await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } }));
+  }
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_pi_iff", "Relation.comp_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
+});
+
+/**
+ * Lemmas that pin down the semantics on fixed examples, or state a law the tests check, are not
+ * the statement any verdict uses, so none may be cited or listed.
+ */
+test("semantic sanity lemmas are proved but never listed as a verdict basis", () => {
+  const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset"];
+  for (const name of sanity) {
+    assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
+    assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);
+  }
 });
 
 test("verdicts cite the statement they use", async () => {
@@ -113,9 +130,33 @@ test("verdicts cite the statement they use", async () => {
   const applied = await call("triz_transform", { model: base, transformation: { op: "trim", trim: ["redis"] } });
   assert.deepEqual(applied.basis, ["typed_delete", "typed_glue", "typed_reroute"]);
   const grid = await call("triz_nine_windows", { present: bearing, subsystem: ["bearing", "shaft"] });
-  assert.deepEqual([grid.windows[1].subsystem.basis, grid.windows[1].supersystem.basis], [["typed_restrict", "restrict_restrict"], ["typed_delete", "typed_glue"]]);
+  assert.deepEqual([grid.windows[1].subsystem.basis, grid.windows[1].supersystem.basis], [["typed_restrict"], ["typed_delete", "typed_glue"]]);
   const dyn = await call("triz_separate", { contradiction: bearing.contradictions![0], along: "time" });
   assert.deepEqual(dyn.along.basis, ["exists_section_iff"]);
   const [first] = (await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi" })).matches;
   assert.deepEqual((await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi", match: first.match })).basis, ["typed_dpo"]);
+});
+
+test("a pure trim cites trim_lowers_cost for its cost relief, and only when a trimmed box declares a cost", async () => {
+  const trim = await call("triz_trim", { model: example("software-cache"), trim: ["redis"] });
+  assert.deepEqual([trim.costRelief, trim.costBound.basis], [{ usd_month: 400, p99_ms: 2.5 }, ["trim_lowers_cost"]]);
+  const free = example("software-cache");
+  delete free.boxes.find((b) => b.id === "redis")!.cost;
+  const none = await call("triz_trim", { model: free, trim: ["redis"] });
+  assert.deepEqual([none.costRelief, none.costBound], [{}, undefined]);
+});
+
+test("behaviour constructions cite what they use: comp_eq for an identity mediator, the product characterisations for a split", async () => {
+  const behaving = example("bearing-heat-behavior");
+  const via = (behavior: unknown) => call("triz_transform", { model: behaving, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior } } });
+  assert.deepEqual((await via("identity")).behavior.basis, ["Relation.comp_eq"]);
+  assert.deepEqual((await via([{ in: { in: "supported" }, out: { out: "supported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }])).behavior.basis, ["Relation.comp_eq"], "explicit identity rows are recognised");
+  const lossy = await via([{ in: { in: "supported" }, out: { out: "unsupported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }]);
+  assert.deepEqual([lossy.behavior.identity, lossy.behavior.basis], [false, undefined]);
+  assert.deepEqual((await via(undefined)).behavior, undefined);
+
+  const split = async (parts: string[][]) => (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } })).behaviour.basis;
+  assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff"]);
+  assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff"]);
+  assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff", "eq_projections_pi_iff"]);
 });

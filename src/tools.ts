@@ -16,7 +16,7 @@ import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act
 import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
-import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
+import { compareBehavior, externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -44,7 +44,11 @@ const Transformation = z.discriminatedUnion("op", [
   z.strictObject({
     op: z.literal("interpose"),
     wire: Id,
-    mediator: z.strictObject({ id: Id, name: Name, role: act.Role.optional(), action: z.string().optional(), cost: Cost.optional() }),
+    mediator: z.strictObject({
+      id: Id, name: Name, role: act.Role.optional(), action: z.string().optional(), cost: Cost.optional(),
+      behavior: z.union([z.literal("identity"), z.array(act.BehaviorRow).min(1)]).optional()
+        .describe("The mediator's relation over ports 'in' and 'out': rows, or 'identity' (one row per declared value of the wire's carrier, in = out)"),
+    }),
     polarity: z.strictObject({ in: act.Polarity.optional(), out: act.Polarity.optional() }).optional().describe("Ratings of the two legs; default: the original rating"),
     ids: z.strictObject({ in: Id.optional(), out: Id.optional() }).optional(),
   }).describe("Principle 24 (Intermediary): route a function through a new mediator box"),
@@ -115,6 +119,22 @@ function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, 
   if (mapped && !mapped.ok) return mapped;
   const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model)), boxMap } : r.comparison;
   return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
+}
+
+/**
+ * triz_behavior's modes: with compare_to, decide the model (the concept) against the baseline,
+ * as triz_function_model orients them; with trim, decide the model's own trim; else compose it.
+ */
+function behavior(args: { model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_states?: number }) {
+  const { model, compare_to, box_map, trim, absorb, max_states: maxStates } = args;
+  const errors = [
+    ...(trim && compare_to ? ["trim and compare_to are exclusive: trim compares the model with its own trim; to compare a trimmed concept, pass it as model"] : []),
+    ...(box_map && !compare_to ? ["box_map needs compare_to"] : []),
+    ...(absorb && !trim ? ["absorb needs trim"] : []),
+  ];
+  if (errors.length) return { ok: false as const, errors };
+  if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates });
+  return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates }) : externalBehavior(model, { maxStates });
 }
 
 function transform(model: act.FunctionModel, t: Transformation) {
@@ -275,7 +295,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_transform",
-      description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
+      description: "Apply one typed model transformation and return the new model. Principle constructions: segment (1: divide a box into parts whose ports partition its ports), take_out (2: separate the ports touching a harmful or excessive function, or isolate the part carrying all useful functions), merge (5: collapse adjacent or identical boxes into one), standby (11: add an unwired typed absorber for a box's functions), reverse (13: swap a function's performer and object), rerate (16: rate a useful function insufficient or excessive; 23: change the level of a function on a cycle), retarget (22: a harmful function's source feeds a useful function), feedback (23: add a function that closes a loop), interpose (24: route a function through a new mediator box), cheap_copy (26, 27: replace a box by a cheaper copy with the same ports). Also trim (perform a typed-feasible trim, re-attaching each kept function to an absorber; rule B is Principle 25, one absorber for everything is Principle 6) and rewrite (delete and add boxes and wires; no remaining wire may touch a deleted box). Every result type-checks or the call fails closed with ok:false. When the segmented box declares behaviour, segment (and take_out) reports behaviourallyIndependent: whether the box's relation is the product of its projections onto the parts; if so each part gets its projection, else the coupled parts are named and no part gets behaviour. interpose's mediator may declare behavior (rows, or 'identity'). A transformation is a structural move, not evidence that it solves the problem: model the result and compare it with triz_function_model compare_to, or with triz_behavior compare_to when behaviour is declared, passing the boxMap that segment, take_out, or cheap_copy returns as box_map. merge renames the merged ports to '<box>.<port>', so no box_map recovers a merged product box's deliverables: they read as lost and regained. reverse returns undo, a rewrite that restores the original model, added ports included.",
       shape: { model: act.FunctionModel, transformation: Transformation },
       handler: async ({ model, transformation }: { model: act.FunctionModel; transformation: Transformation }) => text(transform(model, transformation)),
     },
@@ -297,17 +317,17 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_behavior",
-      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `trim`, perform the trim as triz_transform does and decide whether the input→deliverable relation is unchanged: verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's first, is outside the kernel.",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
       shape: {
-        model: act.FunctionModel,
+        model: act.FunctionModel.describe("The model to compose (the concept, when compare_to is given)"),
+        compare_to: act.FunctionModel.optional().describe("Baseline model; with it, decide whether the model preserves the baseline's input→deliverable relation"),
+        box_map: z.record(z.string(), Id).optional()
+          .describe("With compare_to: concept box id → baseline box id, applied to deliverables and boundary inputs; pass a triz_transform segment or take_out boxMap here"),
         trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
       },
-      handler: async ({ model, trim, absorb, max_states }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_states?: number }) =>
-        text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
-          : absorb ? { ok: false, errors: ["absorb needs trim"] }
-          : externalBehavior(model, { maxStates: max_states })),
+      handler: async (args: Parameters<typeof behavior>[0]) => text(behavior(args)),
     },
     {
       name: "triz_nine_windows",

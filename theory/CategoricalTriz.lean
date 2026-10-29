@@ -585,10 +585,12 @@ series composes their relations. A feedback wire takes the relational trace: `x`
 related iff some loop value `u` is consistent. This is steady-state semantics, not dynamics. The
 kernel computes the composite of a finite model by a backtracking join. Series wiring is
 Mathlib's `Relation.Comp` (some middle value links the two relations), which can be bracketed
-either way (`Relation.comp_assoc`, which verdicts cite). The statements below add that series
-composition is monotone, that adding rows never removes a steady state, and they pin down the
-trace on the loops the tests check. The TypeScript evaluator is checked against them by tests,
-not by extraction.
+either way (`Relation.comp_assoc`, which verdicts cite), and which an identity mediator leaves
+unchanged (`Relation.comp_eq`, cited too). The statements below add that series composition is
+monotone, that adding rows never removes a steady state, and they pin down the trace on the
+loops the tests check: semantic sanity lemmas, which no verdict cites. The last two
+characterise when a box's relation splits over a segmentation of its ports, which `segment`
+cites. The TypeScript evaluator is checked against them by tests, not by extraction.
 
 For a model that declares behaviour, `trimPreservesBehavior` decides whether a trim keeps the
 input→deliverable relation equal to the baseline's. Its verdict depends on the absorber chosen,
@@ -638,6 +640,32 @@ theorem loopStates_id : loopStates (fun (p q : PUnit × υ) => q = p) PUnit.unit
 theorem relTrace_not_loop : ¬ relTrace (fun (p q : PUnit × Bool) => q.2 = !p.2) PUnit.unit PUnit.unit := by
   rintro ⟨u, hu⟩
   cases u <;> simp at hu
+
+/-- An identity mediator changes nothing: composing a relation with equality gives it back.
+Mathlib's lemma, which an interpose result with an identity mediator cites. -/
+example (R : α → β → Prop) : Relation.Comp R (· = ·) = R := Relation.comp_eq
+
+/-- A relation over two groups of ports is the product of its two projections iff it is a
+product at all. `segment` checks the left side for each part against the rest of the parts: when
+it fails, no relations on the two sides compose back to `R`. Mathlib has the inclusion
+(`Set.subset_fst_image_prod_snd_image`), not this characterisation. -/
+theorem eq_projections_prod_iff (R : Set (α × β)) :
+    R = (Prod.fst '' R) ×ˢ (Prod.snd '' R) ↔ ∃ (A : Set α) (B : Set β), R = A ×ˢ B := by
+  refine ⟨fun h => ⟨_, _, h⟩, ?_⟩
+  rintro ⟨A, B, rfl⟩
+  refine Set.Subset.antisymm Set.subset_fst_image_prod_snd_image ?_
+  rintro ⟨a, b⟩ ⟨⟨p, hp, rfl⟩, ⟨q, hq, rfl⟩⟩
+  exact ⟨hp.1, hq.2⟩
+
+/-- The same over any family of parts: `segment`'s check over all the parts at once. When it
+holds, each part's projection is that part's behaviour. -/
+theorem eq_projections_pi_iff {ι : Type*} {X : ι → Type*} (R : Set (∀ i, X i)) :
+    R = Set.univ.pi (fun i => Function.eval i '' R) ↔ ∃ A : ∀ i, Set (X i), R = Set.univ.pi A := by
+  refine ⟨fun h => ⟨_, h⟩, ?_⟩
+  rintro ⟨A, rfl⟩
+  refine Set.Subset.antisymm (Set.subset_pi_eval_image _ _) fun f hf i _ => ?_
+  obtain ⟨g, hg, hgi⟩ := hf i (Set.mem_univ i)
+  exact hgi ▸ hg i (Set.mem_univ i)
 
 end Behaviour
 

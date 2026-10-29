@@ -16,13 +16,14 @@ export const THEORY_FILE = "theory/CategoricalTriz.lean";
 export const THEOREMS = [
   "exists_section_iff", "glue_of_disjoint_regions", "no_section_of_overlap", "separated_iff_axis",
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
-  "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict", "restrict_restrict",
+  "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict",
   "typed_overlay", "typed_dpo",
   "typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost",
   "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
+  "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_pi_iff",
 ] as const;
 /** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */
-export const MATHLIB_THEOREMS = ["Relation.comp_assoc"] as const;
+export const MATHLIB_THEOREMS = ["Relation.comp_assoc", "Relation.comp_eq"] as const;
 export type Theorem = (typeof THEOREMS)[number] | (typeof MATHLIB_THEOREMS)[number];
 
 /** Cells glue iff every cell's active demands share a value. */
@@ -50,10 +51,23 @@ export function dynamizeBasis(r: ReturnType<typeof dynamize>) {
   return r.ok ? { ...r, basis: GLUING } : r;
 }
 
-/** Each absorber re-attaches a function to a same-carrier output port, which keeps typing. */
+/**
+ * Each absorber re-attaches a function to a same-carrier output port, which keeps typing. A trim
+ * only removes boxes, so with non-negative costs no dimension rises: the remaining boxes cost the
+ * baseline minus `costRelief` (cited when the trimmed boxes declare a cost).
+ */
 export function trimBasis(r: ReturnType<typeof trimCandidates>) {
   if (!r.ok) return r;
-  return { ...r, functions: r.functions.map((f) => (f.absorbers.length ? { ...f, basis: ["typed_reroute"] as Theorem[] } : f)) };
+  return {
+    ...r,
+    functions: r.functions.map((f) => (f.absorbers.length ? { ...f, basis: ["typed_reroute"] as Theorem[] } : f)),
+    ...(Object.keys(r.costRelief).length ? {
+      costBound: {
+        basis: ["trim_lowers_cost"] as Theorem[],
+        note: "No cost dimension rises: the remaining boxes cost the baseline minus costRelief, before any absorber's added cost, which is not modelled.",
+      },
+    } : {}),
+  };
 }
 
 /** A trade-off is two cost vectors neither of which dominates. */

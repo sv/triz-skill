@@ -24,7 +24,7 @@
  * absorber's above all, is outside the kernel.
  */
 import { checkModel, type FunctionModel } from "./act.js";
-import { applyTrim } from "./act-rewrite.js";
+import { applyTrim, mapBoxes } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
 
 type Box = FunctionModel["boxes"][number];
@@ -239,104 +239,170 @@ export function externalBehavior(model: FunctionModel, opts: { maxStates?: numbe
 }
 
 /**
- * Decide whether a trim preserves the input→deliverable relation. Order: the trim must apply
- * (applyTrim); a baseline deliverable port left without a non-harmful function is a structural
- * loss, `changed` without any behaviour; then every box that can reach a deliverable, in either
- * model, must declare behaviour, else `undecided` (missing-behavior); then both relations are
- * compared over the union of their boundary inputs. A port only one model reads ranges over every
- * declared value in both, so a counterexample that sets an opened port follows from the model, not
- * from the physics. When neither model has a steady state at any input, both relations are empty
- * and their equality says nothing: the verdict is `undecided` (no-steady-state), never `preserved`.
- * Otherwise an input where neither model has a steady state agrees, and is counted (`emptyInBoth`).
+ * The concept's endpoints in the baseline's box ids. `boxMap` (concept box id → baseline box id,
+ * as segment and take_out return it) is checked by mapBoxes, which also gives each concept box its
+ * baseline id. Only input ports are compared (deliverables and boundary inputs), so each mapped
+ * box's input ports must exist on its baseline box with the same carrier (else mismatch), and no
+ * two concept boxes may land one input port on the same baseline port (else ambiguous). Fails
+ * closed on both.
  */
-export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
-  const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
-  if (!applied.ok) return applied;
-  const trimmed = applied.model;
-  const deliverables = deliverablePorts(model);
+function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>) {
+  const mapped = mapBoxes(concept, baseline, boxMap);
+  if (!mapped.ok) return mapped;
+  const toBaseline = new Map(concept.boxes.map((b, i) => [b.id, mapped.model.boxes[i].id]));
+  const baseBoxes = new Map(baseline.boxes.map((b) => [b.id, b]));
+  const owner = new Map<string, string>();
+  const errors: string[] = [];
+  for (const b of concept.boxes) {
+    const target = toBaseline.get(b.id)!;
+    for (const p of b.inputs ?? []) {
+      const k = endKey({ box: target, port: p.id });
+      if (owner.has(k)) errors.push(`box_map: input port '${p.id}' of '${owner.get(k)}' and of '${b.id}' both map to '${target}.${p.id}': ambiguous`);
+      else owner.set(k, b.id);
+      if (Object.hasOwn(boxMap, b.id) && !(baseBoxes.get(target)!.inputs ?? []).some((q) => q.id === p.id && q.carrier === p.carrier)) {
+        errors.push(`box_map: '${b.id}' maps to '${target}', which has no input port '${p.id}' of carrier '${p.carrier}'`);
+      }
+    }
+  }
+  if (errors.length) return { ok: false as const, errors };
+  return { ok: true as const, toBaseline: (e: Typed): Typed => ({ ...e, box: toBaseline.get(e.box)! }) };
+}
+
+const deliverableKey = (d: Typed) => JSON.stringify([d.box, d.port, d.carrier]);
+
+/**
+ * Decide whether a concept preserves the baseline's input→deliverable relation. The concept is any
+ * model of the same system: a trim, a segment, an interposed mediator, a rewrite. With `boxMap`,
+ * the concept's deliverables and boundary inputs are renamed to baseline box ids before matching;
+ * each model is still evaluated in its own ids. Order:
+ *  1. a baseline deliverable ([box, port, carrier]) with no non-harmful function in the concept is a
+ *     structural loss, `changed` without any behaviour;
+ *  2. every box that can reach a deliverable, in either model, must declare behaviour, else
+ *     `undecided` (missing-behavior);
+ *  3. both relations are compared over the union of their boundary inputs. A port only one model
+ *     reads ranges over every declared value in both, so a counterexample that sets it follows from
+ *     the model, not from the physics. A port both read must have the same carrier and values in
+ *     both, else the call fails closed. When neither model has a steady state at any input, both
+ *     relations are empty and their equality says nothing: `undecided` (no-steady-state), never
+ *     `preserved`. Otherwise an input where neither has one agrees, and is counted (`emptyInBoth`).
+ * Deliverables only the concept has are listed (`gainedDeliverables`) and not compared.
+ */
+export function compareBehavior(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number } = {}) {
+  for (const [side, m] of [["baseline", baseline], ["concept", concept]] as const) {
+    const check = checkModel(m);
+    if (!check.ok) return { ok: false as const, errors: check.errors.map((e) => `${side}: ${e}`) };
+  }
+  const deliverables = deliverablePorts(baseline);
   if (!deliverables.length) return { ok: false as const, errors: [NO_DELIVERABLES] };
-  const head = { trim: spec.trim, chosen: applied.chosen, deliverables };
-  const lost = deliverables.filter((d) => !trimmed.wires.some((w) => w.to.box === d.box && w.to.port === d.port && w.polarity !== "harmful"));
+  const align = alignment(baseline, concept, opts.boxMap ?? {});
+  if (!align.ok) return align;
+  const offered = new Map(deliverablePorts(concept).map((d) => [deliverableKey(align.toBaseline(d)), d]));
+  const wanted = new Set(deliverables.map(deliverableKey));
+  const head = {
+    deliverables,
+    ...(opts.boxMap ? { boxMap: opts.boxMap } : {}),
+    gainedDeliverables: [...offered].filter(([k]) => !wanted.has(k)).map(([, d]) => d),
+  };
+  const lost = deliverables.filter((d) => !offered.has(deliverableKey(d)));
   if (lost.length) {
     return {
       ok: true as const, verdict: "changed" as const, reason: "lost-deliverables" as const, ...head, lostDeliverables: lost,
-      note: "The trim leaves these deliverable ports without a non-harmful function: the concept loses functions, whatever the behaviour.",
+      note: "The concept leaves these deliverable ports without a non-harmful function: it loses functions, whatever the behaviour. A segment or take_out of the product needs box_map.",
     };
   }
-  const before = plan(model, deliverables), after = plan(trimmed, deliverables);
+  const observed = deliverables.map((d) => offered.get(deliverableKey(d))!);
+  const before = plan(baseline, deliverables), after = plan(concept, observed);
   if (before.missing.length || after.missing.length) {
     const missing = [...new Set([...before.missing, ...after.missing])];
     return {
       ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, ...head, missingBehavior: missing,
-      missingIn: { baseline: before.missing, trimmed: after.missing },
-      note: `Declare behavior for ${missing.map((id) => `'${id}'`).join(", ")}: they can reach a deliverable, so the decision depends on them. The carrier screen (triz_trim) is all that holds without it.`,
+      missingIn: { baseline: before.missing, concept: after.missing },
+      note: `Declare behavior for ${missing.map((id) => `'${id}'`).join(", ")}: they can reach a deliverable, so the decision depends on them. Without it only the structural checks hold (triz_trim's carrier screen, triz_function_model compare_to).`,
     };
   }
-  const max = spec.maxStates ?? MAX_STATES;
-  const b = evaluate(model, before, deliverables, max);
+  const max = opts.maxStates ?? MAX_STATES;
+  const b = evaluate(baseline, before, deliverables, max);
   if (!b.ok) return { ok: false as const, errors: b.errors.map((e) => `baseline: ${e}`) };
-  const t = evaluate(trimmed, after, deliverables, max);
-  if (!t.ok) return { ok: false as const, errors: t.errors.map((e) => `trimmed: ${e}`) };
+  const c = evaluate(concept, after, observed, max);
+  if (!c.ok) return { ok: false as const, errors: c.errors.map((e) => `concept: ${e}`) };
 
-  const known = new Set(b.inputs.map(endKey));
-  const inputs = [...b.inputs, ...t.inputs.filter((q) => !known.has(endKey(q)))];
-  const inputsOnlyIn = { baseline: b.inputs.filter((q) => !t.inputs.some((r) => endKey(r) === endKey(q))), trimmed: t.inputs.filter((q) => !known.has(endKey(q))) };
-  const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
-  const valuations = product(inputs.map((q) => domain.get(q.carrier)!.length));
+  // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
+  const cInputs = c.inputs.map(align.toBaseline);
+  const known = new Map(b.inputs.map((q) => [endKey(q), q]));
+  const inputs = [...b.inputs, ...cInputs.filter((q) => !known.has(endKey(q)))];
+  const values = (m: FunctionModel, carrier: string) => m.carriers.find((x) => x.id === carrier)!.values!;
+  const mismatched = cInputs.flatMap((q) => {
+    const p = known.get(endKey(q));
+    if (!p) return [];
+    const [x, y] = [values(baseline, p.carrier), values(concept, q.carrier)];
+    return p.carrier === q.carrier && x.length === y.length && x.every((v) => y.includes(v)) ? []
+      : [`input port '${q.box}.${q.port}' reads carrier '${p.carrier}' [${x.join(", ")}] in the baseline and '${q.carrier}' [${y.join(", ")}] in the concept: the relations range over different values`];
+  });
+  if (mismatched.length) return { ok: false as const, errors: mismatched };
+  const domain = inputs.map((q) => (known.has(endKey(q)) ? values(baseline, q.carrier) : values(concept, q.carrier)));
+  const inputsOnlyIn = { baseline: b.inputs.filter((q) => !cInputs.some((r) => endKey(r) === endKey(q))), concept: cInputs.filter((q) => !known.has(endKey(q))) };
+  const valuations = product(domain.map((vals) => vals.length));
   if (valuations > max) return { ok: false as const, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
-  const at = (e: Evaluation, u: string[]) => e.table.get(tupleKey(e.inputs.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
+  const at = (e: Evaluation, own: Typed[], u: string[]) => e.table.get(tupleKey(own.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
 
-  let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyTrimmed = false;
-  let counterexample: { input: Array<Endpoint & { value: string }>; baseline: string[][]; trimmed: string[][]; onlyBaseline: string[][]; onlyTrimmed: string[][] } | undefined;
+  let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyConcept = false;
+  let counterexample: { input: Array<Endpoint & { value: string }>; baseline: string[][]; concept: string[][]; onlyBaseline: string[][]; onlyConcept: string[][] } | undefined;
   for (let n = 0; n < valuations; n++) {
     let rest = n;
-    const u = inputs.map((q) => {
-      const vals = domain.get(q.carrier)!;
+    const u = domain.map((vals) => {
       const x = vals[rest % vals.length];
       rest = Math.floor(rest / vals.length);
       return x;
     });
-    const x = at(b, u), y = at(t, u);
+    const x = at(b, b.inputs, u), y = at(c, cInputs, u);
     if (!x.size && !y.size) emptyInBoth++;
     const lostHere = sorted(new Map([...x].filter(([k]) => !y.has(k)))), gainedHere = sorted(new Map([...y].filter(([k]) => !x.has(k))));
     if (!lostHere.length && !gainedHere.length) continue;
     differing++;
     onlyBaseline ||= lostHere.length > 0;
-    onlyTrimmed ||= gainedHere.length > 0;
+    onlyConcept ||= gainedHere.length > 0;
     counterexample ??= {
       input: inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] })),
-      baseline: sorted(x), trimmed: sorted(y), onlyBaseline: lostHere, onlyTrimmed: gainedHere,
+      baseline: sorted(x), concept: sorted(y), onlyBaseline: lostHere, onlyConcept: gainedHere,
     };
   }
   const empties = (e: Evaluation) => [...e.table.values()].filter((r) => !r.count).length;
-  const noSteadyState = { baseline: empties(b), trimmed: empties(t) };
+  const noSteadyState = { baseline: empties(b), concept: empties(c) };
   const common = {
     ...head, inputs, inputsOnlyIn, inputValuations: valuations, noSteadyState, emptyInBoth,
-    baseline: summary(b, before), trimmed: summary(t, after), assumption: ASSUMPTION,
+    baseline: summary(b, before), concept: summary(c, after), assumption: ASSUMPTION,
   };
-  if (noSteadyState.baseline === b.table.size && noSteadyState.trimmed === t.table.size) {
+  if (noSteadyState.baseline === b.table.size && noSteadyState.concept === c.table.size) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, ...common,
-      note: `Neither model has a steady state at any of the ${valuations} compared input valuations: both relations are empty, so their equality says nothing about the trim. Check the loops upstream of the deliverables (baseline.noSteadyState, trimmed.noSteadyState); this may signal a runaway loop or a modelling error.`,
+      note: `Neither model has a steady state at any of the ${valuations} compared input valuations: both relations are empty, so their equality says nothing about the concept. Check the loops upstream of the deliverables (baseline.noSteadyState, concept.noSteadyState); this may signal a runaway loop or a modelling error.`,
     };
   }
-  const runaway = noSteadyState.baseline || noSteadyState.trimmed
-    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.trimmed} trimmed (listed under baseline.noSteadyState and trimmed.noSteadyState); ${emptyInBoth} of the ${valuations} compared have none in either model and agree only in that. They may signal a runaway loop.`
+  const runaway = noSteadyState.baseline || noSteadyState.concept
+    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.concept} in the concept (listed under baseline.noSteadyState and concept.noSteadyState); ${emptyInBoth} of the ${valuations} compared have none in either model and agree only in that. They may signal a runaway loop.`
     : "";
   if (!counterexample) {
     return {
       ok: true as const, verdict: "preserved" as const, ...common,
-      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, the absorber's first; its added cost and new harms are not modelled." + runaway,
+      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, first those the concept adds or changes (an absorber's, a mediator's, a part's); their added cost and new harms are not modelled." + runaway,
     };
   }
-  const direction = onlyBaseline && onlyTrimmed ? "incomparable" as const : onlyTrimmed ? "trimmed-contains-baseline" as const : "baseline-contains-trimmed" as const;
-  const empty = !counterexample.baseline.length ? " The baseline has no steady state at this input." : !counterexample.trimmed.length ? " The trimmed model has no steady state at this input." : "";
+  const direction = onlyBaseline && onlyConcept ? "incomparable" as const : onlyConcept ? "concept-contains-baseline" as const : "baseline-contains-concept" as const;
+  const empty = !counterexample.baseline.length ? " The baseline has no steady state at this input." : !counterexample.concept.length ? " The concept has no steady state at this input." : "";
   return {
     ok: true as const, verdict: "changed" as const, reason: "counterexample" as const, ...common, direction, differingInputs: differing, counterexample,
     note: (direction === "incomparable"
-      ? "Neither relation contains the other: the trim loses some deliverable outputs and admits new ones."
-      : direction === "trimmed-contains-baseline"
-        ? "The trimmed relation strictly contains the baseline: the trim admits deliverable outputs the baseline never produces."
-        : "The baseline relation strictly contains the trimmed one: the trim rules out deliverable outputs the baseline produces.") + empty + runaway,
+      ? "Neither relation contains the other: the concept loses some deliverable outputs and admits new ones."
+      : direction === "concept-contains-baseline"
+        ? "The concept's relation strictly contains the baseline's: it admits deliverable outputs the baseline never produces."
+        : "The baseline's relation strictly contains the concept's: the concept rules out deliverable outputs the baseline produces.") + empty + runaway,
   };
+}
+
+/** Perform a trim (applyTrim) and compare the trimmed model with the original (compareBehavior). */
+export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
+  const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
+  if (!applied.ok) return applied;
+  const r = compareBehavior(model, applied.model, { maxStates: spec.maxStates });
+  return r.ok ? { ...r, trim: spec.trim, chosen: applied.chosen } : r;
 }
