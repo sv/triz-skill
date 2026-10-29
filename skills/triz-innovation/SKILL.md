@@ -95,8 +95,8 @@ Read only what the task needs:
   [workflow.md](references/workflow.md);
 - function models as typed data, harm loops, trimming screens, trims and transform results
   decided under declared behaviour, an unknown box's weakest specification, weakness rankings of
-  modelled concepts, separation checks, typed transformations, 9-windows views and transitions,
-  and exports:
+  modelled concepts, bounded dynamics, separation checks, typed transformations, 9-windows views
+  and transitions, and exports:
   [categorical-model.md](references/categorical-model.md);
 - ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
 - S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);

@@ -21,11 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
 - `triz_behavior` `compare_to`/`box_map` decides transform results against a baseline; mediators declare `behavior`; segment splits behaviour over independent parts or names a coupling witness.
 - `triz_behavior` `weakest_spec`: the weakest specification (residual in Rel) for the one box without behaviour, against `compare_to` or the untrimmed model: `spec`, `impossible`, or `undecided`; `triz_weakness` ranks modelled concepts by the situations they admit, by inclusion.
+- `triz_dynamics`: boxes may declare `state`, `initial`, and `transition` rows (nondeterministic Mealy machines); bounded runs decide escalation into an unsafe set (shortest trace), invariance, and separation in time along one run, and classify loops as bistable, escalating (trap), or oscillating.
+- `triz_feasibility`: monotone co-design (Censi 2015) from box `feasibility` rows, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget (`feasible`, `infeasible` with the binding dimension, or `undecided`) and report the absorber's added resources.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
-- `theory/Witnesses.lean`: each typing lemma's and behaviour-monotonicity lemma's hypotheses hold on a concrete diagram or relation, and dropping any one breaks it.
+- `theory/Witnesses.lean`: each typing, behaviour-monotonicity, and dynamics lemma's hypotheses hold on a concrete diagram, relation, or step relation, and dropping any one breaks it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
 - Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.
-- Function-model JSON Schema and five example models: bearing, bearing with declared behaviour, cached API, marketplace, connection pool.
+- Function-model JSON Schema and six example models: bearing, bearing with declared behaviour, bearing with declared dynamics, cached API, marketplace, connection pool.
 - `categorical-model.md`: modelling protocol, and what is and is not claimed.
 - CI and Lean workflows can be started by hand (`workflow_dispatch`).
 

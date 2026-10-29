@@ -96,6 +96,8 @@ missing.
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second |
+| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
+| `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -143,6 +145,20 @@ keeps the relation inside the target. The verdict is `spec` when that specificat
 the target, and `impossible` when no behaviour of the box can. `triz_weakness` ranks modelled
 concepts by the situations they admit (references/weakness.md).
 
+When boxes declare feasibility (minimal rows of levels provided against levels required and
+operating cost), `triz_feasibility` finds the minimal resource vectors by Kleene's ascent to the
+least fixpoint, loops included, and judges them against the budget: `feasible`, `infeasible`
+(over budget with the binding dimension, or a level no row provides), or `undecided`. With
+`trim`, it decides whether the remaining boxes provide what the trim leaves them within budget,
+and reports each absorber's added resources. No polynomial bound is claimed; past its caps the
+call fails closed.
+
+When boxes declare state (`state`, `initial`, and `transition` rows), `triz_dynamics` explores
+every run up to a horizon. It decides whether a harm loop escalates into an unsafe set, with a
+shortest trace, and whether a safe set is invariant. It also decides whether one run meets
+time-separated demands within their windows. It classifies the loops' long-run behaviour as
+bistable, escalating into a trap, or oscillating. Only finite, discrete dynamics are covered.
+
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
@@ -153,8 +169,9 @@ in categorical-model.md. That shows the kernel reads only the wiring shape, not 
 transfer between domains.
 [categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
 what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
-software models. One software model has the physical model's wiring shape. A copy of the
-physical model declares box behaviour, so its trim can be decided.
+software models. One software model has the physical model's wiring shape. Three copies of
+the physical model declare box behaviour, box feasibility, and a shaft temperature, so their
+trims can be decided and their heat loop's escalation classified.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
@@ -173,18 +190,26 @@ with no `sorry`:
 - a relation is the product of its projections iff it is a product at all, for two parts and
   for any family of parts, and for two parts iff it is a rectangle: rows (a, b) and (c, d) give
   the row (a, d);
-- series composition and the trace preserve unions, so for one unknown box the rows that keep a composite inside a target form
-  the weakest specification (a Galois connection), and the target is reachable iff that
-  specification's composite covers it;
+- series composition and the trace preserve unions, so for one unknown box the rows that keep a
+  composite inside a target form the weakest specification (a Galois connection), and the target
+  is reachable iff that specification's composite covers it;
 - concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
-  strictly larger count.
+  strictly larger count;
+- reachability within n steps is an existential over traces, a counterexample trace is sound, a
+  layer that adds nothing completes the reachable set, reachability is monotone in the
+  transition rows, a closed set holds every run that enters it, and without a fixed point every
+  return takes two steps or more;
+- series, parallel, and feedback composition keep feasibility monotone, Kleene's ascent reaches
+  the least fixpoint of a finite lattice, and the co-design fixpoint is the upward closure of the
+  feasible configurations.
 
 Verdicts cite only the statements they use exactly; categorical-model.md marks the others as
 never cited, and why.
 
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite,
-behaviour-monotonicity, residual, or weakness lemmas is vacuous. For each, a concrete diagram or
-relation meets all its hypotheses, and a counterexample shows each hypothesis is needed.
+behaviour-monotonicity, residual, weakness, co-design, or dynamics lemmas is vacuous. For each, a
+concrete diagram, relation, or step relation meets all its hypotheses, and a counterexample shows
+each hypothesis is needed.
 
 Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
 relational check, and its verdict depends on the absorber chosen. `theory/` does not state

@@ -124,6 +124,12 @@ it supports here.
   [arXiv:1512.08055](https://arxiv.org/abs/1512.08055).
   Resources ordered componentwise. This is why ideality here is a comparison per dimension,
   not a sum.
+  Censi also supplies `triz_feasibility`. Checked on 2026-10-29 against v7: Def. 13 (a monotone
+  design problem), Props. 2–4 (parallel, series, and loop composition keep monotonicity),
+  Def. 22 with eq. (26) (a loop's minimal resources as the least fixpoint of
+  R ↦ Min ⋃_{r ∈ R} h(f₁, r) ∩ ↑r on antichains, found by Kleene's ascent from ⊥), and Prop. 5
+  (memory O(width(R₀)) and work O(width(R₀) × height(A R₀) × c), where R₀ is the resource poset
+  of the loop, A R₀ its lattice of antichains, and c the cost of one evaluation of the inner h).
 - **Abramsky & Brandenburger (2011)**, *The sheaf-theoretic structure of non-locality and
   contextuality*, New Journal of Physics 13, 113036.
   **Abramsky, Mansfield & Barbosa (2012)**, *The cohomology of non-locality and contextuality*,
@@ -136,10 +142,15 @@ it supports here.
   **Ghani, Hedges, Winschel & Zahn (2018)**, *Compositional game theory*, LICS '18, 472–481,
   doi:10.1145/3209108.3209165.
   Bidirectional composition, with forward action and back-reaction. The kernel models
-  back-reaction as reverse wires instead.
+  back-reaction as reverse wires instead. A box with declared state is read as a lens with a
+  residual, the residual as its state; profunctor and coend formulas are not adopted.
 - **Myers**, *Categorical Systems Theory*, book draft last updated 2023-09-03,
   [davidjaz.com](https://www.davidjaz.com/Papers/DynamicalBook.pdf).
   Open dynamical systems.
+  - Adopted: finite nondeterministic Mealy machines composed synchronously along the wiring,
+    and their bounded reachability (`triz_dynamics`).
+  - Not adopted: smooth dynamics (ODEs, tangent bundles), controller synthesis, and double
+    categories.
 - **Bonchi, Gadducci, Kissinger, Sobociński & Zanasi (2022)**, *String diagram rewrite theory I:
   Rewriting with Frobenius structure*, Journal of the ACM 69(2), doi:10.1145/3502719,
   [arXiv:2012.01847](https://arxiv.org/abs/2012.01847). Checked on 2026-10-29: Def. 3.1

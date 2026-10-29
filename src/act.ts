@@ -59,6 +59,22 @@ export const BehaviorRow = z.strictObject({
   out: z.record(z.string(), Id).describe("Output port id → value; names every output port of the box"),
 }).meta({ id: "BehaviorRow", description: "One admissible (inputs, outputs) pair of the box's relation" });
 
+export const TransitionRow = z.strictObject({
+  state: Id.describe("Current state; one of the box's declared state values"),
+  in: z.record(z.string(), Id).describe("Input port id → value; names every input port of the box"),
+  next: Id.describe("Next state; one of the box's declared state values"),
+  out: z.record(z.string(), Id).describe("Output port id → value; names every output port of the box"),
+}).meta({ id: "TransitionRow", description: "One admissible step of a stateful box: in this state, on these inputs, it may move to next and emit these outputs" });
+const Level = z.number().nonnegative();
+export const FeasibilityRow = z.strictObject({
+  provides: z.record(z.string(), Level).optional()
+    .describe("Output port id → level the box can provide there, in the carrier's dimension; an omitted port provides nothing (level 0)"),
+  requires: z.record(z.string(), Level).optional()
+    .describe("Input port id → level the box needs there to provide this row; an omitted port needs nothing. Only a non-harmful function can supply it"),
+  cost: z.record(Dim, z.number().nonnegative()).optional()
+    .describe("Operating resources per cost dimension, added to the box's fixed cost; an omitted dimension needs nothing"),
+}).meta({ id: "FeasibilityRow", description: "One minimal (functionality provided, resources required) pair of the box's monotone feasibility relation" });
+
 export const Box = z.strictObject({
   id: Id,
   name: z.string().min(1),
@@ -70,6 +86,13 @@ export const Box = z.strictObject({
     .describe("Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together"),
   behavior: z.array(BehaviorRow).min(1).optional()
     .describe("Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown"),
+  state: z.array(Id).min(1).optional()
+    .describe("Declared state: the finite set of values the box carries from one step to the next. Requires transition"),
+  initial: z.array(Id).min(1).optional().describe("States the box may start in; a subset of state"),
+  transition: z.array(TransitionRow).min(1).optional()
+    .describe("Declared dynamics: rows (state, inputs) → (next state, outputs) over the declared state and carrier values, making the box a nondeterministic Mealy machine. A (state, inputs) pair with no row cannot occur; several rows are alternatives. Requires state; a box declares behavior or transition, not both"),
+  feasibility: z.array(FeasibilityRow).min(1).optional()
+    .describe("Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. A port has one level shared by every function on it, so additive sharing of a flow needs a splitter box. Omit when unknown"),
 }).meta({ id: "Box" });
 
 export const Endpoint = z.strictObject({ box: Id, port: Id }).meta({ id: "Endpoint" });
@@ -123,6 +146,7 @@ export const FunctionModel = z.strictObject({
 
 export type FunctionModel = z.infer<typeof FunctionModel>;
 export type PhysicalContradiction = z.infer<typeof PhysicalContradiction>;
+export type FeasibilityRow = z.infer<typeof FeasibilityRow>;
 type Box = z.infer<typeof Box>;
 type Wire = z.infer<typeof Wire>;
 
@@ -157,25 +181,73 @@ function duplicates(ids: string[]): string[] {
 }
 
 /**
- * Typing of a declared behaviour: every port's carrier declares its values, and every row gives
- * each input and output port exactly one declared value. Unknown ports and values fail closed.
+ * Typing of declared rows: every port's carrier declares its values, and every row gives each
+ * input and output port exactly one declared value. A stateful box declares state and transition
+ * together, with initial and every row's state and next among its states, and declares no
+ * behavior. Unknown ports, values, and states fail closed.
  */
-function behaviorErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
-  if (!b.behavior) return [];
+function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
   const errors: string[] = [];
-  const values = new Map(carriers.map((c) => [c.id, c.values]));
-  for (const p of [...inputs(b), ...outputs(b)]) {
-    if (values.has(p.carrier) && !values.get(p.carrier)) errors.push(`box '${b.id}' declares behavior, but carrier '${p.carrier}' of port '${p.id}' declares no values`);
-  }
-  b.behavior.forEach((row, i) => {
-    for (const [side, ports, given] of [["input", inputs(b), row.in], ["output", outputs(b), row.out]] as const) {
-      for (const k of Object.keys(given)) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' behavior row ${i}: no ${side} port '${k}'`);
-      for (const p of ports) {
-        if (!Object.hasOwn(given, p.id)) { errors.push(`box '${b.id}' behavior row ${i}: ${side} port '${p.id}' has no value`); continue; }
-        const declared = values.get(p.carrier);
-        if (declared && !declared.includes(given[p.id])) errors.push(`box '${b.id}' behavior row ${i}: value '${given[p.id]}' of port '${p.id}' is not declared by carrier '${p.carrier}'`);
-      }
+  if (b.transition && !b.state) errors.push(`box '${b.id}' declares transition without state`);
+  if (b.state && !b.transition) errors.push(`box '${b.id}' declares state without transition`);
+  if (b.initial && !b.state) errors.push(`box '${b.id}' declares initial without state`);
+  if (b.behavior && b.transition) errors.push(`box '${b.id}' declares both behavior and transition: a stateless box declares behavior, a stateful one transition`);
+  for (const s of duplicates(b.state ?? [])) errors.push(`box '${b.id}': duplicate state '${s}'`);
+  const states = new Set(b.state ?? []);
+  if (b.state) for (const s of b.initial ?? []) if (!states.has(s)) errors.push(`box '${b.id}': initial state '${s}' is not declared in state`);
+  if (b.state) b.transition?.forEach((row, i) => {
+    for (const [field, s] of [["state", row.state], ["next", row.next]] as const) {
+      if (!states.has(s)) errors.push(`box '${b.id}' transition row ${i}: ${field} '${s}' is not declared in state`);
     }
+  });
+  const values = new Map(carriers.map((c) => [c.id, c.values]));
+  for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition]] as const) {
+    if (!rows) continue;
+    for (const p of [...inputs(b), ...outputs(b)]) {
+      if (values.has(p.carrier) && !values.get(p.carrier)) errors.push(`box '${b.id}' declares ${kind}, but carrier '${p.carrier}' of port '${p.id}' declares no values`);
+    }
+    rows.forEach((row, i) => {
+      for (const [side, ports, given] of [["input", inputs(b), row.in], ["output", outputs(b), row.out]] as const) {
+        for (const k of Object.keys(given)) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' ${kind} row ${i}: no ${side} port '${k}'`);
+        for (const p of ports) {
+          if (!Object.hasOwn(given, p.id)) { errors.push(`box '${b.id}' ${kind} row ${i}: ${side} port '${p.id}' has no value`); continue; }
+          const declared = values.get(p.carrier);
+          if (declared && !declared.includes(given[p.id])) errors.push(`box '${b.id}' ${kind} row ${i}: value '${given[p.id]}' of port '${p.id}' is not declared by carrier '${p.carrier}'`);
+        }
+      }
+    });
+  }
+  return errors;
+}
+
+/**
+ * Typing of a feasibility relation: rows name only the box's own ports, output ports under
+ * `provides` and input ports under `requires`, and the rows are minimal. Row j is dominated by
+ * row i when i provides at least as much at every output port and needs at most as much at every
+ * input port and cost dimension (an omitted entry is 0). Monotone reading makes a dominated row
+ * redundant, so it fails closed rather than being dropped silently.
+ */
+function feasibilityErrors(b: Box): string[] {
+  if (!b.feasibility) return [];
+  const errors: string[] = [];
+  b.feasibility.forEach((row, i) => {
+    for (const [field, ports, kind] of [["provides", outputs(b), "output"], ["requires", inputs(b), "input"]] as const) {
+      for (const k of Object.keys(row[field] ?? {})) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' feasibility row ${i}: no ${kind} port '${k}'`);
+    }
+  });
+  const dims = [...new Set(b.feasibility.flatMap((r) => Object.keys(r.cost ?? {})))];
+  const atLeast = (x: FeasibilityRow, y: FeasibilityRow) =>
+    outputs(b).every((p) => (own(x.provides, p.id) ?? 0) >= (own(y.provides, p.id) ?? 0))
+    && inputs(b).every((p) => (own(x.requires, p.id) ?? 0) <= (own(y.requires, p.id) ?? 0))
+    && dims.every((d) => (own(x.cost, d) ?? 0) <= (own(y.cost, d) ?? 0));
+  b.feasibility.forEach((row, j) => {
+    const i = b.feasibility!.findIndex((other, k) => k !== j && atLeast(other, row));
+    if (i < 0) return;
+    const repeat = atLeast(row, b.feasibility![i]);
+    if (repeat && i > j) return;
+    errors.push(repeat
+      ? `box '${b.id}' feasibility row ${j} repeats row ${i}: drop one`
+      : `box '${b.id}' feasibility row ${j} is dominated by row ${i}: it provides no more and needs no less; drop it`);
   });
   return errors;
 }
@@ -196,7 +268,7 @@ export function checkModel(model: FunctionModel): CheckResult {
     for (const p of [...inputs(b), ...outputs(b)]) {
       if (!carriers.has(p.carrier)) errors.push(`box '${b.id}' port '${p.id}': unknown carrier '${p.carrier}'`);
     }
-    errors.push(...behaviorErrors(b, model.carriers));
+    errors.push(...rowErrors(b, model.carriers), ...feasibilityErrors(b));
   }
   for (const w of model.wires) {
     if (!carriers.has(w.carrier)) errors.push(`wire '${w.id}': unknown carrier '${w.carrier}'`);
@@ -444,7 +516,7 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
     trimmingProblems: functions.flatMap((f) => f.absorbers.map((a) => a.rule === "B"
       ? `[B] How can ${name(f.object)} ${verb(f.wire)} itself (carrier '${f.carrier}') without ${trimmedNames}?`
       : `[C] How can ${name(a.box)}${a.supersystem ? " (supersystem)" : ""} ${verb(f.wire)} ${name(f.object)} (carrier '${f.carrier}') without ${trimmedNames}?`)),
-    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's added cost and new harms are not modelled here.",
+    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility).",
   };
 }
 

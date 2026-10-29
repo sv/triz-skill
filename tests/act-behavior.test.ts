@@ -543,8 +543,10 @@ test("ill-typed behaviour fails closed in every tool that takes a model", async 
     triz_transform: { model: bad, transformation: { op: "trim", trim: ["bearing"] } },
     triz_nine_windows: { present: bad, subsystem: ["bearing"] },
     triz_behavior: { model: bad },
+    triz_dynamics: { model: bad },
     triz_rule_apply: { model: bad, rule_id: "mono-bi" },
     triz_weakness: { concepts: [{ id: "bad", model: bad }, { id: "good", model: bearing() }], acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }] },
+    triz_feasibility: { model: bad },
   };
   const takesModel = toolSpecs().filter((s) => ["model", "present", "concepts"].some((k) => k in s.shape));
   assert.deepEqual(takesModel.map((s) => s.name).sort(), Object.keys(args).sort());
