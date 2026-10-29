@@ -11,10 +11,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { FunctionModel } from "../src/act.js";
+import { FunctionModel, checkModel } from "../src/act.js";
+import { fromHypergraph, toHypergraph } from "../src/act-export.js";
 import { externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking } from "../src/act-behavior.js";
 import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
+import { supportConcept, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -236,6 +238,162 @@ test("fail closed: two unknown boxes, a lost deliverable, no box to specify, an 
   assert.match(errors(weakestTrimSpec(bare, { trim: ["bearing"] })), /box 'housing' is the box to specify, but carrier 'fit' of port 'fit' declares no values/);
 });
 
+const SUPPORTED: Row = { in: {}, out: { bore: "supported" } };
+const UNSUPPORTED: Row = { in: {}, out: { bore: "unsupported" } };
+/** The housing reads its fit; `producible` says which (fit, bore) rows it can physically produce. */
+const fitRow = (fit: string, bore: string): Row => ({ in: { fit }, out: { bore } });
+const fitted = (producible?: Row[]) => openHousing((m) => {
+  m.carriers.push({ id: "fit", layer: "material", dimension: "bore fit", values: ["press", "loose"] });
+  box(m, "housing").inputs = [{ id: "fit", carrier: "fit" }];
+  if (producible) box(m, "housing").producible = producible;
+});
+/** The decided trim with R declared for the housing, its producible rows removed (a box declares one or the other). */
+const housingGives = (model: FunctionModel) => (R: Row[]) => {
+  const m = structuredClone(model);
+  delete box(m, "housing").producible;
+  return byTrim(m, ["bearing"], "housing")(R);
+};
+
+/**
+ * Brute force within the producible rows F: a relation R ⊆ F gives the target iff it is contained
+ * in the spec W ∩ F and the verdict is `spec` (covers_feasible_iff). When the verdict is
+ * `infeasible`, every relation over all candidate rows that gives the target holds, for each
+ * entry of requiredInfeasible, one of its rows (required_row_of_eq), none of them producible.
+ */
+function bruteForceWithin(r: ReturnType<typeof weakestSpec>, F: Row[], all: Row[], gives: (R: Row[]) => boolean) {
+  assert.ok(r.ok && (r.verdict === "spec" || r.verdict === "impossible") && r.reason !== "lost-deliverables");
+  const achieving = subsets(F).filter((R) => R.length && gives(R));
+  for (const R of achieving) assert.ok(R.every((row) => r.spec.some((w) => same(w, row))), `C[R] = T but R ⊄ W ∩ F: ${JSON.stringify(R)}`);
+  assert.equal(achieving.length > 0, r.verdict === "spec");
+  if (r.verdict === "impossible" && r.reason === "infeasible") {
+    for (const R of subsets(all).filter((R) => R.length && gives(R))) {
+      for (const need of r.requiredInfeasible) assert.ok(need.rows.some((w) => R.some((row) => same(w, row))), `C[R] = T without a required row: ${JSON.stringify(R)}`);
+    }
+    for (const need of r.requiredInfeasible) for (const w of need.rows) assert.ok(!F.some((row) => same(w, row)), "a required row is producible");
+  }
+  return achieving;
+}
+
+test("producible rows: the spec is the residual cut down to them, and a target they cannot reach is the residual contradiction", () => {
+  // Everything producible: the same spec as without producible.
+  const both = weakestTrimSpec(openHousing((m) => { box(m, "housing").producible = [SUPPORTED, UNSUPPORTED]; }), { trim: ["bearing"] });
+  assert.ok(both.ok && both.verdict === "spec");
+  assert.deepEqual(both.spec, [SUPPORTED]);
+  assert.deepEqual(both.producible, { declared: 2, residualRows: 1, infeasibleRows: 0, infeasible: [] });
+  assert.deepEqual(both.basis, ["le_residual_iff", "covers_feasible_iff"]);
+  assert.match(both.note, /weakest producible specification for 'housing'/);
+
+  // The housing can only leave the shaft unsupported: the residual covers the target, its producible part is empty.
+  const loose = openHousing((m) => { box(m, "housing").producible = [UNSUPPORTED]; });
+  const r = weakestTrimSpec(loose, { trim: ["bearing"] });
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible");
+  assert.equal(r.preserves, false);
+  assert.deepEqual([r.spec, r.specRows], [[], 0]);
+  assert.deepEqual(r.producible, { declared: 1, residualRows: 1, infeasibleRows: 1, infeasible: [SUPPORTED] });
+  assert.deepEqual(r.requiredInfeasible, [{ input: [], outputs: ["rated", "supported"], rows: [SUPPORTED] }]);
+  assert.equal(r.requiredInfeasibleRows, 1);
+  assert.deepEqual(r.uncovered, { input: [], target: [["rated", "supported"]], delivered: [], missing: [["rated", "supported"]] });
+  assert.deepEqual(r.basis, ["not_covers_feasible_iff", "required_row_of_eq", "map_empty"]);
+  assert.match(r.note, /residual contradiction/);
+  // `excluded` keeps its meaning: rows whose composite leaves the target, producible or not.
+  assert.deepEqual(r.excluded.map((x) => x.row), [UNSUPPORTED]);
+  bruteForceWithin(r, [UNSUPPORTED], [SUPPORTED, UNSUPPORTED], housingGives(loose));
+});
+
+test("producible rows: partly producible, the required row is named per input; all producible needed rows give the spec", () => {
+  const all = ["press", "loose"].flatMap((fit) => ["supported", "unsupported"].map((bore) => fitRow(fit, bore)));
+  // A loose fit cannot be made to support the shaft.
+  const F = [fitRow("press", "supported"), fitRow("loose", "unsupported")];
+  const r = weakestTrimSpec(fitted(F), { trim: ["bearing"] });
+  assert.ok(r.ok && r.verdict === "impossible" && r.reason === "infeasible");
+  assert.deepEqual(r.spec, [fitRow("press", "supported")]);
+  assert.deepEqual(r.producible, { declared: 2, residualRows: 2, infeasibleRows: 1, infeasible: [fitRow("loose", "supported")] });
+  assert.deepEqual(r.requiredInfeasible, [{ input: [{ box: "housing", port: "fit", value: "loose" }], outputs: ["rated", "supported"], rows: [fitRow("loose", "supported")] }]);
+  assert.equal(r.uncoveredInputs, 1);
+  bruteForceWithin(r, F, all, housingGives(fitted(F)));
+
+  // Both supporting rows producible, and a useless one too: the spec, and nothing infeasible.
+  const G = [fitRow("press", "supported"), fitRow("loose", "supported"), fitRow("loose", "unsupported")];
+  const ok = weakestTrimSpec(fitted(G), { trim: ["bearing"] });
+  assert.ok(ok.ok && ok.verdict === "spec");
+  assert.deepEqual(ok.spec, [fitRow("press", "supported"), fitRow("loose", "supported")]);
+  assert.deepEqual([ok.producible?.infeasibleRows, ok.producible?.residualRows], [0, 2]);
+  assert.equal(bruteForceWithin(ok, G, all, housingGives(fitted(G))).length, 1);
+  // The same verdict as without producible, since F contains the residual.
+  const plain = weakestTrimSpec(fitted(), { trim: ["bearing"] });
+  assert.ok(plain.ok && plain.verdict === "spec");
+  assert.deepEqual(plain.spec, ok.spec);
+  assert.equal("producible" in plain, false);
+});
+
+test("producible rows: rows the target does not need may be unproducible; a residual that cannot cover stays not-covered", () => {
+  // The segmented shaft's body: its residual has 4 rows, and either of two steady states through the heat loop gives the target.
+  const seg = segment(bearing(), { box: "shaft", parts: [{ id: "journal", ports: ["drive", "support"] }, { id: "body", ports: ["heat-in", "expansion"] }] });
+  assert.ok(seg.ok);
+  delete box(seg.model, "body").behavior;
+  const body = (heat: string, expansion: string): Row => ({ in: { "heat-in": heat }, out: { expansion } });
+  const all = [body("low", "nominal"), body("high", "nominal"), body("low", "high"), body("high", "high")];
+  const withProducible = (F: Row[]) => { const m = structuredClone(seg.model); box(m, "body").producible = F; return m; };
+  const target = externalBehavior(bearing());
+  assert.ok(target.ok && target.decided);
+  const gives = (R: Row[]) => {
+    const m = structuredClone(seg.model);
+    box(m, "body").behavior = R;
+    const e = externalBehavior(m);
+    assert.ok(e.ok && e.decided);
+    return JSON.stringify(e.relation[0].outputs) === JSON.stringify(target.relation[0].outputs);
+  };
+  // Only the cool steady state is producible: the spec is that row; three residual rows are left out.
+  const cool = weakestSpec(withProducible([all[0]]), bearing(), { boxMap: seg.boxMap });
+  assert.ok(cool.ok && cool.verdict === "spec");
+  assert.deepEqual(cool.spec, [all[0]]);
+  assert.deepEqual([cool.specRows, cool.producible?.residualRows, cool.producible?.infeasibleRows], [1, 4, 3]);
+  assert.match(cool.note, /3 row\(s\) of the residual are not producible/);
+  bruteForceWithin(cool, [all[0]], all, gives);
+  // Only a row no steady state uses is producible: the target needs one of the two loop rows, and both are listed.
+  const neither = weakestSpec(withProducible([all[1]]), bearing(), { boxMap: seg.boxMap });
+  assert.ok(neither.ok && neither.verdict === "impossible" && neither.reason === "infeasible");
+  assert.equal(neither.requiredInfeasible.length, 1);
+  assert.deepEqual(neither.requiredInfeasible[0].rows, [all[0], all[3]]);
+  assert.equal(neither.requiredInfeasibleRows, 2);
+  assert.deepEqual(neither.basis, ["not_covers_feasible_iff", "required_row_of_eq"]);
+  bruteForceWithin(neither, [all[1]], all, gives);
+
+  // A residual that cannot cover the target: not-covered whatever is producible, with the residual's witness.
+  const c = correlated();
+  box(c, "m").producible = [{ in: {}, out: { o: "b" } }];
+  const nc = weakestTrimSpec(c, { trim: ["s"], absorb: correlatedAbsorb });
+  assert.ok(nc.ok && nc.verdict === "impossible" && nc.reason === "not-covered");
+  assert.deepEqual(nc.uncovered, { input: [], target: [["a", "a"], ["b", "b"]], delivered: [["a", "a"]], missing: [["b", "b"]] });
+  assert.deepEqual(nc.producible, { declared: 1, residualRows: 1, infeasibleRows: 1, infeasible: [{ in: {}, out: { o: "a" } }] });
+  assert.deepEqual(nc.basis, ["not_covers_iff"]);
+  assert.match(nc.note, /contained in the residual \(before producible\)/);
+});
+
+test("producible rows are typed like behaviour rows, exclude behaviour, survive export, and block port changes", async () => {
+  const typing = (edit: (m: FunctionModel) => void) => { const m = fitted([fitRow("press", "supported")]); edit(m); return checkModel(m).errors.join("; "); };
+  assert.equal(typing(() => {}), "");
+  assert.match(typing((m) => { box(m, "housing").producible![0].out.bore = "wobbly"; }), /box 'housing' producible row 0: value 'wobbly' of port 'bore' is not declared by carrier 'radial-load'/);
+  assert.match(typing((m) => { box(m, "housing").producible![0].in = {}; }), /box 'housing' producible row 0: input port 'fit' has no value/);
+  assert.match(typing((m) => { box(m, "housing").behavior = [fitRow("press", "supported")]; }), /box 'housing' declares producible with behavior/);
+  const m = fitted([fitRow("press", "supported")]);
+  const back = fromHypergraph(toHypergraph(m));
+  assert.ok(back.ok);
+  assert.deepEqual(box(back.model, "housing").producible, [fitRow("press", "supported")]);
+  // A reverse that would add a port to the housing is refused with its reason, as for behaviour.
+  const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
+  const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
+  // After the trim, the housing performs w-support; reversing it would give the housing an input port.
+  const trimmed = await call("triz_transform", { model: m, transformation: { op: "trim", trim: ["bearing"] } });
+  assert.ok(trimmed.ok);
+  const rev = await call("triz_transform", { model: trimmed.model, transformation: { op: "reverse", wire: "w-support", ports: { from: "push", to: "pushed" } } });
+  assert.equal(rev.ok, false);
+  assert.match(rev.errors.join(), /box 'housing' declares producible: a new port needs a value in every row/);
+  // The tool passes it through: the concept's hole declares its producible rows on the box.
+  const viaTool = await call("triz_behavior", { model: openHousing((x) => { box(x, "housing").producible = [UNSUPPORTED]; }), trim: ["bearing"], weakest_spec: true });
+  assert.deepEqual([viaTool.verdict, viaTool.reason, viaTool.requiredInfeasibleRows], ["impossible", "infeasible", 1]);
+});
+
 test("the spec's cap: candidate rows are checked before the search, and the search is bounded (undecided, state-cap)", () => {
   const wide = openHousing((m) => {
     m.carriers.push({ id: "bit", layer: "information", dimension: "bit", values: ["0", "1"] });
@@ -252,36 +410,8 @@ test("the spec's cap: candidate rows are checked before the search, and the sear
   assert.match(errors(weakestTrimSpec(openHousing(), { trim: ["ghost"] })), /ghost/);
 });
 
-/**
- * One support concept: a box `support` reading the lubrication and the temperature (the
- * situations) and supporting the shaft where `ok` says so. Every concept uses the same box and port
- * ids, so they read the same situations.
- */
-function concept(name: string, ok: (lube: string, temp: string) => boolean | "none"): FunctionModel {
-  const rows = ["oiled", "dry"].flatMap((lube) => ["normal", "hot"].flatMap((temp) => {
-    const v = ok(lube, temp);
-    return v === "none" ? [] : [{ in: { lube, temp }, out: { race: v ? "supported" : "unsupported" } }];
-  }));
-  return {
-    domain: "physical",
-    carriers: [
-      { id: "torque", layer: "energy", dimension: "N·m", values: ["rated"] },
-      { id: "radial-load", layer: "energy", dimension: "N radial support", values: ["supported", "unsupported"] },
-      { id: "lube", layer: "material", dimension: "lubricant film", values: ["oiled", "dry"] },
-      { id: "temp", layer: "energy", dimension: "K ambient", values: ["normal", "hot"] },
-    ],
-    boxes: [
-      { id: "motor", name: "Drive motor", role: "tool", outputs: [{ id: "shaft-out", carrier: "torque" }], behavior: [{ in: {}, out: { "shaft-out": "rated" } }] },
-      { id: "support", name, role: "mediator", inputs: [{ id: "lube", carrier: "lube" }, { id: "temp", carrier: "temp" }], outputs: [{ id: "race", carrier: "radial-load" }], behavior: rows },
-      { id: "shaft", name: "Shaft", role: "product", inputs: [{ id: "drive", carrier: "torque" }, { id: "support", carrier: "radial-load" }] },
-    ],
-    wires: [
-      { id: "w-drive", from: { box: "motor", port: "shaft-out" }, to: { box: "shaft", port: "drive" }, carrier: "torque", polarity: "useful" },
-      { id: "w-support", from: { box: "support", port: "race" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful" },
-    ],
-  };
-}
-const acceptable = [{ box: "shaft", port: "drive", values: ["rated"] }, { box: "shaft", port: "support", values: ["supported"] }];
+const concept = supportConcept;
+const acceptable = SUPPORT_ACCEPTABLE;
 const ball = concept("Ball bearing", (lube) => lube === "oiled");
 const bushing = concept("Polymer bushing", (_, temp) => temp === "normal");
 const tight = concept("Tight-fit bearing", (lube, temp) => lube === "oiled" && temp === "normal");

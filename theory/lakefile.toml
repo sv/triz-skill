@@ -15,8 +15,9 @@ name = "CategoricalTriz"
 [[lean_lib]]
 name = "Witnesses"
 
-# Per-instance certificates of two examples, as `triz_export` format `lean` writes them; a default
-# target, so CI checks them. tests/act-cert.test.ts keeps them equal to the generator's output.
+# Per-instance certificates of four examples, as `triz_export` format `lean`, `triz_dynamics`, and
+# `triz_weakness` write them; a default target, so CI checks them. tests/act-cert.test.ts keeps them
+# equal to the generator's output.
 [[lean_lib]]
 name = "Certificates"
 

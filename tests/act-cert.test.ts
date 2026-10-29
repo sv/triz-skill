@@ -3,7 +3,10 @@
  * generator's output, each certificate states exactly the kernel's verdicts, ids stay inside
  * string literals, and generation fails closed. Where Lean is built locally (theory/.lake), the
  * certificates are also checked: the fixtures and hostile generated models are accepted, and a
- * tampered certificate (verdicts negated, or a carrier changed) fails where it must. Without
+ * tampered certificate (verdicts negated, a carrier changed, the unsafe set emptied, nothing
+ * acceptable) fails where it must. Escalation and weakness certificates encode the declared
+ * rows, never the kernel's results, and state only what a witness or an exhaustive decision
+ * supports. Without
  * Lean those tests skip; TRIZ_REQUIRE_LEAN=1 makes them fail instead. Nothing here calls AXLE.
  * Regenerate the fixtures with UPDATE_GOLDEN=1 pnpm test, then review the diff.
  */
@@ -13,8 +16,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
-import { modelCertificate, separationCertificate, leanString, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
+import { dynamicsCertificate, modelCertificate, separationCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
+import { boundedDynamics } from "../src/act-dynamics.js";
+import { weaknessRanking } from "../src/act-behavior.js";
+import { supportConcept, supportConcepts, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
 import { toolSpecs } from "../src/tools.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 import { accept, check, checkTampered, lint, localLeanAvailable, runLocal, tamperVariants, theorems } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 
@@ -22,6 +30,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
   FunctionModel.parse(JSON.parse(fs.readFileSync(path.resolve(here, `../examples/function-models/${name}.json`), "utf8")));
 const FIXTURES = { BearingHeat: "bearing-heat", SoftwareCache: "software-cache" } as const;
+const HOT = [{ box: "shaft", state: ["hot"] }];
+/** Every checked-in certificate, by namespace, and how to generate it again. */
+const GENERATED: Record<string, (ns: string) => Certificate> = {
+  ...Object.fromEntries(Object.entries(FIXTURES).map(([ns, name]) => [ns, (n: string) => modelCertificate(example(name), { namespace: n })])),
+  BearingEscalation: (n) => dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT }, { namespace: n }),
+  SupportWeakness: (n) => weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE, { namespace: n }),
+};
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
 const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
@@ -50,13 +65,13 @@ const hostile: PhysicalContradiction = {
 };
 
 test("fixtures in theory/Certificates equal the generator's output", () => {
-  for (const [ns, name] of Object.entries(FIXTURES)) {
-    const actual = content(modelCertificate(example(name), { namespace: ns }));
+  for (const [ns, generate] of Object.entries(GENERATED)) {
+    const actual = content(generate(ns));
     if (process.env.UPDATE_GOLDEN) fs.writeFileSync(fixturePath(ns), actual);
     assert.equal(actual, fs.readFileSync(fixturePath(ns), "utf8"), `${ns}.lean drifted; rerun with UPDATE_GOLDEN=1 and review`);
   }
   const root = fs.readFileSync(path.resolve(here, "../theory/Certificates.lean"), "utf8");
-  for (const ns of Object.keys(FIXTURES)) assert.match(root, new RegExp(`^import Certificates\\.${ns}$`, "m"));
+  for (const ns of Object.keys(GENERATED)) assert.match(root, new RegExp(`^import Certificates\\.${ns}$`, "m"));
 });
 
 test("a certificate states exactly the kernel's verdicts", () => {
@@ -235,19 +250,19 @@ test("the tamper variants are the verdicts negated and a carrier changed", () =>
   assert.match(carrier.content, /^ {2}carrier := !\[1, 1, 2, 3\]$/m);
 });
 
-leanTest("Lean accepts both fixtures, and every verdict in them", async () => {
-  for (const [ns, name] of Object.entries(FIXTURES)) {
+leanTest("Lean accepts every fixture, and every verdict in them", async () => {
+  for (const [ns, generate] of Object.entries(GENERATED)) {
     const c = fs.readFileSync(fixturePath(ns), "utf8");
     const r = await check(c, { mode: "local" });
     assert.ok(r.ok, r.problems.join("\n"));
-    const cert = modelCertificate(example(name), { namespace: ns });
+    const cert = generate(ns);
     assert.ok(cert.ok);
     for (const v of cert.certifies) assert.ok(r.certified.includes(v.theorem), v.theorem);
   }
 });
 
 leanTest("a tampered certificate fails to check where it was tampered", async () => {
-  for (const ns of Object.keys(FIXTURES)) {
+  for (const ns of Object.keys(GENERATED)) {
     for (const v of tamperVariants(fs.readFileSync(fixturePath(ns), "utf8"))) {
       const r = await checkTampered(v, { mode: "local" });
       assert.ok(r.ok, `${ns} (${v.name}): ${r.problems.join("\n")}`);
@@ -271,6 +286,198 @@ leanTest("Lean accepts certificates of hostile generated models and every separa
     separationCertificate({ id: "flat", parameter: "p", demands: [{ id: "a", values: ["x"] }, { id: "b", values: ["y"] }] }, { namespace: "Flat" }),
     modelCertificate({ domain: "physical", carriers: [], boxes: [], wires: [] }, { namespace: "Empty" })];
   for (let seed = 1; seed <= 12; seed++) parts.push(modelCertificate(genModel(rng(seed), { contradictions: true }), { namespace: `Gen${seed}` }));
+  const combined = ["import CategoricalTriz", ...parts.map((p) => content(p).split("\n").slice(1).join("\n"))].join("\n");
+  const r = await check(combined, { mode: "local" });
+  assert.ok(r.ok, r.problems.join("\n"));
+  assert.equal(r.certified.length, theorems(combined).length);
+});
+
+test("an escalation certificate encodes the composed rows and the kernel's shortest trace", () => {
+  const spec = { unsafe: HOT };
+  const r = boundedDynamics(example("bearing-heat-dynamics"), spec);
+  assert.ok(r.ok && r.decided && r.escalation?.verdict === "reachable");
+  const c = dynamicsCertificate(example("bearing-heat-dynamics"), spec);
+  assert.ok(c.ok);
+  assert.deepEqual(c.certifies, [{ theorem: "TrizCertificate.escalation", verdict: `boundedDynamics: a run reaches the unsafe set at time ${r.escalation.time}` }]);
+  assert.match(c.content, new RegExp(`^theorem escalation : ∃ a ∈ system\\.starts initial, ∃ b ∈ system\\.target unsafeState unsafeValue, reachWithin system\\.Step ${r.escalation.time} a b :=$`, "m"));
+  assert.match(c.content, /^def boxId : Box → String := !\["motor", "shaft", "bearing"\]$/m, "the composed boxes, in model order");
+  assert.match(c.content, /^def stateId : Machine → State → String := !\[!\["cold", "warm", "hot"\]\]$/m);
+  assert.match(c.content, /^def unsafeState : Machine → State → Bool := !\[!\[false, false, true\]\]$/m);
+  // One configuration per trace step: the shaft's state, then every port's value.
+  const trace = /^def trace : Fin (\d+) → /m.exec(c.content)!;
+  assert.equal(Number(trace[1]), r.escalation.trace.length);
+  assert.match(c.content, /reach_of_trace/);
+  assert.deepEqual(lint(c.content), []);
+  // A port condition is a value table on that port; a state condition and a port condition intersect.
+  const both = dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] });
+  assert.ok(both.ok);
+  assert.match(both.content, /^def unsafeValue : Port → Value → Bool := .*!\[false, true\]\]$/m);
+});
+
+test("escalation certificates fail closed on what a trace cannot witness", () => {
+  const m = example("bearing-heat-dynamics");
+  const fails = (c: Certificate) => (c.ok ? "" : c.errors.join("; "));
+  assert.match(fails(dynamicsCertificate(m, {})), /pass unsafe/);
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /the escalation is unreachable-within-horizon: only a reachable escalation/);
+  const damped = example("bearing-heat-dynamics");
+  for (const r of damped.boxes.find((b) => b.id === "shaft")!.transition!) if (r.state === "hot" || (r.state === "warm" && r.in["heat-in"] === "high")) r.next = "warm";
+  assert.match(fails(dynamicsCertificate(damped, { unsafe: HOT })), /the escalation is unreachable: only a reachable escalation/);
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, inputs: [[], [], []] })), /an input sequence indexes the runs by time/);
+  // A run that blocks in the unsafe state has no valuation there.
+  const stuck = example("bearing-heat-dynamics");
+  const shaft = stuck.boxes.find((b) => b.id === "shaft")!;
+  shaft.transition = shaft.transition!.filter((r) => r.state !== "hot");
+  assert.match(fails(dynamicsCertificate(stuck, { unsafe: HOT })), /the trace ends in a blocked state/);
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT }, { namespace: "end" })), /must be a capitalised alphanumeric Lean identifier/);
+  // Past the cap on table reads: a box with many one-valued ports and many (repeated) rows. The
+  // kernel merges repeated rows, so the search stays small; the certificate would encode them all.
+  const wide = example("bearing-heat-dynamics");
+  wide.carriers.push({ id: "unit", layer: "information", dimension: "unit", values: ["u"] });
+  const outs = Array.from({ length: 300 }, (_, i) => `o${i}`);
+  wide.boxes.push({ id: "bulk", name: "Bulk", role: "supersystem", outputs: outs.map((id) => ({ id, carrier: "unit" })), state: ["s"], initial: ["s"],
+    transition: Array.from({ length: 1500 }, () => ({ state: "s", in: {}, next: "s", out: Object.fromEntries(outs.map((id) => [id, "u"])) })) });
+  assert.match(fails(dynamicsCertificate(wide, { unsafe: HOT })), new RegExp(`past the certificate limit of ${MAX_CERT_ROWS}`));
+});
+
+test("a weakness certificate states each strictly ordered pair, and only those", () => {
+  const concepts = supportConcepts();
+  const r = weaknessRanking(concepts, SUPPORT_ACCEPTABLE);
+  assert.ok(r.ok && r.verdict === "ranked");
+  const c = weaknessCertificate(concepts, SUPPORT_ACCEPTABLE);
+  assert.ok(c.ok);
+  // ball and bushing are incomparable: no theorem; each is strictly weaker than tight.
+  assert.deepEqual(r.pairs.map((p) => p.order), ["incomparable", "first-weaker", "first-weaker"]);
+  assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_0_2", "TrizCertificate.count_0_2", "TrizCertificate.weaker_1_2", "TrizCertificate.count_1_2"]);
+  assert.match(c.certifies[0].verdict, /'ball' is strictly weaker than 'tight'/);
+  assert.match(c.content, /^namespace Concept2$/m);
+  assert.match(c.content, /^def conceptId : String := "tight"$/m);
+  assert.match(c.content, /^theorem count_1_2 : \(admitted \(accepts acceptable\) \(Concept2\.rows\.relation inputDomain Concept2\.reads Concept2\.delivers\)\)\.card < /m);
+  assert.deepEqual(lint(c.content), []);
+  // Declared value order does not matter: every port of a carrier uses one sorted order, so a
+  // function's two ends, and a deliverable across concepts, compare indices of one order.
+  const reordered = supportConcepts().map((x) => {
+    for (const k of x.model.carriers) if (k.values) k.values = [...k.values].reverse();
+    return x;
+  });
+  assert.equal(content(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), c.content);
+  // Acceptability given per carrier, or as a threshold through the carrier's levels: the same table.
+  const byCarrier = weaknessCertificate(concepts, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", values: ["supported"] }]);
+  assert.equal(content(byCarrier), c.content);
+  const levelled = supportConcepts().map((x) => {
+    x.model.carriers.find((k) => k.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
+    return x;
+  });
+  assert.equal(content(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), c.content);
+  // second-weaker pairs name the weaker concept first.
+  const flipped = weaknessCertificate([concepts[2], concepts[0]], SUPPORT_ACCEPTABLE);
+  assert.ok(flipped.ok);
+  assert.deepEqual(flipped.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_1_0", "TrizCertificate.count_1_0"]);
+
+  const fails = (x: Certificate) => (x.ok ? "" : x.errors.join("; "));
+  assert.match(fails(weaknessCertificate([concepts[0], concepts[1]], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
+  assert.match(fails(weaknessCertificate([concepts[0], { id: "again", model: concepts[0].model }], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
+  const unknown = structuredClone(concepts[1]);
+  delete unknown.model.boxes.find((b) => b.id === "support")!.behavior;
+  assert.match(fails(weaknessCertificate([concepts[0], unknown], SUPPORT_ACCEPTABLE)), /the ranking is undecided/);
+  // Every valuation of every port is decided, so the work grows fast and is capped.
+  const many = (n: number) => { const m = supportConcept("Wide", () => true); for (let i = 0; i < n; i++) { m.boxes.push({ id: `pad${i}`, name: "Pad", role: "mediator", outputs: [{ id: "o", carrier: "lube" }], behavior: [{ in: {}, out: { o: "oiled" } }] }); m.wires.push({ id: `w-pad${i}`, from: { box: `pad${i}`, port: "o" }, to: { box: "shaft", port: `p${i}` }, carrier: "lube", polarity: "useful" }); m.boxes.find((b) => b.id === "shaft")!.inputs!.push({ id: `p${i}`, carrier: "lube" }); } return m; };
+  const acceptableWide = (n: number) => [...SUPPORT_ACCEPTABLE, ...Array.from({ length: n }, (_, i) => ({ box: "shaft", port: `p${i}`, values: ["oiled"] }))];
+  const tightWide = (n: number) => { const m = many(n); m.boxes.find((b) => b.id === "support")!.behavior = m.boxes.find((b) => b.id === "support")!.behavior!.filter((row) => row.in.lube === "oiled"); return m; };
+  assert.match(fails(weaknessCertificate([{ id: "a", model: many(8) }, { id: "b", model: tightWide(8) }], acceptableWide(8))), new RegExp(`past the certificate limit of ${MAX_CERT_ROWS}`));
+});
+
+test("triz_dynamics and triz_weakness return certificates, or the reason there is none", async () => {
+  const dyn = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, certificate: true });
+  assert.equal(dyn.escalation.verdict, "reachable");
+  assert.equal(dyn.certificate.format, "lean");
+  assert.equal(dyn.certificate.content, content(dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT })));
+  assert.deepEqual(dyn.certificate.certifies.map((x: { theorem: string }) => x.theorem), ["TrizCertificate.escalation"]);
+  const none = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, certificate: true });
+  assert.equal(none.escalation.verdict, "unreachable-within-horizon");
+  assert.deepEqual(none.certificate.ok, false);
+  assert.match(none.certificate.errors.join(), /only a reachable escalation/);
+  assert.equal((await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT })).certificate, undefined);
+
+  const weak = await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
+  assert.equal(weak.verdict, "ranked");
+  assert.equal(weak.certificate.content, content(weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE)));
+  const incomparable = await call("triz_weakness", { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
+  assert.match(incomparable.certificate.errors.join(), /no pair is strictly ordered/);
+  assert.equal((await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE })).certificate, undefined);
+});
+
+/** A dynamics model and two concepts whose ids try to escape their string literals. */
+function hostileDynamics(): FunctionModel {
+  const m = example("bearing-heat-dynamics");
+  const rename = (from: string, to: string) => {
+    for (const b of m.boxes) if (b.id === from) b.id = to;
+    for (const w of m.wires) { if (w.from.box === from) w.from.box = to; if (w.to.box === from) w.to.box = to; }
+  };
+  rename("shaft", "s -/ #exit /- \"x\"");
+  rename("bearing", "‮b\n");
+  m.boxes.find((b) => b.transition)!.state = ["c\"", "w-/", "h😀"];
+  for (const r of m.boxes.find((b) => b.transition)!.transition!) { r.state = { cold: "c\"", warm: "w-/", hot: "h😀" }[r.state]!; r.next = { cold: "c\"", warm: "w-/", hot: "h😀" }[r.next]!; }
+  m.boxes.find((b) => b.transition)!.initial = ["c\""];
+  return m;
+}
+
+test("ids stay inside string literals in escalation and weakness certificates", () => {
+  const m = hostileDynamics();
+  const c = dynamicsCertificate(m, { unsafe: [{ box: "s -/ #exit /- \"x\"", state: ["h😀"] }] });
+  assert.ok(c.ok, JSON.stringify(c));
+  assert.doesNotMatch(outsideStrings(c.content), /#exit|‮|😀/);
+  assert.deepEqual(lint(c.content), []);
+  const concepts = supportConcepts().map((x, i) => ({ ...x, id: i ? x.id : "b -/ #exit" }));
+  const w = weaknessCertificate(concepts, SUPPORT_ACCEPTABLE);
+  assert.ok(w.ok);
+  assert.doesNotMatch(outsideStrings(w.content), /#exit/);
+  assert.deepEqual(lint(w.content), []);
+});
+
+test("the checker's grammar pins the new verdicts and their namespaces", () => {
+  const d = fs.readFileSync(fixturePath("BearingEscalation"), "utf8");
+  const w = fs.readFileSync(fixturePath("SupportWeakness"), "utf8");
+  assert.deepEqual([lint(d), lint(w)], [[], []]);
+  const tampers: Record<string, string> = {
+    "restated escalation": d.replace(/^theorem escalation : .* :=$/m, "theorem escalation : True :="),
+    "another step relation": d.replace(/^def system : Sync .*$/m, "def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowState, fnSource, fnTarget⟩"),
+    "a weaker pair swapped": w.replace(/^theorem weaker_0_2 : AtLeastAsWeak \(accepts acceptable\) \(Concept0/m, "theorem weaker_0_2 : AtLeastAsWeak (accepts acceptable) (Concept1"),
+    "a count without the domain": w.replace(/^(theorem count_0_2 : .*)inputDomain /m, "$1"),
+    "a concept namespace too deep": w.replace("namespace Concept1\n", "namespace Concept1\n\nnamespace Inner\n").replace("end Concept1\n", "end Inner\n\nend Concept1\n"),
+    "a verdict inside a concept": w.replace("end Concept2\n", "theorem weaker_0_2 : True :=\n  trivial\n\nend Concept2\n"),
+  };
+  for (const [name, t] of Object.entries(tampers)) {
+    assert.ok(t !== d && t !== w, `${name}: the tamper changed nothing`);
+    assert.ok(lint(t).length, `${name} passed the grammar`);
+  }
+});
+
+leanTest("Lean accepts escalation and weakness certificates of hostile ids, asymmetric situations, and unsorted values", async () => {
+  const magnetic = supportConcept("Magnetic bearing", () => true);
+  // The magnetic concept also reads a one-valued mode its rival ignores: situations stay at declared values.
+  magnetic.carriers.push({ id: "mode", layer: "information", dimension: "mode", values: ["on"] });
+  const support = magnetic.boxes.find((b) => b.id === "support")!;
+  support.inputs!.push({ id: "mode", carrier: "mode" });
+  support.behavior = support.behavior!.map((row) => ({ in: { ...row.in, mode: "on" }, out: row.out }));
+  const parts = [
+    dynamicsCertificate(hostileDynamics(), { unsafe: [{ box: "s -/ #exit /- \"x\"", state: ["h😀"] }] }, { namespace: "HostileRun" }),
+    dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: [{ box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "PortRun" }),
+    weaknessCertificate([{ id: "magnetic", model: magnetic }, supportConcepts()[0]], SUPPORT_ACCEPTABLE, { namespace: "Asymmetric" }),
+    // Values declared out of sorted order, on a deliverable's carrier and on a function between two composed boxes.
+    weaknessCertificate(supportConcepts().map((x) => {
+      const m = x.model;
+      m.carriers.find((k) => k.id === "radial-load")!.values = ["unsupported", "supported"];
+      m.carriers.push({ id: "grip", layer: "energy", dimension: "grip", values: ["tight", "loose"] });
+      const support = m.boxes.find((b) => b.id === "support")!;
+      support.outputs = [{ id: "grip", carrier: "grip" }];
+      support.behavior = support.behavior!.map((row) => ({ in: row.in, out: { grip: row.out.race === "supported" ? "tight" : "loose" } }));
+      m.boxes.push({ id: "sleeve", name: "Sleeve", role: "mediator", inputs: [{ id: "grip", carrier: "grip" }], outputs: [{ id: "race", carrier: "radial-load" }],
+        behavior: [{ in: { grip: "tight" }, out: { race: "supported" } }, { in: { grip: "loose" }, out: { race: "unsupported" } }] });
+      m.wires = m.wires.map((w) => (w.id === "w-support" ? { ...w, from: { box: "sleeve", port: "race" } } : w));
+      m.wires.push({ id: "w-grip", from: { box: "support", port: "grip" }, to: { box: "sleeve", port: "grip" }, carrier: "grip", polarity: "useful" });
+      return x;
+    }), SUPPORT_ACCEPTABLE, { namespace: "Unsorted" }),
+  ];
   const combined = ["import CategoricalTriz", ...parts.map((p) => content(p).split("\n").slice(1).join("\n"))].join("\n");
   const r = await check(combined, { mode: "local" });
   assert.ok(r.ok, r.problems.join("\n"));

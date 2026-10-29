@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Check a Lean certificate: the `content` of triz_export format "lean", or of triz_separate's
- * `certificate`, saved as a .lean file.
+ * Check a Lean certificate: the `content` of triz_export format "lean", or of the `certificate`
+ * that triz_separate, triz_dynamics, or triz_weakness returns, saved as a .lean file.
  *
  *   node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...
  *
@@ -24,7 +24,9 @@
  *
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
- * must fail. Errors outside a theorem (a parse error, say) do not count.
+ * must fail; with the unsafe set emptied, `escalation` must fail; with no deliverable value
+ * acceptable, every weakness verdict must fail. Errors outside a theorem (a parse error, say) do
+ * not count.
  *
  * This checks the proofs of the statements in the file. Whether the file encodes your model is
  * read from its id tables, or checked by generating it again and comparing.
@@ -114,14 +116,36 @@ const BOOLS = "!\\[(?:(?:true|false)(?:, (?:true|false))*)?\\]";
 const STRS = '!\\[(?:""(?:, "")*)?\\]';
 const PAIRS = "!\\[(?:\\(\\d+, \\d+\\)(?:, \\(\\d+, \\d+\\))*)?\\]";
 const RATING = "\\.(?:useful|insufficient|excessive|harmful)";
+const OPTS = "!\\[(?:(?:none|some \\d+)(?:, (?:none|some \\d+))*)?\\]";
+/** A table of tables: rows of `inner`. */
+const rows = (inner) => `!\\[(?:${inner}(?:, ${inner})*)?\\]`;
 const re = (s) => new RegExp(`^${s}$`);
 /** Every declaration line the generator writes at column 0; data only, so the meaning stays in theory/. */
 const DECLARATIONS = [
-  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val) := Fin \\d+"),
+  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable) := Fin \\d+"),
   re("abbrev Cell := (?:Unit|Fin \\d+(?: × Fin \\d+)*)"),
   re(`def (?:boxId|portId|fnId|carrierId|demandId|valueId) : (?:Box|Port|Fn|Carrier|Demand|Val) → String := ${STRS}`),
   re(`def ${AX}Cell : Fin \\d+ → String := ${STRS}`),
-  re('def (?:contradictionId|parameter) : String := ""'),
+  re('def (?:contradictionId|parameter|conceptId) : String := ""'),
+  // Row tables (dynamics and weakness certificates): ids, rows, functions, targets, and the trace.
+  re(`def portOwner : Port → String := ${STRS}`),
+  re(`def machineId : Machine → String := ${STRS}`),
+  re(`def (?:inputId : Input|deliverableId : Deliverable) → String := ${STRS}`),
+  re(`def (?:stateId : Machine → State|portValueId : Port → Value|inputValueId : Input → Value|deliverableValueId : Deliverable → Value) → String := ${rows(STRS)}`),
+  re(`def rowBox : Row → Box := ${NUMS}`),
+  re(`def rowFixes : Row → Port → Bool := ${rows(BOOLS)}`),
+  re(`def rowValue : Row → Port → Value := ${rows(NUMS)}`),
+  re(`def rowMachine : Row → Option Machine := ${OPTS}`),
+  re(`def (?:rowState|rowNext) : Row → State := ${NUMS}`),
+  re(`def (?:fnSource|fnTarget) : Fn → Port := ${NUMS}`),
+  re("def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩"),
+  re("def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩"),
+  re(`def (?:initial|unsafeState) : Machine → State → Bool := ${rows(BOOLS)}`),
+  re(`def unsafeValue : Port → Value → Bool := ${rows(BOOLS)}`),
+  re(`def (?:acceptable : Deliverable|inputDomain : Input) → Value → Bool := ${rows(BOOLS)}`),
+  re(`def trace : Fin \\d+ → \\(Machine → State\\) × \\(Port → Value\\) := ${rows(`\\(${NUMS}, ${NUMS}\\)`)}`),
+  re(`def reads : Input → Option Port := ${OPTS}`),
+  re(`def delivers : Deliverable → Port := ${NUMS}`),
   re(`def portBox : Port → Box := ${NUMS}`),
   re(`def portIsOutput : Port → Bool := ${BOOLS}`),
   re(`def portCarrier : Port → Carrier := ${NUMS}`),
@@ -158,6 +182,16 @@ function statementOk(name, s) {
     return [`(values ${i} ∩ values ${j}).Nonempty`, pairSection(i, j), `¬ ${pairSection(i, j)}`].includes(s);
   }
   if ((m = /^pair_(\d+)_(\d+)_values$/.exec(name))) return s === `Disjoint (values ${m[1]}) (values ${m[2]})`;
+  if (name === "escalation") return /^∃ a ∈ system\.starts initial, ∃ b ∈ system\.target unsafeState unsafeValue, reachWithin system\.Step \d+ a b$/.test(s);
+  const relation = (i) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
+  if ((m = /^weaker_(\d+)_(\d+)$/.exec(name))) {
+    const [, w, t] = m;
+    return w !== t && s === `AtLeastAsWeak (accepts acceptable) ${relation(w)} ${relation(t)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(t)} ${relation(w)}`;
+  }
+  if ((m = /^count_(\d+)_(\d+)$/.exec(name))) {
+    const [, w, t] = m;
+    return w !== t && s === `(admitted (accepts acceptable) ${relation(t)}).card < (admitted (accepts acceptable) ${relation(w)}).card`;
+  }
   if ((m = new RegExp(`^pair_(\\d+)_(\\d+)_${AX}$`).exec(name))) {
     const [, i, j, a] = m;
     return s === `Disjoint (${a} ${i}) (${a} ${j})` || s === `(${a} ${i} ∩ ${a} ${j}).Nonempty`;
@@ -198,7 +232,7 @@ export function lint(content) {
     let m;
     if (row++ === 0) { if (line !== "import CategoricalTriz") problems.push(`${at}: the only import is CategoricalTriz`); return; }
     if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) {
-      if (stack.length > 1 || (stack.length === 1 && !/^Separation\d+$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
+      if (stack.length > 1 || (stack.length === 1 && !/^(?:Separation|Concept)\d+$/.test(m[1])) || RESERVED.has(m[1])) problems.push(`${at}: unexpected namespace`);
       stack.push(m[1]);
     } else if ((m = /^end (\S+)$/.exec(line))) {
       if (stack.pop() !== m[1]) problems.push(`${at}: end does not close the open namespace`);
@@ -341,7 +375,7 @@ export async function check(content, { mode } = {}) {
   return { ...accept(content, run), info: run.info };
 }
 
-/** Tamper variants: every verdict negated; one function's carrier changed. */
+/** Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied; nothing acceptable. */
 export function tamperVariants(content) {
   const variants = [{
     name: "every verdict negated",
@@ -356,6 +390,16 @@ export function tamperVariants(content) {
       content: content.replace(carrier[0], `${carrier[1]}${(Number(carrier[2]) + 1) % carriers}`),
       mustFail: theorems(content).filter((t) => t.name.endsWith(".typed") && t.name.split(".").length === 2).map((t) => t.name),
     });
+  }
+  // A data tamper per row-table kind: every entry of the table set to false.
+  const emptied = (pattern) => content.replace(pattern, (line) => line.replace(/\btrue\b/g, "false"));
+  const unsafe = emptied(/^def (?:unsafeState|unsafeValue) : .*$/gm);
+  if (unsafe !== content) {
+    variants.push({ name: "the unsafe set emptied", content: unsafe, mustFail: theorems(content).filter((t) => t.short === "escalation" && t.depth === 1).map((t) => t.name) });
+  }
+  const refused = emptied(/^def acceptable : Deliverable → Value → Bool := .*$/m);
+  if (refused !== content) {
+    variants.push({ name: "no deliverable value acceptable", content: refused, mustFail: theorems(content).filter((t) => /^(?:weaker|count)_\d+_\d+$/.test(t.short) && t.depth === 1).map((t) => t.name) });
   }
   return variants;
 }

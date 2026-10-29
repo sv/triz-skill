@@ -23,10 +23,10 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Components in series along a flow; flow analysis | `flows`: an ordered path of the boxes a carrier passes through, optionally with the `medium` box that stands for what flows | `triz_flow`: bottleneck, accumulation, and leak candidates, loops; `merge` treats boxes consecutive on a flow as adjacent | `edge_on_cycle` (loops), `flow_merge_typed`, `flow_merge_reach`; definitions `flowStep`, `mergedStep`, `mergeInto` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
-| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
-| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, escalating (a trap, with a shortest trace), oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `return_ge_two` |
+| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `return_ge_two` |
 | Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
 | Numeric amount read as a qualitative value | carrier `levels`: a threshold per value, from 0, increasing; an amount reads as the last value whose threshold it reaches | checkModel (fail closed); `triz_feasibility` `levels`: each feasibility row against the box's behaviour rows; `triz_abstraction` across the map; `triz_weakness` `acceptable` by `at_least` or `below` | `level_monotone`, `level_gc`, `level_band` |
 | A detailed and a coarse model of one system | an abstraction map: detailed box → coarse box (many to one), port → port per box, carrier → carrier | `triz_abstraction`: total, typed, every coarse function an image of its class, every coarse harm loop the image of a detailed one | `typed_map`, `reach_map`, `cycle_map`; definition `Wiring.map` |
@@ -34,7 +34,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
-| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
+| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate`, `triz_dynamics`, and `triz_weakness` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; row tables `Sync.Step`, `Rows.relation` with `reach_of_trace`, `AtLeastAsWeak`, `card_lt_of_strictly_weaker` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
 | A subsystem that lags (uneven development) | a box of the largest harm-loop region that is on a binding feasibility dimension or limits a deliverable | `triz_rule_apply` `uneven-development`: lagging, none, or undecided | `edge_on_cycle`; the feasibility verdict's basis |
@@ -109,13 +109,29 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    (conditions)". The status drives the route:
    - `compatible`: a value meets both demands, so this is not a physical contradiction. Choose
      that value.
-   - `separated`: the listed axes separate the demands. Assign the parameter piecewise.
+   - `separated`: the listed axes separate the demands. Assign the parameter piecewise. Each
+     such pair carries `suggestions`: per separating axis, the operations that could build the
+     piecewise system, with each demand's cells on that axis (table below).
    - `irreducible`: the demands overlap on every axis. Refine an axis, try another system level,
      or escalate to ARIZ.
 
    For a separation in time, the snapshot check says which value each stage needs. When the
    boxes declare state, `triz_dynamics` with `separation` says whether one run of the declared
    dynamics meets each demand within its time window.
+
+   | Separating axis | Suggested operations |
+   |---|---|
+   | space | `triz_transform` `segment` (Principle 1) or `take_out` (Principle 2) the box that carries the parameter, one part per region |
+   | time | `triz_transform` `standby` (Principle 11), or `triz_dynamics` `separation` with one timed demand per side (Principle 15, parametric) |
+   | condition | `triz_transform` `rerate` (Principle 16), or a `rewrite` that changes the field the parameter responds to (Principle 28, analogy only) |
+   | level | `triz_nine_windows`: the system operator (`system`), or its subsystem restriction (`subsystem`) |
+   | direction | `triz_transform` `segment` the box by port direction (Principle 1) |
+
+   Suggestions are hints, not verdicts. They carry no `basis`, and a suggestion that follows a
+   parametric or analogy-only principle says so (`principle.classified`). Principle texts are
+   looked up in `data/principles.json`. The kernel does not know which box carries the
+   parameter, or the order of time cells, so the hint leaves both to you. Apply the move, then
+   check the result against the baseline.
 
 5. **Transform.** Use `triz_transform` to apply one structural move and get the new model back.
    Every result type-checks, or the call fails closed:
@@ -187,14 +203,15 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    `issues`, collected from the invalid windows and transitions.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape. Use
-   format `lean` for a certificate that Lean can check (see Certificates).
+   format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
+   `triz_dynamics`, and `triz_weakness` return one with `certificate: true`.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the last column above, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
-extracted from Lean. Typing, harm-loop witness, and separation verdicts can also be certified
-per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
+extracted from Lean. Typing, harm-loop witness, separation, reachable-escalation, and strict
+weakness verdicts can also be certified per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
 verdict that needs no theorem, such as a compatible pair, cites none. A theorem is cited only
 where its statement is exactly what the verdict uses. The table marks the others as never cited.
 Most are semantic sanity lemmas: they pin the semantics down on the tests' own examples
@@ -279,6 +296,7 @@ to check the rating, not a finding.
 | `row-missing-value` | every model check | A behavior or transition row gives no value for one of the box's ports |
 | `undeclared-value` | every model check; `triz_dynamics`, `triz_weakness` | A value is not among the carrier's declared values |
 | `dominated-row` | every model check | A feasibility row repeats or is dominated by another row of the box |
+| `producible-with-rows` | every model check | A box declares producible together with behavior or transition |
 | `invalid-levels` | every model check | A carrier's levels do not start at 0 or do not strictly increase |
 | `flow-repeats-box` | every model check | A flow path lists a box directly after itself |
 | `listed-twice` | `triz_trim`, `trim` arguments, `triz_transform`, `triz_dynamics` inputs, `triz_weakness` acceptable | An id appears twice in a set argument |
@@ -364,6 +382,9 @@ to check the rating, not a finding.
 | `no-earlier-snapshot` | `triz_nine_windows` | A transition starts from a time with no snapshot |
 | `snapshot-not-reached` | `triz_nine_windows` | A transition's result differs from the snapshot it must reach |
 | `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
+| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe target |
+| `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
+| `not-certifiable` | `triz_dynamics`, `triz_weakness` `certificate` | The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair |
 | `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a loss-like flow (pressure drop, leakage, noise, …) |
 | `trim-level-functions` | lint: `triz_trim` | The trim removes excessive or insufficient functions, listed under levelProblems |
 | `product-without-deliverable` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A product box receives no non-harmful function |
@@ -373,8 +394,9 @@ to check the rating, not a finding.
 ## Certificates
 
 Tests check the kernel against `theory/`. A certificate checks one run of it instead
-(translation validation). `triz_export` with format `lean`, and `triz_separate` with
-`certificate: true`, return a Lean file that imports `CategoricalTriz`. The file encodes the
+(translation validation). `triz_export` with format `lean`, and `triz_separate`,
+`triz_dynamics`, and `triz_weakness` with `certificate: true`, return a Lean file that imports
+`CategoricalTriz`. The file encodes the
 model as finite tables. It states the kernel's verdicts about those tables in the theory's
 terms, and proves each by `decide` and the theorem the verdict cites. `certifies` lists the
 verdicts. Model ids appear only in escaped string tables, which show the encoding, so no id can
@@ -389,6 +411,21 @@ inject Lean.
 | A separated pair | no common value; disjoint regions on exactly the listed axes and overlap on the others; an assignment that meets both | `separated_iff_axis`, `glue_of_disjoint_regions` |
 | An irreducible pair | no common value; overlap on every axis; no assignment meets both | `no_section_of_overlap` |
 | Gluable, or not | `∃ s, IsSection support values s`, or its negation at a conflict cell | `exists_section_iff` |
+| A reachable escalation (`triz_dynamics`) | from a state the initial table allows, some admitted configuration in the unsafe set is reached within the trace's length: `∃ a ∈ system.starts initial, ∃ b ∈ system.target unsafeState unsafeValue, reachWithin system.Step k a b` | `reach_of_trace`, each step and the end by `decide` |
+| A strictly ordered pair (`triz_weakness`) | the weaker concept admits every situation the other admits, and the other does not admit every situation it admits (`AtLeastAsWeak` one way, not the other); its admitted count is strictly larger | `decide` over every situation and valuation; `card_lt_of_strictly_weaker` |
+
+The dynamics and weakness certificates encode the composed boxes' declared rows, not the kernel's
+results. Every port is a variable; every function between two encoded ports says its ends carry
+the same value; a row fixes each port of its box, and a transition row also its machine's
+current and next state (`Rows`, `Sync` in `theory/`). `Sync.Step` is one synchronous step:
+every box has a row that fits the configuration and names the next state. `Rows.relation` is a
+steady state projected onto the inputs a concept reads and its deliverables, over the situations
+`inputDomain` allows. Only a witness backs the escalation: the kernel's shortest trace, checked
+step by step. The weakness inclusions are decided over every situation and every valuation of
+each concept's ports. An unreachable escalation, an invariant, or an incomparable or equal pair
+is not certified: its claim is universal over runs the trace does not list, or there is no
+strict inclusion to state. Generation fails closed on an input sequence, a trace that ends
+blocked, and past the cap on table reads.
 
 Check a certificate with `node scripts/certify.mjs <file>`:
 
@@ -409,23 +446,30 @@ A certificate is accepted only if all of these hold:
 - Every theorem is elaborated, and each depends on no axiom beyond `propext`,
   `Classical.choice`, and `Quot.sound`. That rules out `native_decide` and an axiom of the
   file's own. With `--tamper`, the script also checks that a
-copy with every verdict negated, or with one function's carrier changed, fails at the theorems
-it must. CI builds the certificates of the bearing and cached-API examples
-(`theory/Certificates/`), which a test keeps equal to the generator's output, and runs both
-checks on them.
+copy with every verdict negated, with one function's carrier changed, with the unsafe set
+emptied, or with no deliverable value acceptable, fails at the theorems it must. CI builds the
+certificates of the bearing and cached-API models, the bearing's escalation, and a ranking of
+three support concepts (`theory/Certificates/`), which a test keeps equal to the generator's
+output, and runs both checks on them.
 
 A certificate does not show:
 
 - that the file encodes your model. The trust base is the Lean kernel, the theory's
   definitions, and the encoding of ids as indices, which the id tables show. Generate the file
   again and compare to check it;
-- more than the listed verdicts. Duplicate ids and behaviour rows are not encoded, and the list
-  of harm loops is not certified complete. Ideality, trimming, transformations, nine windows,
-  isomorphism, and `triz_behavior` verdicts are not certified;
+- more than the listed verdicts. Duplicate ids are not encoded, behaviour rows only in the
+  dynamics and weakness certificates, and the list of harm loops is not certified complete.
+  Ideality, trimming, transformations, nine windows, isomorphism, and `triz_behavior` verdicts
+  are not certified. Of `triz_dynamics`, only a reachable escalation is; of `triz_weakness`,
+  only strict inclusions. Boxes outside the composed set are not encoded: the certificate holds
+  under the same assumption the kernel states (`assumption`), that they accept whatever they
+  receive;
 - anything about the kernel on other inputs. Nothing is extracted from Lean.
 
-Generation fails closed past functions × ports = 250000, or cells × demands × values = 100000
-for a contradiction.
+Generation fails closed past functions × ports = 250000, cells × demands × values = 100000
+for a contradiction, or 2000000 table reads for an escalation trace or a weakness pair. A
+weakness pair's reads grow with the values to the power of its ports, so only small concepts
+are certified.
 
 ## Declared behaviour
 
@@ -631,8 +675,27 @@ inputs.
   - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
     `max_states`.
   - A carrier of the box without `values` fails closed.
-- **Re-check.** The kernel declares `W`, recomputes the concept's relation, and compares it with
-  the target before it answers.
+- **Producible rows.** The box to specify may declare `producible`: behaviour rows over its
+  ports' declared values that it can physically produce, the set `F`. A box declares `behavior`
+  or `producible`, not both, and the rows are typed like behaviour rows. The kernel cuts the
+  residual down to them: the spec is `W ∩ F`. Some relation within `F` gives the target iff the
+  composite of `W ∩ F` covers it (`covers_feasible_iff`). So the verdicts are:
+  - `spec`, when `W ∩ F` covers the target. `producible.infeasible` lists the rows of `W` left out
+    (`infeasibleRows` counts them); the target does not need them.
+  - `impossible` with reason `infeasible`, when `W` covers the target and `W ∩ F` does not. No
+    relation the box can produce gives the target (`not_covers_feasible_iff`), though one it
+    cannot produce would. This is the residual contradiction. `requiredInfeasible` gives, for each
+    target pair `W ∩ F` misses (an input and its outputs), the rows of `W` whose composite
+    delivers it. None is producible, and every relation that gives the target contains at least
+    one row of each entry (`required_row_of_eq`): one of them, not all.
+  - `impossible` with reason `not-covered`, when `W` itself fails to cover the target, whatever is
+    producible. `uncovered` is then the residual's witness.
+
+  `excluded` keeps its meaning: rows whose composite leaves the target, producible or not. A
+  transformation that adds a port to the box refuses, as it does for behaviour; `segment`,
+  `take_out`, and `merge` drop `producible` from the boxes they replace.
+- **Re-check.** The kernel declares the spec (`W`, or `W ∩ F`), recomputes the concept's relation,
+  and compares it with the target before it answers.
 
 ## Weakness ranking
 
@@ -767,23 +830,36 @@ Without `inputs`, `triz_dynamics` also classifies how the loops behave in the lo
   step, which is not classified).
 - **Classes.** Every class that applies is listed:
   - `bistable`: fixed points in two or more closed components;
-  - `escalating`: a closed component meets the unsafe set, a trap. A shortest trace from a start
+  - `trapped`: a closed component every configuration of which is unsafe, an absorbing trap.
+    Every run that enters it stays unsafe at every later step. A shortest trace from a start
     into it is the counterexample, and says whether it starts from an initial or a safe state;
+  - `recurrent`: a closed component that meets the unsafe set and also holds a safe
+    configuration (`safe` gives one). The run never leaves it, and from each of its states it
+    can reach both: it can recover and escalate again. The trace is given as for `trapped`;
   - `oscillating`: a closed component with a cycle and no fixed point. The result gives one
     shortest cycle, whose length is at least two, and the period, the gcd of the cycle lengths.
     A period of 1 means cycles of coprime lengths, not a fixed point.
 
   `none` means no closed component was found within the cap. A model whose only closed
-  component settles at one fixed point outside the unsafe set has no class. `harmLoops` lists
+  component settles at one fixed point outside the unsafe set has no class. Each closed
+  component that does not block reports `unsafe`, whether it meets the unsafe set, and
+  `allUnsafe`, whether it lies inside it. Both are read on configurations: a target that names a
+  port can hold at a state under one valuation and fail under another, and then the state is
+  not inside the set. A blocked component is not classified. `harmLoops` lists
   the harm loops through the stateful boxes; the classification is of the composite they run in.
 
 In `theory/`, `Closed` says no step leaves a set. Lean proves that a fixed point lies on a cycle
 (`fixed_on_cycle`), that a closed set holds every run that enters it at any number of steps
-(`closed_reachIn`), and that without a fixed point every return takes at least two steps
-(`return_ge_two`).
+(`closed_reachIn`), that from a closed set inside the unsafe set every reachable state is unsafe
+(`trapped_reachIn`), and that without a fixed point every return takes at least two steps
+(`return_ge_two`). `theory/Witnesses.lean` has a closed set that meets the unsafe set without
+lying inside it and reaches a safe state: the recurrent case, which `trapped_reachIn` excludes.
 
 In `bearing-heat-dynamics.json` the shaft has a temperature state. From `cold`, the
-heat → preload loop reaches `hot` in two steps, and `hot` is a trap: the loop is `escalating`.
+heat → preload loop reaches `hot` in two steps, and `hot` is a trap: the loop is `trapped`.
+A two-state wear model in the tests makes the split concrete: when `thick` is absorbing it is
+`trapped`; when a thick part can return to `thin`, thin and thick form one closed component that
+is `recurrent`.
 The tests also check a damped variant, where a warm shaft sheds the extra friction heat: there
 `hot` is unreachable, `cold` or `warm` is invariant at any horizon, and the shaft settles warm.
 
@@ -1260,6 +1336,8 @@ example cohort churn against fee changes. Name it only from that evidence.
   examples. That agreement is evidence on those models, not a proof about the evaluator. The
   agreement is with the semantics of the upstream part the evaluator composes; Lean does not
   relate that part to the whole model. The verdicts are not certified per instance.
+  The weakness certificates restate composition from the declared rows (`Rows.relation`) and
+  decide it there; they do not certify the evaluator either.
 - The weakest specification is decided for one box without behaviour only. With several, the
   safe relations are not a product of per-box residuals, so none is computed.
   - It is the residual of the declared context. It says what the box must do for the concept's
@@ -1267,6 +1345,10 @@ example cohort churn against fee changes. Name it only from that evidence.
     or with what new harms.
   - It is named for what it computes. It is not abduction, and it does not search for
     mechanisms.
+  - `producible` is declared, not derived. The kernel does not check that a physical box can
+    produce those rows and no others, and it does not read `feasibility` levels as rows.
+    `requiredInfeasible` names the rows the target needs that the declaration excludes; it does
+    not say which of them is cheapest to make producible.
 - Lean proves the residual's properties for every context that preserves unions, and that
   composition and the trace preserve unions. It does not prove that the kernel's join is such a
   context, or that the evaluator computes it. Two things are tested instead:
@@ -1289,9 +1371,21 @@ example cohort churn against fee changes. Name it only from that evidence.
   synthesis, double categories, and profunctor coend formulas are not adopted. A `reachable`
   trace is a candidate mechanism whose rows must be substantiated. `unreachable` holds for the
   rows and initial states as declared. A loop class describes the declared state graph:
-  `escalating` means a closed component meets the unsafe set, not that a physical quantity
-  grows without bound. Dynamics verdicts are not covered by the label-blindness
-  property tests, and traces break ties in declaration order.
+  `trapped` means a closed component lies inside the unsafe set, and `recurrent` that one meets
+  it and holds a safe configuration; neither says that a physical quantity grows without bound,
+  and `recurrent` does not say how often, or whether, a run returns to the unsafe set.
+  Dynamics verdicts are not covered by the label-blindness property tests, and traces break
+  ties in declaration order.
+- The dynamics and weakness certificates certify what a witness or an exhaustive decision
+  supports, and nothing else:
+  - of `triz_dynamics`, only a reachable escalation, witnessed by one trace. Unreachability,
+    invariance, separation in time, and loop classes are not certified, and runs under an
+    input sequence are not encoded;
+  - of `triz_weakness`, only strict inclusions, decided over every situation and valuation
+    within the cap on table reads, so only small concepts are certified. Incomparable and equal
+    pairs are not;
+  - only the composed boxes are encoded. Each certificate holds under the kernel's stated
+    `assumption`: every other box accepts whatever it receives.
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are
   refused (`undecided`, `no-steady-state`).
@@ -1401,3 +1495,6 @@ example cohort churn against fee changes. Name it only from that evidence.
   recorded in [sources.md](sources.md); none is implemented.
 - The principle constructions check structure only. The label-blindness property tests do not
   cover them.
+- `triz_separate`'s `suggestions` are hints. A separation verdict says a piecewise assignment
+  exists; it does not say that the suggested move builds one, that the move is the best one, or
+  that the cited principle applies.

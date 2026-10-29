@@ -89,14 +89,14 @@ missing.
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check; `mpv_weights` for a comparison over the main parameters of value |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
-| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time) |
+| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time); each separated pair gets suggested operations that could build the separation (hints, not verdicts) |
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
 | `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
-| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
+| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
 | `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources; with carrier `levels`, the rows that disagree with declared behaviour |
 | `triz_abstraction` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms listed |
 | `triz_flow` | Flow analysis over declared flow paths (boxes in series): per flow, bottleneck, accumulation, and leak candidates, and loops |
@@ -163,7 +163,9 @@ is the product of the projections, and Intermediary's mediator can declare an id
 The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
 weakest specification for the one box without behaviour, such as an absorber: every row that
 keeps the relation inside the target. The verdict is `spec` when that specification also covers
-the target, and `impossible` when no behaviour of the box can. `triz_weakness` ranks modelled
+the target, and `impossible` when no behaviour of the box can. When the box declares the rows it
+can physically produce (`producible`), the specification is cut down to them, and a target only
+unproducible rows reach is `impossible` with reason `infeasible`, naming those rows. `triz_weakness` ranks modelled
 concepts by the situations they admit (references/weakness.md).
 
 When boxes declare feasibility (minimal rows of levels provided against levels required and
@@ -178,7 +180,8 @@ When boxes declare state (`state`, `initial`, and `transition` rows), `triz_dyna
 every run up to a horizon. It decides whether a harm loop escalates into an unsafe set, with a
 shortest trace, and whether a safe set is invariant. It also decides whether one run meets
 time-separated demands within their windows. It classifies the loops' long-run behaviour as
-bistable, escalating into a trap, or oscillating. Only finite, discrete dynamics are covered.
+bistable, trapped (a closed component inside the unsafe set), recurrent (one that meets it and
+can recover), or oscillating. Only finite, discrete dynamics are covered.
 
 The models link to each other. A carrier may declare `levels`, thresholds that read numeric
 feasibility amounts as behaviour values (from 2500 N, `supported`); `triz_feasibility` then
@@ -199,7 +202,9 @@ on; a test checks that every cited name is a theorem there. Typing, harm-loop wi
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
 and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. Nothing is extracted from Lean. The structured verdicts of the
+AXLE service. `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
+reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
+pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
@@ -235,13 +240,16 @@ with no `sorry`:
   the row (a, d);
 - series composition and the trace preserve unions, so for one unknown box the rows that keep a
   composite inside a target form the weakest specification (a Galois connection), and the target
-  is reachable iff that specification's composite covers it;
+  is reachable iff that specification's composite covers it; within the rows the box can
+  produce, iff the specification cut down to them covers it, and a relation that reaches the
+  target holds, for each target pair, a row of the specification that delivers it;
 - concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
   strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
   layer that adds nothing completes the reachable set, reachability is monotone in the
-  transition rows, a closed set holds every run that enters it, and without a fixed point every
-  return takes two steps or more;
+  transition rows, a closed set holds every run that enters it, from a closed set inside the
+  unsafe set every reachable state is unsafe, and without a fixed point every return takes two
+  steps or more;
 - series, parallel, and feedback composition keep feasibility monotone, Kleene's ascent reaches
   the least fixpoint of a finite lattice, and the co-design fixpoint is the upward closure of the
   feasible configurations.

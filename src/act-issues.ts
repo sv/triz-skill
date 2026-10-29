@@ -31,6 +31,7 @@ export const ISSUE_CODES = {
   "row-missing-value": "A behavior or transition row gives no value for one of the box's ports",
   "undeclared-value": "A value is not among the carrier's declared values",
   "dominated-row": "A feasibility row repeats or is dominated by another row of the box",
+  "producible-with-rows": "A box declares producible together with behavior or transition",
   "invalid-levels": "A carrier's levels do not start at 0 or do not strictly increase",
   "flow-repeats-box": "A flow path lists a box directly after itself",
   // Sets and arguments
@@ -127,6 +128,9 @@ export const ISSUE_CODES = {
   "snapshot-not-reached": "A transition's result differs from the snapshot it must reach",
   // Certificates
   "invalid-namespace": "The certificate namespace is not a usable Lean identifier",
+  "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe target",
+  "certificate-input-sequence": "A dynamics certificate was asked for runs under an input sequence, which it does not encode",
+  "not-certifiable": "The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair",
   // Lints (warnings channel)
   "defect-on-loss-carrier": "Lint: a loss-like flow (pressure drop, friction, leakage, …) is rated excessive or insufficient",
   "trim-level-functions": "Lint: the trim removes excessive or insufficient functions, listed under levelProblems",

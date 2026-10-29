@@ -100,6 +100,8 @@ export const Box = z.strictObject({
     .describe("Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together"),
   behavior: z.array(BehaviorRow).min(1).optional()
     .describe("Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown"),
+  producible: z.array(BehaviorRow).min(1).optional()
+    .describe("For a box whose behaviour is unknown: the rows it can physically produce, over the carriers' declared values, as behavior rows. triz_behavior weakest_spec keeps only these, and reports the rows the target needs that the box cannot produce. A box declares behavior or producible, not both"),
   state: z.array(Id).min(1).optional()
     .describe("Declared state: the finite set of values the box carries from one step to the next. Requires transition"),
   initial: z.array(Id).min(1).optional().describe("States the box may start in; a subset of state"),
@@ -240,6 +242,7 @@ function rowIssues(b: Box, bi: number, carriers: FunctionModel["carriers"], root
   if (b.state && !b.transition) issues.push(issue("incomplete-state-machine", here("state"), `box '${b.id}' declares state without transition`, `Declare transition rows { state, in, next, out } on '${b.id}', or drop state.`));
   if (b.initial && !b.state) issues.push(issue("incomplete-state-machine", here("initial"), `box '${b.id}' declares initial without state`, `Declare state on '${b.id}' (initial is a subset of it), or drop initial.`));
   if (b.behavior && b.transition) issues.push(issue("behavior-and-transition", here("behavior"), `box '${b.id}' declares both behavior and transition: a stateless box declares behavior, a stateful one transition`, `Keep one: behavior if '${b.id}' has no memory, transition (with state) if it does.`));
+  if (b.producible && (b.behavior || b.transition)) issues.push(issue("producible-with-rows", here("producible"), `box '${b.id}' declares producible with ${b.behavior ? "behavior" : "transition"}: producible bounds a box whose behaviour is unknown`, `Keep one: drop producible if the rows of '${b.id}' are known, or drop its ${b.behavior ? "behavior" : "transition"} to have weakest_spec specify it within producible.`));
   for (const s of duplicates(b.state ?? [])) issues.push(issue("duplicate-id", here("state", second(b.state!, s)), `box '${b.id}': duplicate state '${s}'`, `List state '${s}' once.`));
   const states = new Set(b.state ?? []);
   if (b.state) (b.initial ?? []).forEach((s, k) => {
@@ -251,7 +254,7 @@ function rowIssues(b: Box, bi: number, carriers: FunctionModel["carriers"], root
     }
   });
   const values = new Map(carriers.map((c) => [c.id, c.values]));
-  for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition]] as const) {
+  for (const [kind, rows] of [["behavior", b.behavior], ["transition", b.transition], ["producible", b.producible]] as const) {
     if (!rows) continue;
     for (const p of [...inputs(b), ...outputs(b)]) {
       if (values.has(p.carrier) && !values.get(p.carrier)) {

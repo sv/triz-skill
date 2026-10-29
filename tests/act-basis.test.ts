@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import { FunctionModel } from "../src/act.js";
 import { THEOREMS, MATHLIB_THEOREMS, THEORY_FILE } from "../src/act-basis.js";
 import { toolSpecs } from "../src/tools.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const lean = fs.readFileSync(path.resolve(here, "..", THEORY_FILE), "utf8");
@@ -97,6 +99,14 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   const impossible = await call("triz_behavior", { model: dry, trim: ["bearing"], weakest_spec: true });
   assert.equal(impossible.verdict, "impossible");
   collect(impossible);
+  // With producible rows on the housing: a spec within them, and a target only an unproducible row reaches.
+  for (const [bore, verdict] of [["supported", "spec"], ["unsupported", "impossible"]] as const) {
+    const bounded = structuredClone(open);
+    bounded.boxes.find((b) => b.id === "housing")!.producible = [{ in: {}, out: { bore } }];
+    const r = await call("triz_behavior", { model: bounded, trim: ["bearing"], weakest_spec: true });
+    assert.equal(r.verdict, verdict);
+    collect(r);
+  }
   const variant = (keep: (lube: string) => boolean) => {
     const m = structuredClone(dry);
     const b = m.boxes.find((x) => x.id === "bearing")!;
@@ -109,6 +119,18 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   });
   assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
   collect(ranked);
+  // Loop classes: a wear model whose thick state is absorbing (trapped), and one that can renew (recurrent).
+  const wear = (renew: boolean) => ({
+    domain: "physical", carriers: [],
+    boxes: [{ id: "part", name: "Part", role: "product", state: ["thin", "thick"], initial: ["thin"],
+      transition: [["thin", "thin"], ["thin", "thick"], ["thick", "thick"], ...(renew ? [["thick", "thin"]] : [])].map(([state, next]) => ({ state, in: {}, next, out: {} })) }],
+    wires: [],
+  });
+  for (const renew of [false, true]) {
+    const loops = (await call("triz_dynamics", { model: wear(renew), unsafe: [{ box: "part", state: ["thick"] }] })).loops;
+    assert.deepEqual(loops.classes, [renew ? "recurrent" : "trapped"]);
+    collect(loops);
+  }
   // Linked models: an abstraction, levels read in one model and across the map, thresholds as acceptable sets.
   const levelled = structuredClone(example("bearing-heat-behavior"));
   levelled.carriers.find((c) => c.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
@@ -121,7 +143,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
     "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
-    "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
+    "trapped_reachIn", "closed_reachIn", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -183,6 +206,7 @@ test("verdicts cite the statement they use", async () => {
   const heated = example("bearing-heat-dynamics");
   const run = await call("triz_dynamics", { model: heated, unsafe: [{ box: "shaft", state: ["hot"] }], safe: [{ box: "shaft", state: ["cold", "warm", "hot"] }] });
   assert.deepEqual([run.escalation.basis, run.invariance.basis], [["reach_of_trace"], ["reachWithin_iff_trace", "reachWithin_saturated"]]);
+  assert.deepEqual(run.loops.trapped[0].basis, ["trapped_reachIn", "reach_of_trace"]);
   const short = await call("triz_dynamics", { model: heated, horizon: 1, unsafe: [{ box: "shaft", state: ["hot"] }] });
   assert.deepEqual(short.escalation.basis, ["reachWithin_iff_trace"]);
   const phases = [{ id: "cold", where: [{ box: "shaft", state: ["cold"] }], window: { from: 0, to: 0 } }, { id: "hot", where: [{ box: "shaft", state: ["hot"] }], window: { from: 1, to: 3 } }];

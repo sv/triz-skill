@@ -385,10 +385,10 @@ export function reverse(model: FunctionModel, spec: { wire: string; ports?: { fr
   const issues = [from, to].filter((x): x is Issue => "code" in x);
   if (issues.length) return fail(issues);
   const [src, tgt] = [from, to] as Array<{ port: string; added: boolean }>;
-  const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior).map((b) => b.id);
+  const declared = [...(src.added ? [performer] : []), ...(tgt.added ? [object] : [])].filter((b) => b.behavior || b.producible).map((b) => ({ id: b.id, kind: b.behavior ? "behavior" : "producible" }));
   if (declared.length) {
-    return fail(declared.map((id) => issue("declared-rows-block-change", id === performer.id ? "$.ports.from" : "$.ports.to", `box '${id}' declares behavior: a new port needs a value in every row; declare it with rewrite, then reverse onto it`,
-      `Add the port to '${id}' with a value in every behavior row (rewrite: delete and re-add the box), then reverse naming it; or name an existing port of carrier '${w.carrier}'.`)));
+    return fail(declared.map(({ id, kind }) => issue("declared-rows-block-change", id === performer.id ? "$.ports.from" : "$.ports.to", `box '${id}' declares ${kind}: a new port needs a value in every row; declare it with rewrite, then reverse onto it`,
+      `Add the port to '${id}' with a value in every ${kind} row (rewrite: delete and re-add the box), then reverse naming it; or name an existing port of carrier '${w.carrier}'.`)));
   }
   const extended = new Map<string, Box>();
   const add = (box: Box, side: "outputs" | "inputs", port: string) => {

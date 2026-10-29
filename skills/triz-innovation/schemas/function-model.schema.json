@@ -210,6 +210,14 @@
             "$ref": "#/$defs/BehaviorRow"
           }
         },
+        "producible": {
+          "description": "For a box whose behaviour is unknown: the rows it can physically produce, over the carriers' declared values, as behavior rows. triz_behavior weakest_spec keeps only these, and reports the rows the target needs that the box cannot produce. A box declares behavior or producible, not both",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BehaviorRow"
+          }
+        },
         "state": {
           "description": "Declared state: the finite set of values the box carries from one step to the next. Requires transition",
           "minItems": 1,

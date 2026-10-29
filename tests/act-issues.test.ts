@@ -19,6 +19,9 @@ import { matchRule, TREND_RULES, type Rule } from "../src/act-rule.js";
 import { nineWindows } from "../src/act-windows.js";
 import { modelCertificate } from "../src/act-cert.js";
 import { toolSpecs } from "../src/tools.js";
+import { supportConcepts, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -310,6 +313,15 @@ const cases: Case[] = [
   // triz_export and certificates
   { code: "carrier-mismatch", tool: "triz_export", args: { format: "lean", model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) }, path: "$.model.wires[0].carrier" },
   { code: "invalid-namespace", kernel: () => modelCertificate(bh(), { namespace: "end x" }), input: { model: bh(), namespace: "end x" }, path: "$.namespace" },
+  // producible rows and dynamics and weakness certificates
+  { code: "producible-with-rows", tool: "triz_function_model", args: { model: edit("bearing-heat-behavior", (m) => { box(m, "housing").producible = box(m, "housing").behavior; }) },
+    path: `$.model.boxes[${example("bearing-heat-behavior").boxes.findIndex((b) => b.id === "housing")}].producible` },
+  { code: "certificate-needs-unsafe", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), certificate: true }, pick: (r) => r.certificate, path: "$.unsafe" },
+  { code: "certificate-input-sequence", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], inputs: [[], [], []], certificate: true },
+    pick: (r) => r.certificate, path: "$.inputs" },
+  { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
+    pick: (r) => r.certificate, path: "$.unsafe", hint: /Raise horizon/ },
+  { code: "not-certifiable", tool: "triz_weakness", args: { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true }, pick: (r) => r.certificate, path: "$.concepts" },
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;

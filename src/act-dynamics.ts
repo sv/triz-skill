@@ -25,9 +25,11 @@
  *  - Loop classification — on the reachable graph of the stateful boxes' global states, each
  *    closed strongly connected component (no step leaves it) settles at a fixed point, oscillates
  *    (a cycle and no fixed point), or blocks. Classes: bistable (fixed points in two or more
- *    closed components), escalating (a closed component meets the unsafe set: a trap, with a
- *    shortest trace into it), oscillating. Only boxes that declare transition carry state;
- *    behavior rows are steady states, never read as transitions.
+ *    closed components), trapped (a closed component every configuration of which is unsafe: an
+ *    absorbing trap), recurrent (a closed component that meets the unsafe set and also holds a
+ *    safe configuration: the run can leave the unsafe set and reach it again, but never leaves
+ *    the component), each with a shortest trace into it, and oscillating. Only boxes that declare
+ *    transition carry state; behavior rows are steady states, never read as transitions.
  *  - checkRun — re-checks a trace step by step against the declared rows, independently of the
  *    search. Every trace boundedDynamics returns passes it.
  *
@@ -85,8 +87,10 @@ const TIMED: Theorem[] = ["reachIn_of_trace"];
 const TIMED_EXHAUSTED: Theorem[] = ["reachIn_iff_trace"];
 /** Fixed points lie on cycles, and a run that enters a closed component never leaves it. */
 const BISTABLE: Theorem[] = ["fixed_on_cycle", "closed_reachIn"];
-/** A sound trace into a closed component, which the run never leaves. */
-const TRAP: Theorem[] = ["closed_reachIn", "reach_of_trace"];
+/** A sound trace into a closed component inside the unsafe set: every configuration reachable from it is unsafe. */
+const TRAPPED: Theorem[] = ["trapped_reachIn", "reach_of_trace"];
+/** A sound trace into a closed component that meets the unsafe set, which the run never leaves. */
+const RECURRENT: Theorem[] = ["closed_reachIn", "reach_of_trace"];
 /** A closed component without a fixed point: every return takes two steps or more. */
 const OSCILLATING: Theorem[] = ["closed_reachIn", "return_ge_two"];
 
@@ -628,32 +632,38 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
       }
       for (const u of c) for (const w of vertices[u].succ) if (members.has(w)) period = gcd(period, Math.abs(level.get(u)! + 1 - level.get(w)!));
     }
-    // A trap meets the unsafe set at a member some step from it satisfies; the nearest one to a start.
+    // The component meets the unsafe set at a member some step from it satisfies; the nearest one to a start.
     const entry = unsafe && kind !== "blocked"
       ? c.map((v) => ({ v, st: vertices[v].steps!.find((st) => unsafe(vertices[v].state, st.values)) }))
         .filter((x) => x.st).sort((a, b) => vertices[a.v].depth - vertices[b.v].depth || a.v - b.v)[0]
       : undefined;
-    return { c, kind, fixedPoints, cycle, period, entry };
+    // Its configurations are its members' steps: all unsafe makes it a trap, one safe step makes it recoverable.
+    const safeStep = entry ? c.flatMap((v) => vertices[v].steps!.filter((st) => !unsafe!(vertices[v].state, st.values)).map((st) => ({ v, st })))[0] : undefined;
+    return { c, kind, fixedPoints, cycle, period, entry, allUnsafe: entry !== undefined && safeStep === undefined, safeStep };
   });
 
   const listed = (vs: number[]) => vs.slice(0, LISTED).map((v) => vertices[v].state);
   const report = closed.slice(0, LISTED).map((x) => ({
     size: x.c.length, states: listed(x.c), kind: x.kind, fixedPoints: listed(x.fixedPoints),
     ...(x.cycle ? { cycle: x.cycle.map((v) => vertices[v].state), period: x.period } : {}),
-    ...(unsafe && x.kind !== "blocked" ? { unsafe: x.entry !== undefined } : {}),
+    ...(unsafe && x.kind !== "blocked" ? { unsafe: x.entry !== undefined, allUnsafe: x.allUnsafe } : {}),
   }));
   const settling = closed.flatMap((x, i) => (x.kind === "settles" ? [i] : []));
   const bistable = settling.length >= 2 && { count: settling.length, components: settling.slice(0, LISTED), fixedPoints: settling.slice(0, LISTED).flatMap((i) => listed(closed[i].fixedPoints)).slice(0, LISTED), basis: BISTABLE };
-  const escalating = closed.slice(0, LISTED).flatMap((x, i) => {
-    if (!x.entry) return [];
-    const path = pathTo(x.entry.v), from = vertices[path[0]].from;
+  /** A shortest trace from a start to the component's nearest unsafe configuration, re-checked. */
+  const into = (x: (typeof closed)[number], i: number) => {
+    const path = pathTo(x.entry!.v), from = vertices[path[0]].from;
     const trace: RunStep[] = path.map((v, t) => ({ time: t, state: vertices[v].state, values: t + 1 < path.length ? vertices[path[t + 1]].via! : x.entry!.st!.values }));
-    return [{ component: i, from, time: path.length - 1, trace: verified(trace, from), basis: TRAP }];
-  });
+    return { component: i, from, time: path.length - 1, trace: verified(trace, from) };
+  };
+  const trapped = closed.slice(0, LISTED).flatMap((x, i) => (x.entry && x.allUnsafe ? [{ ...into(x, i), basis: TRAPPED }] : []));
+  const recurrent = closed.slice(0, LISTED).flatMap((x, i) => (x.entry && !x.allUnsafe
+    ? [{ ...into(x, i), safe: { state: vertices[x.safeStep!.v].state, values: x.safeStep!.st.values }, basis: RECURRENT }]
+    : []));
   const oscillating = closed.slice(0, LISTED).flatMap((x, i) => (x.kind === "oscillates" ? [{ component: i, period: x.period, cycle: x.cycle!.map((v) => vertices[v].state), basis: OSCILLATING }] : []));
-  const traps = closed.some((x) => x.entry), cycles = closed.some((x) => x.kind === "oscillates");
+  const traps = closed.some((x) => x.entry && x.allUnsafe), recurs = closed.some((x) => x.entry && !x.allUnsafe), cycles = closed.some((x) => x.kind === "oscillates");
   const classes = closed.length
-    ? [...(bistable ? ["bistable" as const] : []), ...(traps ? ["escalating" as const] : []), ...(cycles ? ["oscillating" as const] : [])]
+    ? [...(bistable ? ["bistable" as const] : []), ...(traps ? ["trapped" as const] : []), ...(recurs ? ["recurrent" as const] : []), ...(cycles ? ["oscillating" as const] : [])]
     : ["none" as const];
   const machines = new Set(s.machines.map((m) => m.id));
   return {
@@ -664,11 +674,14 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
     harmLoops: harmLoops(model).filter((l) => l.boxes.some((b) => machines.has(b))).map((l) => ({ boxes: l.boxes, negative: l.negative })),
     closed: report, classes,
     ...(bistable ? { bistable } : {}),
-    ...(escalating.length ? { escalating } : {}),
+    ...(trapped.length ? { trapped } : {}),
+    ...(recurrent.length ? { recurrent } : {}),
     ...(oscillating.length ? { oscillating } : {}),
     note: (classes[0] === "none"
       ? "No closed component was found within the cap."
       : "Every run that enters a closed component stays in it. Classes can coexist; a component that settles at one fixed point outside the unsafe set belongs to no class.")
+      + (traps ? " A trapped component lies inside the unsafe set: every configuration reachable from it is unsafe, so the run never recovers." : "")
+      + (recurs ? " A recurrent component meets the unsafe set and holds a safe configuration (safe): from each of its states the run can reach both, so it can recover, but it never leaves the component." : "")
       + (complete ? " The reachable state graph was explored completely, without a horizon." : " The cap cut the exploration: every closed component listed is closed, but others may be missed.")
       + (safeSkipped ? " Only the initial states were starts (safeStartsSkipped)." : "")
       + (closed.length > LISTED ? ` ${LISTED} of ${closed.length} closed components are listed.` : "")
