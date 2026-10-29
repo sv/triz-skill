@@ -270,6 +270,10 @@ noncomputable def overlay (R : Wiring B P W C) : Wiring B P W C where
   out b p := (R.out b p).or (d.out b p)
   inp b p := (R.inp b p).or (d.inp b p)
 
+/-- `glue` is the overlay of the added boxes and wires with `d`'s own structure. -/
+theorem glue_eq_overlay (N : Set B) (F : Set W) : d.glue N F = d.overlay { d with boxes := N, wires := F } := by
+  simp only [glue, overlay, ite_self, Option.or_self]
+
 /-- Gluing a typed `R` keeps typing when `R` gives no port a carrier other than the one `d`
 gives it: the comatch maps interface ports to themselves with their carrier, and new ports are
 fresh. `R`'s own wires are typed because `R` is. -/

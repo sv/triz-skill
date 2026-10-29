@@ -119,8 +119,10 @@ match binds the variables used in L; the caller binds those used only in R.
 For matching, a model is read as a hypergraph in the sense of Bonchi et al. (2022, Def. 3.1).
 Boxes and ports are vertices. Each port has a `port-of` hyperedge to its box, labelled by side
 and carrier. Each wire is a hyperedge from its source port to its target port, labelled by
-carrier and rating. A match is a label-preserving homomorphism, so a pattern box matches any box
-that has at least the pattern's ports. A role or rating the pattern leaves out matches any.
+carrier and rating. A match instantiates the rule: it binds the carrier variables, takes any role
+or rating the pattern leaves out from the matched element, and resolves `like` copies. On the
+instantiated rule, the match is a label-preserving homomorphism, and the conditions below are
+that rule's. So a pattern box matches any box that has at least the pattern's ports.
 
 `triz_rule_apply` applies a rule at a match in steps that each fail closed:
 
@@ -134,8 +136,8 @@ that has at least the pattern's ports. A role or rating the pattern leaves out m
 
 `typed_dpo` in `theory/` states that the result is typed when four things hold: the model is
 typed, R is typed, no surviving wire touches a deleted box, and R gives no port a carrier other
-than the model's. Rule validation checks R's typing. Step 1 and fresh port ids give the carrier
-condition. The Lean statement leaves two things out:
+than the model's. Rule validation checks R's typing. Step 1 and fresh box and port ids give the
+carrier condition. The Lean statement leaves two things out:
 
 - It types ports by partial maps, so it does not model deleting a port. The dangling check in
   step 3 covers that.

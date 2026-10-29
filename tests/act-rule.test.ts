@@ -232,6 +232,10 @@ test("trend rule feedback: one useful function back to the tool, on a carrier th
   const { match } = listed.matches[0];
   assert.match(errors(applyRule(m, rule, match)), /carriers: variable 's' appears only on the right side/);
   assert.match(errors(applyRule(m, rule, match, { carriers: { s: "nope" } })), /carrier variable 's' bound to unknown carrier 'nope'/);
+  const taken = structuredClone(m);
+  taken.boxes.find((b) => b.id === "shaft")!.outputs!.push({ id: "state", carrier: "heat" });
+  const fresh = only(applyRule(taken, rule, match, { carriers: { s: "signal" } }));
+  assert.deepEqual(fresh.created.ports, { tool: { adjust: "adjust" }, object: { state: "state-2" } }, "a created port never reuses a port id the box has");
   const r = only(applyRule(m, rule, match, { carriers: { s: "signal" } }));
   assert.deepEqual(r.model.wires.at(-1), { id: "feedback", from: { box: "shaft", port: "state" }, to: { box: "motor", port: "adjust" }, carrier: "signal", polarity: "useful", verb: "adjust" });
   assert.equal(r.model.boxes.length, m.boxes.length, "no sensor or controller box");

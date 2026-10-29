@@ -11,8 +11,10 @@
  *  - each port has a `port-of` hyperedge to its box, labelled by side and carrier;
  *  - each wire is a hyperedge from its source port to its target port, labelled by carrier and
  *    polarity.
- * A match is a label-preserving homomorphism L → G (a role or polarity the pattern omits matches
- * any). So a pattern box matches any box that has at least the pattern's ports.
+ * A match instantiates the rule: it binds the carrier variables, fixes any role or polarity the
+ * pattern omits to that of its image, and resolves `like`. On the instantiated rule it is a
+ * label-preserving homomorphism L → G, and the gluing conditions below are those of the
+ * instantiated rule. A pattern box matches any box that has at least the pattern's ports.
  *
  *  - validateRule — L, K and R each type-check as patterns, K ⊆ L and K ⊆ R with the same
  *                   constraints, and every element R creates is fully specified. Fails closed.
@@ -31,7 +33,7 @@
  * The result is typed by `typed_dpo` in theory/CategoricalTriz.lean. Its hypotheses map to checks
  * here: the model type-checks; R type-checks (validateRule); no surviving wire touches a deleted
  * box (dangling); R gives no port a carrier the model does not (checkMatch, and fresh ids for
- * created ports). No-identification makes the result a pushout but is not needed for typing.
+ * created boxes and ports). No-identification makes the result a pushout but is not needed for typing.
  */
 import { z } from "zod";
 import { Box, Endpoint, Polarity, Role, checkModel, type FunctionModel } from "./act.js";
