@@ -26,7 +26,7 @@ test("levels typing fails closed: values required and declared, once each, from 
     if (values === undefined) delete c.values; else c.values = values;
     return checkModel(m).errors.join("; ");
   };
-  assert.deepEqual(checkModel(withLevels(example("bearing-heat-behavior"))), { ok: true, errors: [] });
+  assert.deepEqual(checkModel(withLevels(example("bearing-heat-behavior"))), { ok: true, errors: [], issues: [] });
   assert.match(broken(RADIAL_LEVELS), /carrier 'radial-load' declares levels without values/);
   assert.match(broken([{ value: "unsupported", from: 0 }, { value: "held", from: 10 }], ["supported", "unsupported"]), /level value 'held' is not declared in values/);
   assert.match(broken([{ value: "unsupported", from: 0 }, { value: "unsupported", from: 10 }], ["supported", "unsupported"]), /level value 'unsupported' is listed twice/);

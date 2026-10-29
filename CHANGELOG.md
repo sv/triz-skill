@@ -27,11 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
 - Per-instance Lean certificates: `triz_export` format `lean` and `triz_separate` `certificate: true` state typing, harm-loop witness, and separation verdicts as theorems about the model; `scripts/certify.mjs` checks them with local Lean or the AXLE service.
 - `theory/Witnesses.lean`: each typing, behaviour-monotonicity, and dynamics lemma's hypotheses hold on a concrete diagram, relation, or step relation, and dropping any one breaks it.
+- `theory/Semantics.lean`: the steady-state semantics of declared behaviour, proved compositional (series is `Relation.Comp`, parallel the product, feedback `relTrace`, monotone in each box) with a faithful functor to `RelCat`; `tests/act-semantics.test.ts` checks `externalBehavior` against a brute-force transcription of it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
 - Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.
 - Function-model JSON Schema and six example models: bearing, bearing with declared behaviour, bearing with declared dynamics, cached API, marketplace, connection pool.
 - `categorical-model.md`: modelling protocol, and what is and is not claimed.
 - CI and Lean workflows can be started by hand (`workflow_dispatch`).
+- Agent feedback: every `ok: false` result adds `issues` (`code`, `path`, `message`, `hint`) beside `errors`, zod errors carry hints, `triz_function_model`/`triz_trim`/`triz_behavior` report lint `warnings`, `triz_trim` lists `levelProblems`, and `triz_nine_windows` returns `derived` models.
 - Sharper verdicts: `triz_behavior` `weakest_spec` keeps only a box's `producible` rows and names the rows the target needs but the box cannot produce (`infeasible`); `triz_separate` suggests constructions per separating axis; `triz_dynamics` and `triz_weakness` return Lean certificates of a reachable escalation and of strict inclusions.
 
 ### Changed

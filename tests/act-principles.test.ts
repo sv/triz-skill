@@ -24,7 +24,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
   FunctionModel.parse(JSON.parse(fs.readFileSync(path.resolve(here, `../examples/function-models/${name}.json`), "utf8")));
 const errors = (r: { ok: boolean; errors?: string[] }) => (r.ok ? "" : r.errors!.join("; "));
-const typedOk = (m: FunctionModel) => assert.deepEqual(checkModel(m), { ok: true, errors: [] });
+const typedOk = (m: FunctionModel) => assert.deepEqual(checkModel(m), { ok: true, errors: [], issues: [] });
 /** Boxes reachable from `start` along wires, including `start`. */
 function reach(m: FunctionModel, start: string): Set<string> {
   const seen = new Set([start]), queue = [start];

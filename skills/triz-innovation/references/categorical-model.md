@@ -21,7 +21,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
-| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop`; the semantics the evaluator computes, never cited (`theory/Semantics.lean`): `steadyStates`, `external`, `external_glueAlong`, `external_seq`, `external_par`, `external_feedbackAlong`, `external_feedback`, `external_mono`, `semantics` |
 | What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; with producible rows, `covers_feasible_iff`, `not_covers_feasible_iff`, `required_row_of_eq`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
@@ -47,8 +47,11 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
 ## Protocol
 
 1. **Model.** List the boxes, the carriers with their units, and every function with its rating.
-   Call `triz_function_model`. On `ok: false`, fix every listed error before going on; never
-   reason over a model that does not type-check.
+   Call `triz_function_model`. On `ok: false`, fix every listed issue before going on: each
+   names the input element at fault (`path`) and a fix (`hint`); see
+   [Feedback for agents](#feedback-for-agents). Never reason over a model that does not
+   type-check. Read the result's `warnings` too: they never change a verdict, but a
+   `defect-on-loss-carrier` warning usually means a harm was rated excessive.
 
    When one system has two models, a detailed one (many boxes, costs, feasibility) and a coarse
    one (few boxes, declared behaviour), link them with `triz_abstraction` before you trust a
@@ -70,7 +73,10 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    - each orphaned function, which blocks the trim;
    - each absorber, ordered rule B (the object serves itself) and then rule C (another
      component, with supersystem resources last);
-   - one trimming problem per absorber.
+   - one trimming problem per absorber of a useful function, and one level problem
+     (`levelProblems`) per excessive or insufficient function: the object needs that flow at the
+     right level, so no absorber is asked to take the defect over as it is. If no level of the
+     flow is useful, the function is harmful and needs no absorber.
 
    Treat every trimming problem as a new problem to solve. Still generate at least three
    mechanisms (SKILL.md). Model the chosen concept and compare it with `compare_to`. A concept
@@ -184,6 +190,11 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    These are computed on the system view only: restriction drops the budget and cuts the
    deliverables' suppliers, and the collapsed box declares no rows. A failure in one of them,
    such as different deliverables at two times, is reported there and never fails the grid.
+
+   `derived` holds the model each transition produced, by the time it leads to: a derived
+   future is that column's model, ready to pass on to another tool, and a reached present
+   equals its snapshot up to order. On `ok: false` the grid also carries top-level `errors` and
+   `issues`, collected from the invalid windows and transitions.
 7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
    `triz_function_model` also reports whether the two models have the same wiring shape. Use
    format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
@@ -202,13 +213,171 @@ Most are semantic sanity lemmas: they pin the semantics down on the tests' own e
 (`relation_comp_mono` and `relTrace_mono`, since a trim does not widen one relation;
 `separation_on_condition`, a Boolean split the condition axis does not use).
 `restrict_restrict` and `restrict_of_subset` are the presheaf's functor laws, used to build
-`supportedOn`; no view zooms inside a zoom, so no verdict uses them. `relation_comp_iSup_left`,
+`supportedOn`; no view zooms inside a zoom, so no verdict uses them. The theorems of
+`theory/Semantics.lean` define the semantics `triz_behavior` computes and prove it compositional
+(see [Compositional semantics](#compositional-semantics)). No verdict cites them: a verdict is
+about one model, and the evaluator is checked against that semantics by a brute-force cross-check,
+not derived from it. `relation_comp_iSup_left`,
 `relation_comp_iSup_right`, and `relTrace_iSup` say why a context built from composition and the
 trace preserves unions, the hypothesis of the residual lemmas; that the kernel's join is such a
 context is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
 `subset_residual_of_eq`, `admits_bot`, `admits_mono_ok`, and `AtLeastAsWeak`'s reflexivity and
 transitivity serve the cited lemmas or the docs. A test keeps all of these out of the citable
 list.
+
+## Feedback for agents
+
+Every `ok: false` result keeps `errors: string[]` and adds `issues`, one per error and in the
+same order:
+
+```json
+{ "code": "carrier-mismatch", "path": "$.model.wires[0].carrier",
+  "message": "wire 'w-drive' from: carrier 'heat' does not match port 'motor.shaft-out' carrier 'torque'",
+  "hint": "A wire carries its ports' carrier: set the wire's carrier to 'torque', or attach it to a port of carrier 'heat'." }
+```
+
+- `code` is a stable kebab-case id from the table below. Branch on it, not on the message.
+- `path` is a JSON path into the call's own arguments: `$.model…`, `$.compare_to…`,
+  `$.transformation.parts[1].ports[0]`, `$.transitions.present_to_future[2]`. A path that ends in
+  a key the input lacks names what to add (`$.carriers` for an unbound carrier variable). When
+  the fault lies in something the input does not hold, such as a transformation's result or a
+  trim's remaining model, the path points at the input element that produced it.
+- `hint` is a concrete fix, naming the ids, values, or ports to use.
+
+The common slips get a pointed hint: a whole `triz_rule_apply` listing entry passed as `match`
+(pass `matches[i].match`), `carriers` or `ids` while only listing, `box_map` without
+`compare_to`, and `absorb` without `trim`. Arguments that do not parse fail in the MCP SDK
+before the kernel runs, with zod's message and path; where a slip is known, the message carries
+a hint, e.g. `Unrecognized keys: "match", "applicable", "violations" (hint: … pass
+matches[i].match) at match`, a `'box.port'` string where an endpoint `{ box, port }` belongs, a
+`ports` list on a box (inputs and outputs are separate lists), a bare box id where `trim` takes
+an array, or an unknown transformation `op`.
+
+`triz_function_model`, `triz_trim`, and `triz_behavior` also return `warnings`: lints of each
+model that type-checks, in the same shape plus `severity` (`warning` or `info`). A lint never
+changes a verdict:
+
+- `defect-on-loss-carrier`: an excessive or insufficient function on a loss-like flow (a
+  pressure drop, leakage, noise, wear). Rating it excessive says some level of the flow is
+  wanted from the performer; if no level of it is useful, rate it harmful.
+- `trim-level-functions`: the trim removes excessive or insufficient functions, posed under
+  `levelProblems`.
+- `product-without-deliverable`: a product box no non-harmful function acts on.
+- `unused-carrier` (info): a carrier that types nothing.
+- `unwired-port` (info): a port with no wire. An unwired input is a boundary input, the
+  operating condition `triz_behavior` and `triz_dynamics` read; an unwired output is capacity
+  `triz_trim` may offer as an absorber.
+
+The loss lexicon is a heuristic over carrier ids, dimensions, and verbs; a warning is a prompt
+to check the rating, not a finding.
+
+## Issue and lint codes
+
+| Code | Raised by | Meaning |
+|---|---|---|
+| `duplicate-id` | every model check; `triz_separate`, `triz_dynamics`, `triz_weakness`, `triz_transform` rewrite, `triz_rule_apply` ids | Two elements of one kind share an id (carrier, box, wire, port, state, value, demand, concept) |
+| `unknown-carrier` | every model check; `triz_rule_apply`, `triz_abstraction` map | A port or wire names a carrier the model does not declare |
+| `unknown-box` | every model check; box-set arguments (`trim`, `subsystem`, targets, transformations), `triz_abstraction` map | An id names no box of the model |
+| `unknown-port` | every model check; `triz_transform`, `triz_dynamics`, `triz_rule_apply`, `triz_abstraction` map | A box has no port with that id |
+| `unknown-wire` | `triz_transform`, `triz_rule_apply` | An id names no wire of the model |
+| `wrong-port-side` | every model check; `triz_transform` reverse | A wire leaves an input port or enters an output port |
+| `carrier-mismatch` | every model check; `triz_transform` reverse | A wire's carrier differs from a port it is attached to |
+| `incomplete-state-machine` | every model check | A box declares state, transition, or initial without the others it needs |
+| `behavior-and-transition` | every model check | A box declares both behavior and transition |
+| `undeclared-state` | every model check; `triz_dynamics` | A state is not among the box's declared states |
+| `no-declared-values` | every model check; `triz_behavior`, `triz_dynamics`, `triz_transform` interpose | Rows or a check need a carrier's values, and the carrier declares none |
+| `row-unknown-port` | every model check | A behavior, transition, or feasibility row names a port the box does not have |
+| `row-missing-value` | every model check | A behavior or transition row gives no value for one of the box's ports |
+| `undeclared-value` | every model check; `triz_dynamics`, `triz_weakness` | A value is not among the carrier's declared values |
+| `dominated-row` | every model check | A feasibility row repeats or is dominated by another row of the box |
+| `producible-with-rows` | every model check | A box declares producible together with behavior or transition |
+| `invalid-levels` | every model check | A carrier's levels do not start at 0 or do not strictly increase |
+| `listed-twice` | `triz_trim`, `trim` arguments, `triz_transform`, `triz_dynamics` inputs, `triz_weakness` acceptable | An id appears twice in a set argument |
+| `empty-set` | `trimCandidates`, nine-windows views, `triz_abstraction` map, mpv_weights | A set argument names nothing |
+| `too-few-members` | `triz_transform` segment and merge, `triz_dynamics` separation | A construction needs at least two parts, boxes, or demands |
+| `unknown-cost-dimension` | `triz_transform` segment and take_out, `triz_function_model` mpv_weights | A cost dimension is not one the box declares |
+| `cap-exceeded` | `triz_separate`, `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, certificates | A search or encoding passed its cap |
+| `internal-error` | any tool | An invariant of the kernel failed; the input is not at fault |
+| `box-map-without-compare-to` | `triz_function_model`, `triz_behavior` | box_map was passed without compare_to |
+| `absorb-without-trim` | `triz_behavior`, `triz_feasibility` | absorb was passed without trim |
+| `trim-with-compare-to` | `triz_behavior` | trim and compare_to were passed together |
+| `weakest-spec-without-target` | `triz_behavior` | weakest_spec was passed without compare_to or trim |
+| `rule-or-rule-id` | `triz_rule_apply` | Neither or both of rule and rule_id were passed |
+| `unknown-rule-id` | `triz_rule_apply` | rule_id names no built-in rule |
+| `at-and-match` | `triz_rule_apply` | at and match were passed together |
+| `apply-args-without-match` | `triz_rule_apply` | carriers or ids were passed while only listing matches |
+| `listing-entry-as-match` | `triz_rule_apply` | A whole matches[i] entry was passed as match |
+| `mpv-weights-without-compare-to` | `triz_function_model` | mpv_weights was passed without compare_to |
+| `invalid-weight` | `triz_function_model` mpv_weights | An MPV weight is not positive |
+| `undeclared-cell` | `triz_separate`, embedded contradictions | A demand names a cell the axis does not declare |
+| `empty-axis` | `triz_separate` along | The axis to index by has no cells |
+| `part-without-ports` | `triz_transform` segment | A segment part lists no ports |
+| `port-assigned-twice` | `triz_transform` segment | A port is given to two parts |
+| `port-unassigned` | `triz_transform` segment | A port of the segmented box is given to no part |
+| `unknown-part` | `triz_transform` segment | cost_to names a part that is not listed |
+| `take-out-reading` | `triz_transform` take_out | The taken ports do not fit the take_out reading |
+| `not-adjacent` | `triz_transform` merge | Boxes to merge are not joined by functions inside the group |
+| `not-identical` | `triz_transform` merge | Boxes to merge as identical differ in role or port carriers |
+| `role-ambiguous` | `triz_transform` merge | The merged boxes have different roles and into.role is missing |
+| `wrong-rating` | `triz_transform` rerate, retarget | The function's rating does not fit the operation |
+| `already-rated` | `triz_transform` rerate | The function already has the requested rating |
+| `not-on-cycle` | `triz_transform` rerate, feedback | The function lies on, or closes, no loop |
+| `own-object-port` | `triz_transform` retarget | retarget points the harm at its own object port |
+| `self-loop` | `triz_transform` reverse | The function acts on its own performer |
+| `ambiguous-port` | `triz_transform` reverse | Several ports of the carrier fit; one must be named |
+| `missing-port` | `triz_transform` reverse | No port of the carrier fits; one must be named |
+| `declared-rows-block-change` | `triz_transform` reverse, `triz_rule_apply` | A box's declared rows would not name a port the change adds or deletes |
+| `nothing-to-back-up` | `triz_transform` standby | The box performs no useful function on another box |
+| `not-cheaper` | `triz_transform` cheap_copy | The copy is not cheaper than the box |
+| `dangling-wire` | `triz_transform` rewrite, `triz_rule_apply` | A kept wire would touch a deleted box or port |
+| `id-not-fresh` | `triz_transform`, `triz_rule_apply` ids | A new element's id is already taken |
+| `ill-typed-result` | `triz_transform` rewrite, `triz_rule_apply` | The step would produce a model that does not type-check |
+| `trim-blocked` | `trim` in `triz_transform`, `triz_behavior`, `triz_feasibility` | A function of a trimmed box has no typed absorber |
+| `not-an-absorbed-function` | `absorb` | absorb names a wire that is not a function the trimmed boxes perform on a remaining box |
+| `not-a-typed-absorber` | `absorb` | absorb names a port that is not an output of the function's carrier on a remaining box |
+| `rule-ill-typed` | `triz_rule_apply` | A rule pattern does not type-check, or a carrier variable is declared twice or never used |
+| `rule-malformed` | `triz_rule_apply` | A rule's interface, created elements, or like references are inconsistent |
+| `not-a-rule-element` | `triz_rule_apply` | A match, at, or ids key names nothing the rule has there |
+| `match-incomplete` | `triz_rule_apply` | A left-side element is not mapped by the match |
+| `match-not-homomorphic` | `triz_rule_apply` | The match does not preserve roles, sides, carriers, ratings, or incidences |
+| `match-identifies` | `triz_rule_apply` | Two left-side elements match one model element and one would be deleted |
+| `unbound-carrier-variable` | `triz_rule_apply` | A carrier variable used only on the right side is not bound |
+| `not-right-only-variable` | `triz_rule_apply` | carriers binds a variable that is not used only on the right side |
+| `no-deliverables` | `triz_behavior`, `triz_weakness` | No product box receives a non-harmful function |
+| `box-map-unknown-box` | `triz_function_model`, `triz_behavior` | box_map names a box the concept or baseline does not have |
+| `box-map-ambiguous` | `triz_behavior` | box_map lands two concept input ports on one baseline port |
+| `box-map-port-mismatch` | `triz_behavior` | box_map maps a box to one without the same input port and carrier |
+| `input-domain-mismatch` | `triz_behavior`, `triz_weakness` | An input read by several models ranges over different values |
+| `nothing-to-specify` | `triz_behavior` weakest_spec | weakest_spec found no box without behaviour to specify |
+| `deliverables-differ` | `triz_weakness` | The concepts deliver different ports |
+| `acceptable-not-deliverable` | `triz_weakness` | acceptable names a port that is not a deliverable |
+| `acceptable-missing` | `triz_weakness` | A deliverable has no acceptable values |
+| `acceptable-entry-malformed` | `triz_weakness`, `triz_nine_windows` acceptable | An acceptable entry names neither or both of a port and a carrier, or of values and a threshold |
+| `invalid-threshold` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold cannot be read through the carrier's levels, or reads as no value |
+| `levels-differ` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold reads as different values in different concepts |
+| `unmapped-box` | `triz_abstraction` | map.ports names a box that map.boxes does not map |
+| `no-state` | `triz_dynamics` | A target or initial names a box that declares no state |
+| `uninitialised-state` | `triz_dynamics` | A stateful box has no initial states |
+| `not-boundary-input` | `triz_dynamics` inputs | inputs names a port that is not an unwired input port |
+| `window-invalid` | `triz_dynamics` separation | A separation window is inverted or ends after the horizon |
+| `windows-overlap` | `triz_dynamics` separation | Two separation windows overlap |
+| `horizon-inputs-mismatch` | `triz_dynamics` | inputs has fewer entries than the horizon needs |
+| `horizon-out-of-range` | `triz_dynamics` | The horizon is not an integer from 0 to the maximum |
+| `nothing-to-explore` | `triz_dynamics` | No box declares transition and no target names a box |
+| `no-product` | `triz_feasibility` | The model has no product box |
+| `unsupplied-requirement` | `triz_feasibility` | A feasibility row requires a level at an input no non-harmful function feeds |
+| `ambiguous-port-name` | `triz_nine_windows`, `triz_transform` merge | Collapsing gives two kept ports the same name |
+| `no-earlier-snapshot` | `triz_nine_windows` | A transition starts from a time with no snapshot |
+| `snapshot-not-reached` | `triz_nine_windows` | A transition's result differs from the snapshot it must reach |
+| `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
+| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe target |
+| `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
+| `not-certifiable` | `triz_dynamics`, `triz_weakness` `certificate` | The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair |
+| `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a loss-like flow (pressure drop, leakage, noise, …) |
+| `trim-level-functions` | lint: `triz_trim` | The trim removes excessive or insufficient functions, listed under levelProblems |
+| `product-without-deliverable` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A product box receives no non-harmful function |
+| `unused-carrier` | lint (info) | A carrier types no port and no wire |
+| `unwired-port` | lint (info) | A port has no wire |
 
 ## Certificates
 
@@ -306,7 +475,10 @@ Every row is type-checked, and an undeclared port or value fails closed.
 - **Upstream only.** Only the boxes that can reach a deliverable are composed, and each of them
   must declare behaviour. Every other box is assumed to accept whatever it receives. The output
   lists downstream boxes whose declared relation is partial (`partialDownstream`): in the full
-  relational composite they would rule out steady states.
+  relational composite they would rule out steady states. Total downstream boxes can rule them
+  out too, through a loop among them or a downstream port fed by several wires that disagree, and
+  are not listed. An empty `partialDownstream` does not mean the whole model has the same
+  relation.
 - **Steady states.** A steady state is a valuation of the composed ports that every relation
   and every wire admits. The external relation is the set of steady states projected onto the
   inputs and the deliverables. A feedback loop composes by the relational trace: an input and an
@@ -361,6 +533,63 @@ inputs where both models have steady states. If one model has steady states at a
 the other has none, the verdict is `changed`, and the counterexample says which side is empty.
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
+
+### Compositional semantics
+
+`theory/Semantics.lean` defines the semantics above for an open diagram over values `V`. Ports
+range over their carriers' declared values, a box admits a set of port valuations, a wire
+equates its two ports, and the interface names input and output ports. `steadyStates` is the set
+of valuations that every value set, box, and wire admits. `external` is its projection onto the
+inputs and the outputs. A kernel box is `ofRows`: it admits a valuation iff its own ports read one
+of its rows. Lean proves, with no `sorry`:
+
+- **Series** (`external_glueAlong`). Glue two diagrams by cross wires. If the cross wires join
+  exactly the matching interface ports, the glued external relation is Mathlib's `Relation.Comp`
+  of the parts': each wire joins the first part's output j to the second's input j, and every j
+  is joined. That is the hypothesis that the interface is fully exposed. A cross wire at a port
+  that one part's relation hides breaks the equation, and so does an interface port left unjoined.
+  `seq` glues along the interface, so `external_seq` holds with no hypothesis.
+- **Parallel** (`external_par`). A disjoint union relates a pair of valuations iff each part
+  relates its own components: the product relation.
+- **Feedback** (`external_feedbackAlong`, `external_feedback`). Wire each loop output back to its
+  loop input, and the external relation is `relTrace` of the open relation. That relation runs
+  from (input, loop value) to (output, loop value). The hypothesis is the same as for series: the
+  loop wires join exactly the loop ports.
+- **Monotonicity** (`external_mono`). Widening any box's relation widens the external relation.
+- **Functor** (`semantics`). Objects are interfaces. Morphisms are open diagrams, two of them
+  identified when their external relations agree. Composition is `seq`, and the identity is a
+  diagram of bare interface ports. This is a category, and `semantics` is a faithful functor from
+  it to Mathlib's `RelCat`. Its laws are `external_seq` and `external_id`. Faithfulness holds by
+  construction, since the morphisms are diagrams up to their relations. Diagrams side by side map
+  to the product of relations (`semantics_tensorHom`). That is the tensor on objects and
+  morphisms only: no monoidal category is built, and associators, unitors, and coherence are not
+  stated.
+
+None of these restricts the diagram. Fan-in, fan-out, loops, and partial or several-valued
+relations are covered, since a wire is an equality and a box is a set of valuations.
+`theory/SemanticsWitnesses.lean` gives each theorem a concrete diagram with a non-empty
+relation, and a counterexample for each hypothesis.
+
+The evaluator is not extracted from these definitions. `tests/act-semantics.test.ts` transcribes
+`steadyStates` and `external` into a brute-force reference, which enumerates every port valuation
+and filters it. The test then checks that `externalBehavior` agrees with the reference:
+
+- **What agrees.** The composed boxes, the deliverables, and the inputs. Every input valuation,
+  with the same outputs and the same number of steady states. Each listed steady state, and the
+  inputs with no steady state.
+- **Which diagram.** The reference evaluates the upstream part. The test re-derives that part
+  from the wires, independently of the evaluator.
+- **Seeded models.** 400 random models: loops, fan-out, fan-in, partial and several-valued
+  relations, inputs with no steady state, and boxes without behaviour, which must read
+  undecided. The test asserts that each of these cases occurs.
+- **Repository examples.** Every example. The bearing with declared behaviour has a decided
+  relation, as given and trimmed. The others must read undecided, naming the same boxes.
+
+The test also checks the whole model against the upstream part. Every steady state of the whole
+model restricts to one of the upstream part, so the whole model relates no more on the upstream
+inputs. The two are equal when every box is upstream. A downstream negation loop and a downstream
+fan-in show that the whole model can relate strictly less while `partialDownstream` is empty.
+Lean does not state this restriction.
 
 ## Behaviour through the constructions
 
@@ -991,8 +1220,12 @@ example cohort churn against fee changes. Name it only from that evidence.
   - It needed the trimmed model to include into the original. A trim that re-attaches a
     function (rules B and C) adds a wire the original lacks, so there is no inclusion. A trim
     by rule A alone is a restriction; there the statement would be well typed.
-  - No functor from a function model to a category of systems was ever defined, so it
-    constrained nothing the kernel computes.
+  - It needed a functor from function models, along trims, to a category of systems, and none
+    was defined, so it constrained nothing the kernel computes. The functor that
+    `theory/Semantics.lean` now defines (`semantics`) does not supply one. It goes from open
+    diagrams, up to their steady-state relations, to relations. Its morphisms compose by gluing
+    in series, and a trim is not one of them, so the statement stays removed. A trim still
+    depends on its absorber, and rules B and C are still not inclusions.
 - Nothing computes a Grothendieck fibration. The one optic computed is a lens with a residual
   read as a Mealy machine: its bounded runs ([Declared dynamics](#declared-dynamics)), and
   nothing else about optics.
@@ -1008,13 +1241,24 @@ example cohort churn against fee changes. Name it only from that evidence.
 - For models that declare behaviour, `triz_behavior` decides a finite relational question:
   whether a concept's input→deliverable relation, a trimmed model's or any other's, equals the
   baseline's. Series composition is Mathlib's `Relation.Comp`, and its associativity is
-  Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
-  that the trace is monotone, that the trace of a swap is the identity, that every value is a
-  steady state of an identity loop, and that a negation loop has none. These are semantic sanity
-  lemmas; no verdict cites them. The evaluator is checked by tests, not extracted from these
-  statements, and `triz_behavior`'s verdicts are not certified per instance. The weakness
-  certificates restate composition from the declared rows (`Rows.relation`) and decide it
-  there; they do not certify the evaluator either.
+  Mathlib's `Relation.comp_assoc`. `theory/CategoricalTriz.lean` proves sanity lemmas: that
+  composition and the trace are monotone, that the trace of a swap is the identity, that every
+  value is a steady state of an identity loop, and that a negation loop has none.
+  `theory/Semantics.lean` defines the steady-state semantics of an open diagram and proves it
+  compositional ([Compositional semantics](#compositional-semantics)):
+  - series gluing with the interface fully exposed is `Relation.Comp`;
+  - a disjoint union is the product;
+  - feedback is `relTrace`;
+  - widening a box widens the relation;
+  - diagrams up to their relations form a category with a faithful functor to `RelCat`.
+
+  No verdict cites these theorems. The evaluator is not extracted from them. A brute-force
+  transcription of the Lean definition agrees with it on 400 seeded random models and on the
+  examples. That agreement is evidence on those models, not a proof about the evaluator. The
+  agreement is with the semantics of the upstream part the evaluator composes; Lean does not
+  relate that part to the whole model. The verdicts are not certified per instance.
+  The weakness certificates restate composition from the declared rows (`Rows.relation`) and
+  decide it there; they do not certify the evaluator either.
 - The weakest specification is decided for one box without behaviour only. With several, the
   safe relations are not a product of per-box residuals, so none is computed.
   - It is the residual of the declared context. It says what the box must do for the concept's
@@ -1069,7 +1313,8 @@ example cohort churn against fee changes. Name it only from that evidence.
 - A `preserved` verdict holds for the relations as declared. Whether they are true, the
   absorber's above all, is outside the kernel, and so are the absorber's new harms. Its added
   cost is `triz_feasibility`'s question. Downstream boxes are not composed; see
-  `partialDownstream`.
+  `partialDownstream`, which lists only the partial ones. A total downstream box in a loop, or
+  a downstream port fed by several wires, can also rule out steady states of the whole model.
 - `compare_to` compares the baseline's deliverables only. A concept that gains a deliverable
   can read `preserved`; `gainedDeliverables` lists them. `box_map` renames boxes; it does not
   say that the parts are the box, physically or economically.

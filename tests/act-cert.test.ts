@@ -150,7 +150,10 @@ test("generation fails closed", () => {
   const cells = Array.from({ length: 100 }, (_, i) => `c${i}`);
   const big = separationCertificate({ id: "big", parameter: "p", axes: { space: cells, time: cells }, demands: ["w", "x", "y", "z"].map((v) => ({ id: v, values: [v] })) });
   assert.ok(!big.ok && big.errors[0].includes(`certificate limit of ${MAX_CERT_WORK}`));
-  assert.deepEqual(modelCertificate(example("bearing-heat"), { namespace: "end x" }), { ok: false, errors: ["namespace 'end x' must be a capitalised alphanumeric Lean identifier"] });
+  const named = modelCertificate(example("bearing-heat"), { namespace: "end x" });
+  assert.deepEqual(!named.ok && named.errors, ["namespace 'end x' must be a capitalised alphanumeric Lean identifier"]);
+  assert.deepEqual(!named.ok && named.issues.map((i) => [i.code, i.path]), [["invalid-namespace", "$.namespace"]]);
+  assert.deepEqual(!mistyped.ok && mistyped.issues.map((i) => i.path), checkModel(bad, "$.model").issues.map((i) => i.path));
 });
 
 test("tools: triz_export format lean and triz_separate certificate", async () => {
@@ -201,7 +204,8 @@ test("the checker names each theorem as Lean does, so a commented-out namespace 
 test("namespaces that are Lean keywords are refused", () => {
   const empty: FunctionModel = { domain: "physical", carriers: [], boxes: [], wires: [] };
   for (const ns of RESERVED_NAMESPACES) {
-    assert.deepEqual(modelCertificate(empty, { namespace: ns }), { ok: false, errors: [`namespace '${ns}' is a Lean keyword`] });
+    const refused = modelCertificate(empty, { namespace: ns });
+    assert.deepEqual(!refused.ok && [refused.errors, refused.issues.map((i) => i.code)], [[`namespace '${ns}' is a Lean keyword`], ["invalid-namespace"]]);
     assert.ok(lint(content(modelCertificate(empty, { namespace: "Empty" })).replace(/\bEmpty\b/g, ns)).some((p) => /unexpected namespace/.test(p)), ns);
   }
   assert.ok(modelCertificate(empty, { namespace: "Empty" }).ok);

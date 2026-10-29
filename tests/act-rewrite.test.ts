@@ -40,7 +40,7 @@ test("rewrite: no-dangling, fresh ids, and a typed result are all enforced", () 
   assert.match(errors(rewrite(m, { add: { wires: [{ ...m.wires[0], id: "w-new", carrier: "heat" }] } })), /^result: wire 'w-new'/);
   const ok = rewrite(m, { delete: { boxes: ["bearing"], wires: ["w-support", "w-heat", "w-preload"] }, add: { wires: [{ id: "w-support", from: { box: "housing", port: "bore" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful" }] } });
   assert.ok(ok.ok);
-  assert.deepEqual(checkModel(ok.model), { ok: true, errors: [] });
+  assert.deepEqual(checkModel(ok.model), { ok: true, errors: [], issues: [] });
   // A deleted wire id may be reused by an added wire: delete-then-add, as in a rule's right side.
   assert.deepEqual(harmLoops(ok.model), []);
 });
@@ -249,7 +249,7 @@ test("property: constructions on generated models type-check, and restriction co
 
     for (const x of results) {
       assert.ok(x.ok, `seed ${seed}: ${x.errors?.join("; ")}`);
-      assert.deepEqual(checkModel(x.model!), { ok: true, errors: [] }, `seed ${seed}`);
+      assert.deepEqual(checkModel(x.model!), { ok: true, errors: [], issues: [] }, `seed ${seed}`);
       applied++;
     }
 

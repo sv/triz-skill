@@ -21,7 +21,7 @@ recalling principle numbers or matrix cells.
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
 | `triz_function_model(model, compare_to?, box_map?, mpv_weights?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape; with `mpv_weights`, the comparison over the main parameters of value only, by explicit weights |
-| `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it |
+| `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it; excessive and insufficient functions come back as level problems |
 | `triz_separate(contradiction, along?, certificate?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis; each separated pair gets `suggestions` (hints: the operations that could build it on each separating axis); with `certificate`, also return a Lean certificate |
 | `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks, and which principles have none |
 | `triz_rule_apply(model, rule_id \| rule, at?, match?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback) |
@@ -35,6 +35,14 @@ recalling principle numbers or matrix cells.
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.
+
+When a model tool returns `ok: false`, read `issues`, not just `errors`: each names a stable
+`code`, the `path` of the argument at fault, and a `hint` with the fix. Correct the input at that
+path and call again; do not reason over a result that failed. `triz_function_model`,
+`triz_trim`, and `triz_behavior` also return `warnings` (lints that never change a verdict);
+`triz_trim` poses excessive and insufficient functions as `levelProblems`; `triz_nine_windows`
+returns the models its transitions produce under `derived`. categorical-model.md tabulates the
+codes.
 
 ## Route by stage
 

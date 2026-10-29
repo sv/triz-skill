@@ -32,6 +32,7 @@
  * hosted Worker bundles it.
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
+import { at, fail, issue, quoted, type Failure } from "./act-issues.js";
 import { plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable } from "./act-behavior.js";
 import { boundedDynamics, type DynamicsSpec } from "./act-dynamics.js";
 
@@ -41,7 +42,6 @@ export const MAX_CERT_WORK = 100_000;
 export const MAX_CERT_WIRING = 250_000;
 export const DEFAULT_NAMESPACE = "TrizCertificate";
 
-type Failure = { ok: false; errors: string[] };
 export interface Certified { theorem: string; verdict: string; }
 export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[] } | Failure;
 
@@ -113,7 +113,8 @@ function wiringSection(model: FunctionModel, certifies: Certified[], ns: string)
     }
   });
   if (model.wires.length * ports.length > MAX_CERT_WIRING) {
-    return { ok: false, errors: [`${model.wires.length} functions × ${ports.length} ports exceeds the certificate limit of ${MAX_CERT_WIRING}`] };
+    return fail([issue("cap-exceeded", "$.model", `${model.wires.length} functions × ${ports.length} ports exceeds the certificate limit of ${MAX_CERT_WIRING}`,
+      "Certify a smaller model (restrict it to a subsystem), or export it as dot or hypergraph, which have no such limit.")]);
   }
   const end = (box: string, side: "in" | "out", port: string) => `(${boxIndex.get(box)}, ${portIndex.get(key(box, side, port))})`;
   const lines = [
@@ -164,7 +165,7 @@ function wiringSection(model: FunctionModel, certifies: Certified[], ns: string)
       for (let s = 1; s + 1 < cycle.path.length; s++) {
         const [a, b] = [cycle.path[s], cycle.path[s + 1]];
         const step = model.wires.findIndex((x) => x.from.box === a && x.to.box === b);
-        if (step < 0) return { ok: false, errors: [`harmLoops witness for '${cycle.via}': no function from '${a}' to '${b}'`] };
+        if (step < 0) return fail([issue("internal-error", "$.model", `harmLoops witness for '${cycle.via}': no function from '${a}' to '${b}'`, "Report this with the model; the kernel's witness and its certificate disagree.")]);
         steps.push(`.head (b := ${boxIndex.get(b)}) ⟨${step}, Set.mem_univ _, rfl, rfl⟩`);
       }
       // The kernel compares each endpoint with a literal box index, never two table lookups with
@@ -186,8 +187,8 @@ function wiringSection(model: FunctionModel, certifies: Certified[], ns: string)
 }
 
 /** One physical contradiction in its own namespace: the base and demands as tables, then each verdict. */
-function separationSection(pc: PhysicalContradiction, sub: string, certifies: Certified[], ns: string): string[] | Failure {
-  const r = separationCheck(pc);
+function separationSection(pc: PhysicalContradiction, sub: string, certifies: Certified[], ns: string, root = "$"): string[] | Failure {
+  const r = separationCheck(pc, root);
   if (!r.ok) return r;
   const { universe, region } = baseOf(pc);
   const axes = AXES.filter((a) => universe[a].length);
@@ -195,7 +196,8 @@ function separationSection(pc: PhysicalContradiction, sub: string, certifies: Ce
   const cells = axes.reduce((n, a) => n * universe[a].length, 1);
   const work = cells * pc.demands.length * values.length;
   if (work > MAX_CERT_WORK) {
-    return { ok: false, errors: [`contradiction '${pc.id}': ${cells} cells × ${pc.demands.length} demands × ${values.length} values exceeds the certificate limit of ${MAX_CERT_WORK}`] };
+    return fail([issue("cap-exceeded", root, `contradiction '${pc.id}': ${cells} cells × ${pc.demands.length} demands × ${values.length} values exceeds the certificate limit of ${MAX_CERT_WORK}`,
+      "Declare fewer cells or values, or certify a coarser contradiction; the separation verdicts without a certificate have a higher limit.")]);
   }
   const demand = new Map(pc.demands.map((d, i) => [d.id, i]));
   const value = (v: string) => values.indexOf(v);
@@ -264,7 +266,7 @@ function separationSection(pc: PhysicalContradiction, sub: string, certifies: Ce
         continue;
       }
       const c = region(di, a).find((x) => region(dj, a).includes(x));
-      if (c === undefined) return { ok: false, errors: [`separationCheck witness for ${label}: no shared ${a} cell`] };
+      if (c === undefined) return fail([issue("internal-error", root, `separationCheck witness for ${label}: no shared ${a} cell`, "Report this with the contradiction; the kernel's verdict and its certificate disagree.")]);
       shared.push(cellIn(a, c));
       lines.push(...theorem(`Axis ${a} does not separate demands ${i} and ${j}: they share cell ${cellIn(a, c)}.`,
         `${name}_${a}`, `(${a} ${i} ∩ ${a} ${j}).Nonempty`, `⟨${cellIn(a, c)}, by decide +kernel⟩`));
@@ -305,34 +307,34 @@ function assemble(what: string, ns: string, sections: string[][]) {
 
 function namespaceOf(opts: { namespace?: string }): string | Failure {
   const ns = opts.namespace ?? DEFAULT_NAMESPACE;
-  if (!NAMESPACE.test(ns)) return { ok: false, errors: [`namespace '${ns}' must be a capitalised alphanumeric Lean identifier`] };
-  return RESERVED_NAMESPACES.has(ns) ? { ok: false, errors: [`namespace '${ns}' is a Lean keyword`] } : ns;
+  if (!NAMESPACE.test(ns)) return fail([issue("invalid-namespace", "$.namespace", `namespace '${ns}' must be a capitalised alphanumeric Lean identifier`, `Use a capitalised alphanumeric name such as '${DEFAULT_NAMESPACE}'.`)]);
+  return RESERVED_NAMESPACES.has(ns) ? fail([issue("invalid-namespace", "$.namespace", `namespace '${ns}' is a Lean keyword`, `Pick a name that is not a Lean keyword, such as '${DEFAULT_NAMESPACE}'.`)]) : ns;
 }
 
 /** Certificate for a model: typing, harm-loop witnesses, and each embedded contradiction. Fails closed. */
 export function modelCertificate(model: FunctionModel, opts: { namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
-  const check = checkModel(model);
-  if (!check.ok) return { ok: false, errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return fail(check.issues);
   const certifies: Certified[] = [];
   const wiring = wiringSection(model, certifies, ns);
   if (!Array.isArray(wiring)) return wiring;
   const sections = [wiring];
   for (const [k, pc] of (model.contradictions ?? []).entries()) {
-    const s = separationSection(pc, `Separation${k}`, certifies, ns);
-    if (!Array.isArray(s)) return { ok: false, errors: s.errors.map((e) => (e.startsWith("contradiction ") ? e : `contradiction '${pc.id}': ${e}`)) };
+    const s = separationSection(pc, `Separation${k}`, certifies, ns, at("$.model", "contradictions", k));
+    if (!Array.isArray(s)) return { ok: false, errors: s.errors.map((e) => (e.startsWith("contradiction ") ? e : `contradiction '${pc.id}': ${e}`)), issues: s.issues.map((i) => (i.message.startsWith("contradiction ") ? i : { ...i, message: `contradiction '${pc.id}': ${i.message}` })) };
     sections.push(s);
   }
   return { ok: true, namespace: ns, content: assemble("one function model", ns, sections), certifies };
 }
 
 /** Certificate for one physical contradiction's separation verdicts. Fails closed. */
-export function separationCertificate(pc: PhysicalContradiction, opts: { namespace?: string } = {}): Certificate {
+export function separationCertificate(pc: PhysicalContradiction, opts: { namespace?: string; root?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
   const certifies: Certified[] = [];
-  const s = separationSection(pc, "Separation0", certifies, ns);
+  const s = separationSection(pc, "Separation0", certifies, ns, opts.root);
   if (!Array.isArray(s)) return s;
   return { ok: true, namespace: ns, content: assemble("one physical contradiction", ns, [s]), certifies };
 }
@@ -421,15 +423,29 @@ const rowWork = (checks: number, rows: number, ports: number, wires: number) => 
 export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, opts: { namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
-  if (spec.inputs) return { ok: false, errors: ["an input sequence indexes the runs by time; a certificate covers runs without inputs"] };
-  if (!spec.unsafe) return { ok: false, errors: ["pass unsafe: the certificate states an escalation into it"] };
+  if (spec.inputs) {
+    return fail([issue("certificate-input-sequence", "$.inputs", "an input sequence indexes the runs by time; a certificate covers runs without inputs",
+      "Drop inputs to certify the escalation over every boundary value, or keep inputs and read the verdict without a certificate.")]);
+  }
+  if (!spec.unsafe) {
+    return fail([issue("certificate-needs-unsafe", "$.unsafe", "pass unsafe: the certificate states an escalation into it",
+      "Pass unsafe, the target set whose reachability the certificate states, e.g. [{ box, state: [...] }].")]);
+  }
   const r = boundedDynamics(model, spec);
   if (!r.ok) return r;
-  if (!r.decided) return { ok: false, errors: [r.note] };
+  if (!r.decided) {
+    return fail([issue("not-certifiable", "$.model", r.note, `Declare behavior or transition for ${quoted(r.missingBehavior)}; the runs depend on them, so nothing is decided to certify.`)]);
+  }
   const esc = r.escalation!;
-  if (esc.verdict !== "reachable") return { ok: false, errors: [`the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, is certified`] };
+  if (esc.verdict !== "reachable") {
+    return fail([issue("not-certifiable", "$.unsafe", `the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, is certified`,
+      esc.verdict === "unreachable-within-horizon" ? "Raise horizon if a longer run may reach the set; an unreachable verdict is a claim about every run, which a trace cannot witness." : "Read the verdict without a certificate: it is a claim about every run, which a trace cannot witness.")]);
+  }
   const last = esc.trace[esc.trace.length - 1];
-  if (!last.values) return { ok: false, errors: ["the trace ends in a blocked state, which has no valuation to certify"] };
+  if (!last.values) {
+    return fail([issue("not-certifiable", "$.unsafe", "the trace ends in a blocked state, which has no valuation to certify",
+      "Declare the rows the blocked state lacks (blocked.first names it), so the run has a valuation there.")]);
+  }
 
   const byId = new Map(model.boxes.map((b) => [b.id, b]));
   const composed = r.composed.map((id) => byId.get(id)!);
@@ -445,7 +461,10 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
   const wires = encodedWires(model, at);
   const work = rowWork(esc.trace.length + 2, rows.length, ports.length, wires.length);
-  if (work > MAX_CERT_ROWS) return { ok: false, errors: [`deciding the trace reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`] };
+  if (work > MAX_CERT_ROWS) {
+    return fail([issue("cap-exceeded", "$.model", `deciding the trace reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
+      "Remove repeated rows, declare fewer ports or rows on the composed boxes, or certify a smaller part of the model.")]);
+  }
 
   // Targets as Bool tables: a condition on a box's state or a port's value; several on one intersect.
   const stateOk = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length));
@@ -466,7 +485,9 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     return `(${vec(st)}, ${vec(vl)})`;
   };
   // Every step of the trace except the last steps on; the last is the unsafe configuration.
-  if (esc.trace.slice(0, -1).some((st) => !st.values)) return { ok: false, errors: ["the trace blocks before its end"] };
+  if (esc.trace.slice(0, -1).some((st) => !st.values)) {
+    return fail([issue("internal-error", "$.unsafe", "the trace blocks before its end", "Report this: a returned trace blocks only at its last step.")]);
+  }
   const k = esc.time;
   const lines = [
     "/-! ## The composed boxes as finite data -/",
@@ -513,9 +534,14 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
   if (typeof ns !== "string") return ns;
   const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates });
   if (!r.ok) return r;
-  if (r.verdict !== "ranked") return { ok: false, errors: [`the ranking is ${r.verdict}: ${r.note}`] };
+  if (r.verdict !== "ranked") {
+    return fail([issue("not-certifiable", "$.concepts", `the ranking is ${r.verdict}: ${r.note}`, "Decide the ranking first (declare the missing behaviour, or lower the values past the cap); only a decided strict inclusion is certified.")]);
+  }
   const strict = r.pairs.filter((p) => p.order === "first-weaker" || p.order === "second-weaker");
-  if (!strict.length) return { ok: false, errors: ["no pair is strictly ordered: only a strict inclusion (first-weaker or second-weaker) is certified"] };
+  if (!strict.length) {
+    return fail([issue("not-certifiable", "$.concepts", "no pair is strictly ordered: only a strict inclusion (first-weaker or second-weaker) is certified",
+      "Read pairs without a certificate: an incomparable or equal pair states no strict inclusion.")]);
+  }
 
   // Value indices: one order per carrier id, the sorted union of its values in every concept. A
   // function's two ends share a carrier, and a situation or deliverable is read the same way in
@@ -549,7 +575,10 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
   for (const p of strict) {
     const pair = p.concepts.map((id) => encoded.find((e) => e.id === id)!);
     const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.ports.length), e.rows.length, e.ports.length, e.wires.length), 0);
-    if (work > MAX_CERT_ROWS) return { ok: false, errors: [`concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`] };
+    if (work > MAX_CERT_ROWS) {
+      return fail([issue("cap-exceeded", "$.concepts", `concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
+        "Certify smaller concepts: fewer ports or values on the composed boxes. The decision enumerates every valuation of each concept's ports.")]);
+    }
   }
 
   // The acceptable values the ranking used: derived from a threshold (listed in the result), else given for the port, else for its carrier.

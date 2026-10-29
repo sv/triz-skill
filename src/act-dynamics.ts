@@ -40,8 +40,9 @@ import { z } from "zod";
 import { checkModel, harmLoops, type FunctionModel } from "./act.js";
 import { MAX_STATES, bindRow, joinRows, portVariables, type Binding, type Box, type PortVariables, type Typed } from "./act-behavior.js";
 import type { Theorem } from "./act-basis.js";
+// `at` and `where` are local names here, so the path helpers go by `jp` and `where_`.
+import { at as jp, fail, issue, quoted, second, unknownBox, where as where_, type Issue } from "./act-issues.js";
 
-type Failure = { ok: false; errors: string[] };
 
 export const MAX_HORIZON = 1000;
 export const DEFAULT_HORIZON = 20;
@@ -130,61 +131,77 @@ function plan(model: FunctionModel, observed: Set<string>): Plan {
 }
 
 /** Targets, initial states, inputs, horizon, and windows name declared boxes, ports, states, and values. Fail closed. */
-function specErrors(model: FunctionModel, spec: DynamicsSpec, horizon: number): string[] {
-  const errors: string[] = [];
+function specIssues(model: FunctionModel, spec: DynamicsSpec, horizon: number): Issue[] {
+  const issues: Issue[] = [];
+  const push = (code: Issue["code"], path: string, message: string, hint: string) => issues.push(issue(code, path, message, hint));
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
   const values = new Map(model.carriers.map((c) => [c.id, c.values]));
-  const condition = (where: string, c: Condition) => {
+  const stateful = quoted(model.boxes.filter((b) => b.state).map((b) => b.id));
+  const condition = (where: string, path: string, c: Condition) => {
     const b = boxes.get(c.box);
-    if (!b) { errors.push(`${where}: unknown box '${c.box}'`); return; }
+    if (!b) { issues.push(unknownBox(model, c.box, jp(path, "box"), `${where}: `)); return; }
     if ("state" in c) {
-      if (!b.state) { errors.push(`${where}: box '${c.box}' declares no state`); return; }
-      for (const s of c.state) if (!b.state.includes(s)) errors.push(`${where}: state '${s}' is not declared by box '${c.box}'`);
+      if (!b.state) { push("no-state", jp(path, "box"), `${where}: box '${c.box}' declares no state`, `A state condition names a box that declares state: ${stateful}. For a stateless box, give a port condition { box, port, values }.`); return; }
+      c.state.forEach((s, k) => {
+        if (!b.state!.includes(s)) push("undeclared-state", jp(path, "state", k), `${where}: state '${s}' is not declared by box '${c.box}'`, `Use states '${c.box}' declares: ${quoted(b.state!)}.`);
+      });
       return;
     }
     const p = [...(b.inputs ?? []), ...(b.outputs ?? [])].find((q) => q.id === c.port);
-    if (!p) { errors.push(`${where}: box '${c.box}' has no port '${c.port}'`); return; }
+    if (!p) { push("unknown-port", jp(path, "port"), `${where}: box '${c.box}' has no port '${c.port}'`, `Use a port of '${c.box}': ${quoted([...(b.inputs ?? []), ...(b.outputs ?? [])].map((q) => q.id))}.`); return; }
     const declared = values.get(p.carrier);
-    if (!declared) { errors.push(`${where}: carrier '${p.carrier}' of port '${c.box}.${c.port}' declares no values`); return; }
-    for (const x of c.values) if (!declared.includes(x)) errors.push(`${where}: value '${x}' of port '${c.box}.${c.port}' is not declared by carrier '${p.carrier}'`);
+    if (!declared) { push("no-declared-values", where_.carrier(model, p.carrier, "$.model"), `${where}: carrier '${p.carrier}' of port '${c.box}.${c.port}' declares no values`, `Declare values on carrier '${p.carrier}' to test port '${c.box}.${c.port}'.`); return; }
+    c.values.forEach((x, k) => {
+      if (!declared.includes(x)) push("undeclared-value", jp(path, "values", k), `${where}: value '${x}' of port '${c.box}.${c.port}' is not declared by carrier '${p.carrier}'`, `Use values of carrier '${p.carrier}': ${quoted(declared)}.`);
+    });
   };
-  (spec.unsafe ?? []).forEach((c, i) => condition(`unsafe[${i}]`, c));
-  (spec.safe ?? []).forEach((c, i) => condition(`safe[${i}]`, c));
+  (spec.unsafe ?? []).forEach((c, i) => condition(`unsafe[${i}]`, jp("$.unsafe", i), c));
+  (spec.safe ?? []).forEach((c, i) => condition(`safe[${i}]`, jp("$.safe", i), c));
   const demands = spec.separation ?? [];
-  if (spec.separation && demands.length < 2) errors.push("separation needs at least two demands");
-  for (const id of duplicates(demands.map((d) => d.id))) errors.push(`separation: duplicate demand id '${id}'`);
-  for (const d of demands) {
-    d.where.forEach((c, i) => condition(`separation '${d.id}' where[${i}]`, c));
-    if (d.window.from > d.window.to) errors.push(`separation '${d.id}': window from ${d.window.from} is after to ${d.window.to}`);
-    if (d.window.to > horizon) errors.push(`separation '${d.id}': window ends at ${d.window.to}, after the horizon ${horizon}`);
-  }
-  demands.forEach((d, i) => demands.slice(i + 1).forEach((e) => {
+  if (spec.separation && demands.length < 2) push("too-few-members", "$.separation", "separation needs at least two demands", "Give two to four demands, each a target set with a time window.");
+  const demandIds = demands.map((d) => d.id);
+  for (const id of duplicates(demandIds)) push("duplicate-id", jp("$.separation", second(demandIds, id), "id"), `separation: duplicate demand id '${id}'`, `Rename one of the two demands '${id}'.`);
+  demands.forEach((d, k) => {
+    d.where.forEach((c, i) => condition(`separation '${d.id}' where[${i}]`, jp("$.separation", k, "where", i), c));
+    if (d.window.from > d.window.to) push("window-invalid", jp("$.separation", k, "window"), `separation '${d.id}': window from ${d.window.from} is after to ${d.window.to}`, `Swap from and to: a window runs from its earliest time to its latest, inclusive.`);
+    if (d.window.to > horizon) push("window-invalid", jp("$.separation", k, "window", "to"), `separation '${d.id}': window ends at ${d.window.to}, after the horizon ${horizon}`, `End the window by time ${horizon}, or raise horizon to at least ${d.window.to}.`);
+  });
+  demands.forEach((d, i) => demands.slice(i + 1).forEach((e, j) => {
     if (d.window.from <= e.window.to && e.window.from <= d.window.to) {
-      errors.push(`separation: the windows of '${d.id}' and '${e.id}' overlap; demands separated in time need disjoint windows`);
+      push("windows-overlap", jp("$.separation", i + 1 + j, "window"), `separation: the windows of '${d.id}' and '${e.id}' overlap; demands separated in time need disjoint windows`,
+        `Make the windows disjoint: '${d.id}' has ${d.window.from}–${d.window.to}, '${e.id}' has ${e.window.from}–${e.window.to}.`);
     }
   }));
   for (const [id, states] of Object.entries(spec.initial ?? {})) {
     const b = boxes.get(id);
-    if (!b) { errors.push(`initial: unknown box '${id}'`); continue; }
-    if (!b.state) { errors.push(`initial: box '${id}' declares no state`); continue; }
-    for (const s of states) if (!b.state.includes(s)) errors.push(`initial: state '${s}' is not declared by box '${id}'`);
+    if (!b) { issues.push(unknownBox(model, id, jp("$.initial", id), "initial: ")); continue; }
+    if (!b.state) { push("no-state", jp("$.initial", id), `initial: box '${id}' declares no state`, `initial overrides the initial states of boxes that declare state: ${stateful}.`); continue; }
+    states.forEach((s, k) => {
+      if (!b.state!.includes(s)) push("undeclared-state", jp("$.initial", id, k), `initial: state '${s}' is not declared by box '${id}'`, `Use states '${id}' declares: ${quoted(b.state!)}.`);
+    });
   }
   const wired = new Set(model.wires.map((w) => tupleKey([w.to.box, w.to.port])));
+  const boundary = model.boxes.flatMap((b) => (b.inputs ?? []).filter((q) => !wired.has(tupleKey([b.id, q.id]))).map((q) => `${b.id}.${q.id}`));
   (spec.inputs ?? []).forEach((entry, t) => {
-    for (const k of duplicates(entry.map((q) => tupleKey([q.box, q.port])))) errors.push(`inputs[${t}]: port ${k} is listed twice`);
-    for (const q of entry) {
+    const keys = entry.map((q) => tupleKey([q.box, q.port]));
+    for (const k of duplicates(keys)) push("listed-twice", jp("$.inputs", t, second(keys, k)), `inputs[${t}]: port ${k} is listed twice`, "List each port once per time, with every value allowed there.");
+    entry.forEach((q, j) => {
+      const here = jp("$.inputs", t, j);
       const p = boxes.get(q.box)?.inputs?.find((x) => x.id === q.port);
-      if (!p) { errors.push(`inputs[${t}]: '${q.box}.${q.port}' is not an input port`); continue; }
-      if (wired.has(tupleKey([q.box, q.port]))) { errors.push(`inputs[${t}]: input port '${q.box}.${q.port}' is wired; only unwired (boundary) inputs can be set`); continue; }
+      if (!p) { push("not-boundary-input", here, `inputs[${t}]: '${q.box}.${q.port}' is not an input port`, `Set unwired input ports only: ${quoted(boundary)}.`); return; }
+      if (wired.has(tupleKey([q.box, q.port]))) { push("not-boundary-input", here, `inputs[${t}]: input port '${q.box}.${q.port}' is wired; only unwired (boundary) inputs can be set`, `A wired input takes the value its function delivers. Set unwired input ports only: ${quoted(boundary)}.`); return; }
       const declared = values.get(p.carrier);
-      if (!declared) { errors.push(`inputs[${t}]: carrier '${p.carrier}' of port '${q.box}.${q.port}' declares no values`); continue; }
-      for (const x of q.values) if (!declared.includes(x)) errors.push(`inputs[${t}]: value '${x}' of port '${q.box}.${q.port}' is not declared by carrier '${p.carrier}'`);
-    }
+      if (!declared) { push("no-declared-values", where_.carrier(model, p.carrier, "$.model"), `inputs[${t}]: carrier '${p.carrier}' of port '${q.box}.${q.port}' declares no values`, `Declare values on carrier '${p.carrier}'.`); return; }
+      q.values.forEach((x, k) => {
+        if (!declared.includes(x)) push("undeclared-value", jp(here, "values", k), `inputs[${t}]: value '${x}' of port '${q.box}.${q.port}' is not declared by carrier '${p.carrier}'`, `Use values of carrier '${p.carrier}': ${quoted(declared)}.`);
+      });
+    });
   });
   if (spec.inputs && horizon > spec.inputs.length - 1) {
-    errors.push(`horizon ${horizon} needs ${horizon + 1} input entries (times 0 to ${horizon}); inputs has ${spec.inputs.length}`);
+    push("horizon-inputs-mismatch", "$.horizon", `horizon ${horizon} needs ${horizon + 1} input entries (times 0 to ${horizon}); inputs has ${spec.inputs.length}`,
+      `Lower horizon to ${spec.inputs.length - 1}, or give ${horizon + 1} entries in inputs (an empty entry [] allows every value).`);
   }
-  return errors;
+  return issues;
 }
 
 type Predicate = (state: string[], values: string[]) => boolean;
@@ -206,20 +223,22 @@ interface System {
   /** The global states meeting a target's state conditions; undefined when it names none. */
   meetsStates: (target: Condition[]) => ((state: string[]) => boolean) | undefined;
 }
-type Compiled = { kind: "failure"; errors: string[] } | { kind: "undecided"; plan: Plan } | ({ kind: "system" } & System);
+type Compiled = { kind: "failure"; issues: Issue[] } | { kind: "undecided"; plan: Plan } | ({ kind: "system" } & System);
 
 function compile(model: FunctionModel, spec: DynamicsSpec): Compiled {
-  const check = checkModel(model);
-  if (!check.ok) return { kind: "failure", errors: check.errors };
+  const check = checkModel(model, "$.model");
+  if (!check.ok) return { kind: "failure", issues: check.issues };
   const horizon = horizonOf(spec);
   if (!Number.isInteger(horizon) || horizon < 0 || horizon > MAX_HORIZON) {
-    return { kind: "failure", errors: [`horizon must be an integer from 0 to ${MAX_HORIZON}; got ${horizon}`] };
+    return { kind: "failure", issues: [issue("horizon-out-of-range", spec.horizon === undefined ? "$.inputs" : "$.horizon", `horizon must be an integer from 0 to ${MAX_HORIZON}; got ${horizon}`, `Set horizon to an integer from 0 to ${MAX_HORIZON}${spec.inputs ? ", or give 1 to " + (MAX_HORIZON + 1) + " input entries" : ""}.`)] };
   }
-  const errors = specErrors(model, spec, horizon);
-  if (errors.length) return { kind: "failure", errors };
+  const issues = specIssues(model, spec, horizon);
+  if (issues.length) return { kind: "failure", issues };
   const named = [...spec.unsafe ?? [], ...spec.safe ?? [], ...(spec.separation ?? []).flatMap((d) => d.where)].map((c) => c.box);
   const observed = new Set([...model.boxes.filter((b) => b.transition).map((b) => b.id), ...named]);
-  if (!observed.size) return { kind: "failure", errors: [NOTHING] };
+  if (!observed.size) {
+    return { kind: "failure", issues: [issue("nothing-to-explore", "$.model", NOTHING, "Declare state, initial, and transition rows on the box with memory, or pass unsafe, safe, or separation naming a box to observe.")] };
+  }
   const p = plan(model, observed);
   if (p.missing.length) return { kind: "undecided", plan: p };
 
@@ -227,7 +246,8 @@ function compile(model: FunctionModel, spec: DynamicsSpec): Compiled {
   const initial = machines.map((b) => (spec.initial && Object.hasOwn(spec.initial, b.id) ? spec.initial[b.id] : b.initial ?? []));
   const uninitialised = machines.filter((_, k) => !initial[k].length).map((b) => b.id);
   if (uninitialised.length) {
-    return { kind: "failure", errors: uninitialised.map((id) => `box '${id}' declares state but no initial states: declare initial on the box, or pass initial`) };
+    return { kind: "failure", issues: uninitialised.map((id) => issue("uninitialised-state", where_.box(model, id, "$.model"), `box '${id}' declares state but no initial states: declare initial on the box, or pass initial`,
+      `Declare initial on '${id}' (a subset of its state), or pass initial: { '${id}': [...] }.`)) };
   }
   const vars = portVariables(model, p.composed);
   const portsOf = (b: Box) => [...new Set([...(b.inputs ?? []).map((q) => vars.at(b.id, "in", q.id)), ...(b.outputs ?? []).map((q) => vars.at(b.id, "out", q.id))])];
@@ -355,7 +375,8 @@ function runErrors(s: System, trace: RunStep[], from: "initial" | "safe" = "init
  */
 export function checkRun(model: FunctionModel, spec: DynamicsSpec, trace: RunStep[], from: "initial" | "safe" = "initial") {
   const s = compile(model, spec);
-  if (s.kind === "failure") return { ok: false as const, errors: s.errors };
+  // A trace verifier, not a tool: it reports the rejected steps as messages only.
+  if (s.kind === "failure") return { ok: false as const, errors: s.issues.map((i) => i.message) };
   if (s.kind === "undecided") return { ok: false as const, errors: [`declare behavior or transition for ${s.plan.missing.map((id) => `'${id}'`).join(", ")}`] };
   const errors = runErrors(s, trace, from, spec.safe);
   return { ok: errors.length === 0, errors };
@@ -369,7 +390,7 @@ export function checkRun(model: FunctionModel, spec: DynamicsSpec, trace: RunSte
  */
 export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
   const s = compile(model, spec);
-  if (s.kind === "failure") return { ok: false as const, errors: s.errors };
+  if (s.kind === "failure") return fail(s.issues);
   if (s.kind === "undecided") {
     return {
       ok: true as const, decided: false as const, missingBehavior: s.plan.missing, composed: s.plan.composed.map((b) => b.id),
@@ -379,11 +400,15 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
   const horizon = horizonOf(spec);
   const max = spec.maxStates ?? MAX_STATES;
   const starts = product(s.initial.map((x) => x.length));
-  if (starts > max) return { ok: false as const, errors: [`the initial states have ${starts} combinations; the cap is ${max}. Declare fewer initial states`] };
+  if (starts > max) {
+    return fail([issue("cap-exceeded", spec.initial ? "$.initial" : "$.model", `the initial states have ${starts} combinations; the cap is ${max}. Declare fewer initial states`,
+      "Declare fewer initial states per stateful box, or pass initial to start from one configuration.")]);
+  }
   const budget = { explored: 0, max };
   const memo = new Map<string, Step[]>();
   const steps = stepper(s, budget, memo);
-  const OVERFLOW = { ok: false as const, errors: [`the bounded search passed ${max} states. Lower the horizon, declare fewer states or values, or split the model`] };
+  const OVERFLOW = fail([issue("cap-exceeded", spec.horizon === undefined ? "$.model" : "$.horizon", `the bounded search passed ${max} states. Lower the horizon, declare fewer states or values, or split the model`,
+    "Lower horizon, constrain inputs per time, declare fewer states or carrier values, or split the model.")]);
   const verified = (trace: RunStep[], from: "initial" | "safe" = "initial") => {
     const errors = runErrors(s, trace, from, spec.safe);
     // The search only follows admitted rows; never emit a trace the declared rows reject.
