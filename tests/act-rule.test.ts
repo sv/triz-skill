@@ -281,6 +281,7 @@ test("trend rule working-field: the same function on another carrier, with the f
   assert.match(errors(applyRule(m, rule, match, { carriers: { d: "torque" } })), /^distinct: carrier variables 'c' and 'd' both bind carrier 'torque'/);
   const r = only(applyRule(m, rule, match, { carriers: { d: "magnetic" } }));
   assert.ok(checkModel(r.model).ok);
+  assert.deepEqual(r.basis, ["typed_dpo"]);
   assert.deepEqual(r.deleted, { boxes: [], ports: [{ box: "motor", port: "shaft-out" }, { box: "shaft", port: "drive" }], wires: ["w-drive"] });
   assert.deepEqual(r.model.wires.find((w) => w.id === "w-drive-2"), { id: "w-drive-2", from: { box: "motor", port: "field" }, to: { box: "shaft", port: "field" }, carrier: "magnetic", polarity: "useful", verb: "rotate" });
   assert.deepEqual(r.fieldChanges, [{
