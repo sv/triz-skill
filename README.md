@@ -186,7 +186,8 @@ decides a concept against a baseline instead of only screening it: `preserved`, 
 a counterexample input, or `undecided` (boxes that need behaviour, or no steady state in either
 model). The concept can be a trim or any `triz_transform` result; a segment's `boxMap` maps its
 parts back. Segmentation gives each part its projection of the box's relation when that relation
-is the product of the projections, and Intermediary's mediator can declare an identity relation.
+is the product of the projections, and suggests the finest partition of the box's ports for
+which it is; Intermediary's mediator can declare an identity relation.
 The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
 weakest specification for the one box without behaviour, such as an absorber: every row that
 keeps the relation inside the target. The verdict is `spec` when that specification also covers

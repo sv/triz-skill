@@ -33,7 +33,7 @@
  * absorber's above all, is outside the kernel.
  */
 import { checkModel, type FunctionModel } from "./act.js";
-import { applyTrim, mapBoxes } from "./act-rewrite.js";
+import { applyTrim, finestFactorisation, mapBoxes, type Factorisation } from "./act-rewrite.js";
 import { thresholdValues } from "./act-levels.js";
 import type { Theorem } from "./act-basis.js";
 // `at` is a local name for lookups here, so the path helper goes by `jp`.
@@ -284,6 +284,21 @@ function summary(e: Evaluation, p: Plan) {
   };
 }
 
+/**
+ * Segmentation hints: each composed box whose declared relation is the product of its projections
+ * onto two or more groups of ports, with the finest such groups (finestFactorisation). Segmenting
+ * the box into them, or unions of them, gives each part its projection. A box past the cap is
+ * listed undecided.
+ */
+export function factorisationsOf(boxes: Box[], opts: { maxSteps?: number } = {}) {
+  type Entry = { box: string } & Factorisation & { note: string };
+  return boxes.flatMap((b): Entry[] => {
+    const f = finestFactorisation(b, opts);
+    if (!f.decided) return [{ box: b.id, ...f }];
+    return f.parts.length > 1 ? [{ box: b.id, ...f, note: `'${b.id}''s relation is the product of its projections onto ${f.parts.map((g) => `[${g.join(", ")}]`).join(", ")}: triz_transform segment into these groups, or unions of them, and each part keeps its projection.` }] : [];
+  });
+}
+
 /** The model's input→deliverable relation under its declared behaviour (relational trace for feedback). */
 export function externalBehavior(model: FunctionModel, opts: { maxStates?: number } = {}) {
   const check = checkModel(model, "$.model");
@@ -299,8 +314,10 @@ export function externalBehavior(model: FunctionModel, opts: { maxStates?: numbe
   }
   const e = evaluate(model, p, deliverables, opts.maxStates ?? MAX_STATES);
   if (!e.ok) return e;
+  const factorisations = factorisationsOf(p.composed);
   return {
     ok: true as const, decided: true as const, deliverables, ...summary(e, p), assumption: ASSUMPTION,
+    ...(factorisations.length ? { factorisations } : {}),
     note: "Steady-state semantics: each output is reached by some consistent valuation, including the loop values. Nothing here says which steady state the system reaches, or how. An input with no steady state may signal a runaway loop.",
   };
 }
