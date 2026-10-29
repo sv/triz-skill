@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -14,3 +14,8 @@ name = "CategoricalTriz"
 # Non-vacuity witnesses for the lemmas above; a default target, so `lake build --wfail` and CI check them.
 [[lean_lib]]
 name = "Witnesses"
+
+# Per-instance certificates of two examples, as `triz_export` format `lean` writes them; a default
+# target, so CI checks them. tests/act-cert.test.ts keeps them equal to the generator's output.
+[[lean_lib]]
+name = "Certificates"
