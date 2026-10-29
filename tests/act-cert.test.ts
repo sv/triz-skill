@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
 import { modelCertificate, separationCertificate, leanString, MAX_CERT_WORK, type Certificate } from "../src/act-cert.js";
 import { toolSpecs } from "../src/tools.js";
-import { check, checkTampered, localLeanAvailable, tamperVariants, theorems } from "../scripts/certify.mjs";
+import { check, checkTampered, lint, localLeanAvailable, tamperVariants, theorems } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -155,6 +155,36 @@ test("tools: triz_export format lean and triz_separate certificate", async () =>
   assert.equal((await call("triz_separate", { contradiction: pc })).certificate, undefined);
 });
 
+test("the checker's grammar rejects what Lean's messages and the axiom audit cannot show", async () => {
+  const c = fs.readFileSync(fixturePath("BearingHeat"), "utf8");
+  assert.deepEqual(lint(c), []);
+  for (let seed = 1; seed <= 100; seed++) assert.deepEqual(lint(content(modelCertificate(genModel(rng(seed), { contradictions: true })))), [], `seed ${seed}`);
+  assert.deepEqual(lint(content(separationCertificate(hostile))), []);
+  assert.deepEqual(lint(content(separationCertificate(irreducible))), []);
+  const open = "open CategoricalTriz\n";
+  const contradiction = "theorem contradiction : ¬ ∃ v : Val, ∀ i, v ∈ values i :=";
+  const tampers: Record<string, string> = {
+    // With the kernel check off, `decide +kernel` admits a false verdict, and the axioms stay standard.
+    "kernel check off": c.replace(open, `${open}set_option debug.skipKernelTC true\n`).replace(contradiction, "theorem contradiction : ∃ v : Val, ∀ i, v ∈ values i :="),
+    "option inside a proof": c.replace(/decide \+kernel$/m, "set_option debug.skipKernelTC true in decide +kernel"),
+    "hidden hypothesis": c.replace(open, `${open}variable (h : False)\ninclude h\n`),
+    "redefined out": c.replace(/^ {2}out b p := .*$/m, "  out _ _ := none"),
+    "restated verdict": c.replace(contradiction, "theorem contradiction : True :="),
+    "unknown theorem": c.replace("end Separation0", "theorem bogus : True :=\n  trivial\n\nend Separation0"),
+    "own axiom": c.replace("/-! ## Verdicts -/", "axiom cheat : False\n\n/-! ## Verdicts -/"),
+    "command": c.replace("/-! ## Verdicts -/", "#exit\n\n/-! ## Verdicts -/"),
+    "character literal": c.replace("/-! ## Verdicts -/", "def q : Char := '\"'\n\n/-! ## Verdicts -/"),
+    "raw string": c.replace('def boxId : Box → String := !["motor"', 'def boxId : Box → String := ![r"motor\\"'),
+    "unclosed comment": c.replace("/-! ## Verdicts -/", "/- open"),
+  };
+  for (const [name, t] of Object.entries(tampers)) {
+    assert.notEqual(t, c, name);
+    assert.ok(lint(t).length, `${name} passed the grammar`);
+    const r = await check(t);
+    assert.ok(!r.ok && r.mode === "grammar", name);
+  }
+});
+
 test("the tamper variants are the verdicts negated and a carrier changed", () => {
   const c = fs.readFileSync(fixturePath("BearingHeat"), "utf8");
   const [negated, carrier] = tamperVariants(c);
@@ -186,8 +216,8 @@ leanTest("a tampered certificate fails to check where it was tampered", async ()
   const c = fs.readFileSync(fixturePath("SoftwareCache"), "utf8");
   const sorry = await check(c.replace(/^( {2})by intro w hw.*$/m, "$1sorry"), { mode: "local" });
   assert.ok(!sorry.ok && sorry.problems.some((p) => /sorry/.test(p)), sorry.problems.join("\n"));
-  const axiom = await check(c.replace("/-! ## Verdicts -/", "axiom cheat : False\n\n/-! ## Verdicts -/").replace(/^( {2})by intro w hw.*$/m, "$1cheat.elim"), { mode: "local" });
-  assert.ok(!axiom.ok && axiom.problems.some((p) => /non-standard axioms SoftwareCache\.cheat/.test(p)), axiom.problems.join("\n"));
+  const native = await check(c.replace(/decide \+kernel$/m, "native_decide"), { mode: "local" });
+  assert.ok(!native.ok && native.problems.some((p) => /SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), native.problems.join("\n"));
 });
 
 leanTest("Lean accepts certificates of hostile generated models and every separation shape", async () => {

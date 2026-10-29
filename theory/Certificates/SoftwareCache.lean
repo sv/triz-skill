@@ -56,8 +56,8 @@ theorem typed : diagram.Typed :=
 theorem back_0 : Relation.ReflTransGen diagram.Acts (diagram.tgt 5).1 (diagram.src 5).1 :=
   show Relation.ReflTransGen diagram.Acts 2 3 from .head (b := 3) ⟨3, Set.mem_univ _, rfl, rfl⟩ <| .refl
 
-/-- `harmLoops`: function 5 is harmful or excessive and lies on a closed loop (`edge_on_cycle`). -/
-theorem loop_0 : (rating 5).Negative ∧ Relation.TransGen diagram.Acts (diagram.src 5).1 (diagram.src 5).1 :=
-  ⟨by decide +kernel, edge_on_cycle ⟨5, Set.mem_univ _, rfl, rfl⟩ back_0⟩
+/-- `harmLoops`: function 5 is harmful or excessive, its object reaches its performer, so a closed loop runs through it (`edge_on_cycle`). -/
+theorem loop_0 : (rating 5).Negative ∧ Relation.ReflTransGen diagram.Acts (diagram.tgt 5).1 (diagram.src 5).1 ∧ Relation.TransGen diagram.Acts (diagram.src 5).1 (diagram.src 5).1 :=
+  ⟨by decide +kernel, back_0, edge_on_cycle ⟨5, Set.mem_univ _, rfl, rfl⟩ back_0⟩
 
 end SoftwareCache

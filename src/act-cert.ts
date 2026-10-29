@@ -159,9 +159,9 @@ function wiringSection(model: FunctionModel, certifies: Certified[], ns: string)
       lines.push(
         ...theorem(`\`harmLoops\` witness ${k}: the return path of function ${w}, from its object back to its performer.`,
           `back_${k}`, `Relation.ReflTransGen diagram.Acts (diagram.tgt ${w}).1 (diagram.src ${w}).1`, back),
-        ...theorem(`\`harmLoops\`: function ${w} is harmful or excessive and lies on a closed loop (\`edge_on_cycle\`).`,
-          `loop_${k}`, `(rating ${w}).Negative ∧ Relation.TransGen diagram.Acts (diagram.src ${w}).1 (diagram.src ${w}).1`,
-          `⟨by decide +kernel, edge_on_cycle ⟨${w}, Set.mem_univ _, rfl, rfl⟩ back_${k}⟩`),
+        ...theorem(`\`harmLoops\`: function ${w} is harmful or excessive, its object reaches its performer, so a closed loop runs through it (\`edge_on_cycle\`).`,
+          `loop_${k}`, `(rating ${w}).Negative ∧ Relation.ReflTransGen diagram.Acts (diagram.tgt ${w}).1 (diagram.src ${w}).1 ∧ Relation.TransGen diagram.Acts (diagram.src ${w}).1 (diagram.src ${w}).1`,
+          `⟨by decide +kernel, back_${k}, edge_on_cycle ⟨${w}, Set.mem_univ _, rfl, rfl⟩ back_${k}⟩`),
       );
       certifies.push({ theorem: `${ns}.loop_${k}`, verdict: `harmLoops: function '${cycle.via}' lies on the loop ${cycle.path.join(" → ")}` });
       k++;

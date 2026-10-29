@@ -170,8 +170,8 @@ trimming as a Kan extension; categorical-model.md says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
-node scripts/certify.mjs --tamper theory/Certificates/*.lean   # check certificates; tampered copies must fail
-cd theory && lake exe cache get && lake build --wfail
+(cd theory && lake exe cache get && lake build --wfail)
+node scripts/certify.mjs --local --tamper theory/Certificates/*.lean   # tampered copies must fail
 ```
 
 ## Optional: your own network of problems

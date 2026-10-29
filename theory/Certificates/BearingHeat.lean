@@ -56,17 +56,17 @@ theorem typed : diagram.Typed :=
 theorem back_0 : Relation.ReflTransGen diagram.Acts (diagram.tgt 2).1 (diagram.src 2).1 :=
   show Relation.ReflTransGen diagram.Acts 1 2 from .head (b := 2) ⟨3, Set.mem_univ _, rfl, rfl⟩ <| .refl
 
-/-- `harmLoops`: function 2 is harmful or excessive and lies on a closed loop (`edge_on_cycle`). -/
-theorem loop_0 : (rating 2).Negative ∧ Relation.TransGen diagram.Acts (diagram.src 2).1 (diagram.src 2).1 :=
-  ⟨by decide +kernel, edge_on_cycle ⟨2, Set.mem_univ _, rfl, rfl⟩ back_0⟩
+/-- `harmLoops`: function 2 is harmful or excessive, its object reaches its performer, so a closed loop runs through it (`edge_on_cycle`). -/
+theorem loop_0 : (rating 2).Negative ∧ Relation.ReflTransGen diagram.Acts (diagram.tgt 2).1 (diagram.src 2).1 ∧ Relation.TransGen diagram.Acts (diagram.src 2).1 (diagram.src 2).1 :=
+  ⟨by decide +kernel, back_0, edge_on_cycle ⟨2, Set.mem_univ _, rfl, rfl⟩ back_0⟩
 
 /-- `harmLoops` witness 1: the return path of function 3, from its object back to its performer. -/
 theorem back_1 : Relation.ReflTransGen diagram.Acts (diagram.tgt 3).1 (diagram.src 3).1 :=
   show Relation.ReflTransGen diagram.Acts 2 1 from .head (b := 1) ⟨1, Set.mem_univ _, rfl, rfl⟩ <| .refl
 
-/-- `harmLoops`: function 3 is harmful or excessive and lies on a closed loop (`edge_on_cycle`). -/
-theorem loop_1 : (rating 3).Negative ∧ Relation.TransGen diagram.Acts (diagram.src 3).1 (diagram.src 3).1 :=
-  ⟨by decide +kernel, edge_on_cycle ⟨3, Set.mem_univ _, rfl, rfl⟩ back_1⟩
+/-- `harmLoops`: function 3 is harmful or excessive, its object reaches its performer, so a closed loop runs through it (`edge_on_cycle`). -/
+theorem loop_1 : (rating 3).Negative ∧ Relation.ReflTransGen diagram.Acts (diagram.tgt 3).1 (diagram.src 3).1 ∧ Relation.TransGen diagram.Acts (diagram.src 3).1 (diagram.src 3).1 :=
+  ⟨by decide +kernel, back_1, edge_on_cycle ⟨3, Set.mem_univ _, rfl, rfl⟩ back_1⟩
 
 /-! ## Separation0: the contradiction named by `contradictionId` -/
 

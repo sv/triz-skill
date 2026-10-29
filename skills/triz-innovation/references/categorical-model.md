@@ -134,10 +134,17 @@ Check a certificate with `node scripts/certify.mjs <file>`:
   `lean-4.32.2`, no key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own
   revision, which may differ from the pin. The MCP server and the Worker never call AXLE.
 
-A certificate is accepted only if Lean reports no error and no warning, every theorem is
-elaborated, and each depends on no axiom beyond `propext`, `Classical.choice`, and
-`Quot.sound`. That rules out `sorry`, `native_decide`, and an axiom of the file's own. Exit
-status alone would not: Lean exits 0 on `sorry`. With `--tamper`, the script also checks that a
+A certificate is accepted only if all of these hold:
+
+- It is in the generator's grammar, checked before Lean runs. It holds only the generator's data
+  lines and `diagram` as written, each theorem name carries its pinned statement, and no proof
+  line holds a command, option, or attribute. That rules out what Lean's messages cannot show,
+  such as `set_option debug.skipKernelTC`, a hidden `variable`, or a redefined `out`.
+- Lean reports no error and no warning, so there is no `sorry`. Exit status alone would not
+  show this: Lean exits 0 on `sorry`, and AXLE reports `okay`.
+- Every theorem is elaborated, and each depends on no axiom beyond `propext`,
+  `Classical.choice`, and `Quot.sound`. That rules out `native_decide` and an axiom of the
+  file's own. With `--tamper`, the script also checks that a
 copy with every verdict negated, or with one function's carrier changed, fails at the theorems
 it must. CI builds the certificates of the bearing and cached-API examples
 (`theory/Certificates/`), which a test keeps equal to the generator's output, and runs both

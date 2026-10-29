@@ -15,10 +15,12 @@
  * pin. A remote verdict trusts AXLE to run that Lean faithfully. The MCP server and the hosted
  * Worker never call AXLE; only this script does.
  *
- * A certificate is accepted only if Lean reports no error and no warning (so no `sorry`), every
- * `theorem` in the file is elaborated (each gets a `#print axioms`), and every axiom it depends on
- * is one of propext, Classical.choice, Quot.sound (so no `native_decide` and no `axiom` of the
- * file's own). Exit status alone is not enough: Lean exits 0 on `sorry`, and AXLE reports `okay`.
+ * A certificate is accepted only if it is in the generator's grammar (lint: its data lines, its
+ * theorems' pinned statements, no command or option in a proof, so no `set_option
+ * debug.skipKernelTC`), Lean reports no error and no warning (so no `sorry`), every `theorem` is
+ * elaborated (each gets a `#print axioms`), and every axiom it depends on is one of propext,
+ * Classical.choice, Quot.sound (so no `native_decide` and no `axiom` of the file's own). Exit
+ * status alone is not enough: Lean exits 0 on `sorry`, and AXLE reports `okay`.
  *
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
@@ -64,6 +66,147 @@ function spans(content) {
     const next = starts.find((s) => s > t.line) ?? lines.length + 1;
     return { ...t, from, to: next - 1 };
   });
+}
+
+/**
+ * The text Lean reads as code: string literals emptied, comments (which nest) removed, line breaks
+ * kept. Returns null on anything this scanner might lex differently from Lean: a raw newline in a
+ * string, a string not opened after `[`, `,`, space, or `(` (so no `r"…"` or `s!"…"`), a character
+ * literal, a «quoted» name, or an unclosed comment. The generator never writes any of these.
+ */
+export function code(src) {
+  let out = "", i = 0, depth = 0;
+  while (i < src.length) {
+    const two = src.slice(i, i + 2);
+    if (depth) {
+      if (two === "/-") { depth++; i += 2; } else if (two === "-/") { depth--; i += 2; } else { if (src[i] === "\n") out += "\n"; i++; }
+      continue;
+    }
+    if (two === "/-") { depth = 1; i += 2; continue; }
+    if (two === "--") { while (i < src.length && src[i] !== "\n") i++; continue; }
+    if (src[i] === "'" || src[i] === "«") return null;
+    if (src[i] === '"') {
+      if (!/[[ ,(]/.test(src[i - 1] ?? "")) return null;
+      for (i++; i < src.length && src[i] !== '"'; i++) {
+        if (src[i] === "\n") return null;
+        if (src[i] === "\\") i++;
+      }
+      if (i >= src.length) return null;
+      out += '""'; i++;
+      continue;
+    }
+    out += src[i++];
+  }
+  return depth ? null : out;
+}
+
+const AX = "(space|time|condition|direction|level)";
+const NUMS = "!\\[(?:\\d+(?:, \\d+)*)?\\]";
+const BOOLS = "!\\[(?:(?:true|false)(?:, (?:true|false))*)?\\]";
+const STRS = '!\\[(?:""(?:, "")*)?\\]';
+const PAIRS = "!\\[(?:\\(\\d+, \\d+\\)(?:, \\(\\d+, \\d+\\))*)?\\]";
+const RATING = "\\.(?:useful|insufficient|excessive|harmful)";
+const re = (s) => new RegExp(`^${s}$`);
+/** Every declaration line the generator writes at column 0; data only, so the meaning stays in theory/. */
+const DECLARATIONS = [
+  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val) := Fin \\d+"),
+  re("abbrev Cell := (?:Unit|Fin \\d+(?: × Fin \\d+)*)"),
+  re(`def (?:boxId|portId|fnId|carrierId|demandId|valueId) : (?:Box|Port|Fn|Carrier|Demand|Val) → String := ${STRS}`),
+  re(`def ${AX}Cell : Fin \\d+ → String := ${STRS}`),
+  re('def (?:contradictionId|parameter) : String := ""'),
+  re(`def portBox : Port → Box := ${NUMS}`),
+  re(`def portIsOutput : Port → Bool := ${BOOLS}`),
+  re(`def portCarrier : Port → Carrier := ${NUMS}`),
+  re("def diagram : Wiring Box Port Fn Carrier where"),
+  re(`def rating : Fn → Rating := !\\[(?:${RATING}(?:, ${RATING})*)?\\]`),
+  re(`def valueTable : Demand → Val → Bool := !\\[(?:${BOOLS}(?:, ${BOOLS})*)?\\]`),
+  re(`def ${AX}Table : Demand → Fin \\d+ → Bool := !\\[(?:${BOOLS}(?:, ${BOOLS})*)?\\]`),
+  re("abbrev values \\(i : Demand\\) : Set Val := ofTable \\(valueTable i\\)"),
+  re(`abbrev ${AX} \\(i : Demand\\) : Set \\(Fin \\d+\\) := ofTable \\(\\1Table i\\)`),
+  re(`abbrev support \\(i : Demand\\) : Set Cell := ${AX} i(?: ×ˢ ${AX} i)*`),
+  re("abbrev support \\(_ : Demand\\) : Set Cell := Set\\.univ"),
+];
+/** The body of `diagram`, line for line: `out` and `inp` read the port tables and nothing else. */
+const DIAGRAM = [
+  re("  boxes := Set\\.univ"), re("  wires := Set\\.univ"), re(`  src := ${PAIRS}`), re(`  tgt := ${PAIRS}`), re(`  carrier := ${NUMS}`),
+  re("  out b p := if portBox p = b ∧ portIsOutput p = true then some \\(portCarrier p\\) else none"),
+  re("  inp b p := if portBox p = b ∧ portIsOutput p = false then some \\(portCarrier p\\) else none"),
+];
+/** The statement each theorem name may carry, so a name means the verdict `certifies` reports. */
+function statementOk(name, s) {
+  let m;
+  const pairSection = (i, j) => `∃ s : Cell → Val, (∀ c ∈ support ${i}, s c ∈ values ${i}) ∧ (∀ c ∈ support ${j}, s c ∈ values ${j})`;
+  if (name === "typed") return s === "diagram.Typed";
+  if ((m = /^back_\d+$/.exec(name))) return /^Relation\.ReflTransGen diagram\.Acts \(diagram\.tgt (\d+)\)\.1 \(diagram\.src \1\)\.1$/.test(s);
+  if ((m = /^loop_\d+$/.exec(name))) {
+    return /^\(rating (\d+)\)\.Negative ∧ Relation\.ReflTransGen diagram\.Acts \(diagram\.tgt \1\)\.1 \(diagram\.src \1\)\.1 ∧ Relation\.TransGen diagram\.Acts \(diagram\.src \1\)\.1 \(diagram\.src \1\)\.1$/.test(s);
+  }
+  if (name === "contradiction") return s === "¬ ∃ v : Val, ∀ i, v ∈ values i";
+  if (name === "sharedValue") return s === "∃ v : Val, ∀ i, v ∈ values i";
+  if (name === "gluable") return s === "∃ s, IsSection support values s";
+  if (name === "notGluable") return s === "¬ ∃ s, IsSection support values s";
+  if ((m = /^pair_(\d+)_(\d+)$/.exec(name))) {
+    const [, i, j] = m;
+    return [`(values ${i} ∩ values ${j}).Nonempty`, pairSection(i, j), `¬ ${pairSection(i, j)}`].includes(s);
+  }
+  if ((m = /^pair_(\d+)_(\d+)_values$/.exec(name))) return s === `Disjoint (values ${m[1]}) (values ${m[2]})`;
+  if ((m = new RegExp(`^pair_(\\d+)_(\\d+)_${AX}$`).exec(name))) {
+    const [, i, j, a] = m;
+    return s === `Disjoint (${a} ${i}) (${a} ${j})` || s === `(${a} ${i} ∩ ${a} ${j}).Nonempty`;
+  }
+  return false;
+}
+/** Words and characters a proof line may not contain: commands, options, attributes, metaprogramming. */
+const FORBIDDEN = /\b(?:set_option|axiom|variable|include|omit|section|macro|macro_rules|syntax|notation|infixl?|infixr|prefix|postfix|elab|elab_rules|attribute|instance|unsafe|opaque|local|scoped|private|protected|partial|mutual|universe|export|open|import|implemented_by|extern|run_tac|run_cmd|run_elab|initialize|builtin_initialize|deriving|class|structure|inductive|example|theorem|lemma|def|abbrev|namespace|end)\b|[#@$`\\]/;
+
+/**
+ * The generator's grammar, checked before Lean runs. A certificate may hold only the generator's
+ * line shapes: its data declarations, `diagram`'s body as written, theorems whose names carry
+ * their pinned statements, and proof lines free of commands and options. This rules out what the
+ * axiom audit cannot see, e.g. `set_option debug.skipKernelTC true`, a hidden `variable`
+ * hypothesis, a redefined `out`, or a renamed or restated verdict.
+ */
+export function lint(content) {
+  const text = code(content);
+  if (text === null) return ["the file is not in the generator's lexical subset (strings, comments, quotes)"];
+  const problems = [];
+  const lines = text.split("\n").map((l) => l.trimEnd());
+  const stack = [];
+  let block = null; // "diagram" (with the next expected line) or "proof"
+  let row = 0;
+  lines.forEach((line, n) => {
+    const at = `line ${n + 1}`;
+    if (!line.trim()) { if (block?.kind === "diagram" && block.next < DIAGRAM.length) problems.push(`${at}: diagram body ends early`); block = null; return; }
+    if (line.startsWith("  ")) {
+      if (block?.kind === "diagram") {
+        if (!DIAGRAM[block.next]?.test(line)) problems.push(`${at}: not the generator's diagram line`);
+        block.next++;
+      } else if (block?.kind === "proof") {
+        if (FORBIDDEN.test(line)) problems.push(`${at}: proof line uses a command, option, or attribute`);
+      } else problems.push(`${at}: indented line outside a declaration`);
+      return;
+    }
+    block = null;
+    let m;
+    if (row++ === 0) { if (line !== "import CategoricalTriz") problems.push(`${at}: the only import is CategoricalTriz`); return; }
+    if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) {
+      if (stack.length > 1 || (stack.length === 1 && !/^Separation\d+$/.test(m[1]))) problems.push(`${at}: unexpected namespace`);
+      stack.push(m[1]);
+    } else if ((m = /^end (\S+)$/.exec(line))) {
+      if (stack.pop() !== m[1]) problems.push(`${at}: end does not close the open namespace`);
+    } else if (line === "open CategoricalTriz") {
+      if (stack.length !== 1) problems.push(`${at}: open outside the certificate namespace`);
+    } else if ((m = /^theorem (\S+) : (.*) :=$/.exec(line))) {
+      if (!stack.length) problems.push(`${at}: theorem outside a namespace`);
+      if (!statementOk(m[1], m[2])) problems.push(`${at}: theorem ${m[1]} does not carry its pinned statement`);
+      block = { kind: "proof" };
+    } else if (DECLARATIONS.some((d) => d.test(line))) {
+      if (!stack.length) problems.push(`${at}: declaration outside a namespace`);
+      if (line.startsWith("def diagram ")) block = { kind: "diagram", next: 0 };
+    } else problems.push(`${at}: not a line the generator writes`);
+  });
+  if (stack.length) problems.push("a namespace is left open");
+  return problems;
 }
 
 const withAxioms = (content) => `${content.trimEnd()}\n\n${theorems(content).map((t) => `#print axioms ${t.name}`).join("\n")}\n`;
@@ -175,6 +318,8 @@ export function accept(content, run) {
 }
 
 export async function check(content, { mode } = {}) {
+  const grammar = lint(content);
+  if (grammar.length) return { ok: false, mode: "grammar", certified: [], problems: grammar };
   const useLocal = mode === "local" || (mode !== "remote" && localLeanAvailable());
   const run = useLocal ? runLocal(withAxioms(content)) : await runRemote(withAxioms(content));
   return { ...accept(content, run), info: run.info };
