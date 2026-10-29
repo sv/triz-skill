@@ -4,12 +4,13 @@
  *
  * Transport-neutral: toolSpecs() returns plain specs; bindV1()/bindV2() attach
  * them to the respective SDK server classes. The graph tools (project
- * extension, fs-backed) are only specced when a graph module is provided.
+ * extension, fs-backed) are only specced when a graph module is provided;
+ * triz_export format svg draws only when a layout loader is provided.
  */
 import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
-import { exportModel, CERTIFICATE_NOTE } from "./act-export.js";
+import { exportModel, exportSvg, CERTIFICATE_NOTE, type LayoutLoader } from "./act-export.js";
 import { behaviorCertificate, dynamicsCertificate, separationCertificate, trimCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
 import { withSuggestions } from "./act-suggest.js";
 import { findIsomorphism } from "./act-iso.js";
@@ -293,8 +294,8 @@ export function withIssues<T>(payload: T): T {
   return { ...payload, issues: (p.errors as string[]).map((e) => issue("internal-error", "$", e, "This failure carries no structured issue: report it with the input.")) };
 }
 
-export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
-  const { graph } = opts;
+export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } = {}): ToolSpec[] {
+  const { graph, layout } = opts;
   const specs: ToolSpec[] = [
     {
       name: "triz_parameter",
@@ -416,12 +417,13 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_export",
-      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (each box a table: name and «role» in a role-coloured header, input ports left and output ports right with their carriers, open ports in italics; functions as edges between ports, harmful red, insufficient dashed, excessive bold; flows dotted blue; a legend of what occurs; render with `dot -Tsvg`), 'mermaid' gives a Mermaid flowchart that GitHub, GitLab, and many chat clients render without tools (Mermaid has no ports, so each edge names its out port, in port, and carrier), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
+      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (each box a table: name and «role» in a role-coloured header, input ports left and output ports right with their carriers, open ports in italics; functions as edges between ports, harmful red, insufficient dashed, excessive bold; flows dotted blue; a legend of what occurs; render with `dot -Tsvg`), 'mermaid' gives a Mermaid flowchart that GitHub, GitLab, and many chat clients render without tools (Mermaid has no ports, so each edge names its out port, in port, and carrier), 'svg' gives a self-contained SVG picture with dot's conventions, laid out by ELK with orthogonal edges, for when Graphviz is not at hand (stdio server only: it needs the optional elkjs package; the hosted server answers ok:false with format-unavailable), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
       shape: {
         model: act.FunctionModel,
-        format: z.enum(["dot", "mermaid", "hypergraph", "lean"]),
+        format: z.enum(["dot", "mermaid", "svg", "hypergraph", "lean"]),
       },
-      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "mermaid" | "hypergraph" | "lean" }) => text(exportModel(model, format)),
+      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "mermaid" | "svg" | "hypergraph" | "lean" }) =>
+        text(format === "svg" ? await exportSvg(model, layout) : exportModel(model, format)),
     },
     {
       name: "triz_transform",
