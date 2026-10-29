@@ -898,7 +898,10 @@ another row of the box dominates.
   on a port that only harmful functions feed fails closed.
 - **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
   upstream of them along non-harmful wires are composed, and each must declare feasibility.
-  Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
+  So a box that declares feasibility joins the solve wherever it sits, even off the product's
+  chain: one of its rows is chosen in every selection, so that row's demand and operating cost
+  count in every minimal vector, an unsupplied requirement fails the call, and an unprovidable
+  one makes the verdict `infeasible`. Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
   build new boxes without feasibility, as without behaviour.
 - **Resources.** A resource vector is every box's fixed `cost` plus the operating cost of the
   rows chosen, per cost dimension. Dimensions are never summed together.

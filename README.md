@@ -77,8 +77,8 @@ missing.
 ### Hosted endpoint
 
 `src/worker.ts` serves the same tools, except the optional `triz_graph` and `triz_purpose`, as a
-Cloudflare Worker over stateless streamable HTTP (`npx wrangler deploy`; `/mcp`, and `/health`).
-It has no authentication and allows any origin (`Access-Control-Allow-Origin: *`) on purpose: it
+Cloudflare Worker over stateless streamable HTTP (deploy with `npx wrangler deploy`; endpoints
+`/mcp` and `/health`). It has no authentication and allows any origin (`Access-Control-Allow-Origin: *`) on purpose: it
 is a stateless, read-only public utility with no storage bindings and no secrets, so any client
 or web page may drive it. An operator who wants it private can check a token in `fetch` before
 the MCP handler, list allowed origins instead of `*`, or put it behind Cloudflare Access or a
