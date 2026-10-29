@@ -44,7 +44,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; over the main parameters of value only with `mpv_weights`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
-| Drawing the model | Graphviz DOT (ports drawn), a Mermaid flowchart (ports named on edges), or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
+| Drawing the model | Graphviz DOT (ports drawn), a Mermaid flowchart (ports named on edges), an SVG picture laid out by elkjs (ports drawn), or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate`, `triz_dynamics`, and `triz_weakness` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; row tables `Sync.Step`, `Rows.relation` with `reach_of_trace`, `AtLeastAsWeak`, `card_lt_of_strictly_weaker` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
@@ -212,8 +212,8 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    future is that column's model, ready to pass on to another tool, and a reached present
    equals its snapshot up to order. On `ok: false` the grid also carries top-level `errors` and
    `issues`, collected from the invalid windows and transitions.
-7. **Share.** Use `triz_export` for a DOT drawing, a Mermaid flowchart to paste into markdown, or
-   the hypergraph form. With `compare_to`, `triz_function_model` also reports whether the two
+7. **Share.** Use `triz_export` for a DOT drawing, a Mermaid flowchart to paste into markdown, an
+   SVG picture (format `svg`, on the stdio server), or the hypergraph form. With `compare_to`, `triz_function_model` also reports whether the two
    models have the same wiring shape. Use format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
    `triz_dynamics`, and `triz_weakness` return one with `certificate: true`.
 
@@ -316,6 +316,7 @@ to check the rating, not a finding.
 | `unknown-cost-dimension` | `triz_transform` segment and take_out, `triz_function_model` mpv_weights | A cost dimension is not one the box declares |
 | `cap-exceeded` | `triz_separate`, `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, certificates | A search or encoding passed its cap |
 | `internal-error` | any tool | An invariant of the kernel failed; the input is not at fault |
+| `format-unavailable` | `triz_export` format `svg` | The export format needs a layout engine this server does not have |
 | `box-map-without-compare-to` | `triz_function_model`, `triz_behavior` | box_map was passed without compare_to |
 | `absorb-without-trim` | `triz_behavior`, `triz_feasibility` | absorb was passed without trim |
 | `trim-with-compare-to` | `triz_behavior` | trim and compare_to were passed together |
@@ -436,7 +437,15 @@ at one pair; it does not certify every separately reported containment direction
 invariants contain all port valuations of each selected machine state, because `Sync.Step` constrains
 successor machine states but not successor consistency. A BFS node list is not automatically closed.
 
-Check the proof and its input binding locally with the pinned theory:
+Check the proof and its input binding with an explicit execution mode:
+
+- **Locally**, the default: `lake env lean` against `theory/`, at the repo's Mathlib pin. If
+  `theory/` is not built, the script stops and names both options; it never falls back to the
+  network.
+- **Remotely**, only with `--remote`: the certificate, which holds the model's ids and tables,
+  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.32.2`, no
+  key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own revision, which
+  may differ from the pin. The MCP server and the Worker never call AXLE.
 
 ```sh
 node scripts/certify.mjs --local --tamper --request request.json result.lean
@@ -454,9 +463,7 @@ that relevant negated or altered copies fail. Source ids are escaped data, not L
 Per-instance work caps remain explicit. A theorem holds for the encoded scope and declared rows;
 physical truth is not established by proof checking.
 
-Without a local build the checker can use AXLE; it then trusts that service, whose imported
-Mathlib may differ from the repository pin. Local pinned checks are the merge evidence. Neither
-the MCP server nor Worker automatically contacts AXLE.
+Local pinned checks are the merge evidence.
 
 ## Declared behaviour
 
@@ -882,7 +889,10 @@ another row of the box dominates.
   on a port that only harmful functions feed fails closed.
 - **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
   upstream of them along non-harmful wires are composed, and each must declare feasibility.
-  Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
+  So a box that declares feasibility joins the solve wherever it sits, even off the product's
+  chain: one of its rows is chosen in every selection, so that row's demand and operating cost
+  count in every minimal vector, an unsupplied requirement fails the call, and an unprovidable
+  one makes the verdict `infeasible`. Every other box contributes only its fixed `cost`. Segmentation, Taking out, and Intermediary
   build new boxes without feasibility, as without behaviour.
 - **Resources.** A resource vector is every box's fixed `cost` plus the operating cost of the
   rows chosen, per cost dimension. Dimensions are never summed together.

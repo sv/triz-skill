@@ -1,12 +1,13 @@
 name: Lean
 
+# Paths: the theory and checker, plus what the Lean-backed tests generate certificates from.
 on:
   push:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.mjs", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   pull_request:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.mjs", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
   workflow_dispatch:
 
@@ -33,19 +34,23 @@ jobs:
           test: false
           lint: false
 
-      # The certificate fixtures were built above; this applies the acceptance rule (no warning,
-      # every theorem elaborated, standard axioms only) and checks that tampered copies fail.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: pnpm
 
+      # The certificate fixtures were built above; this applies the acceptance rule (no warning,
+      # every theorem elaborated, standard axioms only) and checks that tampered copies fail.
       - name: Certificates (acceptance + tamper)
         run: node scripts/certify.mjs --local --tamper theory/Certificates/*.lean
 
-      - uses: pnpm/action-setup@v4
-
+      # The tests that need Lean (fixtures and hostile generated certificates accepted, tampered
+      # copies rejected) skip without it; TRIZ_REQUIRE_LEAN=1 makes a missing build fail instead.
       - run: pnpm install --frozen-lockfile
 
-      # The ordinary test job has no Lean build; require actual pinned-kernel checks here.
-      - name: Request-bound behavior, weakness, and inductive certificates
-        run: TRIZ_REQUIRE_LEAN=1 node --import tsx --test tests/act-cert-assurance.test.ts
+      - name: Tests with Lean required
+        run: pnpm test
+        env:
+          TRIZ_REQUIRE_LEAN: "1"

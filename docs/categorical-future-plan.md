@@ -35,8 +35,10 @@ Incomplete capped evidence must remain sound without a promise of identical sele
 
 **Next, in order:**
 
-1. Residual safety, target coverage and impossibility certificates, using the semantic one-hole
-   union theorem and row/diagram correspondence.
+1. Residual safety, target coverage and impossibility certificates, using a semantic one-hole
+   union theorem and the delivered row/diagram correspondence. The proposed general one/two-hole
+   foundation is in [companion PR #32](https://github.com/sv/triz-skill/pull/32); it is not a runtime
+   dependency of this PR.
 2. Harm-loop completeness: every negative edge on a cycle is covered and each claimed region
    has the advertised connectivity. Useful-only cycles must remain admissible.
 3. Time-indexed negative dynamics certificates, initial-state coverage and bounded input
@@ -163,7 +165,7 @@ construction [R17](../theory/REFERENCES.md#r17), and the definition/universal pr
 | 5 model encoding check | Authoritative request binding and independent table comparison delivered; verified encoder remains §1. |
 | 6 weighted weakness | Joint operating coverage delivered separately from inclusion; no extension of Bennett's task-prior theorem. |
 | 7 row isomorphism | Delivered with value/state maps and continued search after failed automorphisms. |
-| 8 grouping theorem | Semantic union/row bridge delivered; optimized evaluator correctness remains §4. |
+| 8 grouping theorem | Row/diagram bridge delivered; unused overlapping union proofs removed in favor of companion PR #32. Optimized evaluator correctness remains §4. |
 | 9 harm completeness | Deferred to §3; witness validity must not be described as completeness. |
 | 10 loop certificates | Deferred to §3; recurrence requires a quantified statement and full premises. |
 | 11 whole composition | Delivered by exact global finite constraints; greatest-fixpoint language not required. |

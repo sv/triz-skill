@@ -89,6 +89,9 @@ if (!dot.ok || !dot.content.startsWith("digraph function_model {")) fail("DOT ex
 const hyper = await json("triz_export", { model, format: "hypergraph" });
 console.log(`triz_export hypergraph -> ${hyper.content?.vertices.length} vertices, ${hyper.content?.hyperedges.length} hyperedges`);
 if (!hyper.ok || hyper.content.vertices.length !== 5 || hyper.content.hyperedges.length !== 5) fail("hypergraph export wrong");
+const svg = await json("triz_export", { model, format: "svg" });
+console.log(`triz_export svg -> ${svg.ok ? `${svg.content.length} bytes` : svg.issues?.[0]?.code}`);
+if (!svg.ok || !svg.content.startsWith("<svg ")) fail("SVG export wrong (elkjs is an optional dependency: is it installed?)");
 const badExport = await json("triz_export", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] }, format: "dot" });
 if (badExport.ok !== false) fail("mistyped export did not fail closed");
 const cert = await json("triz_export", { model, format: "lean" });

@@ -23,6 +23,14 @@ These checks share typed models, strict request validation, and explicit work ca
 incomplete decision, never proof of infeasibility, non-isomorphism, or nonconfluence. Search
 results state the candidate space and distinguish display truncation from search completeness.
 
+## Relationship to companion theory work
+
+[PR #32](https://github.com/sv/triz-skill/pull/32) proposes general one/two-hole union preservation,
+two-hole safe-pair theory via formal concepts, Mealy fixed-point statements, and recurrent
+reachability. This PR keeps its distinct row/OpenDiagram adapters and certificate lemmas, and
+removes its unused overlapping one-hole theorem layer. The runtime and certificate APIs remain
+independent of that open PR; no unmerged theory is imported or claimed as delivered here.
+
 ## Behavioral scope and adequacy
 
 The default `triz_behavior` scope remains `upstream` for compatibility. It assumes omitted boxes
@@ -56,6 +64,9 @@ initial states, acceptable outputs, comparison models and scope as applicable.
 ```sh
 node scripts/certify.mjs --local --tamper --request request.json result.lean
 ```
+
+Without a built local theory, the checker stops. Only explicit `--remote` sends the certificate
+and its model data to AXLE, whose execution and Mathlib revision are then trusted.
 
 The request is a certificate request record: `kind: "model"` with `model`;
 `kind: "separation"` with `contradiction`; `kind: "dynamics"` with `model` and `spec`;

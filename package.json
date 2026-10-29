@@ -61,5 +61,8 @@
     "agents": "^0.20.1",
     "tsx": "^4.23.9",
     "typescript": "^7.0.2"
+  },
+  "optionalDependencies": {
+    "elkjs": "0.12.0"
   }
 }

@@ -7,6 +7,20 @@
  * and installed into the pure core via useProvider. The fs-backed graph tools
  * (triz_graph / triz_purpose) are intentionally not registered here.
  *
+ * No layout engine either: triz_export format svg answers ok:false with
+ * format-unavailable here (use dot or mermaid, or the stdio server). elkjs
+ * would more than double the script (1.2 → 2.7 MB, 0.3 → 0.7 MB gzipped), and
+ * it does not run on workerd as published: with `self` defined and no
+ * `document`, its bundle takes the web-worker branch and `new ELK()` throws
+ * "_Worker is not a constructor". A first layout also costs ~60 ms of CPU,
+ * above the Free plan's 10 ms per request. Nothing here imports src/elk.ts,
+ * so wrangler never bundles elkjs.
+ *
+ * No authentication and `access-control-allow-origin: *`, by choice: this is a stateless,
+ * read-only public utility with no storage bindings and no secrets, so any origin may drive it.
+ * An operator who wants it private can check a token below before `handler`, list allowed
+ * origins in CORS instead of `*`, or put the route behind Cloudflare Access or a rate limit.
+ *
  * Deploy: npx wrangler deploy   (wrangler.jsonc at repo root)
  * Endpoint: https://triz-mcp.<account-subdomain>.workers.dev/mcp
  */

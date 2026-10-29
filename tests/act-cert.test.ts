@@ -7,14 +7,17 @@
  * acceptable) fails where it must. Escalation and weakness certificates encode the declared
  * rows, never the kernel's results, and state only what a witness or an exhaustive decision
  * supports. Without
- * Lean those tests skip; TRIZ_REQUIRE_LEAN=1 makes them fail instead. Nothing here calls AXLE.
+ * Lean those tests skip; TRIZ_REQUIRE_LEAN=1 makes them fail instead. Nothing here calls AXLE,
+ * and without local Lean the checker refuses rather than falling back to it.
  * Regenerate the fixtures with UPDATE_GOLDEN=1 pnpm test, then review the diff.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
 import { dynamicsCertificate, modelCertificate, separationCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { boundedDynamics } from "../src/act-dynamics.js";
@@ -200,6 +203,41 @@ test("the checker names each theorem as Lean does, so a commented-out namespace 
   // A theorem declared twice under one name is refused too (Lean would reject it as well).
   const twice = fs.readFileSync(fixturePath("SoftwareCache"), "utf8").replace("end SoftwareCache", "theorem typed : diagram.Typed :=\n  trivial\n\nend SoftwareCache");
   assert.ok(lint(twice).some((p) => /SoftwareCache\.typed is declared twice/.test(p)), lint(twice).join("\n"));
+});
+
+test("without local Lean, nothing is sent to AXLE unless --remote is given", () => {
+  // No lake on PATH or under HOME, and a dead AXLE address, so a fallback could not reach AXLE.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "triz-no-lean-"));
+  const env = { PATH: home, HOME: home, AXLE_API_URL: "http://127.0.0.1:9" };
+  const script = path.resolve(here, "../scripts/certify.mjs");
+  try {
+    const cli = spawnSync(process.execPath, [script, "--tamper", fixturePath("SoftwareCache")], { env, encoding: "utf8" });
+    assert.equal(cli.status, 2, cli.stdout + cli.stderr);
+    assert.match(cli.stderr, /lake build.*--remote/s);
+    assert.doesNotMatch(cli.stdout + cli.stderr, /Sending data|Checking locally|AXLE info|AXLE \d/);
+    const conflicting = spawnSync(process.execPath, [script, "--local", "--remote", "--request", path.join(home, "missing.json"), fixturePath("SoftwareCache")], { env, encoding: "utf8" });
+    assert.equal(conflicting.status, 2, conflicting.stdout + conflicting.stderr);
+    assert.match(conflicting.stderr, /usage:.*--request/);
+    assert.doesNotMatch(conflicting.stdout + conflicting.stderr, /Sending data|ENOENT/);
+    // Request-bound checks inherit the same explicit opt-in; staleness checking never opts in.
+    const request = { kind: "model", model: { domain: "software", carriers: [], boxes: [], wires: [] } } as const;
+    const bound = modelCertificate({ ...request.model, carriers: [], boxes: [], wires: [] });
+    assert.ok(bound.ok);
+    // The library has no fallback either: without mode "remote", all checks throw rather than fetch.
+    const probe = `globalThis.fetch = () => { throw new Error("fetch called"); };
+      const m = await import(${JSON.stringify(pathToFileURL(script).href)});
+      const src = (await import("node:fs")).readFileSync(${JSON.stringify(fixturePath("SoftwareCache"))}, "utf8");
+      const bound = ${JSON.stringify(bound.content)}, request = ${JSON.stringify(request)};
+      for (const mode of [undefined, "remote"]) {
+        for (const run of [() => m.check(src, {mode}), () => m.checkTampered(m.tamperVariants(src)[0], {mode}), () => m.checkRequest(bound, request, {mode})]) {
+          try { await run(); console.log("checked"); } catch (e) { console.log(e.message === m.NO_LOCAL_LEAN ? "refused" : e.message); }
+        }
+      }`;
+    const lib = spawnSync(process.execPath, ["--input-type=module", "-e", probe], { env, encoding: "utf8" });
+    assert.equal(lib.stdout, "refused\nrefused\nrefused\nfetch called\nfetch called\nfetch called\n", lib.stdout + lib.stderr);
+  } finally {
+    fs.rmSync(home, { recursive: true, force: true });
+  }
 });
 
 test("namespaces that are Lean keywords are refused", () => {

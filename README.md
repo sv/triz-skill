@@ -74,6 +74,33 @@ Register it (`.mcp.json` in this repo is a working example):
 dir is resolved relative to the repo root and the server fails closed with a clear message if it is
 missing.
 
+### Hosted endpoint
+
+`src/worker.ts` serves the same tools, except the optional `triz_graph` and `triz_purpose` and
+`triz_export` format `svg`, as a Cloudflare Worker over stateless streamable HTTP (deploy with `npx wrangler deploy`; endpoints
+`/mcp` and `/health`). It has no authentication and allows any origin (`Access-Control-Allow-Origin: *`) on purpose: it
+is a stateless, read-only public utility with no storage bindings and no secrets, so any client
+or web page may drive it. An operator who wants it private can check a token in `fetch` before
+the MCP handler, list allowed origins instead of `*`, or put it behind Cloudflare Access or a
+rate limit. Calling a hosted endpoint sends your model to whoever runs it; keep private models on
+the local stdio server.
+
+### Tool map
+
+One line per workflow stage; the table below has one row per tool. The theory behind the model
+tools, and exactly what is and is not claimed, is in
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md).
+
+| Stage | Tools | What they do |
+|---|---|---|
+| Lookup | `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_matrix_multi`, `triz_resolve`, `triz_effects`, `triz_route`, `triz_tool_catalog`, `triz_evals` | Read the canonical data: parameters, principles, matrix cells, effects, the method router, and the eval suites |
+| Model | `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export`, `triz_isomorphism`, `triz_behavior_refinement`, `triz_subsystem_summary` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
+| Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow`, `triz_global_separation`, `triz_queue`, `triz_conservation` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
+| Transform | `triz_transform`, `triz_rule_apply`, `triz_trim_rewrite`, `triz_rewrite_pair`, `triz_rule_set` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
+| Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, `triz_adequacy`, `triz_implementations`, `triz_absorber_assignments`, `triz_synthesize` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
+| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_behavior`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
+
 ### Tools
 
 | Tool | Purpose |
@@ -93,7 +120,7 @@ missing.
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
-| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, an open hypergraph, or a Lean certificate of its verdicts |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
@@ -101,6 +128,19 @@ missing.
 | `triz_abstraction` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms listed |
 | `triz_flow` | Flow analysis over declared flow paths (boxes in series): per flow, bottleneck, accumulation, and leak candidates, and loops |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
+| `triz_adequacy` | Require nonblocking and acceptable outputs at every required operating input |
+| `triz_isomorphism` | Verify or search an annotation-preserving value/state/wiring bijection |
+| `triz_behavior_refinement` | Check exact complete whole-model relation inclusion under an explicit interface/value map |
+| `triz_subsystem_summary` | Compose an exact stateless boundary summary and report hidden harms |
+| `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
+| `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
+| `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_global_separation` | Find one assignment satisfying every allowed overlapping local relation |
+| `triz_queue` | Compile and check an explicitly scheduled finite queue for overflow |
+| `triz_conservation` | Check declared extensive consumption or shared intensive minimum levels |
+| `triz_rule_set` | Check a sufficient termination measure for a validated named rule subset |
+| `triz_rewrite_pair` | Check whether two named rewrites commute in their two orders |
+| `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
 ## Function models as typed data
@@ -210,13 +250,26 @@ it with `dot -Tsvg`. Format `mermaid` renders as is in GitHub and GitLab markdow
 chat clients; Mermaid has no ports, so each edge names its ports and carrier instead.
 
 ![A function model drawn by triz_export format dot](docs/img/function-model-dot.svg)
+
+Format `svg` returns the picture itself, with no Graphviz needed. The server lays the model out
+with [elkjs](https://github.com/kieler/elkjs): boxes left to right, ports fixed on the box sides,
+and orthogonal edges. It then writes a self-contained SVG with the same conventions as `dot`.
+Hover a box or edge to see its id. Text widths are estimated from Helvetica and Arial metrics,
+so a much wider font may run past a box. elkjs (about 1.6 MB) is an optional dependency: it is
+installed with `triz-mcp` unless optional dependencies are omitted (`--omit=optional`), and
+without it the format answers `ok: false` with `format-unavailable`. The hosted Worker does not
+offer the format. elkjs would more than double the script, it does not start on workerd as
+published, and a first layout costs more CPU than a Free-plan request allows (see
+`src/worker.ts`).
+
+![The same model drawn by triz_export format svg](docs/img/function-model-svg.svg)
  Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
-and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. `triz_behavior`, `triz_dynamics` and `triz_weakness` with `certificate: true` cover
+and proves them, and `node scripts/certify.mjs` checks it with local Lean. Only explicit
+`--remote` sends the certificate and its model data to the AXLE service. `triz_behavior`, `triz_dynamics` and `triz_weakness` with `certificate: true` cover
 supported finite behavior comparisons, reachable escalation/state-only inductive safety, and
 strict, equal or incomparable concept pairs. Manifests bind the source request and scope;
 `node scripts/certify.mjs --local --tamper --request request.json result.lean` checks source/table

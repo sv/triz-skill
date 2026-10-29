@@ -116,7 +116,7 @@ const HEADER = (what: string) => [
   "the encoding. Use --request with the original request JSON to verify binding and correspondence.",
   "",
   "Check with `node scripts/certify.mjs <file>` in a checkout of github.com/sv/triz-skill: Lean",
-  "against `theory/` when it is built, otherwise the AXLE service.",
+  "against `theory/` once it is built. `--remote` sends this file to the AXLE service instead.",
   "-/",
   "",
 ];
