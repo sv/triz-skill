@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_behavior"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -93,6 +93,21 @@ console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.
 if (!trimmed.ok || trimmed.chosen[0].box !== "housing") fail("applied trim wrong");
 const dangling = await json("triz_transform", { model, transformation: { op: "rewrite", delete: { boxes: ["bearing"] } } });
 if (dangling.ok !== false) fail("dangling rewrite did not fail closed");
+
+const behaving = {
+  ...model,
+  carriers: [{ ...model.carriers[0], values: ["held", "loose"] }, { ...model.carriers[1], values: ["low", "high"] }],
+  boxes: [
+    { ...model.boxes[0], behavior: [{ in: {}, out: { race: "held", rub: "low" } }] },
+    { ...model.boxes[1], behavior: [{ in: {}, out: { bore: "held" } }] },
+    model.boxes[2],
+  ],
+};
+const decided = await json("triz_behavior", { model: behaving, trim: ["bearing"] });
+console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
+if (decided.verdict !== "preserved") fail("decided trim wrong");
+const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
+if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
 
 await client.close();
 console.log("SMOKE OK");

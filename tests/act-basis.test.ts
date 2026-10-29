@@ -46,6 +46,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     for (const b of m.boxes) collect(await call("triz_trim", { model: m, trim: [b.id] }));
     for (const pc of m.contradictions ?? []) for (const along of ["time", "space"]) collect(await call("triz_separate", { contradiction: pc, along }));
     collect(await call("triz_nine_windows", { present: m, subsystem: m.boxes.slice(0, 2).map((b) => b.id) }));
+    collect(await call("triz_behavior", { model: m }));
     if (m.wires.length) collect(await call("triz_transform", { model: m, transformation: { op: "interpose", wire: m.wires[0].id, mediator: { id: "mediator-x", name: "M" } } }));
   }
   collect(await call("triz_transform", { model: example("software-cache"), transformation: { op: "trim", trim: ["redis"] } }));
