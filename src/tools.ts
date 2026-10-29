@@ -11,6 +11,7 @@ import * as triz from "./core.js";
 import * as act from "./act.js";
 import { exportModel, CERTIFICATE_NOTE } from "./act-export.js";
 import { separationCertificate } from "./act-cert.js";
+import { withSuggestions } from "./act-suggest.js";
 import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
@@ -286,15 +287,16 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_separate",
-      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand. With `along`, also returns the parameter as a function of that axis alone: the admissible values per cell and whether it must change along the axis (with 'time', the checkable part of Principle 15, Dynamics). With `certificate: true`, also returns a Lean file that states these separation verdicts about this contradiction and proves them against theory/CategoricalTriz.lean, so Lean can check this one result.",
+      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand. With `along`, also returns the parameter as a function of that axis alone: the admissible values per cell and whether it must change along the axis (with 'time', the checkable part of Principle 15, Dynamics). Each separated pair also gets `suggestions`, hints and not verdicts: per separating axis, the operations that could build the piecewise system (space: triz_transform segment or take_out; time: standby, or triz_dynamics separation with timed demands, Principle 15; condition: rerate, or a rewrite that changes the field, Principle 28; level: triz_nine_windows, the system operator or its subsystem restriction; direction: segment by port direction), each with the demands' cells on that axis and the looked-up text of the principle it follows. With `certificate: true`, also returns a Lean file that states these separation verdicts about this contradiction and proves them against theory/CategoricalTriz.lean, so Lean can check this one result.",
       shape: {
         contradiction: act.PhysicalContradiction,
         along: act.Axis.optional().describe("Axis to index the parameter by, e.g. 'time' for stages"),
         certificate: z.boolean().optional().describe("Also return a Lean certificate of the separation verdicts (check it with scripts/certify.mjs)"),
       },
       handler: async ({ contradiction, along, certificate }: { contradiction: act.PhysicalContradiction; along?: act.Axis; certificate?: boolean }) => {
-        const result = separationBasis(act.separationCheck(contradiction));
-        if (!result.ok) return text(result);
+        const checked = separationBasis(act.separationCheck(contradiction));
+        if (!checked.ok) return text(checked);
+        const result = withSuggestions(contradiction, checked, triz.getPrinciple);
         const cert = certificate ? separationCertificate(contradiction) : undefined;
         if (cert && !cert.ok) return text(cert);
         return text({

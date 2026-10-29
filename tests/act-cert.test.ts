@@ -15,6 +15,8 @@ import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
 import { modelCertificate, separationCertificate, leanString, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { toolSpecs } from "../src/tools.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 import { accept, check, checkTampered, lint, localLeanAvailable, runLocal, tamperVariants, theorems } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 

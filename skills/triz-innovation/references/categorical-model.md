@@ -89,13 +89,29 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    (conditions)". The status drives the route:
    - `compatible`: a value meets both demands, so this is not a physical contradiction. Choose
      that value.
-   - `separated`: the listed axes separate the demands. Assign the parameter piecewise.
+   - `separated`: the listed axes separate the demands. Assign the parameter piecewise. Each
+     such pair carries `suggestions`: per separating axis, the operations that could build the
+     piecewise system, with each demand's cells on that axis (table below).
    - `irreducible`: the demands overlap on every axis. Refine an axis, try another system level,
      or escalate to ARIZ.
 
    For a separation in time, the snapshot check says which value each stage needs. When the
    boxes declare state, `triz_dynamics` with `separation` says whether one run of the declared
    dynamics meets each demand within its time window.
+
+   | Separating axis | Suggested operations |
+   |---|---|
+   | space | `triz_transform` `segment` (Principle 1) or `take_out` (Principle 2) the box that carries the parameter, one part per region |
+   | time | `triz_transform` `standby` (Principle 11), or `triz_dynamics` `separation` with one timed demand per side (Principle 15, parametric) |
+   | condition | `triz_transform` `rerate` (Principle 16), or a `rewrite` that changes the field the parameter responds to (Principle 28, analogy only) |
+   | level | `triz_nine_windows`: the system operator (`system`), or its subsystem restriction (`subsystem`) |
+   | direction | `triz_transform` `segment` the box by port direction (Principle 1) |
+
+   Suggestions are hints, not verdicts. They carry no `basis`, and a suggestion that follows a
+   parametric or analogy-only principle says so (`principle.classified`). Principle texts are
+   looked up in `data/principles.json`. The kernel does not know which box carries the
+   parameter, or the order of time cells, so the hint leaves both to you. Apply the move, then
+   check the result against the baseline.
 
 5. **Transform.** Use `triz_transform` to apply one structural move and get the new model back.
    Every result type-checks, or the call fails closed:
@@ -948,3 +964,6 @@ example cohort churn against fee changes. Name it only from that evidence.
   none is implemented.
 - The principle constructions check structure only. The label-blindness property tests do not
   cover them.
+- `triz_separate`'s `suggestions` are hints. A separation verdict says a piecewise assignment
+  exists; it does not say that the suggested move builds one, that the move is the best one, or
+  that the cited principle applies.

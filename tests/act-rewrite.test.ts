@@ -14,6 +14,8 @@ import { rewrite, segment, takeOut, interpose, applyTrim } from "../src/act-rewr
 import { restrict, collapse, nineWindows } from "../src/act-windows.js";
 import { findIsomorphism } from "../src/act-iso.js";
 import { toolSpecs } from "../src/tools.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 import { rng, genModel, pick, shuffle, int } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));

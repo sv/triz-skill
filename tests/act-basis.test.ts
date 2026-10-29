@@ -12,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import { FunctionModel } from "../src/act.js";
 import { THEOREMS, MATHLIB_THEOREMS, THEORY_FILE } from "../src/act-basis.js";
 import { toolSpecs } from "../src/tools.js";
+// triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
+import "../src/data.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const lean = fs.readFileSync(path.resolve(here, "..", THEORY_FILE), "utf8");
