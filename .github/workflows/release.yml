@@ -4,28 +4,34 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  id-token: write   # npm provenance
-  contents: write   # GitHub release
+# Tokenless: npm and the MCP Registry both authenticate this workflow by its GitHub OIDC identity.
+# One-time setup (npm trusted publisher, then optionally disallowing tokens) is in docs/PUBLISHING.md.
 
 jobs:
   publish:
     name: Verify + publish to npm
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      id-token: write   # npm trusted publishing via pnpm (OIDC); provenance is attached automatically
+      contents: write   # GitHub release
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
 
+      # No registry-url: its generated .npmrc would point pnpm at a placeholder NODE_AUTH_TOKEN.
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
-          registry-url: https://registry.npmjs.org
 
-      - name: Version matches tag
-        run: test "$(node -p "require('./package.json').version")" = "${GITHUB_REF_NAME#v}"
+      - name: Versions match tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          test "$(node -p "require('./package.json').version")" = "$tag"
+          test "$(node -p "require('./server.json').version")" = "$tag"
+          test "$(node -p "require('./server.json').packages[0].version")" = "$tag"
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
@@ -33,12 +39,58 @@ jobs:
       - run: pnpm test
       - run: node scripts/smoke-mcp.mjs dist/server.js
 
+      # pnpm (>= 11) publishes natively and exchanges the job's OIDC token with npm; the tag
+      # checkout is a detached HEAD, so skip pnpm's publish-branch check (the tag gate above holds).
       - name: Publish
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm publish --access public --no-git-checks
 
       - name: GitHub release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+  mcp-registry:
+    # Separate job so a registry hiccup can be re-run without re-publishing to npm.
+    name: Publish to MCP Registry
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      id-token: write   # mcp-publisher login github-oidc
+      contents: read
+    env:
+      MCP_PUBLISHER_VERSION: v1.8.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Download and verify mcp-publisher
+        run: |
+          set -euo pipefail
+          archive="mcp-publisher_linux_amd64.tar.gz"
+          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
+          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
+          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
+          cosign verify-blob \
+            --bundle "$archive.sigstore.json" \
+            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            "$archive"
+          tar xzf "$archive" mcp-publisher
+          rm -f "$archive" "$archive.sigstore.json"
+
+      - name: Authenticate to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      # The registry verifies mcpName inside the just-published npm package; retry briefly in
+      # case the registry has not seen the new version yet.
+      - name: Publish server.json
+        run: |
+          for attempt in 1 2 3 4 5; do
+            ./mcp-publisher publish && exit 0
+            echo "attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1

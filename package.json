@@ -4,6 +4,7 @@
   "mcpName": "io.github.sv/triz",
   "description": "The triz-innovation agent skill plus a deterministic, read-only MCP server for TRIZ parameters, principles, the contradiction matrix, and stage routing.",
   "type": "module",
+  "packageManager": "pnpm@12.14.0",
   "bin": {
     "triz-mcp": "dist/server.js"
   },
