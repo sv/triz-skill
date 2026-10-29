@@ -7,3 +7,6 @@ dist/
 
 # eval runner output (scripts/run-evals.mjs)
 /evals/results/
+
+# Lean build output (theory/)
+/theory/.lake/

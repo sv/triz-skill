@@ -86,7 +86,7 @@ ideality = useful effects / (costs + harmful effects)
 
 For a credible engineering mapping, look up the matrix rather than recalling it. The matrix is an
 ideation index, not proof. Blank and diagonal cells stay blank. For a physical contradiction,
-test separation in time, space, condition, and system level. Use Su-Field only when the
+test separation in time, space, condition (relation), direction, and system level. Use Su-Field only when the
 components and interaction are meaningful; people are stakeholders and agents, not substances.
 
 ## Synthesize

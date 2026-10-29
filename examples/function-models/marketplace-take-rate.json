@@ -1,0 +1,29 @@
+{
+  "domain": "business",
+  "system": "Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)",
+  "carriers": [
+    { "id": "orders", "layer": "information", "dimension": "matched orders/month" },
+    { "id": "fee", "layer": "financial", "dimension": "USD take-rate fees/month" },
+    { "id": "price", "layer": "financial", "dimension": "USD price markup per order" },
+    { "id": "listings", "layer": "information", "dimension": "active listings" },
+    { "id": "gmv", "layer": "financial", "dimension": "USD gross merchandise value/month" }
+  ],
+  "boxes": [
+    { "id": "platform", "name": "Marketplace platform", "role": "tool", "action": "match",
+      "inputs": [{ "id": "revenue", "carrier": "gmv" }],
+      "outputs": [{ "id": "match", "carrier": "orders" }, { "id": "charge", "carrier": "fee" }], "cost": { "usd_month": 50000 } },
+    { "id": "merchants", "name": "Merchants (supply side)", "role": "mediator", "action": "supply",
+      "inputs": [{ "id": "orders-in", "carrier": "orders" }, { "id": "fee-in", "carrier": "fee" }],
+      "outputs": [{ "id": "list", "carrier": "listings" }, { "id": "markup", "carrier": "price" }] },
+    { "id": "consumers", "name": "Consumers (demand side)", "role": "product",
+      "inputs": [{ "id": "browse", "carrier": "listings" }, { "id": "pay", "carrier": "price" }],
+      "outputs": [{ "id": "spend", "carrier": "gmv" }] }
+  ],
+  "wires": [
+    { "id": "w-match", "from": { "box": "platform", "port": "match" }, "to": { "box": "merchants", "port": "orders-in" }, "carrier": "orders", "polarity": "useful", "verb": "send orders to" },
+    { "id": "w-fee", "from": { "box": "platform", "port": "charge" }, "to": { "box": "merchants", "port": "fee-in" }, "carrier": "fee", "polarity": "excessive", "verb": "charge" },
+    { "id": "w-list", "from": { "box": "merchants", "port": "list" }, "to": { "box": "consumers", "port": "browse" }, "carrier": "listings", "polarity": "useful", "verb": "offer listings to" },
+    { "id": "w-markup", "from": { "box": "merchants", "port": "markup" }, "to": { "box": "consumers", "port": "pay" }, "carrier": "price", "polarity": "harmful", "verb": "pass fees on to" },
+    { "id": "w-spend", "from": { "box": "consumers", "port": "spend" }, "to": { "box": "platform", "port": "revenue" }, "carrier": "gmv", "polarity": "insufficient", "verb": "spend through" }
+  ]
+}

@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -54,6 +54,25 @@ if (!route.tools.every((t) => t.stages.includes("analysis"))) fail("router retur
 const eff = await json("triz_effects", { query: "convert temperature difference into voltage" });
 console.log(`triz_effects temperature->voltage -> ${eff.effects.slice(0, 3).map((e) => e.name).join(", ")}`);
 if (!eff.effects.slice(0, 5).some((e) => e.name === "Seebeck effect")) fail("effects search missed Seebeck effect");
+
+const model = {
+  domain: "physical",
+  carriers: [{ id: "load", layer: "energy", dimension: "N" }, { id: "heat", layer: "energy", dimension: "W" }],
+  boxes: [
+    { id: "bearing", name: "Bearing", role: "mediator", outputs: [{ id: "race", carrier: "load" }, { id: "rub", carrier: "heat" }] },
+    { id: "housing", name: "Housing", role: "mediator", outputs: [{ id: "bore", carrier: "load" }] },
+    { id: "shaft", name: "Shaft", role: "product", inputs: [{ id: "seat", carrier: "load" }, { id: "warm", carrier: "heat" }] },
+  ],
+  wires: [
+    { id: "w-support", from: { box: "bearing", port: "race" }, to: { box: "shaft", port: "seat" }, carrier: "load", polarity: "useful" },
+    { id: "w-heat", from: { box: "bearing", port: "rub" }, to: { box: "shaft", port: "warm" }, carrier: "heat", polarity: "harmful" },
+  ],
+};
+const trim = await json("triz_trim", { model, trim: ["bearing"] });
+console.log(`triz_trim bearing -> ${trim.verdict} via ${trim.functions?.[0]?.absorbers.map((a) => a.box)}`);
+if (trim.verdict !== "typed-feasible" || trim.functions[0].absorbers[0].box !== "housing") fail("trim screen wrong");
+const mistyped = await json("triz_function_model", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] } });
+if (mistyped.ok !== false) fail("mistyped wire did not fail closed");
 
 await client.close();
 console.log("SMOKE OK");

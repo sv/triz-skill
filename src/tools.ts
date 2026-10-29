@@ -8,6 +8,7 @@
  */
 import { z } from "zod";
 import * as triz from "./core.js";
+import * as act from "./act.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -91,6 +92,30 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         signals: z.array(z.string()).optional().describe("Problem signals such as bottleneck, stakeholder conflict, or harmful interaction"),
       },
       handler: async ({ stage, signals }: { stage: triz.ToolStage; signals?: string[] }) => text(triz.routeTools(stage, signals)),
+    },
+    {
+      name: "triz_function_model",
+      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison. Any dangling, mis-directed, or mistyped wire fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
+      shape: {
+        model: act.FunctionModel.describe("The model to analyse (the concept, when compare_to is given)"),
+        compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),
+      },
+      handler: async ({ model, compare_to }: { model: act.FunctionModel; compare_to?: act.FunctionModel }) => text(act.analyseModel(model, compare_to)),
+    },
+    {
+      name: "triz_trim",
+      description: "Screen a trimming of one or more boxes by the TRIZ trimming rules: A (object trimmed too, function no longer needed), B (the object performs the function itself), C (another remaining box or supersystem resource has an output of the same carrier). Returns per-function absorbers, orphaned functions that block the trim, harms and costs removed, and one trimming problem per absorber. A carrier match is a necessary condition only; every absorber is a hypothesis to solve and substantiate.",
+      shape: {
+        model: act.FunctionModel,
+        trim: z.array(z.string().min(1)).min(1).describe("Ids of the boxes to remove"),
+      },
+      handler: async ({ model, trim }: { model: act.FunctionModel; trim: string[] }) => text(act.trimCandidates(model, trim)),
+    },
+    {
+      name: "triz_separate",
+      description: "Decide whether a physical contradiction's demands can be met piecewise over a finite space x time x condition x direction x level base (the MATRIZ separation types). Each demand lists admissible values and the cells where it applies (omitted axis = whole axis). Returns per-pair status (compatible: not a physical contradiction; separated: the separating axes; irreducible: overlap on every axis) and the conflict cells where no value satisfies every active demand.",
+      shape: { contradiction: act.PhysicalContradiction },
+      handler: async ({ contradiction }: { contradiction: act.PhysicalContradiction }) => text(act.separationCheck(contradiction)),
     },
     {
       name: "triz_evals",

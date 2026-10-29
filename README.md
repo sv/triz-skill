@@ -87,8 +87,42 @@ missing.
 | `triz_effects` | Search the curated effects database by required function or category |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
+| `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison |
+| `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers and trimming problems |
+| `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant and purpose gate of one graph node |
+
+## Function models as typed data
+
+`triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function
+model written as an open wiring diagram, defined by
+[`function-model.schema.json`](skills/triz-innovation/schemas/function-model.schema.json):
+
+- boxes are components with typed ports;
+- wires are functions rated useful, insufficient, excessive, or harmful;
+- carriers name what flows and in what unit.
+
+Any dangling, mis-directed, or mistyped wire fails closed. The checks cover harm loops, trimming
+by rules A/B/C, ideality compared per dimension and never summed, and physical-contradiction
+separation as a gluing problem. Every loop and absorber they return is a hypothesis to
+substantiate. [categorical-model.md](skills/triz-innovation/references/categorical-model.md)
+states exactly what is and is not claimed. `examples/function-models/` holds a physical,
+software, and business model.
+
+`theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
+with no `sorry`:
+
+- gluing iff every cell is satisfiable;
+- an edge in a strongly connected region lies on a cycle;
+- the componentwise order is not total.
+
+It also states trimming as a left Kan extension, which the kernel does not decide.
+
+```bash
+pnpm schema                       # regenerate the JSON Schema from src/act.ts
+cd theory && lake exe cache get && lake build --wfail
+```
 
 ## Optional: your own network of problems
 
