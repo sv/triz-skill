@@ -1,13 +1,13 @@
 digraph function_model {
-  graph [rankdir=LR, label="Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)", labelloc=t];
-  node [shape=record, fontname="Helvetica", fontsize=11];
-  edge [fontname="Helvetica", fontsize=9];
-  "platform" [label="{{<i0> revenue (gmv)}|Marketplace platform\n«tool»|{<o0> match (orders)|<o1> charge (fee)}}"];
-  "merchants" [label="{{<i0> orders-in (orders)|<i1> fee-in (fee)}|Merchants (supply side)\n«mediator»|{<o0> list (listings)|<o1> markup (price)}}"];
-  "consumers" [label="{{<i0> browse (listings)|<i1> pay (price)}|Consumers (demand side)\n«product»|{<o0> spend (gmv)}}", penwidth=2];
-  "platform":o0:e -> "merchants":i0:w [label="send orders to", color="black"];
-  "platform":o1:e -> "merchants":i1:w [label="charge [excessive]", color="black", penwidth=2.5];
-  "merchants":o0:e -> "consumers":i0:w [label="offer listings to", color="black"];
-  "merchants":o1:e -> "consumers":i1:w [label="pass fees on to [harmful]", color="red3", fontcolor="red3"];
-  "consumers":o0:e -> "platform":i0:w [label="spend through [insufficient]", color="black", style="dashed"];
+  graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=10, nodesep=0.3, ranksep=0.6, labelloc=t, label=<<TABLE BORDER="0" CELLSPACING="0"><TR><TD><FONT POINT-SIZE="14"><B>Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)</B></FONT></TD></TR><TR><TD><TABLE BORDER="0" CELLSPACING="3" CELLPADDING="2"><TR><TD BGCOLOR="#d6e4f5" BORDER="1" COLOR="gray50">«tool»</TD><TD BGCOLOR="#d5ecd4" BORDER="1" COLOR="gray50">«product»</TD><TD BGCOLOR="#e8e8e8" BORDER="1" COLOR="gray50">«mediator»</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="1" COLOR="gray20"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">useful</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="1" COLOR="gray20" STYLE="dashed"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">insufficient</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="3" COLOR="gray20"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">excessive</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="2" COLOR="red3"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">harmful</TD></TR></TABLE></TD></TR></TABLE>>];
+  node [shape=plain, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  "platform" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d6e4f5"><B>Marketplace platform</B><BR/><FONT POINT-SIZE="9">«tool»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">revenue <FONT POINT-SIZE="9" COLOR="gray35">gmv</FONT></TD><TD PORT="o0" ALIGN="RIGHT">match <FONT POINT-SIZE="9" COLOR="gray35">orders</FONT></TD></TR><TR><TD></TD><TD PORT="o1" ALIGN="RIGHT">charge <FONT POINT-SIZE="9" COLOR="gray35">fee</FONT></TD></TR></TABLE>>];
+  "merchants" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Merchants (supply side)</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">orders-in <FONT POINT-SIZE="9" COLOR="gray35">orders</FONT></TD><TD PORT="o0" ALIGN="RIGHT">list <FONT POINT-SIZE="9" COLOR="gray35">listings</FONT></TD></TR><TR><TD PORT="i1" ALIGN="LEFT">fee-in <FONT POINT-SIZE="9" COLOR="gray35">fee</FONT></TD><TD PORT="o1" ALIGN="RIGHT">markup <FONT POINT-SIZE="9" COLOR="gray35">price</FONT></TD></TR></TABLE>>];
+  "consumers" [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d5ecd4"><B>Consumers (demand side)</B><BR/><FONT POINT-SIZE="9">«product»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">browse <FONT POINT-SIZE="9" COLOR="gray35">listings</FONT></TD><TD PORT="o0" ALIGN="RIGHT">spend <FONT POINT-SIZE="9" COLOR="gray35">gmv</FONT></TD></TR><TR><TD PORT="i1" ALIGN="LEFT">pay <FONT POINT-SIZE="9" COLOR="gray35">price</FONT></TD><TD></TD></TR></TABLE>>];
+  "platform":o0:e -> "merchants":i0:w [label="send orders to", color="gray20"];
+  "platform":o1:e -> "merchants":i1:w [label="charge [excessive]", color="gray20", penwidth=2.5];
+  "merchants":o0:e -> "consumers":i0:w [label="offer listings to", color="gray20"];
+  "merchants":o1:e -> "consumers":i1:w [label="pass fees on to [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
+  "consumers":o0:e -> "platform":i0:w [label="spend through [insufficient]", color="gray20", style="dashed"];
 }

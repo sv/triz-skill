@@ -1,14 +1,14 @@
 digraph function_model {
-  graph [rankdir=LR, label="Motor shaft on a rolling-element bearing, with declared co-design feasibility", labelloc=t];
-  node [shape=record, fontname="Helvetica", fontsize=11];
-  edge [fontname="Helvetica", fontsize=9];
-  "motor" [label="{Drive motor\n«tool»|{<o0> shaft-out (torque)}}"];
-  "shaft" [label="{{<i0> drive (torque)|<i1> support (radial-load)|<i2> heat-in (heat)}|Shaft\n«product»|{<o0> expansion (preload)}}", penwidth=2];
-  "bearing" [label="{{<i0> preload-in (preload)}|Ball bearing\n«mediator»|{<o0> race (radial-load)|<o1> friction (heat)}}"];
-  "housing" [label="{Housing\n«mediator»|{<o0> bore (radial-load)}}"];
-  "air" [label="{{<i0> sink (heat)}|Ambient air\n«environment»}", style="dashed", color="gray40"];
-  "motor":o0:e -> "shaft":i0:w [label="rotate", color="black"];
-  "bearing":o0:e -> "shaft":i1:w [label="support", color="black"];
-  "bearing":o1:e -> "shaft":i2:w [label="heat [harmful]", color="red3", fontcolor="red3"];
-  "shaft":o0:e -> "bearing":i0:w [label="overload [harmful]", color="red3", fontcolor="red3"];
+  graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=10, nodesep=0.3, ranksep=0.6, labelloc=t, label=<<TABLE BORDER="0" CELLSPACING="0"><TR><TD><FONT POINT-SIZE="14"><B>Motor shaft on a rolling-element bearing, with declared co-design feasibility</B></FONT></TD></TR><TR><TD><TABLE BORDER="0" CELLSPACING="3" CELLPADDING="2"><TR><TD BGCOLOR="#d6e4f5" BORDER="1" COLOR="gray50">«tool»</TD><TD BGCOLOR="#d5ecd4" BORDER="1" COLOR="gray50">«product»</TD><TD BGCOLOR="#e8e8e8" BORDER="1" COLOR="gray50">«mediator»</TD><TD BGCOLOR="#f3f3f3" BORDER="1" COLOR="gray50">«environment»</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="1" COLOR="gray20"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">useful</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="2" COLOR="red3"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">harmful</TD><TD><I>open port</I></TD></TR></TABLE></TD></TR></TABLE>>];
+  node [shape=plain, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  "motor" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d6e4f5"><B>Drive motor</B><BR/><FONT POINT-SIZE="9">«tool»</FONT></TD></TR><TR><TD></TD><TD PORT="o0" ALIGN="RIGHT">shaft-out <FONT POINT-SIZE="9" COLOR="gray35">torque</FONT></TD></TR></TABLE>>];
+  "shaft" [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d5ecd4"><B>Shaft</B><BR/><FONT POINT-SIZE="9">«product»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">drive <FONT POINT-SIZE="9" COLOR="gray35">torque</FONT></TD><TD PORT="o0" ALIGN="RIGHT">expansion <FONT POINT-SIZE="9" COLOR="gray35">preload</FONT></TD></TR><TR><TD PORT="i1" ALIGN="LEFT">support <FONT POINT-SIZE="9" COLOR="gray35">radial-load</FONT></TD><TD></TD></TR><TR><TD PORT="i2" ALIGN="LEFT">heat-in <FONT POINT-SIZE="9" COLOR="gray35">heat</FONT></TD><TD></TD></TR></TABLE>>];
+  "bearing" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Ball bearing</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">preload-in <FONT POINT-SIZE="9" COLOR="gray35">preload</FONT></TD><TD PORT="o0" ALIGN="RIGHT">race <FONT POINT-SIZE="9" COLOR="gray35">radial-load</FONT></TD></TR><TR><TD></TD><TD PORT="o1" ALIGN="RIGHT">friction <FONT POINT-SIZE="9" COLOR="gray35">heat</FONT></TD></TR></TABLE>>];
+  "housing" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Housing</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD></TD><TD PORT="o0" ALIGN="RIGHT"><I>bore <FONT POINT-SIZE="9" COLOR="gray35">radial-load</FONT></I></TD></TR></TABLE>>];
+  "air" [label=<<TABLE BORDER="1" STYLE="dashed" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#f3f3f3"><B>Ambient air</B><BR/><FONT POINT-SIZE="9">«environment»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT"><I>sink <FONT POINT-SIZE="9" COLOR="gray35">heat</FONT></I></TD><TD></TD></TR></TABLE>>];
+  "motor":o0:e -> "shaft":i0:w [label="rotate", color="gray20"];
+  "bearing":o0:e -> "shaft":i1:w [label="support", color="gray20"];
+  "bearing":o1:e -> "shaft":i2:w [label="heat [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
+  "shaft":o0:e -> "bearing":i0:w [label="overload [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
 }

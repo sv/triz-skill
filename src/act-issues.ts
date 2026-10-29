@@ -41,6 +41,7 @@ export const ISSUE_CODES = {
   "unknown-cost-dimension": "A cost dimension is not one the box declares",
   "cap-exceeded": "A search or encoding passed its cap",
   "internal-error": "An invariant of the kernel failed; the input is not at fault",
+  "format-unavailable": "The export format needs a layout engine this server does not have",
   // Tool argument combinations
   "box-map-without-compare-to": "box_map was passed without compare_to",
   "absorb-without-trim": "absorb was passed without trim",
@@ -130,7 +131,7 @@ export const ISSUE_CODES = {
   "invalid-namespace": "The certificate namespace is not a usable Lean identifier",
   "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe target",
   "certificate-input-sequence": "A dynamics certificate was asked for runs under an input sequence, which it does not encode",
-  "not-certifiable": "The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair",
+  "not-certifiable": "The verdict has no certificate: an escalation unreachable only within the horizon, undecided, or whose trace blocks; a behaviour verdict other than preserved; an undecided ranking, or no strictly ordered pair",
   // Lints (warnings channel)
   "defect-on-loss-carrier": "Lint: a loss-like flow (pressure drop, friction, leakage, …) is rated excessive or insufficient",
   "trim-level-functions": "Lint: the trim removes excessive or insufficient functions, listed under levelProblems",

@@ -1,0 +1,19 @@
+---
+title: "Motor shaft on a rolling-element bearing, with declared co-design feasibility"
+---
+flowchart LR
+  classDef tool fill:#d6e4f5,color:#111,stroke:#333
+  classDef product fill:#d5ecd4,color:#111,stroke:#333,stroke-width:3px
+  classDef mediator fill:#e8e8e8,color:#111,stroke:#333
+  classDef environment fill:#f3f3f3,color:#111,stroke:#555,stroke-dasharray:5 3
+  b0["Drive motor<br/>«tool»"]:::tool
+  b1["Shaft<br/>«product»"]:::product
+  b2["Ball bearing<br/>«mediator»"]:::mediator
+  b3["Housing<br/>«mediator»"]:::mediator
+  b4["Ambient air<br/>«environment»"]:::environment
+  b0 -- "rotate<br/>shaft-out → drive : torque" --> b1
+  b2 -- "support<br/>race → support : radial-load" --> b1
+  b2 -- "heat [harmful]<br/>friction → heat-in : heat" --> b1
+  b1 -- "overload [harmful]<br/>expansion → preload-in : preload" --> b2
+  linkStyle 2 stroke:#c00,color:#c00,stroke-width:2px
+  linkStyle 3 stroke:#c00,color:#c00,stroke-width:2px

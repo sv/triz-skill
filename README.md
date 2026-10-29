@@ -74,6 +74,33 @@ Register it (`.mcp.json` in this repo is a working example):
 dir is resolved relative to the repo root and the server fails closed with a clear message if it is
 missing.
 
+### Hosted endpoint
+
+`src/worker.ts` serves the same tools, except the optional `triz_graph` and `triz_purpose` and
+`triz_export` format `svg`, as a Cloudflare Worker over stateless streamable HTTP (deploy with `npx wrangler deploy`; endpoints
+`/mcp` and `/health`). It has no authentication and allows any origin (`Access-Control-Allow-Origin: *`) on purpose: it
+is a stateless, read-only public utility with no storage bindings and no secrets, so any client
+or web page may drive it. An operator who wants it private can check a token in `fetch` before
+the MCP handler, list allowed origins instead of `*`, or put it behind Cloudflare Access or a
+rate limit. Calling a hosted endpoint sends your model to whoever runs it; keep private models on
+the local stdio server.
+
+### Tool map
+
+One line per workflow stage; the table below has one row per tool. The theory behind the model
+tools, and exactly what is and is not claimed, is in
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md).
+
+| Stage | Tools | What they do |
+|---|---|---|
+| Lookup | `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_matrix_multi`, `triz_resolve`, `triz_effects`, `triz_route`, `triz_tool_catalog`, `triz_evals` | Read the canonical data: parameters, principles, matrix cells, effects, the method router, and the eval suites |
+| Model | `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
+| Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
+| Transform | `triz_transform`, `triz_rule_apply` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
+| Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
+| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_dynamics`, `triz_weakness`, `triz_behavior` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
+
 ### Tools
 
 | Tool | Purpose |
@@ -93,7 +120,7 @@ missing.
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
-| `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
@@ -196,15 +223,36 @@ weights. When the 9-windows snapshots declare rows, each time carries its behavi
 feasibility verdicts, and each change between times says how they move.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
-as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
+as an open hypergraph. Format `dot` draws each box with its «role» and its typed ports, inputs
+left and outputs right, rates each function by line style and colour, and adds a legend; render
+it with `dot -Tsvg`. Format `mermaid` renders as is in GitHub and GitLab markdown and in many
+chat clients; Mermaid has no ports, so each edge names its ports and carrier instead.
+
+![A function model drawn by triz_export format dot](docs/img/function-model-dot.svg)
+
+Format `svg` returns the picture itself, with no Graphviz needed. The server lays the model out
+with [elkjs](https://github.com/kieler/elkjs): boxes left to right, ports fixed on the box sides,
+and orthogonal edges. It then writes a self-contained SVG with the same conventions as `dot`.
+Hover a box or edge to see its id. Text widths are estimated from Helvetica and Arial metrics,
+so a much wider font may run past a box. elkjs (about 1.6 MB) is an optional dependency: it is
+installed with `triz-mcp` unless optional dependencies are omitted (`--omit=optional`), and
+without it the format answers `ok: false` with `format-unavailable`. The hosted Worker does not
+offer the format. elkjs would more than double the script, it does not start on workerd as
+published, and a first layout costs more CPU than a Free-plan request allows (see
+`src/worker.ts`).
+
+![The same model drawn by triz_export format svg](docs/img/function-model-svg.svg)
+ Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
-and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
-reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
-pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
+and proves them, and `node scripts/certify.mjs` checks it with local Lean (or, only with
+`--remote`, by sending the file to the AXLE service). `triz_dynamics`, `triz_weakness`, and `triz_behavior` with `certificate: true` do the same for a
+reachable escalation (the composed rows and the shortest trace), an unreachable one (the
+composed rows and the reached states as an inductive invariant), each strictly ordered pair of
+concepts (their rows, the inclusion, and the count), and a preserved verdict (both models'
+rows, and their relations equal and not empty). Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions

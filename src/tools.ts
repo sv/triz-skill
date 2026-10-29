@@ -4,13 +4,14 @@
  *
  * Transport-neutral: toolSpecs() returns plain specs; bindV1()/bindV2() attach
  * them to the respective SDK server classes. The graph tools (project
- * extension, fs-backed) are only specced when a graph module is provided.
+ * extension, fs-backed) are only specced when a graph module is provided;
+ * triz_export format svg draws only when a layout loader is provided.
  */
 import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
-import { exportModel, CERTIFICATE_NOTE } from "./act-export.js";
-import { dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
+import { exportModel, exportSvg, CERTIFICATE_NOTE, type LayoutLoader } from "./act-export.js";
+import { behaviorCertificate, dynamicsCertificate, separationCertificate, trimCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
 import { withSuggestions } from "./act-suggest.js";
 import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
@@ -171,7 +172,7 @@ const AcceptableEntry = z.strictObject({
 
 type BehaviorArgs = {
   model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[];
-  absorb?: Record<string, { box: string; port: string }>; max_states?: number; weakest_spec?: boolean;
+  absorb?: Record<string, { box: string; port: string }>; max_states?: number; weakest_spec?: boolean; certificate?: boolean;
 };
 
 /**
@@ -194,6 +195,18 @@ function behavior(args: BehaviorArgs) {
   if (weakest_spec) return compare_to ? weakestSpec(model, compare_to, { boxMap: box_map, maxStates }) : weakestTrimSpec(model, { trim: trim!, absorb, maxStates });
   if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates });
   return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates }) : externalBehavior(model, { maxStates });
+}
+
+/** triz_behavior's certificate: of the comparison, or of the trim, whose verdict is preserved. Composing alone, or a weakest spec, states no equality. */
+function behaviorCertificateOf(args: BehaviorArgs): Certificate {
+  const { model, compare_to, box_map, trim, absorb, max_states: maxStates, weakest_spec } = args;
+  if (weakest_spec || (!compare_to && !trim)) {
+    return fail([issue("not-certifiable", weakest_spec ? "$.weakest_spec" : "$.certificate", weakest_spec
+      ? "a weakest specification is not certified: only a preserved verdict is"
+      : "a certificate states a preserved verdict, which needs compare_to or trim",
+    weakest_spec ? "Drop weakest_spec to certify the comparison's preserved verdict, or read the spec without a certificate." : "Pass compare_to (the baseline) or trim, so there is a verdict to certify.")]);
+  }
+  return compare_to ? behaviorCertificate(compare_to, model, { boxMap: box_map, maxStates }) : trimCertificate(model, { trim: trim!, absorb, maxStates });
 }
 
 function transform(model: act.FunctionModel, t: Transformation) {
@@ -281,8 +294,8 @@ export function withIssues<T>(payload: T): T {
   return { ...payload, issues: (p.errors as string[]).map((e) => issue("internal-error", "$", e, "This failure carries no structured issue: report it with the input.")) };
 }
 
-export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
-  const { graph } = opts;
+export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } = {}): ToolSpec[] {
+  const { graph, layout } = opts;
   const specs: ToolSpec[] = [
     {
       name: "triz_parameter",
@@ -404,12 +417,13 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_export",
-      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (boxes as record nodes with input and output port fields, functions as edges; harmful red, insufficient dashed, excessive bold), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
+      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (each box a table: name and «role» in a role-coloured header, input ports left and output ports right with their carriers, open ports in italics; functions as edges between ports, harmful red, insufficient dashed, excessive bold; flows dotted blue; a legend of what occurs; render with `dot -Tsvg`), 'mermaid' gives a Mermaid flowchart that GitHub, GitLab, and many chat clients render without tools (Mermaid has no ports, so each edge names its out port, in port, and carrier), 'svg' gives a self-contained SVG picture with dot's conventions, laid out by ELK with orthogonal edges, for when Graphviz is not at hand (stdio server only: it needs the optional elkjs package; the hosted server answers ok:false with format-unavailable), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
       shape: {
         model: act.FunctionModel,
-        format: z.enum(["dot", "hypergraph", "lean"]),
+        format: z.enum(["dot", "mermaid", "svg", "hypergraph", "lean"]),
       },
-      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" | "lean" }) => text(exportModel(model, format)),
+      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "mermaid" | "svg" | "hypergraph" | "lean" }) =>
+        text(format === "svg" ? await exportSvg(model, layout) : exportModel(model, format)),
     },
     {
       name: "triz_transform",
@@ -438,7 +452,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_behavior",
-      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). With `weakest_spec` (and compare_to or trim), give the weakest box specification (residual in Rel) for the one box of the concept that can reach a deliverable and declares no behaviour, against the same target: spec, every row of that box whose composite stays inside the target, with preserves:true when declaring it gives exactly the target (any behaviour that does is contained in it); impossible, when the spec's composite misses part of the target (an uncovered input is given; no behaviour of that box gives the target, and the empty relation, which always stays inside, is never read as preserving) or a deliverable is lost; undecided for several boxes without behaviour (several-holes), missing baseline behaviour, an empty target, or past the cap (state-cap). When the box to specify declares `producible` rows (what it can physically produce), the spec is the residual cut down to them: spec when that still covers the target (producible.infeasible lists the residual rows left out); impossible with reason infeasible when the residual covers the target but its producible rows do not, with requiredInfeasible giving, per missing target pair, the residual rows that deliver it, none producible (every relation that gives the target contains one of each); impossible with reason not-covered when the residual itself does not cover. Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). With `weakest_spec` (and compare_to or trim), give the weakest box specification (residual in Rel) for the one box of the concept that can reach a deliverable and declares no behaviour, against the same target: spec, every row of that box whose composite stays inside the target, with preserves:true when declaring it gives exactly the target (any behaviour that does is contained in it); impossible, when the spec's composite misses part of the target (an uncovered input is given; no behaviour of that box gives the target, and the empty relation, which always stays inside, is never read as preserving) or a deliverable is lost; undecided for several boxes without behaviour (several-holes), missing baseline behaviour, an empty target, or past the cap (state-cap). When the box to specify declares `producible` rows (what it can physically produce), the spec is the residual cut down to them: spec when that still covers the target (producible.infeasible lists the residual rows left out); impossible with reason infeasible when the residual covers the target but its producible rows do not, with requiredInfeasible giving, per missing target pair, the residual rows that deliver it, none producible (every relation that gives the target contains one of each); impossible with reason not-covered when the residual itself does not cover. With `certificate: true` and a preserved verdict (compare_to or trim), also returns a Lean file that encodes both models' composed rows (each in its own box ids, the situations in the baseline's) and proves the two input→deliverable relations equal and not empty, decided over every situation and valuation; deliverables only the concept has stay out, as in the verdict; otherwise, or past its cap, `certificate` gives the reason there is none. Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
       shape: {
         model: act.FunctionModel.describe("The model to compose (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model; with it, decide whether the model preserves the baseline's input→deliverable relation"),
@@ -448,9 +462,13 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
         weakest_spec: z.boolean().optional().describe("With compare_to or trim: give the weakest specification for the one box that can reach a deliverable and declares no behaviour, against the same target"),
+        certificate: z.boolean().optional().describe("With compare_to or trim: also return a Lean certificate of a preserved verdict (check it with scripts/certify.mjs); changed and undecided verdicts are not certified"),
       },
-      handler: async (args: Parameters<typeof behavior>[0]) =>
-        text({ ...behavior(args), warnings: warnings([[args.model, "$.model"], [args.compare_to, "$.compare_to"]]) }),
+      handler: async (args: Parameters<typeof behavior>[0]) => {
+        const r = behavior(args);
+        const cert = args.certificate && r.ok ? { certificate: certificateField(behaviorCertificateOf(args)) } : {};
+        return text({ ...r, ...cert, warnings: warnings([[args.model, "$.model"], [args.compare_to, "$.compare_to"]]) });
+      },
     },
     {
       name: "triz_weakness",
@@ -470,7 +488,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_dynamics",
-      description: "Bounded dynamics of a function model whose boxes declare `state`, `initial`, and `transition` rows (state, inputs) → (next state, outputs): each such box is a nondeterministic Mealy machine (a lens with a residual is one, with the residual as state); boxes with `behavior` are stateless. Boxes compose synchronously along the wiring: wires are instantaneous, memory lives only in declared state, and a loop through stateless boxes resolves within a step as in triz_behavior. From the initial states, over the boundary inputs you allow at each time (default: every value), every run is explored breadth first up to `horizon` steps; the result lists the reachable states, the fixed points among them, and the runs that block (a state with no row for its inputs). `unsafe` decides escalation: reachable (with a shortest trace), unreachable (the reachable set stopped growing, so at no horizon), or unreachable-within-horizon. `safe` decides invariance: violated (shortest trace), invariant, or invariant-within-horizon. A blocked state meets a target by its state conditions; a port condition there leaves the verdict undecided (reason blocked), never safe. `separation` takes two to four demands, each a target set with a time window, and decides whether one run visits each within its window (separation in time along a trajectory, Principle 15): realizable with a witness trace, unrealizable (a demand never met, or no single run meets them all), or undecided (a blocked run might meet them all). Without `inputs`, `loops` classifies the closed components (no step leaves them) of the reachable graph of the global states of boxes that declare transition, explored without a horizon up to the cap, from the initial states and every state meeting `safe`'s state conditions: bistable (fixed points in two or more closed components), trapped (a closed component every configuration of which meets `unsafe`: an absorbing trap, with a shortest trace into it), recurrent (a closed component that meets `unsafe` and also holds a safe configuration: the run can recover but never leaves it, with a shortest trace into it and the safe configuration), oscillating (a cycle and no fixed point, with its period and one cycle); each closed component reports `unsafe` (it meets the set) and `allUnsafe` (it lies inside it); classes can coexist, and 'none' means no closed component was found within the cap. Behavior rows are never read as transitions. Every trace is re-checked against the declared rows. With `certificate: true` and a reachable escalation (no `inputs`, a trace that does not end blocked), also returns a Lean file that encodes the composed boxes' rows and the trace and proves the escalation with reach_of_trace; otherwise `certificate` gives the reason there is none. Fails closed on ill-typed rows, unknown targets, and past the state cap. Verdicts hold for the rows as declared; continuous dynamics, convergence rates, and control are not modelled.",
+      description: "Bounded dynamics of a function model whose boxes declare `state`, `initial`, and `transition` rows (state, inputs) → (next state, outputs): each such box is a nondeterministic Mealy machine (a lens with a residual is one, with the residual as state); boxes with `behavior` are stateless. Boxes compose synchronously along the wiring: wires are instantaneous, memory lives only in declared state, and a loop through stateless boxes resolves within a step as in triz_behavior. From the initial states, over the boundary inputs you allow at each time (default: every value), every run is explored breadth first up to `horizon` steps; the result lists the reachable states, the fixed points among them, and the runs that block (a state with no row for its inputs). `unsafe` decides escalation: reachable (with a shortest trace), unreachable (the reachable set stopped growing, so at no horizon), or unreachable-within-horizon. `safe` decides invariance: violated (shortest trace), invariant, or invariant-within-horizon. A blocked state meets a target by its state conditions; a port condition there leaves the verdict undecided (reason blocked), never safe. `separation` takes two to four demands, each a target set with a time window, and decides whether one run visits each within its window (separation in time along a trajectory, Principle 15): realizable with a witness trace, unrealizable (a demand never met, or no single run meets them all), or undecided (a blocked run might meet them all). Without `inputs`, `loops` classifies the closed components (no step leaves them) of the reachable graph of the global states of boxes that declare transition, explored without a horizon up to the cap, from the initial states and every state meeting `safe`'s state conditions: bistable (fixed points in two or more closed components), trapped (a closed component every configuration of which meets `unsafe`: an absorbing trap, with a shortest trace into it), recurrent (a closed component that meets `unsafe` and also holds a safe configuration: the run can recover but never leaves it, with a shortest trace into it and the safe configuration), oscillating (a cycle and no fixed point, with its period and one cycle); each closed component reports `unsafe` (it meets the set) and `allUnsafe` (it lies inside it); classes can coexist, and 'none' means no closed component was found within the cap. Behavior rows are never read as transitions. Every trace is re-checked against the declared rows. With `certificate: true` (no `inputs`), also returns a Lean file that encodes the composed boxes' rows: for a reachable escalation whose trace does not end blocked, with the trace, proving the escalation with reach_of_trace; for an unreachable one, with the global states the search reached (blocked ones included) as an inductive invariant, proving with unreachable_of_invariant that no run reaches the unsafe set at any horizon, decided over every valuation of the composed ports; otherwise, or past its cap, `certificate` gives the reason there is none. Fails closed on ill-typed rows, unknown targets, and past the state cap. Verdicts hold for the rows as declared; continuous dynamics, convergence rates, and control are not modelled.",
       shape: {
         model: act.FunctionModel,
         horizon: z.number().int().min(0).max(MAX_HORIZON).optional().describe(`Steps to explore (times 0 to horizon); default: the length of inputs minus one, else ${DEFAULT_HORIZON}`),
@@ -481,7 +499,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         safe: Target.optional().describe("Invariance: does every reachable configuration meet every condition?"),
         separation: z.array(TimedDemand).min(2).max(4).optional().describe("Separation in time: does one run visit each demand's target set within its window?"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on configurations and search states (default and maximum ${MAX_STATES})`),
-        certificate: z.boolean().optional().describe("Also return a Lean certificate of a reachable escalation: the composed rows and the shortest trace (check it with scripts/certify.mjs); other verdicts are not certified"),
+        certificate: z.boolean().optional().describe("Also return a Lean certificate of a reachable escalation (the composed rows and the shortest trace) or an unreachable one (the composed rows and the reached states as an invariant); check it with scripts/certify.mjs. Other verdicts are not certified"),
       },
       handler: async ({ model, max_states, certificate, ...rest }: { model: act.FunctionModel; max_states?: number; certificate?: boolean } & Omit<Parameters<typeof boundedDynamics>[1], "maxStates">) => {
         const spec = { ...rest, maxStates: max_states };

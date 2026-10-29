@@ -1251,6 +1251,13 @@ theorem recurrent_reach {C U S : Set σ} (hC : Closed r C)
   let ⟨s, hsC, hsS⟩ := hS
   ⟨⟨u, huU, hSC b hb u huC⟩, ⟨s, hsS, hSC b hb s hsC⟩⟩
 
+/-- Safety by an inductive invariant: a closed set that holds every start and misses the target
+rules the target out at every horizon. A breadth-first search that stops growing has found one,
+the set it reached. -/
+theorem unreachable_of_invariant {A I U : Set σ} (hA : A ⊆ I) (hI : Closed r I) (hU : Disjoint I U) :
+    ∀ n, ∀ a ∈ A, ∀ b ∈ U, ¬ reachIn r n a b :=
+  fun n _ ha _ hb h => Set.disjoint_left.mp hU (closed_reachIn hI (hA ha) n h) hb
+
 /-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
 cycles have length two or more. -/
 theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc : reachIn r n s s) :
@@ -1457,10 +1464,11 @@ theorem level_gc [OrderBot α] {t : V → α} (ht : Monotone t) (h0 : t ⊥ = �
 
 end Levels
 
-/-! ## Row tables: certificates of dynamics and weakness verdicts
+/-! ## Row tables: certificates of dynamics, weakness, and behaviour verdicts
 
-A certificate of a `triz_dynamics` escalation trace, or of a `triz_weakness` strict inclusion,
-encodes the composed boxes' declared rows, not the kernel's results. Every port is a variable
+A certificate of a `triz_dynamics` escalation (a trace, or an invariant), of a `triz_weakness`
+strict inclusion, or of a `triz_behavior` preserved verdict, encodes the composed boxes' declared
+rows, not the kernel's results. Every port is a variable
 and every function between two encoded ports says its ends carry the same value. A row of a box
 fixes each of that box's ports to one value (`fixes`, `val`). A transition row also names its
 machine, its current state, and its next state. The definitions below read these tables as the
@@ -1468,8 +1476,9 @@ kernel's semantics: a steady state is a valuation every function and every box a
 synchronous step goes from a configuration (global state, valuation) every box admits to the
 next states its picked rows name; the input→deliverable relation is the steady states projected
 onto the inputs a concept reads and its deliverables. The certificate then states the verdict
-with `reachWithin` and `reach_of_trace`, or `AtLeastAsWeak` and `card_lt_of_strictly_weaker`,
-and Lean decides it on the tables. -/
+with `reachWithin` and `reach_of_trace`, `reachIn` and `unreachable_of_invariant` (the invariant a
+table of global states, `holding`), `AtLeastAsWeak` and `card_lt_of_strictly_weaker`, or an
+equality of two relations, and Lean decides it on the tables. -/
 
 section RowTables
 
@@ -1494,7 +1503,7 @@ structure Sync (Bx Rw Vr Mc Wr St Val : Type*) where
   src : Wr → Vr
   tgt : Wr → Vr
 
-variable {Bx Rw Vr Mc Wr St Val In Dl : Type*}
+variable {Bx Rw Vr Mc Wr St Val In Dl Iv : Type*}
 
 namespace Rows
 
@@ -1551,11 +1560,40 @@ target allows. -/
 def target (st : Mc → St → Bool) (vl : Vr → Val → Bool) : Set ((Mc → St) × (Vr → Val)) :=
   {c | t.Consistent c ∧ (∀ m, st m (c.1 m) = true) ∧ ∀ x, vl x (c.2 x) = true}
 
+/-- The configurations whose global state the table `inv` lists, at every valuation. `Step` never
+reads the next valuation, so a set of global states closed under steps is a closed set of
+configurations: an invariant of an unreachable escalation. -/
+def holding (_t : Sync Bx Rw Vr Mc Wr St Val) (inv : Iv → Mc → St) : Set ((Mc → St) × (Vr → Val)) :=
+  {c | ∃ i, inv i = c.1}
+
+/-- The listed states hold every start when they include every state the initial table allows. -/
+theorem starts_subset_holding {init : Mc → St → Bool} {inv : Iv → Mc → St}
+    (h : ∀ s : Mc → St, (∀ m, init m (s m) = true) → ∃ i, inv i = s) : t.starts init ⊆ t.holding inv :=
+  fun c hc => h c.1 hc
+
+/-- The listed states are closed under `Step` when every step from one of them, at a valuation
+every box admits, names a listed state. -/
+theorem closed_holding {inv : Iv → Mc → St}
+    (h : ∀ i (v : Vr → Val), t.Consistent (inv i, v) → ∀ s : Mc → St, t.Step (inv i, v) (s, v) → ∃ j, inv j = s) :
+    Closed t.Step (t.holding inv) := by
+  rintro ⟨_, v⟩ ⟨i, rfl⟩ ⟨s, _⟩ hs
+  exact h i v ⟨hs.1, fun b => (hs.2 b).imp fun _ hk => ⟨hk.1, hk.2.1⟩⟩ s hs
+
+/-- The listed states miss the target when none of them, at any valuation, is in it. -/
+theorem disjoint_holding_target {inv : Iv → Mc → St} {st : Mc → St → Bool} {vl : Vr → Val → Bool}
+    (h : ∀ i (v : Vr → Val), (inv i, v) ∉ t.target st vl) : Disjoint (t.holding inv) (t.target st vl) := by
+  rw [Set.disjoint_left]
+  rintro ⟨_, v⟩ ⟨i, rfl⟩
+  exact h i v
+
 variable [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Mc] [Fintype Wr]
   [DecidableEq Bx] [DecidableEq Mc] [DecidableEq St] [DecidableEq Val]
 
 instance (k : Rw) (c : (Mc → St) × (Vr → Val)) : Decidable (t.Fits k c) :=
   inferInstanceAs (Decidable ((∀ x, t.fixes k x = true → c.2 x = t.val k x) ∧ ∀ m, t.mach k = some m → c.1 m = t.state k))
+
+instance : DecidablePred t.Consistent := fun c =>
+  inferInstanceAs (Decidable ((∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧ ∀ b, ∃ k, t.box k = b ∧ t.Fits k c))
 
 instance : DecidableRel t.Step := fun c c' =>
   inferInstanceAs (Decidable ((∀ w, c.2 (t.src w) = c.2 (t.tgt w)) ∧

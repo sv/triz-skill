@@ -312,6 +312,8 @@ const cases: Case[] = [
   { code: "carrier-mismatch", tool: "triz_abstraction", args: { detailed: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }), coarse: bh(), map: { boxes: { motor: "motor" } } }, path: "$.detailed.wires[0].carrier" },
   // triz_export and certificates
   { code: "carrier-mismatch", tool: "triz_export", args: { format: "lean", model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) }, path: "$.model.wires[0].carrier" },
+  // The shared specs carry no layout engine, as on the hosted server.
+  { code: "format-unavailable", tool: "triz_export", args: { format: "svg", model: bh() }, path: "$.format", hint: /format 'dot' .*'mermaid'/ },
   { code: "invalid-namespace", kernel: () => modelCertificate(bh(), { namespace: "end x" }), input: { model: bh(), namespace: "end x" }, path: "$.namespace" },
   // producible rows and dynamics and weakness certificates
   { code: "producible-with-rows", tool: "triz_function_model", args: { model: edit("bearing-heat-behavior", (m) => { box(m, "housing").producible = box(m, "housing").behavior; }) },
@@ -322,6 +324,7 @@ const cases: Case[] = [
   { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
     pick: (r) => r.certificate, path: "$.unsafe", hint: /Raise horizon/ },
   { code: "not-certifiable", tool: "triz_weakness", args: { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true }, pick: (r) => r.certificate, path: "$.concepts" },
+  { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;

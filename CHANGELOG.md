@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- README: a tool map by workflow stage, and why the hosted Worker is unauthenticated with open CORS (and what an operator can change).
+
+### Changed
+
+- The Release workflow's MCP Registry job waits up to 15 minutes for the version to appear on npm before publishing.
+- `scripts/certify.mjs` sends a certificate to the AXLE service only with `--remote`. Without it and without a built `theory/`, it stops and names both options instead of falling back to AXLE; the notice for `--remote` says what leaves the machine. Generated certificates and the `triz_export` note say the same.
+- `categorical-model.md` states that a box declaring `feasibility` joins the `triz_feasibility` solve wherever it sits, and what follows from that.
+- The Lean workflow also runs `TRIZ_REQUIRE_LEAN=1 pnpm test` after the build, and runs on changes to the kernel, tests, examples, and data those tests use.
+
+## [0.4.0] - 2026-10-29
+
+### Added
+
 - `triz_function_model`: type-check a function model written as typed data; report harm loops, ideality per cost dimension, separation, and a baseline comparison that includes an isomorphism check and an optional `box_map`.
 - `triz_trim`: screen a trim by the MATRIZ trimming rules A/B/C.
 - `triz_separate`: decide whether a physical contradiction separates over space, time, condition, direction, or system level; `along` indexes the parameter by one axis.
@@ -92,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FLOP-specific benchmark, registry, problem graph, and reconciler CLI.
 
-[unreleased]: https://github.com/sv/triz-skill/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/sv/triz-skill/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/sv/triz-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sv/triz-skill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sv/triz-skill/releases/tag/v0.2.0
