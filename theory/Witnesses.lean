@@ -8,10 +8,11 @@ import Mathlib.Data.Fintype.Order
 # Non-vacuity witnesses
 
 A lemma whose hypotheses can never hold together proves nothing. For each `Wiring` lemma in
-`CategoricalTriz`, and for the behaviour and co-design lemmas with hypotheses, this module gives:
+`CategoricalTriz`, and for the behaviour, co-design, and dynamics lemmas with hypotheses, this
+module gives:
 
-- a concrete diagram or relation on which all its hypotheses hold while something survives, so
-  the lemma is not vacuous;
+- a concrete diagram, relation, or step relation on which all its hypotheses hold while
+  something survives (a wire, a related pair, a reached state), so the lemma is not vacuous;
 - a counterexample showing that each hypothesis is needed: drop it, and the conclusion fails.
 
 The examples are checked by `lake build --wfail`, so CI keeps them in step with the lemmas.
@@ -470,6 +471,191 @@ example : ¬ relTrace (fun (_ _ : Unit × Unit) => True) ≤
   intro h
   obtain ⟨_, hu⟩ := h () () ⟨(), trivial⟩
   exact hu
+
+/-! ## Dynamics
+
+Each dynamics lemma with hypotheses holds on a concrete machine or step relation, and dropping
+any one hypothesis breaks it. Lemmas without hypotheses (`reachIn_iff_trace`,
+`reachWithin_iff_trace`) need no witness. -/
+
+/-- One step from each number to the next. -/
+def succStep : ℕ → ℕ → Prop := fun a b => b = a + 1
+
+/-- Negation on `Bool`: from `false`, the reachable set `{false, true}` is complete after one step. -/
+def negStep : Bool → Bool → Prop := fun a b => b = !a
+
+/-! ### `mealyStep_mono`
+
+Both hypotheses hold on a strict inclusion of rows and of inputs with a step. Without `hT`, or
+without `hX`, a step of the smaller machine is lost in the larger one. -/
+
+example : mealyStep (fun (s i s' : Bool) (_ : Unit) => s' = (s && i)) {true} true true ∧
+    mealyStep (fun (s i s' : Bool) (_ : Unit) => s' = (s && i)) {true} ≤
+      mealyStep (fun (s i s' : Bool) (_ : Unit) => s' = (s && i) ∨ s' = s) Set.univ :=
+  ⟨⟨true, Set.mem_singleton _, (), rfl⟩, mealyStep_mono (fun _ _ _ _ h => Or.inl h) (Set.subset_univ _)⟩
+
+example : ¬ mealyStep (fun (_ _ _ _ : Unit) => True) Set.univ ≤
+    mealyStep (fun (_ _ _ _ : Unit) => False) Set.univ := by
+  intro h
+  obtain ⟨_, _, _, hf⟩ := h () () ⟨(), Set.mem_univ _, (), trivial⟩
+  exact hf
+
+example : ¬ mealyStep (fun (_ _ _ _ : Unit) => True) Set.univ ≤
+    mealyStep (fun (_ _ _ _ : Unit) => True) ∅ := by
+  intro h
+  obtain ⟨_, hi, _⟩ := h () () ⟨(), Set.mem_univ _, (), trivial⟩
+  exact hi
+
+/-! ### `reachIn_mono`, `reachWithin_mono`
+
+The hypothesis holds on a strict inclusion under which a configuration is still reached. Without
+it, a step of the larger relation is lost in the smaller one. -/
+
+example : reachIn (fun a b : ℕ => b = a + 1 ∧ a < 1) 1 0 1 ∧
+    reachIn (fun a b : ℕ => b = a + 1 ∧ a < 1) 1 ≤ reachIn succStep 1 :=
+  ⟨⟨0, rfl, rfl, Nat.one_pos⟩, reachIn_mono (fun _ _ h => h.1) 1⟩
+
+example : reachWithin (fun a b : ℕ => b = a + 1 ∧ a < 1) 2 0 1 ∧
+    reachWithin (fun a b : ℕ => b = a + 1 ∧ a < 1) 2 ≤ reachWithin succStep 2 :=
+  ⟨⟨1, by norm_num, 0, rfl, rfl, Nat.one_pos⟩, reachWithin_mono (fun _ _ h => h.1) 2⟩
+
+example : ¬ reachIn (fun _ _ : Unit => True) 1 ≤ reachIn (fun _ _ : Unit => False) 1 := by
+  intro h
+  obtain ⟨_, _, hf⟩ := h () () ⟨(), rfl, trivial⟩
+  exact hf
+
+/-! ### `reach_of_trace`
+
+A valid trace of two steps ends in the target, within a horizon of three. Without `hτ`, a
+sequence of non-steps claims a state that is not reachable. Without `hk`, a valid trace longer
+than the horizon claims a state the horizon does not reach. Without `hU`, there is no target to
+reach. -/
+
+example : ∃ b ∈ ({2} : Set ℕ), reachWithin succStep 3 0 b :=
+  reach_of_trace (r := succStep) (τ := fun i => i) (k := 2) (fun _ _ => rfl) (Nat.le_succ 2) rfl
+
+/-- With no admitted step, only the start is reachable. -/
+theorem reachWithin_false {n a b : ℕ} (h : reachWithin (fun _ _ : ℕ => False) n a b) : a = b := by
+  obtain ⟨k, -, hk⟩ := h
+  cases k with
+  | zero => exact hk
+  | succ k => obtain ⟨_, _, hf⟩ := hk; exact hf.elim
+
+/-- From `0`, within `n` successor steps, only `0, …, n` are reachable. -/
+theorem reachWithin_succStep {n b : ℕ} (h : reachWithin succStep n 0 b) : b ≤ n := by
+  obtain ⟨k, hk, hr⟩ := h
+  obtain ⟨τ, h0, rfl, hτ⟩ := reachIn_iff_trace.mp hr
+  have : ∀ i ≤ k, τ i = i := by
+    intro i hi
+    induction i with
+    | zero => exact h0
+    | succ i ih => rw [hτ i (by omega), ih (by omega)]
+  rw [this k le_rfl]
+  exact hk
+
+example : ¬ reachWithin succStep 1 ≤ reachWithin (fun _ _ : ℕ => False) 1 :=
+  fun h => absurd (reachWithin_false (h 0 1 ⟨1, le_rfl, 0, rfl, rfl⟩)) (by norm_num)
+
+example : (∀ i < 1, ¬ (fun _ _ : ℕ => False) ((fun i : ℕ => i) i) ((fun i : ℕ => i) (i + 1))) ∧
+    ¬ ∃ b ∈ ({1} : Set ℕ), reachWithin (fun _ _ : ℕ => False) 1 0 b :=
+  ⟨fun _ _ h => h, fun ⟨_, hb, h⟩ => absurd ((reachWithin_false h).trans hb) (by norm_num)⟩
+
+example : ¬ ∃ b ∈ ({2} : Set ℕ), reachWithin succStep 1 0 b :=
+  fun ⟨_, hb, h⟩ => absurd (reachWithin_succStep h) (by rw [hb]; norm_num)
+
+example : ¬ ∃ b ∈ (∅ : Set ℕ), reachWithin succStep 3 0 b :=
+  fun ⟨_, hb, _⟩ => hb
+
+/-! ### `reachIn_of_trace`
+
+On a valid trace of three steps, the point at time two is reached in exactly two steps. Without
+`hτ`, a sequence of non-steps claims a point that is not reached. Without `hi`, a trace of zero
+steps says nothing about its value at time one. -/
+
+example : reachIn succStep 2 0 2 :=
+  reachIn_of_trace (τ := fun i => i) (n := 3) (fun _ _ => rfl) (Nat.le_succ 2)
+
+example : ¬ reachIn (fun _ _ : ℕ => False) 1 0 1 := fun ⟨_, _, hf⟩ => hf
+
+example : (∀ j < 0, succStep ((fun _ : ℕ => 0) j) ((fun _ : ℕ => 0) (j + 1))) ∧
+    ¬ reachIn succStep 1 ((fun _ : ℕ => 0) 0) ((fun _ : ℕ => 0) 1) :=
+  ⟨fun _ h => absurd h (Nat.not_lt_zero _), fun ⟨c, hc, h⟩ => by subst hc; exact absurd h (by simp [succStep])⟩
+
+/-! ### `reachWithin_saturated`
+
+Negation on `Bool` from `false` meets the hypothesis at `k = 1`: two steps add nothing, and the
+bound holds at a larger horizon. Without it, the successor relation from `0` reaches `1` within
+one step but not within zero. -/
+
+example : (∀ b, (∃ a ∈ ({false} : Set Bool), reachIn negStep 2 a b) → ∃ a ∈ ({false} : Set Bool), reachWithin negStep 1 a b) ∧
+    ∃ a ∈ ({false} : Set Bool), reachWithin negStep 5 a true := by
+  refine ⟨?_, false, Set.mem_singleton _, 1, by norm_num, false, rfl, rfl⟩
+  rintro b ⟨a, ha, c, ⟨d, hd, hdc⟩, hcb⟩
+  rw [Set.mem_singleton_iff] at ha
+  subst ha hd
+  refine ⟨false, Set.mem_singleton _, 0, Nat.zero_le _, ?_⟩
+  show false = b
+  simp only [negStep] at hdc hcb
+  rw [hcb, hdc]
+  rfl
+
+example : (∃ a ∈ ({0} : Set ℕ), reachWithin succStep 1 a 1) ∧
+    ¬ ∃ a ∈ ({0} : Set ℕ), reachWithin succStep 0 a 1 := by
+  refine ⟨⟨0, Set.mem_singleton _, 1, le_rfl, 0, rfl, rfl⟩, ?_⟩
+  rintro ⟨a, ha, h⟩
+  rw [Set.mem_singleton_iff] at ha
+  subst ha
+  exact absurd (reachWithin_succStep h) (by norm_num)
+
+/-! ### `fixed_on_cycle`
+
+A self-loop is a cycle; without the self-loop hypothesis, the empty relation has no cycle. -/
+
+example : Relation.TransGen (fun a b : Bool => a = b) true true := fixed_on_cycle rfl
+
+example : ¬ Relation.TransGen (fun _ _ : Unit => False) () () := by
+  intro h
+  cases h with
+  | single h => exact h
+  | tail _ h => exact h
+
+/-! ### `closed_reachIn`
+
+`{true}` is closed under the identity step and holds the run. Without closedness, negation leaves
+`{false}` in one step. Without the start in the set, a closed set says nothing about the run. -/
+
+example : true ∈ ({true} : Set Bool) ∧ Closed (fun a b : Bool => a = b) {true} :=
+  ⟨Set.mem_singleton _, fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha⟩
+
+example : reachIn (fun a b : Bool => a = b) 3 true true ∧ true ∈ ({true} : Set Bool) :=
+  ⟨⟨true, ⟨true, ⟨true, rfl, rfl⟩, rfl⟩, rfl⟩,
+    closed_reachIn (C := {true}) (fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha) (Set.mem_singleton true) 3 ⟨true, ⟨true, ⟨true, rfl, rfl⟩, rfl⟩, rfl⟩⟩
+
+example : false ∈ ({false} : Set Bool) ∧ reachIn negStep 1 false true ∧ true ∉ ({false} : Set Bool) :=
+  ⟨Set.mem_singleton _, ⟨false, rfl, rfl⟩, by simp⟩
+
+example : Closed (fun a b : Bool => a = b) {true} ∧ reachIn (fun a b : Bool => a = b) 0 false false ∧
+    false ∉ ({true} : Set Bool) :=
+  ⟨fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha, rfl, by simp⟩
+
+/-! ### `return_ge_two`
+
+Negation on `Bool` has no fixed point and returns in two steps. Without `h`, the identity returns
+in one step. Without `hn`, every state returns in zero steps. Without `hc`, there is no return in
+one step to bound. -/
+
+example : (∀ s, ¬ negStep s s) ∧ reachIn negStep 2 false false ∧ 2 ≤ 2 :=
+  ⟨fun s h => by cases s <;> simp [negStep] at h, ⟨true, ⟨false, rfl, rfl⟩, rfl⟩,
+    return_ge_two (r := negStep) (fun s h => by cases s <;> simp [negStep] at h) (by norm_num) ⟨true, ⟨false, rfl, rfl⟩, rfl⟩⟩
+
+example : reachIn (fun a b : Bool => a = b) 1 true true ∧ ¬ 2 ≤ 1 := ⟨⟨true, rfl, rfl⟩, by norm_num⟩
+
+example : reachIn negStep 0 false false ∧ ¬ 2 ≤ 0 := ⟨rfl, by norm_num⟩
+
+example : (∀ s, ¬ negStep s s) ∧ ¬ reachIn negStep 1 false false :=
+  ⟨fun s h => by cases s <;> simp [negStep] at h, fun ⟨c, hc, h⟩ => by
+    subst hc
+    simp [negStep] at h⟩
 
 /-! ## Co-design feasibility
 

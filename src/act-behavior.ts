@@ -27,9 +27,9 @@ import { checkModel, type FunctionModel } from "./act.js";
 import { applyTrim } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
 
-type Box = FunctionModel["boxes"][number];
+export type Box = FunctionModel["boxes"][number];
 type Endpoint = { box: string; port: string };
-type Typed = Endpoint & { carrier: string };
+export type Typed = Endpoint & { carrier: string };
 type Failure = { ok: false; errors: string[] };
 
 /** Cap on boundary valuations and on search states, per evaluation. */
@@ -90,12 +90,19 @@ function plan(model: FunctionModel, observe: Endpoint[]): Plan {
 interface Row { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number; }
 interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; }
 
+export interface PortVariables {
+  variables: Array<Typed & { side: "in" | "out" }>;
+  /** The variable a port belongs to. */
+  at: (box: string, side: "in" | "out", port: string) => number;
+  /** Variables with no output port: the unwired input ports. */
+  boundary: number[];
+}
+
 /**
- * Steady states of the composed boxes, by boundary valuation. Ports joined by wires are one
- * variable; each composed box contributes its relation; a backtracking join enumerates every
- * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
+ * Ports joined by wires are one variable, represented by its output port when it has one. Covers
+ * the ports of `boxes` and the `extra` input ports; every wire into them must come from `boxes`.
  */
-function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number): Evaluation | Failure {
+export function portVariables(model: FunctionModel, boxes: Box[], extra: Typed[] = []): PortVariables {
   const parent = new Map<string, string>();
   const info = new Map<string, Typed & { side: "in" | "out" }>();
   const find = (k: string): string => {
@@ -106,16 +113,15 @@ function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number):
     const k = portKey(e.box, side, e.port);
     if (!parent.has(k)) { parent.set(k, k); info.set(k, { ...e, side }); }
   };
-  for (const b of p.composed) {
+  for (const b of boxes) {
     for (const q of b.inputs ?? []) add({ box: b.id, port: q.id, carrier: q.carrier }, "in");
     for (const q of b.outputs ?? []) add({ box: b.id, port: q.id, carrier: q.carrier }, "out");
   }
-  for (const d of observe) add(d, "in");
+  for (const d of extra) add(d, "in");
   for (const w of model.wires) {
     const t = portKey(w.to.box, "in", w.to.port);
     if (parent.has(t)) parent.set(find(t), find(portKey(w.from.box, "out", w.from.port)));
   }
-  // One variable per class, represented by its output port when it has one.
   const index = new Map<string, number>();
   const variables: Array<Typed & { side: "in" | "out" }> = [];
   for (const [k, e] of info) {
@@ -123,62 +129,92 @@ function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number):
     if (!index.has(r)) { index.set(r, variables.length); variables.push(e); }
     else if (e.side === "out" && variables[index.get(r)!].side === "in") variables[index.get(r)!] = e;
   }
-  const v = (box: string, side: "in" | "out", port: string) => index.get(find(portKey(box, side, port)))!;
-  const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
-  const boundary = variables.flatMap((e, i) => (e.side === "in" ? [i] : []));
-  const valuations = product(boundary.map((i) => domain.get(variables[i].carrier)!.length));
-  if (valuations > max) {
-    return { ok: false, errors: [`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
-  }
-
-  // Each composed box as deduplicated rows of (variable, value) bindings, joined most-bound first.
-  const rowsOf = (b: Box) => {
-    const ports = [...(b.inputs ?? []).map((q) => ["in", q.id] as const), ...(b.outputs ?? []).map((q) => ["out", q.id] as const)];
-    const seen = new Map<string, Array<[number, string]>>();
-    for (const r of b.behavior!) {
-      const binding = ports.map(([side, id]) => [v(b.id, side, id), side === "in" ? r.in[id] : r.out[id]] as [number, string]);
-      seen.set(tupleKey(binding.map(([, x]) => x)), binding);
-    }
-    return [...seen.values()];
+  return {
+    variables,
+    at: (box, side, port) => index.get(find(portKey(box, side, port)))!,
+    boundary: variables.flatMap((e, i) => (e.side === "in" ? [i] : [])),
   };
-  const pending = p.composed.map((b) => {
-    const rows = rowsOf(b);
-    return { rows, vars: new Set(rows[0].map(([i]) => i)) };
-  });
-  const bound = new Set(boundary), order: typeof pending = [];
+}
+
+/** A row as (variable, value) bindings over the box's ports, inputs first. */
+export type Binding = Array<[number, string]>;
+export function bindRow(b: Box, row: { in: Record<string, string>; out: Record<string, string> }, at: PortVariables["at"]): Binding {
+  return [
+    ...(b.inputs ?? []).map((q) => [at(b.id, "in", q.id), row.in[q.id]] as [number, string]),
+    ...(b.outputs ?? []).map((q) => [at(b.id, "out", q.id), row.out[q.id]] as [number, string]),
+  ];
+}
+
+/**
+ * Backtracking join: every way to pick one row per set that agrees with the bound entries of
+ * `assign` and with the other picks on shared variables. Sets are joined most-bound first, ties in
+ * the given order. `done` sees the full assignment and the row picked per set, in the given order.
+ * Every search node counts against `budget`; past `budget.max` the join stops and returns false.
+ */
+export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assign: Array<string | undefined>, done: (picked: number[]) => void, budget: { explored: number; max: number }): boolean {
+  const bound = new Set(assign.flatMap((x, i) => (x === undefined ? [] : [i])));
+  const pending = sets.map((s, i) => ({ ...s, i })), order: typeof pending = [];
   while (pending.length) {
-    const score = (x: (typeof pending)[number]) => [...x.vars].filter((i) => bound.has(i)).length;
+    const score = (x: (typeof pending)[number]) => x.vars.filter((i) => bound.has(i)).length;
     let best = 0;
     pending.forEach((x, i) => { if (score(x) > score(pending[best])) best = i; });
     const [next] = pending.splice(best, 1);
     order.push(next);
     for (const i of next.vars) bound.add(i);
   }
-
-  const out = observe.map((d) => v(d.box, "in", d.port));
-  const table = new Map<string, Row>();
-  const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
-  let explored = 0, overflow = false;
-  const join = (depth: number, row: Row) => {
-    if (overflow || ++explored > max) { overflow = true; return; }
-    if (depth === order.length) {
-      const y = out.map((i) => assign[i]!);
-      row.outputs.set(tupleKey(y), y);
-      if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));
-      row.count++;
-      return;
-    }
-    for (const binding of order[depth].rows) {
+  const picked: number[] = new Array(sets.length);
+  let overflow = false;
+  const join = (depth: number) => {
+    if (overflow || ++budget.explored > budget.max) { overflow = true; return; }
+    if (depth === order.length) { done(picked); return; }
+    order[depth].rows.forEach((binding, r) => {
       const touched: number[] = [];
       let consistent = true;
       for (const [i, x] of binding) {
         if (assign[i] === undefined) { assign[i] = x; touched.push(i); }
         else if (assign[i] !== x) { consistent = false; break; }
       }
-      if (consistent) join(depth + 1, row);
+      picked[order[depth].i] = r;
+      if (consistent) join(depth + 1);
       for (const i of touched) assign[i] = undefined;
-    }
+    });
   };
+  join(0);
+  return !overflow;
+}
+
+/**
+ * Steady states of the composed boxes, by boundary valuation. Ports joined by wires are one
+ * variable; each composed box contributes its relation; a backtracking join enumerates every
+ * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
+ */
+function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number): Evaluation | Failure {
+  const { variables, at: v, boundary } = portVariables(model, p.composed, observe);
+  const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
+  const valuations = product(boundary.map((i) => domain.get(variables[i].carrier)!.length));
+  if (valuations > max) {
+    return { ok: false, errors: [`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
+  }
+
+  // Each composed box as deduplicated rows of (variable, value) bindings.
+  const rowsOf = (b: Box) => {
+    const seen = new Map<string, Binding>();
+    for (const r of b.behavior!) {
+      const binding = bindRow(b, r, v);
+      seen.set(tupleKey(binding.map(([, x]) => x)), binding);
+    }
+    return [...seen.values()];
+  };
+  const sets = p.composed.map((b) => {
+    const rows = rowsOf(b);
+    return { rows, vars: [...new Set(rows[0].map(([i]) => i))] };
+  });
+
+  const out = observe.map((d) => v(d.box, "in", d.port));
+  const table = new Map<string, Row>();
+  const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
+  const budget = { explored: 0, max };
+  let overflow = false;
   for (let n = 0; n < valuations && !overflow; n++) {
     let rest = n;
     const input = boundary.map((i) => {
@@ -190,11 +226,16 @@ function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number):
     boundary.forEach((i, j) => { assign[i] = input[j]; });
     const row: Row = { input, outputs: new Map(), states: [], count: 0 };
     table.set(tupleKey(input), row);
-    join(0, row);
+    overflow = !joinRows(sets, assign, () => {
+      const y = out.map((i) => assign[i]!);
+      row.outputs.set(tupleKey(y), y);
+      if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));
+      row.count++;
+    }, budget);
   }
   if (overflow) return { ok: false, errors: [`the steady-state search passed ${max} states. Declare fewer values or split the model`] };
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
-  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored };
+  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored };
 }
 
 const sorted = (m: Map<string, string[]>) => [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, t]) => t);

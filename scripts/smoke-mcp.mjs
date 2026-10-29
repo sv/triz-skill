@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_feasibility"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_feasibility", "triz_dynamics"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -145,6 +145,24 @@ console.log(`triz_feasibility trim bearing -> ${absorbed.verdict}, housing adds 
 if (absorbed.verdict !== "feasible" || absorbed.absorbers[0].added.usd_unit !== 22) fail("feasibility of the trim wrong");
 const over = await json("triz_feasibility", { model: { ...feasible, budget: { usd_unit: 20 } }, trim: ["bearing"] });
 if (over.verdict !== "infeasible" || over.binding.join() !== "usd_unit") fail("over-budget trim not infeasible");
+const heater = {
+  domain: "physical",
+  carriers: [{ id: "power", layer: "energy", dimension: "W", values: ["off", "on"] }],
+  boxes: [{ id: "heater", name: "Heater", role: "tool", inputs: [{ id: "power", carrier: "power" }], state: ["cold", "hot"], initial: ["cold"],
+    transition: [
+      { state: "cold", in: { power: "off" }, next: "cold", out: {} }, { state: "cold", in: { power: "on" }, next: "hot", out: {} },
+      { state: "hot", in: { power: "off" }, next: "cold", out: {} }, { state: "hot", in: { power: "on" }, next: "hot", out: {} },
+    ] }],
+  wires: [],
+};
+const escalates = await json("triz_dynamics", { model: heater, unsafe: [{ box: "heater", state: ["hot"] }] });
+console.log(`triz_dynamics heater -> ${escalates.escalation?.verdict} at t=${escalates.escalation?.time}`);
+if (escalates.escalation?.verdict !== "reachable" || escalates.escalation.trace.length !== 2) fail("escalation wrong");
+if (!escalates.loops?.classes?.includes("escalating")) fail("loop classification wrong");
+const held = await json("triz_dynamics", { model: heater, inputs: [[{ box: "heater", port: "power", values: ["off"] }], [{ box: "heater", port: "power", values: ["off"] }]], safe: [{ box: "heater", state: ["cold"] }] });
+if (held.invariance?.verdict !== "invariant-within-horizon") fail("invariance under an input sequence wrong");
+const capped = await json("triz_dynamics", { model: heater, unsafe: [{ box: "heater", state: ["hot"] }], max_states: 1 });
+if (capped.ok !== false) fail("state cap did not fail closed");
 
 await client.close();
 console.log("SMOKE OK");

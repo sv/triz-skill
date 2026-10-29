@@ -18,6 +18,7 @@ import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
 import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
+import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_HORIZON } from "./act-dynamics.js";
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
@@ -318,6 +319,23 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
           : absorb ? { ok: false, errors: ["absorb needs trim"] }
           : externalBehavior(model, { maxStates: max_states })),
+    },
+    {
+      name: "triz_dynamics",
+      description: "Bounded dynamics of a function model whose boxes declare `state`, `initial`, and `transition` rows (state, inputs) → (next state, outputs): each such box is a nondeterministic Mealy machine (a lens with a residual is one, with the residual as state); boxes with `behavior` are stateless. Boxes compose synchronously along the wiring: wires are instantaneous, memory lives only in declared state, and a loop through stateless boxes resolves within a step as in triz_behavior. From the initial states, over the boundary inputs you allow at each time (default: every value), every run is explored breadth first up to `horizon` steps; the result lists the reachable states, the fixed points among them, and the runs that block (a state with no row for its inputs). `unsafe` decides escalation: reachable (with a shortest trace), unreachable (the reachable set stopped growing, so at no horizon), or unreachable-within-horizon. `safe` decides invariance: violated (shortest trace), invariant, or invariant-within-horizon. A blocked state meets a target by its state conditions; a port condition there leaves the verdict undecided (reason blocked), never safe. `separation` takes two to four demands, each a target set with a time window, and decides whether one run visits each within its window (separation in time along a trajectory, Principle 15): realizable with a witness trace, unrealizable (a demand never met, or no single run meets them all), or undecided (a blocked run might meet them all). Without `inputs`, `loops` classifies the closed components (no step leaves them) of the reachable graph of the global states of boxes that declare transition, explored without a horizon up to the cap, from the initial states and every state meeting `safe`'s state conditions: bistable (fixed points in two or more closed components), escalating (a closed component meets `unsafe`: a trap, with a shortest trace into it), oscillating (a cycle and no fixed point, with its period and one cycle); classes can coexist, and 'none' means no closed component was found within the cap. Behavior rows are never read as transitions. Every trace is re-checked against the declared rows. Fails closed on ill-typed rows, unknown targets, and past the state cap. Verdicts hold for the rows as declared; continuous dynamics, convergence rates, and control are not modelled.",
+      shape: {
+        model: act.FunctionModel,
+        horizon: z.number().int().min(0).max(MAX_HORIZON).optional().describe(`Steps to explore (times 0 to horizon); default: the length of inputs minus one, else ${DEFAULT_HORIZON}`),
+        initial: z.record(z.string(), z.array(Id).min(1)).optional().describe("Box id → initial states, overriding the box's initial"),
+        inputs: z.array(z.array(PortValues)).min(1).optional()
+          .describe("Entry t lists the values allowed at time t on unwired input ports; an unlisted port takes every value. Omit for every value at every time"),
+        unsafe: Target.optional().describe("Escalation: is a configuration where every condition holds reachable? e.g. [{ box: 'bearing', port: 'friction', values: ['high'] }]"),
+        safe: Target.optional().describe("Invariance: does every reachable configuration meet every condition?"),
+        separation: z.array(TimedDemand).min(2).max(4).optional().describe("Separation in time: does one run visit each demand's target set within its window?"),
+        max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on configurations and search states (default and maximum ${MAX_STATES})`),
+      },
+      handler: async ({ model, max_states, ...spec }: { model: act.FunctionModel; max_states?: number } & Omit<Parameters<typeof boundedDynamics>[1], "maxStates">) =>
+        text(boundedDynamics(model, { ...spec, maxStates: max_states })),
     },
     {
       name: "triz_feasibility",

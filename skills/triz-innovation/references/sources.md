@@ -142,10 +142,15 @@ it supports here.
   **Ghani, Hedges, Winschel & Zahn (2018)**, *Compositional game theory*, LICS '18, 472–481,
   doi:10.1145/3209108.3209165.
   Bidirectional composition, with forward action and back-reaction. The kernel models
-  back-reaction as reverse wires instead.
+  back-reaction as reverse wires instead. A box with declared state is read as a lens with a
+  residual, the residual as its state; profunctor and coend formulas are not adopted.
 - **Myers**, *Categorical Systems Theory*, book draft last updated 2023-09-03,
   [davidjaz.com](https://www.davidjaz.com/Papers/DynamicalBook.pdf).
   Open dynamical systems.
+  - Adopted: finite nondeterministic Mealy machines composed synchronously along the wiring,
+    and their bounded reachability (`triz_dynamics`).
+  - Not adopted: smooth dynamics (ODEs, tangent bundles), controller synthesis, and double
+    categories.
 - **Bonchi, Gadducci, Kissinger, Sobociński & Zanasi (2022)**, *String diagram rewrite theory I:
   Rewriting with Frobenius structure*, Journal of the ACM 69(2), doi:10.1145/3502719,
   [arXiv:2012.01847](https://arxiv.org/abs/2012.01847). Checked on 2026-10-29: Def. 3.1
