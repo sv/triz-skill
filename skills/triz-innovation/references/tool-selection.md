@@ -20,13 +20,12 @@ recalling principle numbers or matrix cells.
 | `triz_effects(query?, category?)` | Search the curated effects database by required function |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
-| `triz_function_model(model, compare_to?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison |
+| `triz_function_model(model, compare_to?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape |
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it |
 | `triz_separate(contradiction, along?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis |
 | `triz_transform(model, transformation)` | Apply one typed move: segment, take_out, interpose, an applied trim, or a raw rewrite; the result type-checks or fails closed |
 | `triz_nine_windows(present, past?, future?, subsystem[])` | Subsystem, system, and supersystem views per time snapshot, with harm loops per window |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
-| `triz_isomorphic(a, b)` | Same wiring shape whatever the ids and labels; returns the mapping |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

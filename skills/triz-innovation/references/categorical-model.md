@@ -20,7 +20,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
-| Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_isomorphic`; every verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
+| Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute` |
 | System operator (9 windows), level axis | restriction to a subsystem; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset` |
@@ -70,8 +70,14 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
    window is returned as a prompt to fill.
-7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. Use `triz_isomorphic`
-   to check that two models have the same shape.
+7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
+   `triz_function_model` also reports whether the two models have the same wiring shape.
+
+Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
+as in the last column above. A test checks that every cited name is a theorem in that file.
+That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
+extracted from Lean. A basis never means the TRIZ reading of a verdict is proved. A verdict that
+needs no theorem, such as a compatible pair, cites none.
 
 ## Principle constructions
 

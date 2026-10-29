@@ -41,10 +41,12 @@ All notable changes to this project are documented here. The format follows
 - Label blindness: the structured verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
   `trimCandidates`, `compareIdeality`, `separationCheck`, and `dynamize` are equivariant under
   renaming ids and changing labels (domain, names, layers, dimensions). Free text and id-order
-  tie-breaks are excluded, as listed in `categorical-model.md`. Property tests check this with a seeded, dependency-free
-  generator over 200 models with every array permuted. `triz_isomorphic` decides whether two
-  models share a wiring shape. It uses a polynomial verifier and a bounded search, and reports
-  `decided: false` rather than guessing.
+  tie-breaks are excluded, as listed in `categorical-model.md`. Property tests check this with a
+  seeded, dependency-free generator over 200 models with every array permuted.
+- Isomorphism: `triz_function_model` with `compare_to` reports, as `comparison.isomorphism`,
+  whether the two models share a wiring shape. It uses a polynomial verifier and a bounded
+  search, and reports `decided: false` rather than guessing. There is no separate
+  `triz_isomorphic` tool.
 - New example `connection-pool.json`: a software model with the bearing's wiring shape, which
   gets the same verdicts.
 - Typed constructions via `triz_transform`. Each result type-checks, or the call fails closed.
@@ -54,6 +56,32 @@ All notable changes to this project are documented here. The format follows
     - `take_out`, with interfering and needed readings (Principle 2);
     - `interpose` (Principle 24).
   - `trim` performs a typed-feasible trim. It re-attaches each kept function to an absorber.
+- `basis` on verdicts names the theorem in `theory/CategoricalTriz.lean` that the verdict relies
+  on. A test checks every cited name against the Lean file.
+  - Separation: `exists_section_iff`.
+  - Separated and irreducible pairs: `separated_iff_axis` with `glue_of_disjoint_regions` or
+    `no_section_of_overlap`.
+  - Harm-loop witnesses: `edge_on_cycle`.
+  - Unweighted ratio and trade-off: `pareto_not_total` and `pareto_incomparable`.
+  - Absorbers: `typed_reroute`.
+  - Rewrites: `typed_delete` and `typed_glue`.
+  - Subsystem views: `typed_restrict` and `restrict_restrict`.
+  - Isomorphism: `typed_rename` and `transGen_equiv`.
+- Router entries name their MCP tools (`mcp_tools`), and `triz_route` and `triz_tool_catalog`
+  return the field.
+  - Mapped:
+    - effects database, 40 principles, and technical contradiction, to their lookups;
+    - separation principles and physical contradiction, to `triz_separate`;
+    - system operator, to `triz_nine_windows`;
+    - functional analysis for products, to `triz_function_model`;
+    - trimming for products, to `triz_trim` and `triz_transform`.
+  - Not mapped:
+    - process functional analysis and process trimming: MATRIZ uses five rule sets keyed by
+      function rank, and the kernel implements only the device rules;
+    - function-cost analysis: the kernel neither ranks functions nor allocates cost to them.
+- `triz_graph` / `triz_purpose` nodes may carry a PhysicalContradiction checked by
+  `separationCheck`; an invalid one fails closed per node. Core-conflict ties prefer irreducible
+  nodes, and a node that already separates is flagged. Example node P1 carries one.
 - `triz_separate` gains `along`: the parameter as a function of one axis. With `time`, this is
   the checkable part of Principle 15 (Dynamics). It is reported only when the value must change.
 - `triz_nine_windows`: system-operator views for each time snapshot.
@@ -65,7 +93,7 @@ All notable changes to this project are documented here. The format follows
   - deletion under the no-dangling condition, gluing, and re-attachment to a same-carrier
     port all keep typing;
   - restriction composes.
-- 44 kernel tests, including golden DOT and hypergraph outputs for every example. The MCP smoke
+- 52 kernel tests, including golden DOT and hypergraph outputs for every example. The MCP smoke
   test calls `triz_export` and `triz_transform`, including their fail-closed paths.
 
 ### Changed
