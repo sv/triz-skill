@@ -151,8 +151,9 @@ with no `sorry`:
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
   trace is monotone and yanks a swap to the identity.
 
-`theory/Witnesses.lean` checks that none of the typing lemmas is vacuous. For each, a concrete
-diagram meets all its hypotheses, and a counterexample shows each hypothesis is needed.
+`theory/Witnesses.lean` checks that none of the typing or behaviour-monotonicity lemmas is
+vacuous. For each, a concrete diagram or relation meets all its hypotheses, and a counterexample
+shows each hypothesis is needed.
 
 It also states trimming as a left Kan extension, which the kernel does not decide.
 `triz_behavior` decides a finite relational question instead, which is not proved equivalent.
