@@ -112,7 +112,7 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
       const wires = feeding.get(portKey({ box: b.id, port: p.id })) ?? [];
       if (!wires.length) {
         issues.push(issue("unsupplied-requirement", at(where.box(model, b.id, "$.model"), "feasibility", i, "requires", p.id), `box '${b.id}' feasibility row ${i} requires ${level} at input port '${p.id}', but no non-harmful function feeds that port: model its supplier`,
-          `Wire a useful function of the input's carrier into '${b.id}.${p.id}' from the box that supplies it (an environment box for an outside resource), or drop the requirement.`));
+          `Wire a useful function of carrier '${p.carrier}' into '${b.id}.${p.id}' from the box that supplies it (an environment box for an outside resource), or drop the requirement.`));
       }
       return wires.map((w) => [index.get(portKey(w.from))!, level] as [number, number]);
     }),

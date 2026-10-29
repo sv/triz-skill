@@ -277,7 +277,7 @@ export function retarget(model: FunctionModel, spec: { wire: string; to: Endpoin
   }
   if (spec.to.box === w.to.box && spec.to.port === w.to.port) {
     return one("own-object-port", "$.to", `'${w.to.box}.${w.to.port}' is the harm's own object port: rating it useful there does not use the factor elsewhere`,
-      `Point to at another input port of carrier '${w.carrier}' that the factor could serve usefully; to re-rate the harm where it is, use rewrite.`);
+      `Set to to another input port of carrier '${w.carrier}', one the factor could serve usefully; to re-rate the harm where it is, use rewrite.`);
   }
   const used: Wire = { ...w, id: spec.keepHarm ? spec.id ?? `${w.id}/used` : spec.id ?? w.id, to: spec.to, polarity: "useful" };
   const r = rewrite(model, spec.keepHarm ? { add: { wires: [used] } } : { delete: { wires: [w.id] }, add: { wires: [used] } });
