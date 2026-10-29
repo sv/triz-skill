@@ -53,7 +53,7 @@ const DIMS = ["usd", "ms", "constructor"];
 type Box = FunctionModel["boxes"][number];
 
 /** A random model that passes checkModel. */
-export function genModel(r: Rng, opts: { contradictions?: boolean } = {}): FunctionModel {
+export function genModel(r: Rng, opts: { contradictions?: boolean; feasibility?: boolean } = {}): FunctionModel {
   const cid = ids(r, "c"), bid = ids(r, "b"), pid = ids(r, "p"), wid = ids(r, "w");
   const carriers = Array.from({ length: int(r, 1, 3) }, () => ({ id: cid(), layer: pick(r, LAYERS), dimension: "unit" }));
   const boxes: Box[] = Array.from({ length: int(r, 2, 6) }, (_, i) => {
@@ -75,6 +75,25 @@ export function genModel(r: Rng, opts: { contradictions?: boolean } = {}): Funct
     if (!targets.length) continue;
     const to = pick(r, targets);
     wires.push({ id: wid(), from: { box: from.box, port: from.port }, to: { box: to.box, port: to.port }, carrier: from.carrier, polarity: pick(r, POLARITIES), verb: "act on" });
+  }
+  if (opts.feasibility) {
+    // Rows indexed by k: every output provides k+1, the fed inputs the box names require k, and the
+    // box's own cost dimensions cost k+1. Rising provides keep a lower row from dominating a higher
+    // one, and rising cost or requirements keep a higher row from dominating a lower one, so the
+    // rows are an antichain exactly when the box has an output to grow and a cost or requirement to
+    // grow with it; any other box gets one row. requires only names inputs a non-harmful wire
+    // feeds, and cost dimensions are the box's own, which is what checkModel demands of a row.
+    const fed = new Set(wires.filter((w) => w.polarity !== "harmful").map((w) => `${w.to.box}|${w.to.port}`));
+    for (const b of boxes) {
+      const requires = (b.inputs ?? []).filter((p) => fed.has(`${b.id}|${p.id}`) && r() < 0.8).map((p) => p.id);
+      const cost = Object.keys(b.cost ?? {});
+      const n = (b.outputs ?? []).length && (cost.length || requires.length) ? int(r, 1, 3) : 1;
+      b.feasibility = Array.from({ length: n }, (_, k) => ({
+        provides: Object.fromEntries((b.outputs ?? []).map((p) => [p.id, k + 1])),
+        ...(requires.length ? { requires: Object.fromEntries(requires.map((p) => [p, k])) } : {}),
+        ...(cost.length ? { cost: Object.fromEntries(cost.map((d) => [d, k + 1])) } : {}),
+      }));
+    }
   }
   const used = [...new Set(boxes.flatMap((b) => Object.keys(b.cost ?? {})))];
   const model: FunctionModel = { domain: pick(r, DOMAINS), system: "generated", carriers, boxes, wires };
@@ -133,11 +152,17 @@ export function relabel(r: Rng, m: FunctionModel): { model: FunctionModel; maps:
     carriers: shuffle(r, m.carriers.map((c) => ({ id: carrier.get(c.id)!, layer: pick(r, LAYERS), dimension: "other unit" }))),
     boxes: shuffle(r, m.boxes.map((b) => {
       const ports = (ps: typeof b.inputs) => ps && shuffle(r, ps.map((p) => ({ id: port.get(b.id)!.get(p.id)!, carrier: carrier.get(p.carrier)!, label: "relabelled" })));
+      const rows = (rs: NonNullable<Box["feasibility"]>) => rs.map((row) => ({
+        ...(row.provides ? { provides: Object.fromEntries(Object.entries(row.provides).map(([p, v]) => [port.get(b.id)!.get(p)!, v])) } : {}),
+        ...(row.requires ? { requires: Object.fromEntries(Object.entries(row.requires).map(([p, v]) => [port.get(b.id)!.get(p)!, v])) } : {}),
+        ...(row.cost ? { cost: rec(row.cost) } : {}),
+      }));
       return {
         id: box.get(b.id)!, name: `renamed ${box.get(b.id)}`, role: b.role, action: "act",
         ...(b.inputs ? { inputs: ports(b.inputs) } : {}),
         ...(b.outputs ? { outputs: ports(b.outputs) } : {}),
         ...(b.cost ? { cost: rec(b.cost) } : {}),
+        ...(b.feasibility ? { feasibility: rows(b.feasibility) } : {}),
       };
     })),
     wires: shuffle(r, m.wires.map((w) => ({ id: wire.get(w.id)!, from: end(w.from), to: end(w.to), carrier: carrier.get(w.carrier)!, polarity: w.polarity, verb: "relabelled verb" }))),

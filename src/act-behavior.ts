@@ -866,20 +866,87 @@ function resolveAcceptable(concepts: Array<{ id: string; model: FunctionModel }>
 }
 
 /**
+ * One prior entry: for a situation input port (box and port), or every situation input of a
+ * carrier, the prior mass of each declared value.
+ */
+export type Prior = { box?: string; port?: string; carrier?: string; weights: Record<string, number> };
+
+/**
+ * Resolve the priors over the situation inputs into one weight per valuation. A weight of 0 rules
+ * a value out; an unlisted input or value counts 1, so the weights multiply to the uniform measure
+ * of the count when every weight is 1. Fails closed on an entry that names neither or both of a
+ * port and a carrier, an input that is not a situation input, a carrier no input carries, an entry
+ * listed twice, an undeclared value, and a weight that is not a nonnegative number.
+ */
+function resolvePriors(inputs: Typed[], domain: Map<string, string[]>, priors: Prior[]): { ok: true; weight: (u: string[]) => number } | Failure {
+  const issues: Issue[] = [];
+  const push = (path: string, message: string, hint: string) => issues.push(issue("invalid-prior", path, message, hint));
+  // situations() keys each input's declared values by its carrier and port, so two inputs of one carrier can differ.
+  const valuesOf = (q: Typed) => domain.get(q.carrier + "\u0000" + endKey(q)) ?? [];
+  const byPort = new Map<string, Record<string, number>>(), byCarrier = new Map<string, Record<string, number>>();
+  priors.forEach((a, k) => {
+    const here = jp("$.priors", k);
+    const named = a.box !== undefined || a.port !== undefined;
+    if (named === (a.carrier !== undefined)) {
+      push(here, "priors: each entry names a situation input port (box and port) or a carrier, not both or neither",
+        `Give either box and port of a situation input (${quoted(inputs.map(label))}) or a carrier, not both.`);
+      return;
+    }
+    if (named && (a.box === undefined || a.port === undefined)) {
+      push(here, "priors: an entry that names a port gives both box and port", "Give both box and port of a situation input.");
+      return;
+    }
+    const q = named ? inputs.find((x) => x.box === a.box && x.port === a.port) : undefined;
+    if (named && !q) {
+      push(here, `priors: '${a.box}.${a.port}' is not a situation input`, `Name a boundary input the situations range over: ${quoted(inputs.map(label))}.`);
+      return;
+    }
+    const carrier = q ? q.carrier : a.carrier!;
+    const ofCarrier = named ? [q!] : inputs.filter((x) => x.carrier === carrier);
+    if (!named && !ofCarrier.length) {
+      push(jp(here, "carrier"), `priors: carrier '${carrier}' is the carrier of no situation input`,
+        `Name a carrier a situation input carries: ${quoted([...new Set(inputs.map((x) => x.carrier))])}.`);
+      return;
+    }
+    const name = named ? label(q!) : `carrier '${carrier}'`;
+    const into = named ? byPort : byCarrier, key = named ? endKey(q!) : carrier;
+    if (into.has(key)) { push(here, `priors: '${name}' is listed twice`, `List '${name}' once, with every weight.`); return; }
+    const table: Record<string, number> = {};
+    for (const [v, w] of Object.entries(a.weights)) {
+      if (typeof w !== "number" || !Number.isFinite(w) || w < 0) push(jp(here, "weights", v), `priors: the weight of value '${v}' of '${name}' is not a nonnegative number`, "Give each value a weight of 0 or more; a weight of 0 rules the value out.");
+      if (ofCarrier.some((x) => !valuesOf(x).includes(v))) push(jp(here, "weights", v), `priors: value '${v}' of '${name}' is not declared by carrier '${carrier}' as some input reading it declares it`,
+        `Weight values every input of ${name} declares: ${quoted([...new Set(ofCarrier.flatMap(valuesOf))])}.`);
+      table[v] = w;
+    }
+    into.set(key, table);
+  });
+  if (issues.length) return fail(issues);
+  const perInput = inputs.map((q) => {
+    const table = byPort.get(endKey(q)) ?? byCarrier.get(q.carrier) ?? {};
+    return (v: string) => (Object.hasOwn(table, v) ? table[v] : 1);
+  });
+  return { ok: true as const, weight: (u: string[]) => perInput.reduce((p, w, i) => p * w(u[i]), 1) };
+}
+
+/**
  * Rank concepts that declare behaviour by the situations they admit. A situation is a valuation of
  * the union of the concepts' boundary inputs over their carriers' declared values: the operating
  * situations of weakness.md's step 1, declared in the model. A concept admits a situation when it
  * has a steady state there and every deliverable output there is acceptable (`acceptable`: per
  * deliverable port, the values that are). Concepts are ordered by inclusion of what they admit;
  * incomparable pairs are reported with a witness each way. The count of admitted situations is a
- * secondary figure: it depends on how finely the carriers' values are declared.
+ * secondary figure: it depends on how finely the carriers' values are declared. With `priors`
+ * (weakness.md: a real prior beats the uniform assumption), each concept also gets the total prior
+ * mass of what it admits (`weightedAdmitted`, ranked in `byWeight`); an unlisted input or value
+ * counts 1, and the inclusion ranking never changes.
  *
  * Fails closed: concepts must deliver the same ports (a concept that drops a deliverable has fewer
  * outputs to be acceptable and would look weaker), `acceptable` must cover every deliverable with
- * declared values, and an input several concepts read must range over the same values. Missing
- * behaviour or the state cap is `undecided`.
+ * declared values, an input several concepts read must range over the same values, and a prior
+ * entry must name a situation input or its carrier with nonnegative weights over declared values.
+ * Missing behaviour or the state cap is `undecided`.
  */
-export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { maxStates?: number } = {}) {
+export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { maxStates?: number; priors?: Prior[] } = {}) {
   const issues: Issue[] = [];
   const ids = concepts.map((c) => c.id);
   const root = (i: number) => jp("$.concepts", i, "model");
@@ -916,6 +983,9 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
   }
   const space = situations(concepts.map((c, i) => ({ name: `concept '${c.id}'`, inputs: evals[i].inputs, carriers: c.model.carriers, root: root(i) })));
   if (!space.ok) return space;
+  const prior = opts.priors ? resolvePriors(space.inputs, space.domain, opts.priors) : null;
+  if (prior && !prior.ok) return prior;
+  const weight = prior ? prior.weight : null;
   const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
   if (valuations > max) return capped(capFail(`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`, "$.concepts", "Declare fewer values on the situation inputs' carriers, or give the same operating condition the same box and port id in every concept."));
   const ok = (y: string[]) => y.every((x, j) => accept.get(endKey(target[j]))!.has(x));
@@ -933,6 +1003,7 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
     const firstRejected = a.findIndex((x) => x !== "admitted");
     return {
       id: c.id, reads: reads[i], admitted: a.filter((x) => x === "admitted").length,
+      ...(weight ? { weightedAdmitted: all.reduce((s, u, n) => s + (a[n] === "admitted" ? weight(u) : 0), 0) } : {}),
       rejected: { noSteadyState: a.filter((x) => x === "no-steady-state").length, unacceptable: a.filter((x) => Array.isArray(x)).length },
       admittedSituations: all.filter((_, n) => a[n] === "admitted").slice(0, LISTED).map((u) => u),
       firstRejected: firstRejected < 0 ? null : {
@@ -961,9 +1032,11 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
     situations: space.inputs, situationCount: valuations, readByOne,
     weakest, maximal, pairs, concepts: perConcept,
     byCount: [...perConcept].sort((a, b) => b.admitted - a.admitted).map((c) => ({ id: c.id, admitted: c.admitted })),
+    ...(weight ? { byWeight: perConcept.map((c) => ({ id: c.id, weightedAdmitted: c.weightedAdmitted as number })).sort((x, y) => y.weightedAdmitted - x.weightedAdmitted) } : {}),
     assumption: ASSUMPTION,
     note: (weakest.length ? `Weakest: ${weakest.map((id) => `'${id}'`).join(", ")} admits every situation any other concept admits.` : `No concept admits every situation the others admit: the maximal concepts ${maximal.map((id) => `'${id}'`).join(", ")} are incomparable (pairs).`)
       + (readByOne.length ? ` ${readByOne.length} situation input(s) are read by one concept only (readByOne); the other concepts admit or reject regardless of them. If one names the same operating condition as another concept's input, give both the same box and port id (an environment box with an unwired input), or the ranking treats them as independent conditions.` : "")
-      + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md).",
+      + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md)."
+      + (weight ? " weightedAdmitted is each concept's total prior mass over the situations it admits (an unlisted input or value counts 1), and byWeight ranks by it; the uniform count is Bennett's measure, and a real prior overrides it (weakness.md). Weights change no inclusion: the pairs and the weakest are the same as under the count." : ""),
   };
 }

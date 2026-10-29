@@ -357,6 +357,7 @@ to check the rating, not a finding.
 | `unbound-carrier-variable` | `triz_rule_apply` | A carrier variable used only on the right side is not bound |
 | `not-right-only-variable` | `triz_rule_apply` | carriers binds a variable that is not used only on the right side |
 | `distinct-carriers` | `triz_rule_apply` | Carrier variables the rule declares distinct bind the same carrier |
+| `forbid-violated` | `triz_rule_apply` | A rule's `forbid` condition holds: the match extends to an occurrence of it, or the check could not be decided within its budget |
 | `no-deliverables` | `triz_behavior`, `triz_weakness` | No product box receives a non-harmful function |
 | `box-map-unknown-box` | `triz_function_model`, `triz_behavior` | box_map names a box the concept or baseline does not have |
 | `box-map-ambiguous` | `triz_behavior` | box_map lands two concept input ports on one baseline port |
@@ -369,6 +370,7 @@ to check the rating, not a finding.
 | `acceptable-entry-malformed` | `triz_weakness`, `triz_nine_windows` acceptable | An acceptable entry names neither or both of a port and a carrier, or of values and a threshold |
 | `invalid-threshold` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold cannot be read through the carrier's levels, or reads as no value |
 | `levels-differ` | `triz_weakness`, `triz_nine_windows` acceptable | A threshold reads as different values in different concepts |
+| `invalid-prior` | `triz_weakness` | A prior is malformed: names neither or both of a port and a carrier, an input that is not a situation input, an undeclared value, a duplicate, or a weight that is not a nonnegative number |
 | `unmapped-box` | `triz_abstraction` | map.ports names a box that map.boxes does not map |
 | `no-state` | `triz_dynamics` | A target or initial names a box that declares no state |
 | `uninitialised-state` | `triz_dynamics` | A stateful box has no initial states |
@@ -752,6 +754,13 @@ behaviour.
   Between incomparable concepts, the count depends on how finely the carriers' values are
   declared: splitting one value into two changes it. Bennett (2023, cited in weakness.md)
   measures weakness as that count, under a uniform distribution over tasks.
+- **Prior.** `priors` replaces the uniform measure: per situation input (box and port), or per
+  carrier for every input of it, a nonnegative weight per declared value; an unlisted input or
+  value counts 1, and 0 rules a value out. Each concept then carries the total prior mass of
+  what it admits (`weightedAdmitted`, ranked in `byWeight`). The weights multiply into the
+  count, so every inclusion, every pair, and `weakest` are exactly what they were: a prior
+  breaks ties between incomparable concepts, it never moves an inclusion. weakness.md's rule
+  stands: a real prior beats the uniform assumption, and the uniform count is the default.
 - **Fail closed.** The concepts must deliver the same ports. A concept that drops a deliverable
   has fewer outputs to be acceptable, so it would look weaker; the ranking refuses instead. Missing
   behaviour and the state cap give `undecided`.
@@ -1248,8 +1257,15 @@ that rule's. So a pattern box matches any box that has at least the pattern's po
    - A `like` copy copies none of these rows.
 5. `distinct`: each listed pair of carrier variables must bind different carriers. It is an
    application condition, not part of the pushout, and it only refuses applications.
-6. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
-7. The result must pass the type check of `triz_function_model`.
+6. `forbid`: negative application conditions in the sense of Habel–Pennemann. Each pattern
+   extends `left` by id with the same constraints and may add elements; a match is applicable
+   only if it extends to no injective occurrence of any one of them over the model. The
+   condition is decided by the same bounded search that lists matches (its own step budget);
+   an undecided condition refuses the application, like the others. It is checked per match,
+   in the listing and in `triz_rule_apply`, so it can name only carrier variables the left
+   side binds.
+7. The image of L \ K is deleted, and R \ K is glued on under fresh ids.
+8. The result must pass the type check of `triz_function_model`.
 
 The result lists in `fieldChanges` every created wire that is `like` a deleted wire on another
 carrier, with both carriers' layer and dimension: the same function in another field. It reports
@@ -1380,7 +1396,9 @@ example cohort churn against fee changes. Name it only from that evidence.
   reread as one-step transitions.
 - The weakness ranking holds for the declared values and the given `acceptable`. It does not
   check that a concept resolves the contradiction. Bennett's result assumes a uniform
-  distribution over tasks, and a real prior overrides it (weakness.md). Neither the spec nor the
+  distribution over tasks; `priors` replaces that measure with a real one, and the inclusion
+  ranking is the same under either, so the assumption bears only on the count and the weighted
+  mass, not on what is compared. Neither the spec nor the
   ranking makes a principle claim.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
   dynamics, convergence, or which steady state the system reaches. Behaviour uses no least
@@ -1443,15 +1461,20 @@ example cohort churn against fee changes. Name it only from that evidence.
   - Lean proves that series, parallel, and feedback composition keep monotonicity, that Kleene's
     ascent reaches the least fixpoint of a finite lattice, that a step can be computed on the
     antichain when requirements are monotone, and that the least fixpoint is the upward closure
-    of the feasible configurations. The solver is checked against these by tests, including
-    the brute-force comparison, not extracted from them.
-  - Feasibility verdicts are not covered by the label-blindness property tests.
+    of the feasible configurations. The solver is checked against these by tests, including the
+    brute-force comparison, not extracted from them.
+  - Feasibility verdicts are label-blind under the same property tests as the wiring verdicts
+    (models with generated antichain rows, relabelled and permuted, ids mapped back; the
+    unprovidable verdict names the first blocked box in model order, so only its counts are
+    compared there).
 - Double-pushout rewriting is claimed for `triz_rule_apply` only, in the hypergraph encoding
   above.
   - `triz_transform`'s moves are single rewrites at occurrences named by id. They check
     no-dangling; ids are injective, so no-identification holds trivially.
-  - Nothing is claimed about sets of rules: neither confluence nor termination.
-  - The match search is exponential in the worst case. That is why it has a step budget.
+  - `forbid` is an application condition of one rule at one match. Nothing is claimed about
+    sets of rules: neither confluence nor termination.
+  - The match search is exponential in the worst case. That is why it has a step budget, and
+    each `forbid` condition its own.
 - "Domain invariance" is claimed in one sense only: the structured verdicts are label-blind.
   They depend on the wiring shape, not on ids, names, verbs, domain, or carrier layer and
   dimension. This covers the verdicts of `checkModel`, `harmLoops`, `idealityProfile`,
@@ -1523,8 +1546,10 @@ example cohort churn against fee changes. Name it only from that evidence.
   the one read as a detector (the table gives each reason), and the principles classified
   parametric or analogy only above as transformations. The formal-methods analogies are
   recorded in [sources.md](sources.md); none is implemented.
-- The principle constructions check structure only. The label-blindness property tests do not
-  cover them.
+- The principle constructions check structure only. They are label-blind under the same
+  property tests: the same construction on a model and on its relabelling succeeds and fails
+  together, and two successes give isomorphic results (wiring, roles, ratings, and costs;
+  free-text notes and witness tie-breaks excepted, as for the wiring verdicts).
 - `triz_separate`'s `suggestions` are hints. A separation verdict says a piecewise assignment
   exists; it does not say that the suggested move builds one, that the move is the best one, or
   that the cited principle applies.
