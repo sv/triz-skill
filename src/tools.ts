@@ -93,7 +93,8 @@ function ruleApply(args: {
     ...(!args.match && (args.carriers || args.ids) ? ["'carriers' and 'ids' are used only when applying, with 'match'"] : []),
   ];
   if (errors.length) return { ok: false as const, errors };
-  const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id)!;
+  const rule = args.rule ?? TREND_RULES.find((r) => r.id === args.rule_id);
+  if (!rule) return { ok: false as const, errors: [`unknown rule_id '${args.rule_id}'; built-in rules: ${TREND_RULES.map((r) => r.id).join(", ")}`] };
   return args.match
     ? applyRule(args.model, rule, args.match, { carriers: args.carriers, ids: args.ids })
     : matchRule(args.model, rule, { at: args.at, limit: args.limit, maxSteps: args.max_steps });

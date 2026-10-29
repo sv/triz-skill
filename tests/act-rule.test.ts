@@ -154,7 +154,7 @@ test("DPO: a rule deletes, keeps its interface, and glues fresh elements", () =>
   assert.deepEqual(r.model.boxes.map((b) => b.id), ["P", "X", "new"]);
   assert.deepEqual(r.model.wires.map((w) => [w.id, w.from.box, w.to.box]), [["g", "new", "P"]]);
   assert.deepEqual(r.deleted, { boxes: ["A"], ports: [], wires: ["w"] });
-  assert.deepEqual(r.created, { boxes: { new: "new" }, ports: {}, wires: { g: "g" } });
+  assert.deepEqual(r.created, { boxes: { new: "new" }, ports: { new: { out: "out" } }, wires: { g: "g" } });
   assert.deepEqual(r.basis, ["typed_dpo"]);
 
   const unplugged = only(applyRule(m, unplug, only(matchRule(m, unplug)).matches[0].match));
@@ -208,6 +208,33 @@ test("fresh ids avoid every model id, deleted ones included; overrides must be f
   assert.ok(replaced.model.boxes.some((b) => b.id === "B"));
   assert.match(errors(applyRule(small(), replace, only(matchRule(small(), replace)).matches[0].match, { ids: { boxes: { new: "A" } } })), /ids: box id 'A' is not fresh/);
   assert.match(errors(applyRule(small(), replace, only(matchRule(small(), replace)).matches[0].match, { ids: { boxes: { object: "Z" } } })), /ids: 'object' is not a box the rule creates/);
+});
+
+test("a created box's ports get distinct ids after `like` renames them, and `ids` can name them", () => {
+  // Left box `old` has output `p`; it matches host box A, whose output is named `q`. The copy has
+  // outputs `p` and `q`: `p` takes the matched id `q`, so the rule's own `q` must not reuse it.
+  const copyTwo: Rule = Rule.parse({
+    id: "copy-two",
+    carriers: ["c"],
+    left: { boxes: [{ id: "old", outputs: [{ id: "p", carrier: "c" }] }] },
+    interface: { boxes: [{ id: "old", outputs: [{ id: "p", carrier: "c" }] }] },
+    right: { boxes: [{ id: "old", outputs: [{ id: "p", carrier: "c" }] }, { id: "copy", like: "old", outputs: [{ id: "p", carrier: "c" }, { id: "q", carrier: "c" }] }] },
+  });
+  const host: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "c", layer: "energy", dimension: "W" }],
+    boxes: [{ id: "A", name: "A", role: "tool", outputs: [{ id: "q", carrier: "c" }] }],
+    wires: [],
+  };
+  const [x] = only(matchRule(host, copyTwo)).matches;
+  assert.ok(x.applicable);
+  const r = only(applyRule(host, copyTwo, x.match));
+  assert.deepEqual(r.model.boxes.find((b) => b.id === "A-2")!.outputs, [{ id: "q", carrier: "c" }, { id: "q-2", carrier: "c" }]);
+  assert.deepEqual(r.created.ports, { copy: { p: "q", q: "q-2" } });
+  const named = only(applyRule(host, copyTwo, x.match, { ids: { ports: { copy: { q: "z" } } } }));
+  assert.deepEqual(named.model.boxes.find((b) => b.id === "A-2")!.outputs!.map((p) => p.id), ["q", "z"]);
+  assert.match(errors(applyRule(host, copyTwo, x.match, { ids: { ports: { copy: { p: "z", q: "z" } } } })), /ids: port id 'z' is given twice on created box 'copy'/);
+  assert.match(errors(applyRule(host, copyTwo, x.match, { ids: { ports: { old: { p: "z" } } } })), /ids: 'old.p' is not a port the rule creates/);
 });
 
 test("trend rule mono-bi: a second performer, its cost counted; again for poly", () => {
@@ -300,6 +327,7 @@ test("triz_rule_apply lists and applies, and fails closed on ambiguous arguments
   assert.equal(inline.matches.length, 1);
   assert.match((await call({ model, rule_id: "mono-bi", rule: replace })).errors[0], /exactly one of rule_id and rule/);
   assert.match((await call({ model })).errors[0], /exactly one of rule_id and rule/);
+  assert.match((await call({ model, rule_id: "nope" })).errors[0], /unknown rule_id 'nope'; built-in rules: mono-bi, feedback/);
   assert.match((await call({ model, rule_id: "mono-bi", carriers: { s: "heat" } })).errors[0], /used only when applying/);
   const mistyped = await call({ model, rule: { ...replace, right: { ...replace.right, wires: [{ ...replace.right.wires![0], to: { box: "new", port: "out" } }] } } });
   assert.equal(mistyped.ok, false);

@@ -53,7 +53,7 @@ export const RuleBox = z.strictObject({
   role: Role.optional().describe("On a matched box: the role it must have (omit: any role). On a created box: its role"),
   inputs: z.array(RulePort).optional(),
   outputs: z.array(RulePort).optional(),
-  like: Id.optional().describe("Created box only: copy role, name, action, and cost from the model box this left-side box matches; a port with the same id as one of that box's ports takes the matched port's id"),
+  like: Id.optional().describe("Created box only: copy role, name, action, and cost from the model box this left-side box matches; a port with the same id as one of that box's ports takes the matched port's id, made unique within the box"),
   name: z.string().min(1).optional().describe("Created box only"),
   action: z.string().optional().describe("Created box only"),
   cost: Box.shape.cost.describe("Created box only: cost per resource dimension"),
@@ -99,7 +99,7 @@ export const RuleMatch = z.strictObject({
 export const RuleIds = z.strictObject({
   boxes: z.record(z.string(), Id).optional().describe("Created box id → model id"),
   wires: z.record(z.string(), Id).optional().describe("Created wire id → model id"),
-  ports: z.record(z.string(), z.record(z.string(), Id)).optional().describe("Kept box id → (created port id → model port id)"),
+  ports: z.record(z.string(), z.record(z.string(), Id)).optional().describe("Right-side box id → (port id → model port id), for the ports the rule creates: new ports of a kept box, or any port of a created box"),
 }).meta({ id: "RuleIds" });
 
 export type Rule = z.infer<typeof Rule>;
@@ -492,7 +492,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   for (const id of Object.keys(ids.boxes ?? {})) if (!R.boxes.has(id) || K.boxes.has(id)) errors.push(`ids: '${id}' is not a box the rule creates`);
   for (const id of Object.keys(ids.wires ?? {})) if (!R.wires.has(id) || K.wires.has(id)) errors.push(`ids: '${id}' is not a wire the rule creates`);
   for (const [b, ps] of Object.entries(ids.ports ?? {})) {
-    for (const p of Object.keys(ps)) if (!K.boxes.has(b) || !R.ports.has(key(b, p)) || K.ports.has(key(b, p))) errors.push(`ids: '${b}.${p}' is not a port the rule creates on a kept box`);
+    for (const p of Object.keys(ps)) if (!R.ports.has(key(b, p)) || K.ports.has(key(b, p))) errors.push(`ids: '${b}.${p}' is not a port the rule creates`);
   }
 
   // Images of right-side boxes and ports: kept ones through the match, created ones fresh.
@@ -502,7 +502,25 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
     const base = b.like !== undefined ? get(match.boxes, b.like)! : b.id;
     createdBoxes.set(b.id, claim(boxIds, get(ids.boxes, b.id), base, "box"));
   }
+  // A created box's ports: given ids first, then each port's rule id, or the id of the port it
+  // copies through `like`, made unique within the box.
   const createdPorts = new Map<string, Map<string, string>>();
+  for (const rb of createdBoxes.keys()) {
+    const b = R.boxes.get(rb)!, assigned = new Map<string, string>(), taken = new Set<string>();
+    for (const p of portsOf(b)) {
+      const wanted = get(get(ids.ports, rb), p.id);
+      if (wanted === undefined) continue;
+      if (taken.has(wanted)) errors.push(`ids: port id '${wanted}' is given twice on created box '${rb}'`);
+      taken.add(wanted);
+      assigned.set(p.id, wanted);
+    }
+    for (const p of portsOf(b)) {
+      if (assigned.has(p.id)) continue;
+      const base = (b.like !== undefined ? get(get(match.ports, b.like), p.id) : undefined) ?? p.id;
+      assigned.set(p.id, claim(taken, undefined, base, `port of created box '${rb}'`));
+    }
+    createdPorts.set(rb, assigned);
+  }
   const newPorts = new Map<string, Array<{ id: string; carrier: string; side: Side }>>();
   for (const [k, p] of R.ports) {
     if (!K.boxes.has(p.box) || K.ports.has(k)) continue;
@@ -519,13 +537,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   }
   if (errors.length) return { ok: false, errors };
   const boxImage = (b: string) => (K.boxes.has(b) ? get(match.boxes, b)! : createdBoxes.get(b)!);
-  /** A created box's port keeps its rule id, or takes the id of the port it copies through `like`. */
-  const createdPortId = (b: string, p: string) => {
-    const like = R.boxes.get(b)!.like;
-    return (like !== undefined ? get(get(match.ports, like), p) : undefined) ?? p;
-  };
-  const portImage = (b: string, p: string) =>
-    !K.boxes.has(b) ? createdPortId(b, p) : K.ports.has(key(b, p)) ? get(get(match.ports, b), p)! : createdPorts.get(b)!.get(p)!;
+  const portImage = (b: string, p: string) => (K.ports.has(key(b, p)) ? get(get(match.ports, b), p)! : createdPorts.get(b)!.get(p)!);
 
   // Pushout complement: delete the image of L \ K. Then the pushout: glue R \ K.
   const keepPorts = (b: MBox, side: Side, list: MBox["inputs"]) => {
@@ -543,7 +555,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   const created: MBox[] = [...createdBoxes].map(([rb, id]) => {
     const b = R.boxes.get(rb)!;
     const like = b.like !== undefined ? gBox.get(get(match.boxes, b.like)!)! : undefined;
-    const typed = (ps: PBox["inputs"]) => ps?.map((p) => ({ id: createdPortId(rb, p.id), carrier: sigma(p.carrier) }));
+    const typed = (ps: PBox["inputs"]) => ps?.map((p) => ({ id: createdPorts.get(rb)!.get(p.id)!, carrier: sigma(p.carrier) }));
     const action = b.action ?? like?.action, cost = b.cost ?? like?.cost;
     return {
       id,

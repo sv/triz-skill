@@ -105,7 +105,7 @@
           }
         },
         "like": {
-          "description": "Created box only: copy role, name, action, and cost from the model box this left-side box matches; a port with the same id as one of that box's ports takes the matched port's id",
+          "description": "Created box only: copy role, name, action, and cost from the model box this left-side box matches; a port with the same id as one of that box's ports takes the matched port's id, made unique within the box",
           "type": "string",
           "minLength": 1
         },
