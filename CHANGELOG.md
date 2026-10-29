@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-29
+
 ### Added
 
 - `triz_function_model`: type-check a function model written as typed data; report harm loops, ideality per cost dimension, separation, and a baseline comparison that includes an isomorphism check and an optional `box_map`.
@@ -92,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FLOP-specific benchmark, registry, problem graph, and reconciler CLI.
 
-[unreleased]: https://github.com/sv/triz-skill/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/sv/triz-skill/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/sv/triz-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sv/triz-skill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/sv/triz-skill/releases/tag/v0.2.0

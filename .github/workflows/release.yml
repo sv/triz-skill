@@ -41,8 +41,16 @@ jobs:
 
       # pnpm (>= 11) publishes natively and exchanges the job's OIDC token with npm; the tag
       # checkout is a detached HEAD, so skip pnpm's publish-branch check (the tag gate above holds).
+      # A re-run after a later step failed finds the version on npm and skips the upload.
       - name: Publish
-        run: pnpm publish --access public --no-git-checks
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$(npm view "$name@$tag" version 2>/dev/null)" = "$tag" ]; then
+            echo "$name@$tag is already on npm; skipping publish"
+          else
+            pnpm publish --access public --no-git-checks
+          fi
 
       - name: GitHub release
         uses: softprops/action-gh-release@v2
