@@ -1,0 +1,55 @@
+{
+  "domain": "physical",
+  "system": "Motor shaft on a rolling-element bearing, with declared steady-state behaviour",
+  "carriers": [
+    { "id": "torque", "layer": "energy", "dimension": "N·m", "values": ["rated"] },
+    { "id": "radial-load", "layer": "energy", "dimension": "N radial support", "values": ["supported", "unsupported"] },
+    { "id": "heat", "layer": "energy", "dimension": "W thermal", "values": ["low", "high"] },
+    { "id": "preload", "layer": "energy", "dimension": "N axial preload from thermal expansion", "values": ["nominal", "high"] }
+  ],
+  "boxes": [
+    { "id": "motor", "name": "Drive motor", "role": "tool", "action": "rotate",
+      "outputs": [{ "id": "shaft-out", "carrier": "torque" }], "cost": { "usd_unit": 120 },
+      "behavior": [{ "in": {}, "out": { "shaft-out": "rated" } }] },
+    { "id": "shaft", "name": "Shaft", "role": "product",
+      "inputs": [{ "id": "drive", "carrier": "torque" }, { "id": "support", "carrier": "radial-load" }, { "id": "heat-in", "carrier": "heat" }],
+      "outputs": [{ "id": "expansion", "carrier": "preload" }],
+      "behavior": [
+        { "in": { "drive": "rated", "support": "supported", "heat-in": "low" }, "out": { "expansion": "nominal" } },
+        { "in": { "drive": "rated", "support": "supported", "heat-in": "high" }, "out": { "expansion": "high" } },
+        { "in": { "drive": "rated", "support": "unsupported", "heat-in": "low" }, "out": { "expansion": "nominal" } },
+        { "in": { "drive": "rated", "support": "unsupported", "heat-in": "high" }, "out": { "expansion": "high" } }
+      ] },
+    { "id": "bearing", "name": "Ball bearing", "role": "mediator", "action": "support",
+      "inputs": [{ "id": "preload-in", "carrier": "preload" }],
+      "outputs": [{ "id": "race", "carrier": "radial-load" }, { "id": "friction", "carrier": "heat" }],
+      "cost": { "usd_unit": 18, "service_h_year": 2 },
+      "behavior": [
+        { "in": { "preload-in": "nominal" }, "out": { "race": "supported", "friction": "low" } },
+        { "in": { "preload-in": "high" }, "out": { "race": "supported", "friction": "high" } }
+      ] },
+    { "id": "housing", "name": "Housing", "role": "mediator", "action": "hold",
+      "outputs": [{ "id": "bore", "carrier": "radial-load" }], "cost": { "usd_unit": 40 },
+      "behavior": [{ "in": {}, "out": { "bore": "supported" } }] },
+    { "id": "air", "name": "Ambient air", "role": "environment",
+      "inputs": [{ "id": "sink", "carrier": "heat" }] }
+  ],
+  "wires": [
+    { "id": "w-drive", "from": { "box": "motor", "port": "shaft-out" }, "to": { "box": "shaft", "port": "drive" }, "carrier": "torque", "polarity": "useful", "verb": "rotate" },
+    { "id": "w-support", "from": { "box": "bearing", "port": "race" }, "to": { "box": "shaft", "port": "support" }, "carrier": "radial-load", "polarity": "useful", "verb": "support" },
+    { "id": "w-heat", "from": { "box": "bearing", "port": "friction" }, "to": { "box": "shaft", "port": "heat-in" }, "carrier": "heat", "polarity": "harmful", "verb": "heat" },
+    { "id": "w-preload", "from": { "box": "shaft", "port": "expansion" }, "to": { "box": "bearing", "port": "preload-in" }, "carrier": "preload", "polarity": "harmful", "verb": "overload" }
+  ],
+  "budget": { "usd_unit": 200, "service_h_year": 4 },
+  "contradictions": [
+    {
+      "id": "clearance",
+      "parameter": "bearing internal clearance",
+      "axes": { "time": ["cold-start", "warm-up", "steady"] },
+      "demands": [
+        { "id": "precision", "values": ["tight"], "because": "shaft runout within tolerance", "time": ["steady"] },
+        { "id": "no-seizure", "values": ["loose"], "because": "expansion must not overload the races", "time": ["cold-start", "warm-up"] }
+      ]
+    }
+  ]
+}

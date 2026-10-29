@@ -243,6 +243,27 @@ test("trend rule feedback: one useful function back to the tool, on a carrier th
   assert.deepEqual(negative(r.model), negative(m), "the useful feedback loop adds no harm");
 });
 
+test("a kept box that declares behaviour keeps its ports; a copy does not inherit behaviour", () => {
+  const m = example("bearing-heat-behavior");
+  assert.ok(checkModel(m).ok);
+  const signal = m.carriers.find((c) => c.values)!.id;
+  for (const [rule, tool] of [[trend("feedback"), "tool"], [unplug, "old"]] as const) {
+    for (const { match, applicable, violations } of only(matchRule(m, rule)).matches) {
+      const behaving = [...new Set([match.boxes[tool], match.boxes.object])].filter((id) => m.boxes.find((b) => b.id === id)!.behavior);
+      const r = applyRule(m, rule, match, rule.id === "feedback" ? { carriers: { s: signal } } : {});
+      if (behaving.length) {
+        assert.equal(applicable, false);
+        assert.deepEqual([...violations].sort(), behaving.sort().map((id) => `behaviour: the rule changes the ports of box '${id}', which declares behavior; restate or remove its behavior first`));
+        assert.match(errors(r), /^behaviour: /);
+      } else if (applicable) assert.ok(r.ok, errors(r));
+    }
+  }
+  const copied = only(matchRule(m, trend("mono-bi"), { at: { wires: { f: "w-drive" } } })).matches[0];
+  const bi = only(applyRule(m, trend("mono-bi"), copied.match));
+  assert.equal(bi.model.boxes.find((b) => b.id === "motor-2")!.behavior, undefined);
+  assert.ok(checkModel(bi.model).ok);
+});
+
 test("property (typed_dpo): every applicable match gives a typed model; others fail on a named condition", () => {
   const rules = [...TREND_RULES, replace, unplug];
   let applied = 0, refused = 0;
@@ -259,7 +280,7 @@ test("property (typed_dpo): every applicable match gives a typed model; others f
           assert.ok(checkModel(r.model).ok);
           applied++;
         } else {
-          assert.match(errors(r), /^(dangling|identification): /, `seed ${seed} ${rule.id}`);
+          assert.match(errors(r), /^(dangling|identification|behaviour): /, `seed ${seed} ${rule.id}`);
           refused++;
         }
       }

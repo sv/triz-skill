@@ -27,6 +27,7 @@ recalling principle numbers or matrix cells.
 | `triz_rule_apply(model, rule_id \| rule, at?, match?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback) |
 | `triz_nine_windows(present, past?, future?, subsystem[])` | Subsystem, system, and supersystem views per time snapshot, with harm loops per window |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
+| `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

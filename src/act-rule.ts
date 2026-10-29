@@ -26,7 +26,8 @@
  *                   homomorphism, then the no-identification and no-dangling conditions (Def. 3.16;
  *                   Prop. 3.17 shows they are exactly what the pushout complement needs), deletes
  *                   the image of L \ K, glues R \ K under fresh ids, and type-checks the result.
- *                   Every failure fails closed with an error naming the condition.
+ *                   A kept box that declares behaviour must keep its ports. Every failure
+ *                   fails closed with an error naming the condition.
  *  - TREND_RULES  — the evolution lines whose text in evolution-trends.md describes a structural
  *                   move, each citing its line. Trimming is `triz_transform` `trim`.
  *
@@ -302,6 +303,22 @@ export function gluingConditions(model: FunctionModel, rule: Rule, match: RuleMa
   return { identification, dangling, ok: !identification.length && !dangling.length };
 }
 
+/**
+ * A kept box that declares behaviour must keep its ports: its rows name every port once, so a rule
+ * that adds or deletes one of its ports would leave the rows ill-typed. This is not a gluing
+ * condition; it is checked with them so that a refused application names its reason.
+ */
+export function behaviourConditions(model: FunctionModel, rule: Rule, match: RuleMatch): string[] {
+  const { K, R } = index(rule);
+  const gone = deletedBy(rule, match);
+  const changed = new Set([
+    ...[...gone.ports].map((k) => (JSON.parse(k) as [string, string])[0]).filter((b) => !gone.boxes.has(b)),
+    ...[...R.ports].filter(([k, p]) => K.boxes.has(p.box) && !K.ports.has(k)).map(([, p]) => get(match.boxes, p.box)!),
+  ]);
+  return model.boxes.filter((b) => b.behavior && changed.has(b.id))
+    .map((b) => `behaviour: the rule changes the ports of box '${b.id}', which declares behavior; restate or remove its behavior first`);
+}
+
 export const MAX_STEPS = 100_000;
 export const MAX_MATCHES = 50;
 
@@ -407,7 +424,8 @@ export function matchRule(model: FunctionModel, rule: Rule, opts: { at?: Partial
     const verified = checkMatch(model, rule, match);
     if (verified.length) throw new Error(`internal: search returned an unverified match: ${verified.join("; ")}`);
     const g = gluingConditions(model, rule, match);
-    return { match, applicable: g.ok, violations: [...g.identification, ...g.dangling] };
+    const violations = [...g.identification, ...g.dangling, ...(g.ok ? behaviourConditions(model, rule, match) : [])];
+    return { match, applicable: !violations.length, violations };
   });
   return {
     ok: true as const,
@@ -434,7 +452,8 @@ const freshId = (base: string, taken: Set<string>) => {
  * delete the image of L \ K, glue R \ K under fresh ids, and type-check the result. `carriers`
  * binds the variables used only on the right side; `ids` overrides the default fresh ids. A
  * created box or wire defaults to the id of the element it is `like`, made fresh against every id
- * the model has, including deleted ones.
+ * the model has, including deleted ones. A `like` copy does not copy declared behaviour: its ports
+ * are the rule's, not the original's.
  */
 export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, opts: { carriers?: Record<string, string>; ids?: RuleIds } = {}):
   | { ok: true; model: FunctionModel; rule: string; created: { boxes: Record<string, string>; ports: Record<string, Record<string, string>>; wires: Record<string, string> }; deleted: { boxes: string[]; ports: Array<{ box: string; port: string }>; wires: string[] }; basis: Theorem[]; note: string }
@@ -455,6 +474,8 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   if (errors.length) return { ok: false, errors };
   const glue = gluingConditions(model, rule, match);
   if (!glue.ok) return { ok: false, errors: [...glue.identification, ...glue.dangling] };
+  const behaviour = behaviourConditions(model, rule, match);
+  if (behaviour.length) return { ok: false, errors: behaviour };
 
   const gone = deletedBy(rule, match);
   const sigma = (v: string) => bound.get(v)!;

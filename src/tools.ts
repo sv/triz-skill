@@ -15,6 +15,7 @@ import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBas
 import { segment, takeOut, interpose, applyTrim, rewrite, mapBoxes } from "./act-rewrite.js";
 import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_RULES, applyRule, matchRule } from "./act-rule.js";
+import { externalBehavior, trimPreservesBehavior, MAX_STATES } from "./act-behavior.js";
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -227,7 +228,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_rule_apply",
-      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly) or 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`). Each built-in rule cites the evolution-trends.md line it encodes. Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match and both conditions, deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
+      description: "Double-pushout rewriting with rules as data. A rule is a span L ← K → R of patterns over the function-model schema (boxes with ports typed by carrier variables, and wires); pass it as `rule`, or name a built-in evolution-line rule with `rule_id`: 'mono-bi' (transition to supersystem, mono → bi; apply again for poly) or 'feedback' (increasing controllability, self-adjusting with feedback; bind its carrier variable 's' with `carriers`). Each built-in rule cites the evolution-trends.md line it encodes. Without `match`: lists every injective match of L (seed it with `at`), each verified as a typed homomorphism and marked applicable when the no-identification and no-dangling conditions hold; decided:false if the step budget runs out, complete:false past `limit`. With `match` (a listed match, or your own mapping): checks the match, both conditions, and that a kept box declaring behavior keeps its ports, then deletes the image of L \\ K, glues R \\ K under fresh ids, and returns the new model, which type-checks or the call fails closed. A rule application is a structural move, not evidence that it helps: compare the result with triz_function_model compare_to.",
       shape: {
         model: act.FunctionModel,
         rule_id: z.enum(TREND_RULES.map((r) => r.id) as [string, ...string[]]).optional().describe("A built-in evolution-line rule"),
@@ -240,6 +241,20 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         max_steps: z.number().int().min(1).max(1_000_000).optional().describe("Search step budget (default 100000)"),
       },
       handler: async (args: Parameters<typeof ruleApply>[0]) => text(ruleApply(args)),
+    },
+    {
+      name: "triz_behavior",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `trim`, perform the trim as triz_transform does and decide whether the input→deliverable relation is unchanged: verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). Fails closed on ill-typed behaviour and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's first, is outside the kernel.",
+      shape: {
+        model: act.FunctionModel,
+        trim: z.array(Id).min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
+        absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
+        max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
+      },
+      handler: async ({ model, trim, absorb, max_states }: { model: act.FunctionModel; trim?: string[]; absorb?: Record<string, { box: string; port: string }>; max_states?: number }) =>
+        text(trim ? trimPreservesBehavior(model, { trim, absorb, maxStates: max_states })
+          : absorb ? { ok: false, errors: ["absorb needs trim"] }
+          : externalBehavior(model, { maxStates: max_states })),
     },
     {
       name: "triz_nine_windows",

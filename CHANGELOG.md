@@ -16,11 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_nine_windows`: subsystem, system, and supersystem views for each time snapshot.
 - `triz_rule_apply`: double-pushout rewriting with rules as data (match search, gluing conditions, Lean `typed_dpo`); built-in mono → bi and feedback evolution-line rules.
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
+- `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
 - Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
-- `theory/Witnesses.lean`: each typing lemma's hypotheses hold on a concrete diagram, and dropping any one breaks it.
+- `theory/Witnesses.lean`: each typing lemma's and behaviour-monotonicity lemma's hypotheses hold on a concrete diagram or relation, and dropping any one breaks it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
 - Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.
-- Function-model JSON Schema and four example models: bearing, cached API, marketplace, connection pool.
+- Function-model JSON Schema and five example models: bearing, bearing with declared behaviour, cached API, marketplace, connection pool.
 - `categorical-model.md`: modelling protocol, and what is and is not claimed.
 - CI and Lean workflows can be started by hand (`workflow_dispatch`).
 
