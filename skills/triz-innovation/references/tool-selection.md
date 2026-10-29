@@ -29,6 +29,7 @@ recalling principle numbers or matrix cells.
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
 | `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |
 | `triz_dynamics(model, horizon?, initial?, inputs?, unsafe?, safe?, separation?, max_states?)` | Bounded runs of boxes with declared state: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (trap), or oscillating |
+| `triz_feasibility(model, trim?, absorb?, max_antichain?, max_iterations?)` | Minimal resource vectors from declared box feasibility (monotone co-design, least fixpoint); with `trim`, decide feasible, infeasible (binding dimension or unprovidable port), or undecided, and the absorber's added resources |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.

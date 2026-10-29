@@ -22,6 +22,7 @@ export const THEOREMS = [
   "restrict_rewrite", "restrict_rewrite_of_inside", "boundary_rewrite",
   "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated",
   "fixed_on_cycle", "closed_reachIn", "return_ge_two",
+  "kleene_lfp", "kleeneStep_upperClosure", "codesign_lfp",
 ] as const;
 /** Mathlib lemmas a verdict may cite. The Lean file uses each one, so `lake build` checks it exists in the pinned Mathlib. */
 export const MATHLIB_THEOREMS = ["Relation.comp_assoc"] as const;

@@ -65,6 +65,15 @@ export const TransitionRow = z.strictObject({
   next: Id.describe("Next state; one of the box's declared state values"),
   out: z.record(z.string(), Id).describe("Output port id → value; names every output port of the box"),
 }).meta({ id: "TransitionRow", description: "One admissible step of a stateful box: in this state, on these inputs, it may move to next and emit these outputs" });
+const Level = z.number().nonnegative();
+export const FeasibilityRow = z.strictObject({
+  provides: z.record(z.string(), Level).optional()
+    .describe("Output port id → level the box can provide there, in the carrier's dimension; an omitted port provides nothing (level 0)"),
+  requires: z.record(z.string(), Level).optional()
+    .describe("Input port id → level the box needs there to provide this row; an omitted port needs nothing. Only a non-harmful function can supply it"),
+  cost: z.record(Dim, z.number().nonnegative()).optional()
+    .describe("Operating resources per cost dimension, added to the box's fixed cost; an omitted dimension needs nothing"),
+}).meta({ id: "FeasibilityRow", description: "One minimal (functionality provided, resources required) pair of the box's monotone feasibility relation" });
 
 export const Box = z.strictObject({
   id: Id,
@@ -82,6 +91,8 @@ export const Box = z.strictObject({
   initial: z.array(Id).min(1).optional().describe("States the box may start in; a subset of state"),
   transition: z.array(TransitionRow).min(1).optional()
     .describe("Declared dynamics: rows (state, inputs) → (next state, outputs) over the declared state and carrier values, making the box a nondeterministic Mealy machine. A (state, inputs) pair with no row cannot occur; several rows are alternatives. Requires state; a box declares behavior or transition, not both"),
+  feasibility: z.array(FeasibilityRow).min(1).optional()
+    .describe("Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. A port has one level shared by every function on it, so additive sharing of a flow needs a splitter box. Omit when unknown"),
 }).meta({ id: "Box" });
 
 export const Endpoint = z.strictObject({ box: Id, port: Id }).meta({ id: "Endpoint" });
@@ -135,6 +146,7 @@ export const FunctionModel = z.strictObject({
 
 export type FunctionModel = z.infer<typeof FunctionModel>;
 export type PhysicalContradiction = z.infer<typeof PhysicalContradiction>;
+export type FeasibilityRow = z.infer<typeof FeasibilityRow>;
 type Box = z.infer<typeof Box>;
 type Wire = z.infer<typeof Wire>;
 
@@ -208,6 +220,38 @@ function rowErrors(b: Box, carriers: FunctionModel["carriers"]): string[] {
   return errors;
 }
 
+/**
+ * Typing of a feasibility relation: rows name only the box's own ports, output ports under
+ * `provides` and input ports under `requires`, and the rows are minimal. Row j is dominated by
+ * row i when i provides at least as much at every output port and needs at most as much at every
+ * input port and cost dimension (an omitted entry is 0). Monotone reading makes a dominated row
+ * redundant, so it fails closed rather than being dropped silently.
+ */
+function feasibilityErrors(b: Box): string[] {
+  if (!b.feasibility) return [];
+  const errors: string[] = [];
+  b.feasibility.forEach((row, i) => {
+    for (const [field, ports, kind] of [["provides", outputs(b), "output"], ["requires", inputs(b), "input"]] as const) {
+      for (const k of Object.keys(row[field] ?? {})) if (!ports.some((p) => p.id === k)) errors.push(`box '${b.id}' feasibility row ${i}: no ${kind} port '${k}'`);
+    }
+  });
+  const dims = [...new Set(b.feasibility.flatMap((r) => Object.keys(r.cost ?? {})))];
+  const atLeast = (x: FeasibilityRow, y: FeasibilityRow) =>
+    outputs(b).every((p) => (own(x.provides, p.id) ?? 0) >= (own(y.provides, p.id) ?? 0))
+    && inputs(b).every((p) => (own(x.requires, p.id) ?? 0) <= (own(y.requires, p.id) ?? 0))
+    && dims.every((d) => (own(x.cost, d) ?? 0) <= (own(y.cost, d) ?? 0));
+  b.feasibility.forEach((row, j) => {
+    const i = b.feasibility!.findIndex((other, k) => k !== j && atLeast(other, row));
+    if (i < 0) return;
+    const repeat = atLeast(row, b.feasibility![i]);
+    if (repeat && i > j) return;
+    errors.push(repeat
+      ? `box '${b.id}' feasibility row ${j} repeats row ${i}: drop one`
+      : `box '${b.id}' feasibility row ${j} is dominated by row ${i}: it provides no more and needs no less; drop it`);
+  });
+  return errors;
+}
+
 export interface CheckResult { ok: boolean; errors: string[]; }
 
 /** Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail closed. */
@@ -224,7 +268,7 @@ export function checkModel(model: FunctionModel): CheckResult {
     for (const p of [...inputs(b), ...outputs(b)]) {
       if (!carriers.has(p.carrier)) errors.push(`box '${b.id}' port '${p.id}': unknown carrier '${p.carrier}'`);
     }
-    errors.push(...rowErrors(b, model.carriers));
+    errors.push(...rowErrors(b, model.carriers), ...feasibilityErrors(b));
   }
   for (const w of model.wires) {
     if (!carriers.has(w.carrier)) errors.push(`wire '${w.id}': unknown carrier '${w.carrier}'`);
@@ -472,7 +516,7 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
     trimmingProblems: functions.flatMap((f) => f.absorbers.map((a) => a.rule === "B"
       ? `[B] How can ${name(f.object)} ${verb(f.wire)} itself (carrier '${f.carrier}') without ${trimmedNames}?`
       : `[C] How can ${name(a.box)}${a.supersystem ? " (supersystem)" : ""} ${verb(f.wire)} ${name(f.object)} (carrier '${f.carrier}') without ${trimmedNames}?`)),
-    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's added cost and new harms are not modelled here.",
+    note: "Carrier match is necessary, not sufficient. Each absorber is a trimming problem to solve and substantiate; the absorber's new harms are not modelled, and its added cost only where boxes declare feasibility (triz_feasibility).",
   };
 }
 

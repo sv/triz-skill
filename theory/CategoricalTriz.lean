@@ -5,11 +5,18 @@ import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
+import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
 import Mathlib.Order.Comparable
+import Mathlib.Order.FixedPoints
+import Mathlib.Order.Iterate
+import Mathlib.Order.Minimal
+import Mathlib.Order.UpperLower.Closure
+import Mathlib.Order.UpperLower.CompleteLattice
+import Mathlib.Order.UpperLower.Principal
 
 /-!
 # Categorical TRIZ: the statements behind the kernel's checks
@@ -778,5 +785,155 @@ theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc 
   · omega
 
 end Dynamics
+
+/-! ## Co-design feasibility (`feasibility`, `trimFeasibility`)
+
+Censi's monotone design problems (A Mathematical Theory of Co-Design, arXiv:1512.08055): a
+feasibility relation `d f r` says resources `r` suffice for functionality `f`. It is monotone when
+providing less never needs more and more resources never hurt. Series, parallel, and feedback
+composition keep that property (Censi, Props. 2–4), so a model whose boxes declare monotone rows
+has a monotone composite. Feedback is the relational trace of the behaviour section.
+
+The kernel solves the composite as a least fixpoint. A configuration is a demanded level per port
+and a cost vector, in a finite join-semilattice `P`; `h s x` says that some row selection
+provides what `s` demands and places the demand and cost `x`. One step maps an upper set `U` of
+configurations to the configurations above some `x ⊔ s` with `s ∈ U` and `h s x` (`kleeneStep`,
+Censi's eq. 26). The kernel represents an upper set by its antichain of minimal elements and
+computes the step on that antichain, which `kleeneStep_upperClosure` justifies when requirements
+only shrink as demands do. Iterating from `⊥` (every configuration) reaches the least fixpoint on
+a finite lattice (`kleene_lfp`), and that fixpoint is the upward closure of the feasible
+configurations (`codesign_lfp`): its minimal elements are exactly the minimal feasible ones.
+
+Behaviour, above, equates values and has no order to iterate in, so it takes the trace of
+steady states and not a least fixpoint. The TypeScript solver is checked against these
+statements by tests, including a brute-force comparison, not by extraction. -/
+
+section Feasibility
+
+variable {F M R υ : Type*} [Preorder F] [Preorder M] [Preorder R] [Preorder υ]
+
+/-- Censi's monotone design problem as a relation: providing less never needs more, and more
+resources never hurt. -/
+def MonotoneFeasibility (d : F → R → Prop) : Prop :=
+  ∀ ⦃f f' r r'⦄, f' ≤ f → r ≤ r' → d f r → d f' r'
+
+/-- Series composition (Mathlib's `Relation.Comp`): one box's required resource is the next
+box's functionality. -/
+theorem feasibility_comp {d : F → M → Prop} {e : M → R → Prop}
+    (hd : MonotoneFeasibility d) (he : MonotoneFeasibility e) :
+    MonotoneFeasibility (Relation.Comp d e) := by
+  rintro f f' r r' hf hr ⟨m, h₁, h₂⟩
+  exact ⟨m, hd hf le_rfl h₁, he le_rfl hr h₂⟩
+
+/-- Parallel composition: two boxes side by side, their resources combined by `op` (costs add,
+port demands take the larger) and compared with `≤`. -/
+theorem feasibility_par {F₂ R₂ : Type*} [Preorder F₂] [Preorder R₂] {d : F → R → Prop}
+    {e : F₂ → R₂ → Prop} (op : R → R₂ → R) (hd : MonotoneFeasibility d) (he : MonotoneFeasibility e) :
+    MonotoneFeasibility (fun (f : F × F₂) (r : R) => ∃ r₁ r₂, d f.1 r₁ ∧ e f.2 r₂ ∧ op r₁ r₂ ≤ r) := by
+  rintro f f' r r' hf hr ⟨r₁, r₂, h₁, h₂, hle⟩
+  exact ⟨r₁, r₂, hd hf.1 le_rfl h₁, he hf.2 le_rfl h₂, hle.trans hr⟩
+
+/-- Feedback: the trace of a monotone feasibility relation is monotone. -/
+theorem feasibility_trace {d : F × υ → R × υ → Prop} (hd : MonotoneFeasibility d) :
+    MonotoneFeasibility (relTrace d) := by
+  rintro f f' r r' hf hr ⟨u, hu⟩
+  exact ⟨u, hd (Prod.mk_le_mk.mpr ⟨hf, le_rfl⟩) (Prod.mk_le_mk.mpr ⟨hr, le_rfl⟩) hu⟩
+
+end Feasibility
+
+section Kleene
+
+/-- Kleene's ascent on a finite complete lattice: iterating a monotone map from `⊥` as many times
+as the lattice has elements gives its least fixpoint. -/
+theorem kleene_lfp {α : Type*} [CompleteLattice α] [Fintype α] (f : α →o α) :
+    f^[Fintype.card α] ⊥ = f.lfp := by
+  set a : ℕ → α := fun n => f^[n] ⊥ with ha
+  have hmono : Monotone a := Monotone.monotone_iterate_of_le_map f.monotone bot_le
+  have hsucc : ∀ n, a (n + 1) = f (a n) := fun n => by simp only [ha, Function.iterate_succ_apply']
+  have hle : ∀ n, a n ≤ f.lfp := by
+    intro n
+    induction n with
+    | zero => exact bot_le
+    | succ n ih => rw [hsucc]; exact f.map_le_lfp ih
+  -- Two equal iterates make the chain stall, and a stalled value is a fixpoint.
+  have key : ∀ i j : ℕ, i < j → a i = a j → a i = f.lfp := by
+    intro i j hij heq
+    have hfix : f (a i) = a i := le_antisymm
+      (by rw [← hsucc]; exact (hmono (by omega : i + 1 ≤ j)).trans heq.ge)
+      (by rw [← hsucc]; exact hmono (Nat.le_succ i))
+    exact le_antisymm (hle i) (f.lfp_le_fixed hfix)
+  obtain ⟨i, j, hij, heq⟩ := Fintype.exists_ne_map_eq_of_card_lt
+    (fun k : Fin (Fintype.card α + 1) => a k) (by simp)
+  have hi := i.isLt
+  have hj := j.isLt
+  have hne : (i : ℕ) ≠ j := Fin.val_injective.ne hij
+  obtain ⟨k, hk, hak⟩ : ∃ k ≤ Fintype.card α, a k = f.lfp := by
+    rcases lt_or_gt_of_ne hne with h | h
+    · exact ⟨i, by omega, key i j h heq⟩
+    · exact ⟨j, by omega, key j i h heq.symm⟩
+  exact le_antisymm (hle _) (hak ▸ hmono hk)
+
+end Kleene
+
+section CoDesign
+
+variable {P : Type*} [SemilatticeSup P]
+
+/-- One step of the co-design ascent on upper sets of configurations (Censi's eq. 26):
+everything above `x ⊔ s` for a configuration `s` in `U` and a requirement `x` of `s`. Upper sets
+are ordered by reverse inclusion, so `⊥` is every configuration. -/
+def kleeneStep (h : P → P → Prop) : UpperSet P →o UpperSet P where
+  toFun U := ⟨{t | ∃ s ∈ U, ∃ x, h s x ∧ x ⊔ s ≤ t}, by
+    rintro a b hab ⟨s, hs, x, hx, hle⟩
+    exact ⟨s, hs, x, hx, hle.trans hab⟩⟩
+  monotone' U V hUV := by
+    rw [← UpperSet.coe_subset_coe] at hUV ⊢
+    rintro t ⟨s, hs, x, hx, hle⟩
+    exact ⟨s, hUV hs, x, hx, hle⟩
+
+/-- Membership in one step, unfolded. -/
+theorem mem_kleeneStep {h : P → P → Prop} {U : UpperSet P} {t : P} :
+    t ∈ kleeneStep h U ↔ ∃ s ∈ U, ∃ x, h s x ∧ x ⊔ s ≤ t := Iff.rfl
+
+/-- The step can be computed on generators, such as an antichain of minimal configurations, when
+a smaller demand never needs more (`hmono`). -/
+theorem kleeneStep_upperClosure {h : P → P → Prop}
+    (hmono : ∀ ⦃s s' x⦄, s ≤ s' → h s' x → ∃ y ≤ x, h s y) (A : Set P) :
+    kleeneStep h (upperClosure A) = upperClosure {y | ∃ s ∈ A, ∃ x, h s x ∧ y = x ⊔ s} := by
+  ext t
+  simp only [SetLike.mem_coe, mem_kleeneStep, mem_upperClosure, Set.mem_setOf_eq]
+  constructor
+  · rintro ⟨s, ⟨a, ha, has⟩, x, hx, hle⟩
+    obtain ⟨y, hyx, hy⟩ := hmono has hx
+    exact ⟨y ⊔ a, ⟨a, ha, y, hy, rfl⟩, (sup_le_sup hyx has).trans hle⟩
+  · rintro ⟨_, ⟨a, ha, x, hx, rfl⟩, hle⟩
+    exact ⟨a, ⟨a, ha, le_rfl⟩, x, hx, hle⟩
+
+/-- On a finite set of configurations, the least fixpoint of the step is the upward closure of the
+feasible configurations: those with a requirement below themselves. Its minimal elements are
+the minimal feasible configurations. -/
+theorem codesign_lfp [Finite P] (h : P → P → Prop) :
+    ((kleeneStep h).lfp : Set P) = upperClosure {s | ∃ x, h s x ∧ x ≤ s} := by
+  ext t
+  simp only [SetLike.mem_coe, mem_upperClosure, Set.mem_setOf_eq]
+  constructor
+  · -- A minimal element of a fixpoint is reached from itself, so it is feasible.
+    intro ht
+    obtain ⟨m, hmt, hmin⟩ := exists_minimal_le_of_wellFoundedLT (· ∈ (kleeneStep h).lfp) t ht
+    have hm : m ∈ kleeneStep h (kleeneStep h).lfp := by rw [OrderHom.map_lfp]; exact hmin.prop
+    obtain ⟨s, hs, x, hx, hle⟩ := hm
+    have hsm : s ≤ m := le_sup_right.trans hle
+    obtain rfl : s = m := le_antisymm hsm (hmin.2 hs hsm)
+    exact ⟨s, ⟨x, hx, le_sup_left.trans hle⟩, hmt⟩
+  · -- Everything above a feasible configuration is a post-fixpoint, so the lfp contains it.
+    rintro ⟨s, ⟨x, hx, hxs⟩, hst⟩
+    have hlfp : (kleeneStep h).lfp ≤ UpperSet.Ici s := by
+      refine OrderHom.lfp_le _ ?_
+      rw [← UpperSet.coe_subset_coe]
+      intro u hu
+      exact ⟨s, UpperSet.mem_Ici_iff.mpr le_rfl, x, hx, (sup_le hxs le_rfl).trans hu⟩
+    exact UpperSet.coe_subset_coe.mpr hlfp (UpperSet.mem_Ici_iff.mpr hst)
+
+end CoDesign
 
 end CategoricalTriz
