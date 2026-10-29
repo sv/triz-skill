@@ -21,18 +21,21 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
-| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `compare_to` (and `box_map`), decides whether a concept preserves that relation; `trim` is shorthand for the model's own trim | `Relation.comp_assoc` (Mathlib); sanity lemmas, never cited: `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| What an absorber or other unknown box must do | the weakest box specification (residual in Rel): every row of the one box without behaviour whose composite stays inside a target relation | `triz_behavior` with `weakest_spec` and `compare_to` or `trim`: spec, impossible, or undecided | `le_residual_iff`, `covers_iff_exists_eq`, `not_covers_iff`, `map_empty`; never cited: `relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`, `gc_residual`, `map_residual_subset`, `subset_residual_of_eq` |
+| Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `admits_incomparable`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak`; never cited: `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
 | Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, escalating (a trap, with a shortest trace), oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `return_ge_two` |
 | Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `feasibility_comp`, `feasibility_par`, `feasibility_trace`, `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
-| Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
-| Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
+| Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
+| Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
-| System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`, `restrict_restrict`, `restrict_of_subset`; `supportedOn`, `typedOn` |
+| Behaviour through a construction | segment: the box's relation splits over the parts iff it is the product of its projections, iff it is a rectangle (rows (a, b) and (c, d) give the row (a, d)); interpose: an identity mediator composes away | `triz_transform` segment and take_out (`behaviourallyIndependent`, coupling witnesses), interpose (`behavior.identity`) | `eq_projections_prod_iff_rectangle`, `eq_projections_prod_iff`, `eq_projections_pi_iff`, `Relation.comp_eq` (Mathlib) |
+| System operator (9 windows), level axis | restriction to a subsystem, a presheaf on the poset of box sets; collapse of the system into one box | `triz_nine_windows` | `typed_restrict`; `supportedOn`, `typedOn`; used by those, never cited: `restrict_restrict`, `restrict_of_subset` |
 | System operator, time axis | a transformation sequence from one time to the next, as one net rewrite step, and its part inside the subsystem | `triz_nine_windows` with `transitions`: each step type-checks and the sequence reaches the later snapshot | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite`; `restrictionGrid` |
 
 Ratings follow the MATRIZ function definition. A function is useful or harmful. Only useful
@@ -70,6 +73,12 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    [Declared behaviour](#declared-behaviour)). A `preserved` verdict holds for the relations as
    declared; substantiate each of them, the absorber's first.
 
+   When every box that matters declares behaviour except the absorber, add `weakest_spec`. The
+   result is the absorber's weakest specification: what it must do for the trim to preserve the
+   relation, and nothing more. Or it says that no behaviour of the absorber can (see
+   [Weakest box specification](#weakest-box-specification)). The specification is the trimming
+   problem stated as a relation; it is still a problem to solve.
+
    When the boxes that matter declare feasibility, call `triz_feasibility` with the same `trim`
    and `absorb`. It decides whether the remaining boxes provide what the trim leaves them within
    budget, and reports each absorber's added resources (see
@@ -105,7 +114,12 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    copying one under a new id moves its deliverables to new box ids, and the result reports
    `deliverableKeysChanged`. Pass the returned `boxMap` as `box_map` so the comparison renames
    the parts back before matching deliverables. Without it, the moved deliverables read as lost
-   and regained. `merge` renames the merged ports as well, so no box map recovers them.
+   and regained. `merge` renames the merged ports as well, so no box map recovers them. When the boxes
+   that matter declare behaviour, decide the result with `triz_behavior` and `compare_to` (the
+   same `box_map`); see [Behaviour through the constructions](#behaviour-through-the-constructions).
+
+   When several modelled concepts are adequate, rank them with `triz_weakness` (see
+   [Weakness ranking](#weakness-ranking)).
 6. **Windows.** Use `triz_nine_windows` with the present model, any past or future snapshots
    that keep box ids stable, and the boxes to zoom into. Each window reports its harm loops. The
    supersystem view lists the harmful and excessive functions the collapse hides. A missing
@@ -132,7 +146,20 @@ every cited name is a theorem in that file or such a lemma, which `lake build` t
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
 extracted from Lean. Typing, harm-loop witness, and separation verdicts can also be certified
 per instance (see Certificates). A basis never means the TRIZ reading of a verdict is proved. A
-verdict that needs no theorem, such as a compatible pair, cites none.
+verdict that needs no theorem, such as a compatible pair, cites none. A theorem is cited only
+where its statement is exactly what the verdict uses. The table marks the others as never cited.
+Most are semantic sanity lemmas: they pin the semantics down on the tests' own examples
+(`loopStates_id`, `relTrace_not_loop`, `relTrace_swap`), or state a fact no check computes
+(`relation_comp_mono` and `relTrace_mono`, since a trim does not widen one relation;
+`separation_on_condition`, a Boolean split the condition axis does not use).
+`restrict_restrict` and `restrict_of_subset` are the presheaf's functor laws, used to build
+`supportedOn`; no view zooms inside a zoom, so no verdict uses them. `relation_comp_iSup_left`,
+`relation_comp_iSup_right`, and `relTrace_iSup` say why a context built from composition and the
+trace preserves unions, the hypothesis of the residual lemmas; that the kernel's join is such a
+context is tested, not proved, so no verdict cites them. `gc_residual`, `map_residual_subset`,
+`subset_residual_of_eq`, `admits_bot`, `admits_mono_ok`, and `AtLeastAsWeak`'s reflexivity and
+transitivity serve the cited lemmas or the docs. A test keeps all of these out of the citable
+list.
 
 ## Certificates
 
@@ -218,27 +245,42 @@ Every row is type-checked, and an undeclared port or value fails closed.
   relation cites Mathlib's `Relation.comp_assoc`: composing the relations along the wiring does
   not depend on bracketing.
 
-With `trim`, the trim is applied as `triz_transform` does, and the verdict is one of:
+With `compare_to`, `model` is the concept, as in `triz_function_model`, and the tool decides
+whether it keeps the baseline's input→deliverable relation. The concept can be any model of the
+same system, such as a `triz_transform` result. `trim` is shorthand: the trim is applied as
+`triz_transform` does, and the result is the concept. The verdict is one of:
 
-- `changed`, reason `lost-deliverables`: a deliverable port has no non-harmful function after
-  the trim. No behaviour is needed for this.
+- `changed`, reason `lost-deliverables`: a baseline deliverable port has no non-harmful
+  function in the concept. No behaviour is needed for this.
 - `undecided`, reason `missing-behavior`: a box that can reach a deliverable, in the baseline
-  or in the trimmed model, declares no behaviour. The output names those boxes. Segmentation,
-  Taking out, Intermediary, and Merging build new boxes without behaviour, so their results stay
-  undecided until you declare it; `merge` lists the boxes whose behaviour it drops
-  (`droppedBehavior`). `cheap_copy` keeps the box's behaviour, and `reverse` refuses to add a
-  port to a box that declares behaviour.
+  or in the concept, declares no behaviour. The output names those boxes. Segmentation and
+  Taking out give the parts behaviour only when the box's relation splits over them, and an
+  Intermediary's mediator has behaviour only when you declare it (see
+  [Behaviour through the constructions](#behaviour-through-the-constructions)). Merging builds a
+  box without behaviour and lists the boxes whose behaviour it drops (`droppedBehavior`).
+  `cheap_copy` keeps the box's behaviour, and `reverse` refuses to add a port to a box that
+  declares behaviour.
 - `undecided`, reason `no-steady-state`: neither model has a steady state at any compared
-  input, so both relations are empty and their equality says nothing about the trim.
-- `preserved`: the baseline and trimmed input→deliverable relations are equal, and at least
+  input, so both relations are empty and their equality says nothing about the concept.
+- `preserved`: the baseline and concept input→deliverable relations are equal, and at least
   one of them is non-empty.
 - `changed`, reason `counterexample`: the relations differ. The output gives the first input
-  where they differ, the outputs of each model there, and the `direction`: the trimmed relation
-  strictly contains the baseline, the baseline strictly contains it, or neither.
+  where they differ, the outputs of each model there, and the `direction`: the concept's
+  relation strictly contains the baseline's, the baseline's strictly contains it, or neither.
+
+Each model is evaluated in its own box ids. A segment or take_out of the product moves its
+deliverables to part ids. Pass the returned `boxMap` as `box_map`, and the concept's
+deliverables and boundary inputs are renamed to the baseline box before matching. Without it,
+the deliverables read as lost. The map fails closed when a key is not a concept box, or a value
+not a baseline box. It also fails closed when a mapped box has an input port its baseline box
+lacks (mismatch), or when two concept boxes land an input port on the same baseline port
+(ambiguous). The comparison is over the baseline's deliverables; `gainedDeliverables` lists the
+ones only the concept has, and they are not compared.
 
 The two relations are compared over the union of their boundary inputs. A port that only one
 model reads, such as an input the trim leaves unwired, ranges over every declared value in both
-models (`inputsOnlyIn`). A counterexample that sets such a port follows from the model, not
+models (`inputsOnlyIn`). A port both read must have the same carrier and the same values in
+both, or the call fails closed. A counterexample that sets such a port follows from the model, not
 from the physics. The result counts, per model, the input valuations with no steady state
 (`noSteadyState`), and the compared inputs where neither model has one (`emptyInBoth`). Two
 relations that are empty everywhere read `undecided`, never `preserved`. When only some inputs
@@ -247,6 +289,116 @@ inputs where both models have steady states. If one model has steady states at a
 the other has none, the verdict is `changed`, and the counterexample says which side is empty.
 Boundary valuations and search states are capped (`max_states`, at most 100000); past the cap
 the call fails closed.
+
+## Behaviour through the constructions
+
+`triz_transform` carries declared behaviour into its results only where the result's relation
+is fixed by what was declared:
+
+- **Segmentation and Taking out.** When the box declares behaviour, its relation R is checked
+  against the parts: is R the product of its projections onto each part's ports? Principle 1
+  asks for "independent parts", and this is that independence for the declared relation
+  (`behaviourallyIndependent`). If it holds, each part gets its projection as its behaviour, and
+  the parts compose back to R. If not, no relations on the parts compose back to R
+  (`eq_projections_prod_iff`, `eq_projections_pi_iff`): the parts get no behaviour, and
+  `behavior.coupled` names each part whose ports are not independent of all the other parts
+  together. A pairwise test would not do: in c = a xor b, any two ports range freely, yet no
+  port splits off. Since R is always contained in the product of its projections, equality is
+  decided by counting distinct rows, |R| = Π|πᵢR|, in about k·|R| steps for k parts, without
+  enumerating the product.
+- **Coupling witness.** One part against the rest, R is the product of its projections iff it is
+  a rectangle: whenever (x₁, x₂) and (y₁, y₂) are rows, so is (x₁, y₂)
+  (`eq_projections_prod_iff_rectangle`, cited for both verdicts). For each coupled part,
+  `behavior.witnesses` gives two rows x and y, each shown part by part, and their mix (`absent`):
+  the part's values from x, the rest from y, which is not a row. The witness is the first such
+  pair with rows in lexicographic order of their values (ports in box order, inputs then
+  outputs; values compared by code unit). That order is the one tie-break, and it reads value
+  names and port order, so a witness is label-blind only up to it.
+- **Intermediary.** The mediator may declare `behavior`: rows over its ports `in` and `out`, or
+  `identity`, one row per declared value of the wire's carrier with in = out. A relation equal
+  to the identity cites Mathlib's `Relation.comp_eq` (r composed with equality is r): with the
+  legs' ratings unchanged, the composite through it is the original relation.
+
+Decide the result with `triz_behavior` and `compare_to`. Without declared behaviour, new boxes
+stay undecided.
+
+## Weakest box specification
+
+`triz_behavior` with `weakest_spec` takes a concept in which exactly one box that can reach a
+deliverable declares no behaviour, and a target relation. The target is the relation of the
+baseline given as `compare_to` (with `box_map` when a segmentation moved deliverables), or, with
+`trim`, the untrimmed model's. With every other box fixed, the context `C` sends a relation `R`
+for the box to the concept's input→deliverable relation `C[R]`. The concept is aligned with the
+baseline as `compare_to` aligns it, and the relations are compared over the union of boundary
+inputs.
+
+- **Spec.** `W` is every row of the box, over its ports' declared values, whose composite stays
+  inside the target at every input. Composition and the trace preserve unions
+  (`relation_comp_iSup_left`, `relation_comp_iSup_right`, `relTrace_iSup`). The box occurs once
+  in the join, so `C[R]` is the union of its rows' composites. Then `R ⊆ W` iff `C[R]` stays
+  inside the target (`le_residual_iff`; `gc_residual`, a Galois connection). So `W` is the
+  weakest box specification, the residual in Rel. One search finds every row's composite: the
+  box admits every row, and each steady state is grouped by the row it uses.
+- **Covering.** The empty relation always stays inside the target (`map_empty`), so staying
+  inside proves nothing. The verdict is `spec`, with `preserves: true`, only when `C[W]` covers
+  the target. Declaring `W` then gives exactly the target, and every behaviour that does is
+  contained in `W`. Otherwise the verdict is `impossible`: no behaviour of the box gives the
+  target (`covers_iff_exists_eq`, `not_covers_iff`). `uncovered` gives an input and the target
+  outputs `W` cannot deliver there. An empty `W` is always `impossible`.
+- **Reading the spec.** `excluded` gives, for each excluded row, an input where its composite
+  leaves the target. `unusedRows` counts rows that no steady state presents: they constrain
+  nothing. `blockedInputs` lists input tuples of the box with no row in `W`. The box must rule
+  out those steady states, and the physics must substantiate that.
+- **Fail closed.**
+  - A target deliverable the concept lacks gives `impossible` (`lost-deliverables`) before any
+    search. A deliverable needs a function into it, which is wiring, not behaviour. Deliverables
+    only the concept has are listed (`gainedDeliverables`) and not compared, as in
+    `compare_to`.
+  - Two or more boxes without behaviour give `undecided` (`several-holes`). The largest safe
+    relation for one depends on the relation chosen for the others, so no box has a single
+    weakest choice.
+  - Missing baseline behaviour, and a target empty at every input (`no-steady-state`), give
+    `undecided`.
+  - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
+    `max_states`.
+  - A carrier of the box without `values` fails closed.
+- **Re-check.** The kernel declares `W`, recomputes the concept's relation, and compares it with
+  the target before it answers.
+
+## Weakness ranking
+
+`triz_weakness` performs [weakness.md](weakness.md)'s steps 1–3 for concepts that declare
+behaviour.
+
+- **Situations.** A situation is a valuation of the concepts' boundary inputs over their
+  carriers' declared values. This declared input space is weakness.md's list of operating
+  situations, its measuring instrument. Boundary inputs are matched across concepts by box and
+  port id. An input that several concepts read must range over the same values. Concepts that
+  replace the component reading a condition would read it under different ids, which makes it
+  two independent situations. Put each operating condition on an environment box with an unwired
+  input, passing it on by an identity relation, under the same id in every concept.
+  `readByOne` lists the inputs only one concept reads, and each concept's `reads` lists its own.
+- **Admits.** A concept admits a situation when it has a steady state there and every
+  deliverable output there is acceptable (`admits`). `acceptable` gives, per deliverable port,
+  the acceptable values, and it is required. A situation with no steady state is not admitted
+  (`admits_bot`), so having no behaviour never makes a concept weak.
+- **Ranking.** Concepts are ranked by inclusion of what they admit (`AtLeastAsWeak`, a preorder).
+  The output gives:
+  - `weakest`: a concept that admits everything any other admits, if one exists;
+  - `maximal`: the concepts no other strictly contains;
+  - each pair as `equal`, `first-weaker`, `second-weaker`, or `incomparable`, with a situation
+    only one of the two admits, each way. Inclusion is not total (`admits_incomparable`).
+- **Count.** The count of admitted situations (`byCount`) is secondary. A strict inclusion gives
+  a strictly larger count (`card_lt_of_strictly_weaker`), so the two never disagree there.
+  Between incomparable concepts, the count depends on how finely the carriers' values are
+  declared: splitting one value into two changes it. Bennett (2023, cited in weakness.md)
+  measures weakness as that count, under a uniform distribution over tasks.
+- **Fail closed.** The concepts must deliver the same ports. A concept that drops a deliverable
+  has fewer outputs to be acceptable, so it would look weaker; the ranking refuses instead. Missing
+  behaviour and the state cap give `undecided`.
+- **Adequacy first.** Rank only concepts that resolve the contradiction; that check stays with
+  you. For a safety, integrity, or authorisation decision, admitting more is the wrong direction
+  (weakness.md).
 
 ## Declared dynamics
 
@@ -457,7 +609,7 @@ one and why.
 
 | Principle | Text (`triz_principle`) | Construction | Checked |
 |---|---|---|---|
-| 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts. For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
+| 1 Segmentation | "Divide an object into independent parts; make it sectional or modular." | `segment`: a box becomes parts whose ports partition its ports. Each wire follows its port, and each cost dimension goes wholly to one part. | The partition is exact and ids are fresh. The result reports whether the parts are independent, meaning no wire joins two parts, and, for a box that declares behaviour, whether its relation is the product of its projections onto the parts (`behaviourallyIndependent`). For a box with no self-loop, collapsing the parts gives back a model isomorphic to the original. A self-loop instead ends up between parts, or in the collapse's `hidden` list. |
 | 2 Taking out | "Separate an interfering part or isolate the only needed part." | `take_out`: split the given ports off into a new box. | Reading `interfering`: the split-off ports touch a harmful or excessive function. Reading `needed`: they carry every useful function, so the remainder is a trimming candidate. |
 | 5 Merging | "Bring identical or adjacent operations together in space or time." | `merge`: `collapse` the boxes into one. | Reading `adjacent` (default): functions inside the group join every box. Reading `identical`: the same role and the same carriers on each side; names and actions are labels and are not compared. Every path maps to a path (`reach_quotient`), but a merge can close loops: harms newly on a harm loop are listed, as are the hidden internal functions. |
 | 6 Universality | "Make an object perform multiple functions and eliminate other parts." | `trim` with every `absorb` choice on one box. No new operation. | As for `trim`: each re-attached function goes to a typed absorber. The result shows the box performing its own and the absorbed functions. |
@@ -467,7 +619,7 @@ one and why.
 | 16 Partial or excessive action | "If the full action is difficult, do slightly less or slightly more." | `rerate`: a useful function becomes insufficient or excessive; `cost` may set the performer's new cost. | Deliverables are unchanged. Insufficient never creates a harm loop; excessive creates one exactly when the function is on a cycle that had no harmful or excessive function. Without a cost change, `compare_to` reports the concept worse on `defective`. |
 | 22 Blessing in disguise | "Use a harmful factor to achieve a positive effect." | `retarget`: the harmful function's source port feeds a useful function at another input of the same carrier. | By default the factor is redirected: one harmful function fewer, one useful one more. With `keep_harm`, the harm stays and the useful function is added. The harm's own object port is refused, since rating it useful there is not using the factor elsewhere. |
 | 23 Feedback | "Introduce feedback, or change the magnitude and influence of existing feedback." | `feedback` adds a function; `rerate` with `reading: "feedback"` changes the level of one. | `feedback`: the new function's object already reaches its performer, so it lies on the returned witness cycle (`edge_on_cycle`), reported as a control loop or a harm loop. `rerate`: the function is on a cycle, and the harm loops created and removed are listed. |
-| 24 Intermediary | "Use an intermediary carrier or process, temporarily or permanently." | `interpose`: a function u → v becomes u → m → v through a new mediator box. | Both legs keep the carrier, and keep the rating unless it is overridden. Reachability among the original boxes is unchanged. With inherited ratings, harm-loop membership is unchanged too. "Temporarily" is not modelled. |
+| 24 Intermediary | "Use an intermediary carrier or process, temporarily or permanently." | `interpose`: a function u → v becomes u → m → v through a new mediator box. | Both legs keep the carrier, and keep the rating unless it is overridden. Reachability among the original boxes is unchanged. With inherited ratings, harm-loop membership is unchanged too. The mediator may declare behaviour; an identity relation is reported (`behavior.identity`). "Temporarily" is not modelled. |
 | 25 Self-service | "Make an object serve or repair itself and use waste resources." | `trim` with a rule-B absorber. No new operation. | As for `trim`; `chosen` reports rule B. |
 | 26 Copying, 27 Cheap short-living objects | "Use inexpensive copies instead of an unavailable, expensive, or fragile original." "Replace an expensive durable object with inexpensive short-lived ones." | `cheap_copy`: a box with the same role, action, and ports, and a new cost. | The cost is no higher on any dimension and lower on at least one, so no total rises (`cheaper_part_lowers_cost`). Every function re-attaches with its rating, so the wiring shape is the original's. |
 
@@ -655,11 +807,32 @@ example cohort churn against fee changes. Name it only from that evidence.
   to gluing is a cell with no admissible value, and the cell scan finds every such cell. Nothing
   is claimed for a base whose regions carry more structure.
 - For models that declare behaviour, `triz_behavior` decides a finite relational question:
-  whether the trimmed model's input→deliverable relation equals the baseline's. Series composition is Mathlib's `Relation.Comp`, and
-  its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
+  whether a concept's input→deliverable relation, a trimmed model's or any other's, equals the
+  baseline's. Series composition is Mathlib's `Relation.Comp`, and its associativity is
+  Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
   that the trace is monotone, that the trace of a swap is the identity, that every value is a
-  steady state of an identity loop, and that a negation loop has none. The evaluator is checked
-  by tests, not extracted from these statements, and its verdicts are not certified per instance.
+  steady state of an identity loop, and that a negation loop has none. These are semantic sanity
+  lemmas; no verdict cites them. The evaluator is checked by tests, not extracted from these
+  statements, and its verdicts are not certified per instance.
+- The weakest specification is decided for one box without behaviour only. With several, the
+  safe relations are not a product of per-box residuals, so none is computed.
+  - It is the residual of the declared context. It says what the box must do for the concept's
+    relation to equal the target. It does not say that a physical box can do it, at what cost,
+    or with what new harms.
+  - It is named for what it computes. It is not abduction, and it does not search for
+    mechanisms.
+- Lean proves the residual's properties for every context that preserves unions, and that
+  composition and the trace preserve unions. It does not prove that the kernel's join is such a
+  context, or that the evaluator computes it. Two things are tested instead:
+  - the grouping of steady states by the box's row, by a brute force over every relation the
+    box could declare (the bearing's housing, and a correlated two-deliverable case);
+  - the result, by a re-check that declares the spec.
+- Behaviour rows stay steady-state relations, for the spec and for the ranking. They are not
+  reread as one-step transitions.
+- The weakness ranking holds for the declared values and the given `acceptable`. It does not
+  check that a concept resolves the contradiction. Bennett's result assumes a uniform
+  distribution over tasks, and a real prior overrides it (weakness.md). Neither the spec nor the
+  ranking makes a principle claim.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
   dynamics, convergence, or which steady state the system reaches. Behaviour uses no least
   fixpoint: its values are unordered, so there is no least value to iterate from, and iterating
@@ -680,6 +853,16 @@ example cohort churn against fee changes. Name it only from that evidence.
   absorber's above all, is outside the kernel, and so are the absorber's new harms. Its added
   cost is `triz_feasibility`'s question. Downstream boxes are not composed; see
   `partialDownstream`.
+- `compare_to` compares the baseline's deliverables only. A concept that gains a deliverable
+  can read `preserved`; `gainedDeliverables` lists them. `box_map` renames boxes; it does not
+  say that the parts are the box, physically or economically.
+- A segment's split is decided for the declared relation and the given partition. It holds for
+  the parts' projections as composed by `triz_behavior`, where a part that cannot reach a
+  deliverable is not composed. `behavior.coupled` tests each part against all the others; it
+  does not search for groups of parts that split from each other. A coupling witness depends on
+  value names and port order through its tie-break; whether a part is coupled does not.
+- An identity mediator is the identity on the declared values. Its cost, delay, and new harms
+  are not modelled.
 - A `triz_feasibility` verdict holds for the rows as declared. Whether they are true, the
   absorber's above all, is outside the kernel, and so are the absorber's new harms.
   - Monotone reading is an assumption. A box that works worse with more input, which an

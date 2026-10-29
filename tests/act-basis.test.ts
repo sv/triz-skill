@@ -77,9 +77,53 @@ test("every basis cited by any tool output names a listed theorem", async () => 
     assert.equal(r.ok, true, `${transformation.op}: ${r.errors}`);
     collect(r);
   }
-  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+  const behaving = example("bearing-heat-behavior");
+  collect(await call("triz_transform", { model: behaving, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior: "identity" } } }));
+  for (const parts of [[["preload-in", "friction"], ["race"]], [["preload-in", "race"], ["friction"]], [["preload-in"], ["race"], ["friction"]]]) {
+    collect(await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } }));
+  }
+  // The weakest specification (spec and impossible) and the weakness ranking (strict and incomparable pairs).
+  const open = example("bearing-heat-behavior");
+  delete open.boxes.find((b) => b.id === "housing")!.behavior;
+  collect(await call("triz_behavior", { model: open, trim: ["bearing"], weakest_spec: true }));
+  const dry = structuredClone(open);
+  dry.carriers.push({ id: "lube", layer: "material", dimension: "film", values: ["ok", "dry"] });
+  const bearingBox = dry.boxes.find((b) => b.id === "bearing")!;
+  bearingBox.inputs!.push({ id: "lube", carrier: "lube" });
+  bearingBox.behavior = bearingBox.behavior!.flatMap((r) => [{ in: { ...r.in, lube: "ok" }, out: r.out }, { in: { ...r.in, lube: "dry" }, out: { ...r.out, race: "unsupported" } }]);
+  const impossible = await call("triz_behavior", { model: dry, trim: ["bearing"], weakest_spec: true });
+  assert.equal(impossible.verdict, "impossible");
+  collect(impossible);
+  const variant = (keep: (lube: string) => boolean) => {
+    const m = structuredClone(dry);
+    const b = m.boxes.find((x) => x.id === "bearing")!;
+    b.behavior = b.behavior!.map((r) => ({ in: r.in, out: { ...r.out, race: keep(r.in.lube) ? "supported" : "unsupported" } }));
+    return m;
+  };
+  const ranked = await call("triz_weakness", {
+    concepts: [{ id: "any", model: variant(() => true) }, { id: "oiled", model: variant((l) => l === "ok") }, { id: "dry-only", model: variant((l) => l === "dry") }],
+    acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }, { box: "shaft", port: "support", values: ["supported"] }],
+  });
+  assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
+  collect(ranked);
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
+});
+
+/**
+ * Lemmas that pin down the semantics on fixed examples, state a fact no check computes, or serve
+ * other proofs (restriction's functor laws) are not the statement any verdict uses, so none may
+ * be cited or listed.
+ */
+test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
+  const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
+    "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans"];
+  for (const name of sanity) {
+    assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
+    assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);
+  }
 });
 
 test("verdicts cite the statement they use", async () => {
@@ -117,7 +161,7 @@ test("verdicts cite the statement they use", async () => {
   const applied = await call("triz_transform", { model: base, transformation: { op: "trim", trim: ["redis"] } });
   assert.deepEqual(applied.basis, ["typed_delete", "typed_glue", "typed_reroute"]);
   const grid = await call("triz_nine_windows", { present: bearing, subsystem: ["bearing", "shaft"] });
-  assert.deepEqual([grid.windows[1].subsystem.basis, grid.windows[1].supersystem.basis], [["typed_restrict", "restrict_restrict"], ["typed_delete", "typed_glue"]]);
+  assert.deepEqual([grid.windows[1].subsystem.basis, grid.windows[1].supersystem.basis], [["typed_restrict"], ["typed_delete", "typed_glue"]]);
   const dyn = await call("triz_separate", { contradiction: bearing.contradictions![0], along: "time" });
   assert.deepEqual(dyn.along.basis, ["exists_section_iff"]);
   const [first] = (await call("triz_rule_apply", { model: bearing, rule_id: "mono-bi" })).matches;
@@ -131,4 +175,28 @@ test("verdicts cite the statement they use", async () => {
   const phases = [{ id: "cold", where: [{ box: "shaft", state: ["cold"] }], window: { from: 0, to: 0 } }, { id: "hot", where: [{ box: "shaft", state: ["hot"] }], window: { from: 1, to: 3 } }];
   assert.deepEqual((await call("triz_dynamics", { model: heated, horizon: 3, separation: phases })).separation.basis, ["reachIn_of_trace"]);
   assert.deepEqual((await call("triz_dynamics", { model: heated, horizon: 3, separation: [phases[0], { ...phases[1], window: { from: 1, to: 1 } }] })).separation.basis, ["reachIn_iff_trace"]);
+});
+
+test("a pure trim cites trim_lowers_cost for its cost relief, and only when a trimmed box declares a cost", async () => {
+  const trim = await call("triz_trim", { model: example("software-cache"), trim: ["redis"] });
+  assert.deepEqual([trim.costRelief, trim.costBound.basis], [{ usd_month: 400, p99_ms: 2.5 }, ["trim_lowers_cost"]]);
+  const free = example("software-cache");
+  delete free.boxes.find((b) => b.id === "redis")!.cost;
+  const none = await call("triz_trim", { model: free, trim: ["redis"] });
+  assert.deepEqual([none.costRelief, none.costBound], [{}, undefined]);
+});
+
+test("behaviour constructions cite what they use: comp_eq for an identity mediator, the product characterisations for a split", async () => {
+  const behaving = example("bearing-heat-behavior");
+  const via = (behavior: unknown) => call("triz_transform", { model: behaving, transformation: { op: "interpose", wire: "w-support", mediator: { id: "sleeve", name: "Sleeve", behavior } } });
+  assert.deepEqual((await via("identity")).behavior.basis, ["Relation.comp_eq"]);
+  assert.deepEqual((await via([{ in: { in: "supported" }, out: { out: "supported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }])).behavior.basis, ["Relation.comp_eq"], "explicit identity rows are recognised");
+  const lossy = await via([{ in: { in: "supported" }, out: { out: "unsupported" } }, { in: { in: "unsupported" }, out: { out: "unsupported" } }]);
+  assert.deepEqual([lossy.behavior.identity, lossy.behavior.basis], [false, undefined]);
+  assert.deepEqual((await via(undefined)).behavior, undefined);
+
+  const split = async (parts: string[][]) => (await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } })).behavior.basis;
+  assert.deepEqual(await split([["preload-in", "friction"], ["race"]]), ["eq_projections_prod_iff_rectangle"]);
+  assert.deepEqual(await split([["preload-in", "race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_prod_iff"]);
+  assert.deepEqual(await split([["preload-in"], ["race"], ["friction"]]), ["eq_projections_prod_iff_rectangle", "eq_projections_pi_iff"]);
 });

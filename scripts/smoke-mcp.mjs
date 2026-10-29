@@ -24,7 +24,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_feasibility", "triz_dynamics"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -130,7 +130,23 @@ console.log(`triz_behavior trim bearing -> ${decided.verdict}`);
 if (decided.verdict !== "preserved") fail("decided trim wrong");
 const undecided = await json("triz_behavior", { model, trim: ["bearing"] });
 if (undecided.verdict !== "undecided" || undecided.missingBehavior.join() !== "bearing,housing") fail("missing behaviour not reported");
+const support = behaving.wires.find((w) => w.from.box === "bearing" && w.from.port === "race");
+const sleeved = await json("triz_transform", { model: behaving, transformation: { op: "interpose", wire: support.id, mediator: { id: "sleeve", name: "Sleeve", behavior: "identity" } } });
+if (!sleeved.ok || sleeved.behavior?.identity !== true) fail("identity mediator not built");
+const mediated = await json("triz_behavior", { model: sleeved.model, compare_to: behaving });
+console.log(`triz_behavior compare_to (identity mediator) -> ${mediated.verdict}`);
+if (mediated.verdict !== "preserved") fail("identity mediator should preserve the relation");
 
+const open = { ...behaving, boxes: [behaving.boxes[0], model.boxes[1], model.boxes[2]] };
+const spec = await json("triz_behavior", { model: open, trim: ["bearing"], weakest_spec: true });
+console.log(`triz_behavior weakest_spec housing -> ${spec.verdict} [${spec.spec?.map((r) => r.out.bore)}]`);
+if (spec.verdict !== "spec" || spec.spec.map((r) => r.out.bore).join() !== "held") fail("weakest spec wrong");
+const holding = (bore) => ({ ...behaving, boxes: [model.boxes[0], { ...model.boxes[1], behavior: [{ in: {}, out: { bore } }] }, model.boxes[2]], wires: [{ ...model.wires[0], from: { box: "housing", port: "bore" } }] });
+const ranked = await json("triz_weakness", { concepts: [{ id: "held", model: holding("held") }, { id: "loose", model: holding("loose") }], acceptable: [{ box: "shaft", port: "seat", values: ["held"] }] });
+console.log(`triz_weakness held vs loose -> ${ranked.pairs?.[0]?.order}, weakest [${ranked.weakest}]`);
+if (ranked.pairs?.[0]?.order !== "first-weaker" || ranked.weakest.join() !== "held") fail("weakness ranking wrong");
+const specCapped = await json("triz_behavior", { model: open, trim: ["bearing"], weakest_spec: true, max_states: 1 });
+if (specCapped.verdict !== "undecided" || specCapped.reason !== "state-cap") fail("spec cap did not read undecided");
 const feasible = {
   ...model,
   boxes: [

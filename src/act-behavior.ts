@@ -18,19 +18,29 @@
  *                            relation is unchanged: preserved, changed (with a counterexample input
  *                            and which relation contains which), or undecided (the boxes that need
  *                            behaviour and declare none, or no steady state in either model).
+ *  - weakestSpec           — for the one box that can reach a deliverable and declares no behaviour,
+ *                            the weakest box specification (residual in Rel): every row whose
+ *                            composite stays inside a target relation, and whether its composite
+ *                            covers the target (spec) or not (impossible: no behaviour of the box
+ *                            gives the target).
+ *  - weaknessRanking       — the situations each concept admits (a steady state, and every output
+ *                            acceptable), ranked by inclusion; the count is a secondary figure.
  *
  * Every search is finite and capped; past the cap the call fails closed. The verdict is about the
  * relations as declared. Whether a declared relation is physically or economically true, the
  * absorber's above all, is outside the kernel.
  */
 import { checkModel, type FunctionModel } from "./act.js";
-import { applyTrim } from "./act-rewrite.js";
+import { applyTrim, mapBoxes } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
 
 export type Box = FunctionModel["boxes"][number];
 type Endpoint = { box: string; port: string };
 export type Typed = Endpoint & { carrier: string };
-type Failure = { ok: false; errors: string[] };
+/** Ports observed by an evaluation: deliverables, and with `side: "out"` any other composed port. */
+type Observed = Typed & { side?: "in" | "out" };
+/** `cap` marks a failure past the state cap, which the spec and ranking read as undecided. */
+type Failure = { ok: false; errors: string[]; cap?: true };
 
 /** Cap on boundary valuations and on search states, per evaluation. */
 export const MAX_STATES = 100_000;
@@ -188,12 +198,13 @@ export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assig
  * variable; each composed box contributes its relation; a backtracking join enumerates every
  * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
  */
-function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number): Evaluation | Failure {
-  const { variables, at: v, boundary } = portVariables(model, p.composed, observe);
+function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number): Evaluation | Failure {
+  // Output-side probes are ports of composed boxes, so only input-side observations are extra.
+  const { variables, at: v, boundary } = portVariables(model, p.composed, observe.filter((d) => (d.side ?? "in") === "in"));
   const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
   const valuations = product(boundary.map((i) => domain.get(variables[i].carrier)!.length));
   if (valuations > max) {
-    return { ok: false, errors: [`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
+    return { ok: false, cap: true, errors: [`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
   }
 
   // Each composed box as deduplicated rows of (variable, value) bindings.
@@ -210,7 +221,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number):
     return { rows, vars: [...new Set(rows[0].map(([i]) => i))] };
   });
 
-  const out = observe.map((d) => v(d.box, "in", d.port));
+  const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const table = new Map<string, Row>();
   const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
   const budget = { explored: 0, max };
@@ -233,7 +244,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Typed[], max: number):
       row.count++;
     }, budget);
   }
-  if (overflow) return { ok: false, errors: [`the steady-state search passed ${max} states. Declare fewer values or split the model`] };
+  if (overflow) return { ok: false, cap: true, errors: [`the steady-state search passed ${max} states. Declare fewer values or split the model`] };
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
   return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored };
 }
@@ -280,104 +291,512 @@ export function externalBehavior(model: FunctionModel, opts: { maxStates?: numbe
 }
 
 /**
- * Decide whether a trim preserves the input→deliverable relation. Order: the trim must apply
- * (applyTrim); a baseline deliverable port left without a non-harmful function is a structural
- * loss, `changed` without any behaviour; then every box that can reach a deliverable, in either
- * model, must declare behaviour, else `undecided` (missing-behavior); then both relations are
- * compared over the union of their boundary inputs. A port only one model reads ranges over every
- * declared value in both, so a counterexample that sets an opened port follows from the model, not
- * from the physics. When neither model has a steady state at any input, both relations are empty
- * and their equality says nothing: the verdict is `undecided` (no-steady-state), never `preserved`.
- * Otherwise an input where neither model has a steady state agrees, and is counted (`emptyInBoth`).
+ * The concept's endpoints in the baseline's box ids. `boxMap` (concept box id → baseline box id,
+ * as segment and take_out return it) is checked by mapBoxes, which also gives each concept box its
+ * baseline id. Only input ports are compared (deliverables and boundary inputs), so each mapped
+ * box's input ports must exist on its baseline box with the same carrier (else mismatch), and no
+ * two concept boxes may land one input port on the same baseline port (else ambiguous). Fails
+ * closed on both.
  */
-export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
-  const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
-  if (!applied.ok) return applied;
-  const trimmed = applied.model;
-  const deliverables = deliverablePorts(model);
+function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>) {
+  const mapped = mapBoxes(concept, baseline, boxMap);
+  if (!mapped.ok) return mapped;
+  const toBaseline = new Map(concept.boxes.map((b, i) => [b.id, mapped.model.boxes[i].id]));
+  const baseBoxes = new Map(baseline.boxes.map((b) => [b.id, b]));
+  const owner = new Map<string, string>();
+  const errors: string[] = [];
+  for (const b of concept.boxes) {
+    const target = toBaseline.get(b.id)!;
+    for (const p of b.inputs ?? []) {
+      const k = endKey({ box: target, port: p.id });
+      if (owner.has(k)) errors.push(`box_map: input port '${p.id}' of '${owner.get(k)}' and of '${b.id}' both map to '${target}.${p.id}': ambiguous`);
+      else owner.set(k, b.id);
+      if (Object.hasOwn(boxMap, b.id) && !(baseBoxes.get(target)!.inputs ?? []).some((q) => q.id === p.id && q.carrier === p.carrier)) {
+        errors.push(`box_map: '${b.id}' maps to '${target}', which has no input port '${p.id}' of carrier '${p.carrier}'`);
+      }
+    }
+  }
+  if (errors.length) return { ok: false as const, errors };
+  return { ok: true as const, toBaseline: (e: Typed): Typed => ({ ...e, box: toBaseline.get(e.box)! }) };
+}
+
+const deliverableKey = (d: Typed) => JSON.stringify([d.box, d.port, d.carrier]);
+
+/**
+ * Decide whether a concept preserves the baseline's input→deliverable relation. The concept is any
+ * model of the same system: a trim, a segment, an interposed mediator, a rewrite. With `boxMap`,
+ * the concept's deliverables and boundary inputs are renamed to baseline box ids before matching;
+ * each model is still evaluated in its own ids. Order:
+ *  1. a baseline deliverable ([box, port, carrier]) with no non-harmful function in the concept is a
+ *     structural loss, `changed` without any behaviour;
+ *  2. every box that can reach a deliverable, in either model, must declare behaviour, else
+ *     `undecided` (missing-behavior);
+ *  3. both relations are compared over the union of their boundary inputs. A port only one model
+ *     reads ranges over every declared value in both, so a counterexample that sets it follows from
+ *     the model, not from the physics. A port both read must have the same carrier and values in
+ *     both, else the call fails closed. When neither model has a steady state at any input, both
+ *     relations are empty and their equality says nothing: `undecided` (no-steady-state), never
+ *     `preserved`. Otherwise an input where neither has one agrees, and is counted (`emptyInBoth`).
+ * Deliverables only the concept has are listed (`gainedDeliverables`) and not compared.
+ */
+export function compareBehavior(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number } = {}) {
+  for (const [side, m] of [["baseline", baseline], ["concept", concept]] as const) {
+    const check = checkModel(m);
+    if (!check.ok) return { ok: false as const, errors: check.errors.map((e) => `${side}: ${e}`) };
+  }
+  const deliverables = deliverablePorts(baseline);
   if (!deliverables.length) return { ok: false as const, errors: [NO_DELIVERABLES] };
-  const head = { trim: spec.trim, chosen: applied.chosen, deliverables };
-  const lost = deliverables.filter((d) => !trimmed.wires.some((w) => w.to.box === d.box && w.to.port === d.port && w.polarity !== "harmful"));
+  const align = alignment(baseline, concept, opts.boxMap ?? {});
+  if (!align.ok) return align;
+  const offered = new Map(deliverablePorts(concept).map((d) => [deliverableKey(align.toBaseline(d)), d]));
+  const wanted = new Set(deliverables.map(deliverableKey));
+  const head = {
+    deliverables,
+    ...(opts.boxMap ? { boxMap: opts.boxMap } : {}),
+    gainedDeliverables: [...offered].filter(([k]) => !wanted.has(k)).map(([, d]) => d),
+  };
+  const lost = deliverables.filter((d) => !offered.has(deliverableKey(d)));
   if (lost.length) {
     return {
       ok: true as const, verdict: "changed" as const, reason: "lost-deliverables" as const, ...head, lostDeliverables: lost,
-      note: "The trim leaves these deliverable ports without a non-harmful function: the concept loses functions, whatever the behaviour.",
+      note: "The concept leaves these deliverable ports without a non-harmful function: it loses functions, whatever the behaviour. A segment or take_out of the product needs box_map.",
     };
   }
-  const before = plan(model, deliverables), after = plan(trimmed, deliverables);
+  const observed = deliverables.map((d) => offered.get(deliverableKey(d))!);
+  const before = plan(baseline, deliverables), after = plan(concept, observed);
   if (before.missing.length || after.missing.length) {
     const missing = [...new Set([...before.missing, ...after.missing])];
     return {
       ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, ...head, missingBehavior: missing,
-      missingIn: { baseline: before.missing, trimmed: after.missing },
-      note: `Declare behavior for ${missing.map((id) => `'${id}'`).join(", ")}: they can reach a deliverable, so the decision depends on them. The carrier screen (triz_trim) is all that holds without it.`,
+      missingIn: { baseline: before.missing, concept: after.missing },
+      note: `Declare behavior for ${missing.map((id) => `'${id}'`).join(", ")}: they can reach a deliverable, so the decision depends on them. Without it only the structural checks hold (triz_trim's carrier screen, triz_function_model compare_to).`,
     };
   }
-  const max = spec.maxStates ?? MAX_STATES;
-  const b = evaluate(model, before, deliverables, max);
+  const max = opts.maxStates ?? MAX_STATES;
+  const b = evaluate(baseline, before, deliverables, max);
   if (!b.ok) return { ok: false as const, errors: b.errors.map((e) => `baseline: ${e}`) };
-  const t = evaluate(trimmed, after, deliverables, max);
-  if (!t.ok) return { ok: false as const, errors: t.errors.map((e) => `trimmed: ${e}`) };
+  const c = evaluate(concept, after, observed, max);
+  if (!c.ok) return { ok: false as const, errors: c.errors.map((e) => `concept: ${e}`) };
 
-  const known = new Set(b.inputs.map(endKey));
-  const inputs = [...b.inputs, ...t.inputs.filter((q) => !known.has(endKey(q)))];
-  const inputsOnlyIn = { baseline: b.inputs.filter((q) => !t.inputs.some((r) => endKey(r) === endKey(q))), trimmed: t.inputs.filter((q) => !known.has(endKey(q))) };
-  const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
-  const valuations = product(inputs.map((q) => domain.get(q.carrier)!.length));
+  // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
+  const cInputs = c.inputs.map(align.toBaseline);
+  const known = new Map(b.inputs.map((q) => [endKey(q), q]));
+  const inputs = [...b.inputs, ...cInputs.filter((q) => !known.has(endKey(q)))];
+  const values = (m: FunctionModel, carrier: string) => m.carriers.find((x) => x.id === carrier)!.values!;
+  const mismatched = cInputs.flatMap((q) => {
+    const p = known.get(endKey(q));
+    if (!p) return [];
+    const [x, y] = [values(baseline, p.carrier), values(concept, q.carrier)];
+    return p.carrier === q.carrier && x.length === y.length && x.every((v) => y.includes(v)) ? []
+      : [`input port '${q.box}.${q.port}' reads carrier '${p.carrier}' [${x.join(", ")}] in the baseline and '${q.carrier}' [${y.join(", ")}] in the concept: the relations range over different values`];
+  });
+  if (mismatched.length) return { ok: false as const, errors: mismatched };
+  const domain = inputs.map((q) => (known.has(endKey(q)) ? values(baseline, q.carrier) : values(concept, q.carrier)));
+  const inputsOnlyIn = { baseline: b.inputs.filter((q) => !cInputs.some((r) => endKey(r) === endKey(q))), concept: cInputs.filter((q) => !known.has(endKey(q))) };
+  const valuations = product(domain.map((vals) => vals.length));
   if (valuations > max) return { ok: false as const, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] };
-  const at = (e: Evaluation, u: string[]) => e.table.get(tupleKey(e.inputs.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
+  const at = (e: Evaluation, own: Typed[], u: string[]) => e.table.get(tupleKey(own.map((q) => u[inputs.findIndex((r) => endKey(r) === endKey(q))])))!.outputs;
 
-  let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyTrimmed = false;
-  let counterexample: { input: Array<Endpoint & { value: string }>; baseline: string[][]; trimmed: string[][]; onlyBaseline: string[][]; onlyTrimmed: string[][] } | undefined;
+  let differing = 0, emptyInBoth = 0, onlyBaseline = false, onlyConcept = false;
+  let counterexample: { input: Array<Endpoint & { value: string }>; baseline: string[][]; concept: string[][]; onlyBaseline: string[][]; onlyConcept: string[][] } | undefined;
   for (let n = 0; n < valuations; n++) {
     let rest = n;
-    const u = inputs.map((q) => {
-      const vals = domain.get(q.carrier)!;
+    const u = domain.map((vals) => {
       const x = vals[rest % vals.length];
       rest = Math.floor(rest / vals.length);
       return x;
     });
-    const x = at(b, u), y = at(t, u);
+    const x = at(b, b.inputs, u), y = at(c, cInputs, u);
     if (!x.size && !y.size) emptyInBoth++;
     const lostHere = sorted(new Map([...x].filter(([k]) => !y.has(k)))), gainedHere = sorted(new Map([...y].filter(([k]) => !x.has(k))));
     if (!lostHere.length && !gainedHere.length) continue;
     differing++;
     onlyBaseline ||= lostHere.length > 0;
-    onlyTrimmed ||= gainedHere.length > 0;
+    onlyConcept ||= gainedHere.length > 0;
     counterexample ??= {
       input: inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] })),
-      baseline: sorted(x), trimmed: sorted(y), onlyBaseline: lostHere, onlyTrimmed: gainedHere,
+      baseline: sorted(x), concept: sorted(y), onlyBaseline: lostHere, onlyConcept: gainedHere,
     };
   }
   const empties = (e: Evaluation) => [...e.table.values()].filter((r) => !r.count).length;
-  const noSteadyState = { baseline: empties(b), trimmed: empties(t) };
+  const noSteadyState = { baseline: empties(b), concept: empties(c) };
   const common = {
     ...head, inputs, inputsOnlyIn, inputValuations: valuations, noSteadyState, emptyInBoth,
-    baseline: summary(b, before), trimmed: summary(t, after), assumption: ASSUMPTION,
+    baseline: summary(b, before), concept: summary(c, after), assumption: ASSUMPTION,
   };
-  if (noSteadyState.baseline === b.table.size && noSteadyState.trimmed === t.table.size) {
+  if (noSteadyState.baseline === b.table.size && noSteadyState.concept === c.table.size) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, ...common,
-      note: `Neither model has a steady state at any of the ${valuations} compared input valuations: both relations are empty, so their equality says nothing about the trim. Check the loops upstream of the deliverables (baseline.noSteadyState, trimmed.noSteadyState); this may signal a runaway loop or a modelling error.`,
+      note: `Neither model has a steady state at any of the ${valuations} compared input valuations: both relations are empty, so their equality says nothing about the concept. Check the loops upstream of the deliverables (baseline.noSteadyState, concept.noSteadyState); this may signal a runaway loop or a modelling error.`,
     };
   }
-  const runaway = noSteadyState.baseline || noSteadyState.trimmed
-    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.trimmed} trimmed (listed under baseline.noSteadyState and trimmed.noSteadyState); ${emptyInBoth} of the ${valuations} compared have none in either model and agree only in that. They may signal a runaway loop.`
+  const runaway = noSteadyState.baseline || noSteadyState.concept
+    ? ` Input valuations with no steady state: ${noSteadyState.baseline} in the baseline, ${noSteadyState.concept} in the concept (listed under baseline.noSteadyState and concept.noSteadyState); ${emptyInBoth} of the ${valuations} compared have none in either model and agree only in that. They may signal a runaway loop.`
     : "";
   if (!counterexample) {
     return {
       ok: true as const, verdict: "preserved" as const, ...common,
-      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, the absorber's first; its new harms are not modelled here, and its added cost is triz_feasibility's question." + runaway,
+      note: "The input→deliverable relations are equal under the declared behaviour. Substantiate every declared relation, first those the concept adds or changes (an absorber's, a mediator's, a part's); their new harms are not modelled here, and their added cost is triz_feasibility's question." + runaway,
     };
   }
-  const direction = onlyBaseline && onlyTrimmed ? "incomparable" as const : onlyTrimmed ? "trimmed-contains-baseline" as const : "baseline-contains-trimmed" as const;
-  const empty = !counterexample.baseline.length ? " The baseline has no steady state at this input." : !counterexample.trimmed.length ? " The trimmed model has no steady state at this input." : "";
+  const direction = onlyBaseline && onlyConcept ? "incomparable" as const : onlyConcept ? "concept-contains-baseline" as const : "baseline-contains-concept" as const;
+  const empty = !counterexample.baseline.length ? " The baseline has no steady state at this input." : !counterexample.concept.length ? " The concept has no steady state at this input." : "";
   return {
     ok: true as const, verdict: "changed" as const, reason: "counterexample" as const, ...common, direction, differingInputs: differing, counterexample,
     note: (direction === "incomparable"
-      ? "Neither relation contains the other: the trim loses some deliverable outputs and admits new ones."
-      : direction === "trimmed-contains-baseline"
-        ? "The trimmed relation strictly contains the baseline: the trim admits deliverable outputs the baseline never produces."
-        : "The baseline relation strictly contains the trimmed one: the trim rules out deliverable outputs the baseline produces.") + empty + runaway,
+      ? "Neither relation contains the other: the concept loses some deliverable outputs and admits new ones."
+      : direction === "concept-contains-baseline"
+        ? "The concept's relation strictly contains the baseline's: it admits deliverable outputs the baseline never produces."
+        : "The baseline's relation strictly contains the concept's: the concept rules out deliverable outputs the baseline produces.") + empty + runaway,
+  };
+}
+
+/** Perform a trim (applyTrim) and compare the trimmed model with the original (compareBehavior). */
+export function trimPreservesBehavior(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
+  const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
+  if (!applied.ok) return applied;
+  const r = compareBehavior(model, applied.model, { maxStates: spec.maxStates });
+  return r.ok ? { ...r, trim: spec.trim, chosen: applied.chosen } : r;
+}
+
+const LISTED_ROWS = 200;
+const label = (e: Endpoint) => `${e.box}.${e.port}`;
+
+/** Every valuation of `inputs` over `domain`, first input fastest, as evaluate enumerates them. */
+function* valuationsOf(inputs: Typed[], domain: Map<string, string[]>) {
+  const sizes = inputs.map((q) => domain.get(q.carrier)!.length);
+  for (let n = 0; n < product(sizes); n++) {
+    let rest = n;
+    yield inputs.map((q, i) => {
+      const x = domain.get(q.carrier)![rest % sizes[i]];
+      rest = Math.floor(rest / sizes[i]);
+      return x;
+    });
+  }
+}
+
+/**
+ * The situations several evaluations are compared over: the union of their boundary inputs, each
+ * over its carrier's declared values. An input read by several must agree on carrier and values.
+ */
+function situations(parts: Array<{ name: string; inputs: Typed[]; carriers: FunctionModel["carriers"] }>) {
+  const inputs: Typed[] = [], domain = new Map<string, string[]>(), seen = new Map<string, { name: string; carrier: string; values: string[] }>();
+  const errors: string[] = [];
+  for (const { name, inputs: own, carriers } of parts) {
+    const values = new Map(carriers.map((c) => [c.id, c.values ?? []]));
+    for (const q of own) {
+      const first = seen.get(endKey(q)), vals = values.get(q.carrier)!;
+      if (!first) {
+        seen.set(endKey(q), { name, carrier: q.carrier, values: vals });
+        inputs.push(q);
+        domain.set(q.carrier + "\u0000" + endKey(q), vals);
+      } else if (first.carrier !== q.carrier || first.values.length !== vals.length || first.values.some((x) => !vals.includes(x))) {
+        errors.push(`input '${label(q)}' is read by ${first.name} as carrier '${first.carrier}' [${first.values.join(", ")}] and by ${name} as carrier '${q.carrier}' [${vals.join(", ")}]: the situations must be the same`);
+      }
+    }
+  }
+  if (errors.length) return { ok: false as const, errors };
+  // Each input gets its own domain entry, so carriers that share an id across models cannot clash.
+  const typed = inputs.map((q) => ({ ...q, carrier: q.carrier + "\u0000" + endKey(q) }));
+  const at = (q: Endpoint) => typed.findIndex((r) => endKey(r) === endKey(q));
+  return { ok: true as const, inputs, typed, domain, at };
+}
+
+/** The outputs an evaluation relates to situation `u`, reading only its own inputs. */
+function outputsAt(e: Evaluation, own: Endpoint[], at: (q: Endpoint) => number, u: string[]) {
+  return e.table.get(tupleKey(own.map((q) => u[at(q)])))!.outputs;
+}
+
+/** The weakest specification and ranking read a state-cap failure as undecided. */
+const capped = (f: Failure, prefix = "") => (f.cap
+  ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: f.errors.map((e) => prefix + e), note: "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
+  : { ok: false as const, errors: f.errors.map((e) => prefix + e) });
+
+/**
+ * The weakest box specification (residual in Rel) for the one box of `concept` that can reach a
+ * deliverable and declares no behaviour, against the target relation of `baseline`.
+ *
+ * Every other box is fixed, so the context C sends a relation R for the box to the concept's
+ * input→deliverable relation C[R]. One search with the box admitting every row finds C[{r}] for
+ * each row r: every steady state fixes exactly one row of the box, so grouping steady states by
+ * that row is the union C[R] = ⋃ C[{r}]. The spec W is every row whose composite stays inside the
+ * target T at every situation; it is the largest such relation (le_residual_iff). Staying inside is
+ * not enough, since the empty relation does too: the verdict is `spec` (preserves) only when
+ * C[W] covers T, and otherwise `impossible`, since then no relation for the box gives T
+ * (covers_iff_exists_eq). Both are re-checked by evaluating the concept with W declared.
+ *
+ * Fails closed: a concept that loses a deliverable is `impossible` before any search (deliverables
+ * only the concept has are listed and not compared, as in compareBehavior); a
+ * second box without behaviour is `undecided` (several-holes), since the residual for one depends
+ * on the relation chosen for the other; a target with no steady state anywhere is `undecided`
+ * (no-steady-state); past the cap, `undecided` (state-cap).
+ */
+function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number }, of: string) {
+  const checked = checkModel(baseline);
+  if (!checked.ok) return { ok: false as const, errors: checked.errors.map((e) => `${of}: ${e}`) };
+  const target = deliverablePorts(baseline);
+  if (!target.length) return { ok: false as const, errors: [`${of}: ${NO_DELIVERABLES}`] };
+  const align = alignment(baseline, concept, opts.boxMap ?? {});
+  if (!align.ok) return align;
+  const rename = align.toBaseline;
+  const byKey = new Map(deliverablePorts(concept).map((d) => [deliverableKey(rename(d)), d]));
+  const wanted = new Set(target.map(deliverableKey));
+  const gainedDeliverables = [...byKey].filter(([k]) => !wanted.has(k)).map(([, d]) => d);
+  const lost = target.filter((d) => !byKey.has(deliverableKey(d)));
+  if (lost.length) {
+    return {
+      ok: true as const, verdict: "impossible" as const, reason: "lost-deliverables" as const, preserves: false as const,
+      deliverables: target, lostDeliverables: lost, gainedDeliverables,
+      note: "The concept leaves these deliverable ports without a non-harmful function, so no behaviour of any box gives the target relation: that is wiring, not behaviour. A segment or take_out of the product needs box_map.",
+    };
+  }
+  const observe = target.map((d) => byKey.get(deliverableKey(d))!);
+  const before = plan(baseline, target);
+  if (before.missing.length) {
+    return {
+      ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, deliverables: target, missingBehavior: before.missing, missingIn: of,
+      note: `Declare behavior for ${before.missing.map((id) => `'${id}'`).join(", ")} in the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"}: the target relation depends on them.`,
+    };
+  }
+  const p = plan(concept, observe);
+  if (p.missing.length > 1) {
+    return {
+      ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
+      note: `${p.missing.length} boxes that can reach a deliverable declare no behaviour (${p.missing.map((id) => `'${id}'`).join(", ")}). The weakest specification is decided for one unknown box only: with several, the largest safe relation for one depends on the relation chosen for the others, so there is no single weakest choice per box. Declare all but one.`,
+    };
+  }
+  if (!p.missing.length) {
+    return { ok: false as const, errors: ["every box that can reach a deliverable declares behavior: there is no box to specify. Remove the behavior of the box to specify, or compare the relations with trim"] };
+  }
+  const hole = concept.boxes.find((b) => b.id === p.missing[0])!;
+  const declared = new Map(concept.carriers.map((c) => [c.id, c.values]));
+  const ports = [...(hole.inputs ?? []).map((q) => ({ ...q, side: "in" as const })), ...(hole.outputs ?? []).map((q) => ({ ...q, side: "out" as const }))];
+  const bare = ports.filter((q) => !declared.get(q.carrier));
+  if (bare.length) return { ok: false as const, errors: bare.map((q) => `box '${hole.id}' is the box to specify, but carrier '${q.carrier}' of port '${q.id}' declares no values`) };
+  const max = opts.maxStates ?? MAX_STATES;
+  const candidates = product(ports.map((q) => declared.get(q.carrier)!.length));
+  if (candidates > max) return capped({ ok: false, cap: true, errors: [`box '${hole.id}' has ${candidates} candidate rows; the cap is ${max}. Declare fewer values or split the box`] });
+  const domain = new Map([...declared].map(([k, v]) => [k, v!]));
+  const asRow = (vals: string[]) => ({
+    in: Object.fromEntries(ports.flatMap((q, i) => (q.side === "in" ? [[q.id, vals[i]]] : []))),
+    out: Object.fromEntries(ports.flatMap((q, i) => (q.side === "out" ? [[q.id, vals[i]]] : []))),
+  });
+  const rows = [...valuationsOf(ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier })), domain)];
+  const withBehavior = (behavior: ReturnType<typeof asRow>[]) => ({ ...concept, boxes: concept.boxes.map((b) => (b.id === hole.id ? { ...b, behavior } : b)) });
+
+  const t = evaluate(baseline, before, target, max);
+  if (!t.ok) return capped(t, `${of}: `);
+  if ([...t.table.values()].every((r) => !r.count)) {
+    return {
+      ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, deliverables: target,
+      note: "The target relation is empty: the baseline has no steady state at any input. Every relation for the box stays inside it and the empty relation equals it, so nothing is decided. Check the baseline's loops.",
+    };
+  }
+  const full = withBehavior(rows.map(asRow));
+  const probe: Observed[] = ports.map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier, side: q.side }));
+  const e = evaluate(full, plan(full, observe), [...observe, ...probe], max);
+  if (!e.ok) return capped(e);
+  const space = situations([{ name: "the baseline", inputs: t.inputs, carriers: baseline.carriers }, { name: "the concept", inputs: e.inputs.map(rename), carriers: concept.carriers }]);
+  if (!space.ok) return space;
+  const conceptInputs = e.inputs.map(rename);
+  const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
+  if (valuations > max) return capped({ ok: false, cap: true, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] });
+
+  // C[{r}] at each situation, grouped by the box's row r (the probe, after the deliverables).
+  const k = observe.length;
+  const violation = new Map<string, { input: string[]; outputs: string[]; target: string[][] }>();
+  const used = new Set<string>();
+  for (const u of valuationsOf(space.typed, space.domain)) {
+    const goal = outputsAt(t, t.inputs, space.at, u);
+    for (const z of outputsAt(e, conceptInputs, space.at, u).values()) {
+      const r = tupleKey(z.slice(k));
+      used.add(r);
+      if (!goal.has(tupleKey(z.slice(0, k))) && !violation.has(r)) violation.set(r, { input: u, outputs: z.slice(0, k), target: sorted(goal) });
+    }
+  }
+  const spec = rows.filter((r) => !violation.has(tupleKey(r)));
+  const inSpec = new Set(spec.map(tupleKey));
+  let uncoveredInputs = 0;
+  let uncovered: { input: Array<Endpoint & { value: string }>; target: string[][]; delivered: string[][]; missing: string[][] } | undefined;
+  for (const u of valuationsOf(space.typed, space.domain)) {
+    const goal = outputsAt(t, t.inputs, space.at, u);
+    const delivered = new Map([...outputsAt(e, conceptInputs, space.at, u).values()].filter((z) => inSpec.has(tupleKey(z.slice(k)))).map((z) => [tupleKey(z.slice(0, k)), z.slice(0, k)]));
+    const missing = [...goal].filter(([y]) => !delivered.has(y));
+    if (!missing.length) continue;
+    uncoveredInputs++;
+    uncovered ??= { input: space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] })), target: sorted(goal), delivered: sorted(delivered), missing: sorted(new Map(missing)) };
+  }
+
+  // Independent re-check: declare the spec and compare the concept's relation with the target.
+  if (spec.length) {
+    const declaredSpec = withBehavior(spec.map(asRow));
+    const again = evaluate(declaredSpec, plan(declaredSpec, observe), observe, max);
+    if (!again.ok) throw new Error(`invariant: re-evaluating the spec failed: ${again.errors.join("; ")}`);
+    for (const u of valuationsOf(space.typed, space.domain)) {
+      const goal = outputsAt(t, t.inputs, space.at, u), got = outputsAt(again, conceptInputs, space.at, u);
+      const outside = [...got.keys()].some((y) => !goal.has(y)), short = [...goal.keys()].some((y) => !got.has(y));
+      if (outside || (!uncovered && short)) throw new Error(`invariant: the declared spec ${outside ? "leaves" : "does not cover"} the target at input [${u.join(", ")}]`);
+    }
+  }
+
+  const byIn = new Map<string, number>();
+  for (const r of spec) { const x = tupleKey(r.filter((_, i) => ports[i].side === "in")); byIn.set(x, (byIn.get(x) ?? 0) + 1); }
+  const inputTuples = [...valuationsOf(ports.filter((q) => q.side === "in").map((q) => ({ box: hole.id, port: q.id, carrier: q.carrier })), domain)];
+  const blocked = inputTuples.filter((x) => !byIn.has(tupleKey(x)));
+  const inputsOf = (x: string[]) => Object.fromEntries(ports.filter((q) => q.side === "in").map((q, i) => [q.id, x[i]]));
+  const common = {
+    box: hole.id,
+    ports: { inputs: (hole.inputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })), outputs: (hole.outputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })) },
+    spec: spec.slice(0, LISTED_ROWS).map(asRow), specRows: spec.length, specTruncated: spec.length > LISTED_ROWS, candidateRows: rows.length,
+    unusedRows: spec.filter((r) => !used.has(tupleKey(r))).length,
+    excluded: rows.filter((r) => violation.has(tupleKey(r))).slice(0, LISTED).map((r) => {
+      const v = violation.get(tupleKey(r))!;
+      return { row: asRow(r), input: space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: v.input[i] })), delivers: v.outputs, target: v.target };
+    }),
+    blockedInputs: blocked.slice(0, LISTED).map(inputsOf),
+    deliverables: target, gainedDeliverables, inputs: space.inputs, inputValuations: valuations, composed: p.composed.map((b) => b.id), assumption: ASSUMPTION,
+  };
+  const blockNote = blocked.length && spec.length
+    ? ` At ${blocked.length} input tuple(s) of '${hole.id}' (blockedInputs) every output takes the composite outside the target, so the spec has no row there: '${hole.id}' must rule those steady states out, which the physics must substantiate.`
+    : "";
+  const unusedNote = common.unusedRows ? ` ${common.unusedRows} row(s) of the spec occur in no steady state (unusedRows): they constrain nothing.` : "";
+  if (uncovered) {
+    return {
+      ok: true as const, verdict: "impossible" as const, reason: "not-covered" as const, preserves: false as const, ...common, uncovered, uncoveredInputs,
+      basis: ["not_covers_iff", ...(spec.length ? [] : ["map_empty"])] as Theorem[],
+      note: `No behaviour of '${hole.id}' gives the target relation. Every relation that keeps the composite inside the target is contained in the spec, and the spec's composite misses the outputs under uncovered (${uncoveredInputs} of ${valuations} input valuations). Change another box or the wiring.`
+        + (spec.length ? "" : ` The spec is empty: every row of '${hole.id}' takes the composite outside the target. The empty relation stays inside trivially, since its composite is empty, so staying inside is never read as preserving.`),
+    };
+  }
+  return {
+    ok: true as const, verdict: "spec" as const, preserves: true as const, ...common,
+    basis: ["le_residual_iff", "covers_iff_exists_eq"] as Theorem[],
+    note: `The weakest specification for '${hole.id}' (residual in Rel): every row whose composite stays inside the target, and with all of them declared the concept's relation equals the target. Any behaviour of '${hole.id}' that gives the target is contained in it, so declaring it commits '${hole.id}' to the fewest constraints. It holds for the other boxes' relations as declared; whether a physical '${hole.id}' can meet it, and at what cost, is outside the kernel.` + blockNote + unusedNote,
+  };
+}
+
+/** The weakest specification for the concept's one box without behaviour, against the baseline (compare_to). */
+export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number } = {}) {
+  const checked = checkModel(concept);
+  if (!checked.ok) return { ok: false as const, errors: checked.errors };
+  return residualSpec(concept, baseline, opts, "compare_to");
+}
+
+/** Perform a trim and give the weakest specification for the one box without behaviour, against the untrimmed model. */
+export function weakestTrimSpec(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, Endpoint>; maxStates?: number }) {
+  const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
+  if (!applied.ok) return applied;
+  const r = residualSpec(applied.model, model, { maxStates: spec.maxStates }, "baseline");
+  return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : r;
+}
+
+type Acceptable = { box: string; port: string; values: string[] };
+
+/**
+ * Rank concepts that declare behaviour by the situations they admit. A situation is a valuation of
+ * the union of the concepts' boundary inputs over their carriers' declared values: the operating
+ * situations of weakness.md's step 1, declared in the model. A concept admits a situation when it
+ * has a steady state there and every deliverable output there is acceptable (`acceptable`: per
+ * deliverable port, the values that are). Concepts are ordered by inclusion of what they admit;
+ * incomparable pairs are reported with a witness each way. The count of admitted situations is a
+ * secondary figure: it depends on how finely the carriers' values are declared.
+ *
+ * Fails closed: concepts must deliver the same ports (a concept that drops a deliverable has fewer
+ * outputs to be acceptable and would look weaker), `acceptable` must cover every deliverable with
+ * declared values, and an input several concepts read must range over the same values. Missing
+ * behaviour or the state cap is `undecided`.
+ */
+export function weaknessRanking(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { maxStates?: number } = {}) {
+  const errors: string[] = [];
+  const ids = concepts.map((c) => c.id);
+  for (const id of new Set(ids.filter((id, i) => ids.indexOf(id) !== i))) errors.push(`duplicate concept id '${id}'`);
+  for (const c of concepts) errors.push(...checkModel(c.model).errors.map((e) => `concept '${c.id}': ${e}`));
+  if (errors.length) return { ok: false as const, errors };
+  const delivered = concepts.map((c) => deliverablePorts(c.model));
+  const target = delivered[0];
+  if (!target.length) return { ok: false as const, errors: [`concept '${concepts[0].id}': ${NO_DELIVERABLES}`] };
+  concepts.forEach((c, i) => {
+    for (const d of target) if (!delivered[i].some((x) => deliverableKey(x) === deliverableKey(d))) errors.push(`concept '${c.id}' does not deliver '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does`);
+    for (const d of delivered[i]) if (!target.some((x) => deliverableKey(x) === deliverableKey(d))) errors.push(`concept '${c.id}' delivers '${label(d)}' (carrier '${d.carrier}'), which '${concepts[0].id}' does not`);
+  });
+  if (errors.length) return { ok: false as const, errors: [...errors, "the concepts must deliver the same ports: one that drops a deliverable has fewer outputs to be acceptable, and would look weaker"] };
+  const accept = new Map<string, Set<string>>();
+  for (const a of acceptable) {
+    const d = target.find((x) => endKey(x) === endKey(a));
+    if (!d) { errors.push(`acceptable: '${label(a)}' is not a deliverable (deliverables: ${target.map(label).join(", ")})`); continue; }
+    if (accept.has(endKey(a))) { errors.push(`acceptable: '${label(a)}' is listed twice`); continue; }
+    for (const c of concepts) {
+      const vals = c.model.carriers.find((x) => x.id === d.carrier)?.values ?? [];
+      for (const v of a.values) if (!vals.includes(v)) errors.push(`acceptable: value '${v}' of '${label(a)}' is not declared by carrier '${d.carrier}' in concept '${c.id}'`);
+    }
+    accept.set(endKey(a), new Set(a.values));
+  }
+  for (const d of target) if (!acceptable.some((a) => endKey(a) === endKey(d))) errors.push(`acceptable: no values for deliverable '${label(d)}'; the acceptability predicate is required for every deliverable`);
+  if (errors.length) return { ok: false as const, errors };
+
+  const plans = concepts.map((c) => plan(c.model, target));
+  const missing = Object.fromEntries(concepts.flatMap((c, i) => (plans[i].missing.length ? [[c.id, plans[i].missing]] : [])));
+  if (Object.keys(missing).length) {
+    return {
+      ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, missingBehavior: missing,
+      note: "Declare behavior for the listed boxes: they can reach a deliverable, so what the concept admits depends on them.",
+    };
+  }
+  const max = opts.maxStates ?? MAX_STATES;
+  const evals: Evaluation[] = [];
+  for (const [i, c] of concepts.entries()) {
+    const e = evaluate(c.model, plans[i], target, max);
+    if (!e.ok) return capped(e, `concept '${c.id}': `);
+    evals.push(e);
+  }
+  const space = situations(concepts.map((c, i) => ({ name: `concept '${c.id}'`, inputs: evals[i].inputs, carriers: c.model.carriers })));
+  if (!space.ok) return space;
+  const valuations = product(space.typed.map((q) => space.domain.get(q.carrier)!.length));
+  if (valuations > max) return capped({ ok: false, cap: true, errors: [`the joint boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`] });
+  const ok = (y: string[]) => y.every((x, j) => accept.get(endKey(target[j]))!.has(x));
+  const all = [...valuationsOf(space.typed, space.domain)];
+  const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
+
+  const admits = evals.map((e) => all.map((u) => {
+    const out = [...outputsAt(e, e.inputs, space.at, u).values()];
+    return out.length ? (out.every(ok) ? "admitted" as const : out.find((y) => !ok(y))!) : "no-steady-state" as const;
+  }));
+  const reads = evals.map((e) => e.inputs.map(label));
+  const readByOne = space.inputs.filter((q) => reads.filter((r) => r.includes(label(q))).length === 1).map((q) => ({ input: label(q), concept: concepts[reads.findIndex((r) => r.includes(label(q)))].id }));
+  const perConcept = concepts.map((c, i) => {
+    const a = admits[i];
+    const firstRejected = a.findIndex((x) => x !== "admitted");
+    return {
+      id: c.id, reads: reads[i], admitted: a.filter((x) => x === "admitted").length,
+      rejected: { noSteadyState: a.filter((x) => x === "no-steady-state").length, unacceptable: a.filter((x) => Array.isArray(x)).length },
+      admittedSituations: all.filter((_, n) => a[n] === "admitted").slice(0, LISTED).map((u) => u),
+      firstRejected: firstRejected < 0 ? null : {
+        situation: situation(all[firstRejected]),
+        ...(a[firstRejected] === "no-steady-state" ? { reason: "no-steady-state" as const } : { reason: "unacceptable-output" as const, output: a[firstRejected] as string[] }),
+      },
+    };
+  });
+  const inside = (i: number, j: number) => all.findIndex((_, n) => admits[i][n] === "admitted" && admits[j][n] !== "admitted");
+  const pairs = concepts.flatMap((c, i) => concepts.slice(i + 1).map((d, dj) => {
+    const j = i + 1 + dj, onlyFirst = inside(i, j), onlySecond = inside(j, i);
+    const order = onlyFirst < 0 && onlySecond < 0 ? "equal" as const : onlySecond < 0 ? "first-weaker" as const : onlyFirst < 0 ? "second-weaker" as const : "incomparable" as const;
+    return {
+      concepts: [c.id, d.id], order,
+      ...(onlyFirst >= 0 ? { onlyFirst: situation(all[onlyFirst]) } : {}),
+      ...(onlySecond >= 0 ? { onlySecond: situation(all[onlySecond]) } : {}),
+      ...(order === "incomparable" ? { basis: ["admits_incomparable"] as Theorem[] } : order === "equal" ? {} : { basis: ["card_lt_of_strictly_weaker"] as Theorem[] }),
+    };
+  }));
+  const contains = (i: number, j: number) => inside(j, i) < 0;
+  const maximal = concepts.filter((_, i) => !concepts.some((__, j) => j !== i && contains(j, i) && !contains(i, j))).map((c) => c.id);
+  const weakest = concepts.filter((_, i) => concepts.every((__, j) => contains(i, j))).map((c) => c.id);
+  return {
+    ok: true as const, verdict: "ranked" as const, deliverables: target, situations: space.inputs, situationCount: valuations, readByOne,
+    weakest, maximal, pairs, concepts: perConcept,
+    byCount: [...perConcept].sort((a, b) => b.admitted - a.admitted).map((c) => ({ id: c.id, admitted: c.admitted })),
+    assumption: ASSUMPTION,
+    note: (weakest.length ? `Weakest: ${weakest.map((id) => `'${id}'`).join(", ")} admits every situation any other concept admits.` : `No concept admits every situation the others admit: the maximal concepts ${maximal.map((id) => `'${id}'`).join(", ")} are incomparable (pairs).`)
+      + (readByOne.length ? ` ${readByOne.length} situation input(s) are read by one concept only (readByOne); the other concepts admit or reject regardless of them. If one names the same operating condition as another concept's input, give both the same box and port id (an environment box with an unwired input), or the ranking treats them as independent conditions.` : "")
+      + " The situations are the valuations of the boundary inputs over their carriers' declared values: the operating situations of weakness.md's step 1, declared in the model, so the ranking is relative to them. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable. The ranking is by inclusion; byCount depends on how finely the carriers' values are declared, so read it second. Whether each concept resolves the contradiction is filtered before ranking; for a safety, integrity, or authorisation decision, admitting more is the wrong direction (weakness.md).",
   };
 }
