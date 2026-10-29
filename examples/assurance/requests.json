@@ -1,0 +1,2331 @@
+[
+  {
+    "tool": "triz_behavior",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "compare_to": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "scope": "whole",
+      "certificate": true
+    },
+    "expect": {
+      "verdict": "preserved"
+    }
+  },
+  {
+    "tool": "triz_adequacy",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "acceptable": [
+        {
+          "carrier": "bit",
+          "values": [
+            "0",
+            "1"
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "adequate"
+    }
+  },
+  {
+    "tool": "triz_isomorphism",
+    "args": {
+      "source": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "target": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "aligned": true
+    }
+  },
+  {
+    "tool": "triz_behavior_refinement",
+    "args": {
+      "detailed": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "coarse": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "inputs": [
+        {
+          "detailed": {
+            "box": "driver",
+            "port": "x"
+          },
+          "coarse": {
+            "box": "driver",
+            "port": "x"
+          },
+          "values": {
+            "0": "0",
+            "1": "1"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "detailed": {
+            "box": "product",
+            "port": "in"
+          },
+          "coarse": {
+            "box": "product",
+            "port": "in"
+          },
+          "values": {
+            "0": "0",
+            "1": "1"
+          }
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "exact"
+    }
+  },
+  {
+    "tool": "triz_subsystem_summary",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "boxes": [
+        "driver"
+      ]
+    },
+    "expect": {
+      "verdict": "summarized"
+    }
+  },
+  {
+    "tool": "triz_implementations",
+    "args": {
+      "contract": {
+        "target": {
+          "domain": "software",
+          "carriers": [
+            {
+              "id": "bit",
+              "layer": "information",
+              "dimension": "bit",
+              "values": [
+                "0",
+                "1"
+              ]
+            }
+          ],
+          "boxes": [
+            {
+              "id": "driver",
+              "name": "Driver",
+              "role": "tool",
+              "inputs": [
+                {
+                  "id": "x",
+                  "carrier": "bit"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "y",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "x": "0"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                },
+                {
+                  "in": {
+                    "x": "1"
+                  },
+                  "out": {
+                    "y": "1"
+                  }
+                }
+              ],
+              "feasibility": [
+                {
+                  "provides": {
+                    "y": 1
+                  },
+                  "cost": {
+                    "usd": 1
+                  }
+                }
+              ]
+            },
+            {
+              "id": "product",
+              "name": "Product",
+              "role": "product",
+              "inputs": [
+                {
+                  "id": "in",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "in": "0"
+                  },
+                  "out": {}
+                },
+                {
+                  "in": {
+                    "in": "1"
+                  },
+                  "out": {}
+                }
+              ],
+              "feasibility": [
+                {
+                  "requires": {
+                    "in": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "wires": [
+            {
+              "id": "deliver",
+              "from": {
+                "box": "driver",
+                "port": "y"
+              },
+              "to": {
+                "box": "product",
+                "port": "in"
+              },
+              "carrier": "bit",
+              "polarity": "useful"
+            }
+          ]
+        },
+        "acceptable": [
+          {
+            "carrier": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "budget": {
+          "usd": 5
+        }
+      },
+      "alternatives": [
+        {
+          "contract": {
+            "operating_envelope": "declared finite bit model",
+            "resource_binding": "all-behavior-rows"
+          },
+          "declared_harms": [],
+          "evidence": [
+            {
+              "claim": "behavior and resource rows",
+              "source": "Synthetic regression fixture; not an empirical measurement",
+              "operating_envelope": "declared finite bit model"
+            }
+          ],
+          "id": "one-complete-mode",
+          "model": {
+            "domain": "software",
+            "carriers": [
+              {
+                "id": "bit",
+                "layer": "information",
+                "dimension": "bit",
+                "values": [
+                  "0",
+                  "1"
+                ]
+              }
+            ],
+            "boxes": [
+              {
+                "id": "driver",
+                "name": "Driver",
+                "role": "tool",
+                "inputs": [
+                  {
+                    "id": "x",
+                    "carrier": "bit"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "y",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "x": "0"
+                    },
+                    "out": {
+                      "y": "0"
+                    }
+                  },
+                  {
+                    "in": {
+                      "x": "1"
+                    },
+                    "out": {
+                      "y": "1"
+                    }
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "provides": {
+                      "y": 1
+                    },
+                    "cost": {
+                      "usd": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "product",
+                "name": "Product",
+                "role": "product",
+                "inputs": [
+                  {
+                    "id": "in",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "in": "0"
+                    },
+                    "out": {}
+                  },
+                  {
+                    "in": {
+                      "in": "1"
+                    },
+                    "out": {}
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "requires": {
+                      "in": 1
+                    }
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "id": "deliver",
+                "from": {
+                  "box": "driver",
+                  "port": "y"
+                },
+                "to": {
+                  "box": "product",
+                  "port": "in"
+                },
+                "carrier": "bit",
+                "polarity": "useful"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "satisfied"
+    }
+  },
+  {
+    "tool": "triz_synthesize",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "contract": {
+        "target": {
+          "domain": "software",
+          "carriers": [
+            {
+              "id": "bit",
+              "layer": "information",
+              "dimension": "bit",
+              "values": [
+                "0",
+                "1"
+              ]
+            }
+          ],
+          "boxes": [
+            {
+              "id": "driver",
+              "name": "Driver",
+              "role": "tool",
+              "inputs": [
+                {
+                  "id": "x",
+                  "carrier": "bit"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "y",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "x": "0"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                },
+                {
+                  "in": {
+                    "x": "1"
+                  },
+                  "out": {
+                    "y": "1"
+                  }
+                }
+              ],
+              "feasibility": [
+                {
+                  "provides": {
+                    "y": 1
+                  },
+                  "cost": {
+                    "usd": 1
+                  }
+                }
+              ]
+            },
+            {
+              "id": "product",
+              "name": "Product",
+              "role": "product",
+              "inputs": [
+                {
+                  "id": "in",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "in": "0"
+                  },
+                  "out": {}
+                },
+                {
+                  "in": {
+                    "in": "1"
+                  },
+                  "out": {}
+                }
+              ],
+              "feasibility": [
+                {
+                  "requires": {
+                    "in": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "wires": [
+            {
+              "id": "deliver",
+              "from": {
+                "box": "driver",
+                "port": "y"
+              },
+              "to": {
+                "box": "product",
+                "port": "in"
+              },
+              "carrier": "bit",
+              "polarity": "useful"
+            }
+          ]
+        },
+        "acceptable": [
+          {
+            "carrier": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "budget": {
+          "usd": 5
+        }
+      },
+      "implementation": {
+        "contract": {
+          "operating_envelope": "declared finite bit model",
+          "resource_binding": "all-behavior-rows"
+        },
+        "declared_harms": [],
+        "evidence": [
+          {
+            "claim": "behavior and resource rows",
+            "source": "Synthetic regression fixture; not an empirical measurement",
+            "operating_envelope": "declared finite bit model"
+          }
+        ]
+      },
+      "holes": [
+        {
+          "box": "driver",
+          "alternatives": [
+            {
+              "id": "identity",
+              "behavior": [
+                {
+                  "in": {
+                    "x": "0"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                },
+                {
+                  "in": {
+                    "x": "1"
+                  },
+                  "out": {
+                    "y": "1"
+                  }
+                }
+              ],
+              "feasibility": {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            },
+            {
+              "id": "constant",
+              "behavior": [
+                {
+                  "in": {
+                    "x": "0"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                },
+                {
+                  "in": {
+                    "x": "1"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                }
+              ],
+              "feasibility": {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "synthesized"
+    }
+  },
+  {
+    "tool": "triz_global_separation",
+    "args": {
+      "variables": [
+        {
+          "id": "x",
+          "values": [
+            "0",
+            "1"
+          ]
+        },
+        {
+          "id": "y",
+          "values": [
+            "0",
+            "1"
+          ]
+        },
+        {
+          "id": "z",
+          "values": [
+            "0",
+            "1"
+          ]
+        }
+      ],
+      "regions": [
+        {
+          "id": "xy",
+          "variables": [
+            "x",
+            "y"
+          ],
+          "allowed": [
+            [
+              "0",
+              "0"
+            ],
+            [
+              "1",
+              "1"
+            ]
+          ]
+        },
+        {
+          "id": "yz",
+          "variables": [
+            "y",
+            "z"
+          ],
+          "allowed": [
+            [
+              "0",
+              "0"
+            ],
+            [
+              "1",
+              "1"
+            ]
+          ]
+        },
+        {
+          "id": "xz",
+          "variables": [
+            "x",
+            "z"
+          ],
+          "allowed": [
+            [
+              "0",
+              "1"
+            ],
+            [
+              "1",
+              "0"
+            ]
+          ]
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "unsatisfiable"
+    }
+  },
+  {
+    "tool": "triz_queue",
+    "args": {
+      "time_unit": "slot",
+      "quantity_unit": "request",
+      "arrivals": [
+        [
+          4
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ]
+      ],
+      "service_capacity": 2,
+      "storage_capacity": 3,
+      "initial_backlog": 0,
+      "schedule": "arrive-then-serve"
+    },
+    "expect": {
+      "verdict": "overflow"
+    }
+  },
+  {
+    "tool": "triz_conservation",
+    "args": {
+      "operation": "splitter",
+      "quantity_kind": "extensive",
+      "unit": "item",
+      "inputs": [
+        {
+          "port": "supply",
+          "amount": 5
+        }
+      ],
+      "outputs": [
+        {
+          "port": "a",
+          "amount": 4
+        },
+        {
+          "port": "b",
+          "amount": 4
+        }
+      ]
+    },
+    "expect": {
+      "verdict": "infeasible"
+    }
+  },
+  {
+    "tool": "triz_rule_set",
+    "args": {
+      "rules": [
+        {
+          "id": "delete-one",
+          "carriers": [],
+          "left": {
+            "boxes": [
+              {
+                "id": "x"
+              }
+            ]
+          },
+          "interface": {
+            "boxes": []
+          },
+          "right": {
+            "boxes": []
+          }
+        }
+      ]
+    },
+    "expect": {
+      "termination": "established"
+    }
+  },
+  {
+    "tool": "triz_rewrite_pair",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [],
+        "boxes": [
+          {
+            "id": "a",
+            "name": "A",
+            "role": "tool"
+          },
+          {
+            "id": "b",
+            "name": "B",
+            "role": "tool"
+          }
+        ],
+        "wires": []
+      },
+      "first": {
+        "delete": {
+          "boxes": [
+            "a"
+          ]
+        }
+      },
+      "second": {
+        "delete": {
+          "boxes": [
+            "b"
+          ]
+        }
+      }
+    },
+    "expect": {
+      "verdict": "commute"
+    }
+  },
+  {
+    "tool": "triz_trim_rewrite",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [],
+        "boxes": [
+          {
+            "id": "a",
+            "name": "A",
+            "role": "tool"
+          },
+          {
+            "id": "b",
+            "name": "B",
+            "role": "tool"
+          }
+        ],
+        "wires": []
+      },
+      "trim": [
+        "a"
+      ]
+    },
+    "expect": {
+      "replayChecked": true
+    }
+  },
+  {
+    "tool": "triz_weakness",
+    "args": {
+      "concepts": [
+        {
+          "id": "identity",
+          "model": {
+            "domain": "software",
+            "carriers": [
+              {
+                "id": "bit",
+                "layer": "information",
+                "dimension": "bit",
+                "values": [
+                  "0",
+                  "1"
+                ]
+              }
+            ],
+            "boxes": [
+              {
+                "id": "driver",
+                "name": "Driver",
+                "role": "tool",
+                "inputs": [
+                  {
+                    "id": "x",
+                    "carrier": "bit"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "y",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "x": "0"
+                    },
+                    "out": {
+                      "y": "0"
+                    }
+                  },
+                  {
+                    "in": {
+                      "x": "1"
+                    },
+                    "out": {
+                      "y": "1"
+                    }
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "provides": {
+                      "y": 1
+                    },
+                    "cost": {
+                      "usd": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "product",
+                "name": "Product",
+                "role": "product",
+                "inputs": [
+                  {
+                    "id": "in",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "in": "0"
+                    },
+                    "out": {}
+                  },
+                  {
+                    "in": {
+                      "in": "1"
+                    },
+                    "out": {}
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "requires": {
+                      "in": 1
+                    }
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "id": "deliver",
+                "from": {
+                  "box": "driver",
+                  "port": "y"
+                },
+                "to": {
+                  "box": "product",
+                  "port": "in"
+                },
+                "carrier": "bit",
+                "polarity": "useful"
+              }
+            ]
+          }
+        },
+        {
+          "id": "constant",
+          "model": {
+            "domain": "software",
+            "carriers": [
+              {
+                "id": "bit",
+                "layer": "information",
+                "dimension": "bit",
+                "values": [
+                  "0",
+                  "1"
+                ]
+              }
+            ],
+            "boxes": [
+              {
+                "id": "driver",
+                "name": "Driver",
+                "role": "tool",
+                "inputs": [
+                  {
+                    "id": "x",
+                    "carrier": "bit"
+                  }
+                ],
+                "outputs": [
+                  {
+                    "id": "y",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "x": "0"
+                    },
+                    "out": {
+                      "y": "1"
+                    }
+                  },
+                  {
+                    "in": {
+                      "x": "1"
+                    },
+                    "out": {
+                      "y": "1"
+                    }
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "provides": {
+                      "y": 1
+                    },
+                    "cost": {
+                      "usd": 1
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "product",
+                "name": "Product",
+                "role": "product",
+                "inputs": [
+                  {
+                    "id": "in",
+                    "carrier": "bit"
+                  }
+                ],
+                "behavior": [
+                  {
+                    "in": {
+                      "in": "0"
+                    },
+                    "out": {}
+                  },
+                  {
+                    "in": {
+                      "in": "1"
+                    },
+                    "out": {}
+                  }
+                ],
+                "feasibility": [
+                  {
+                    "requires": {
+                      "in": 1
+                    }
+                  }
+                ]
+              }
+            ],
+            "wires": [
+              {
+                "id": "deliver",
+                "from": {
+                  "box": "driver",
+                  "port": "y"
+                },
+                "to": {
+                  "box": "product",
+                  "port": "in"
+                },
+                "carrier": "bit",
+                "polarity": "useful"
+              }
+            ]
+          }
+        }
+      ],
+      "acceptable": [
+        {
+          "carrier": "bit",
+          "values": [
+            "1"
+          ]
+        }
+      ],
+      "scope": "whole",
+      "joint_prior": [
+        {
+          "input": [
+            {
+              "box": "driver",
+              "port": "x",
+              "value": "0"
+            }
+          ],
+          "weight": 0
+        },
+        {
+          "input": [
+            {
+              "box": "driver",
+              "port": "x",
+              "value": "1"
+            }
+          ],
+          "weight": 1
+        }
+      ],
+      "certificate": true
+    },
+    "expect": {
+      "verdict": "ranked"
+    }
+  },
+  {
+    "tool": "triz_absorber_assignments",
+    "args": {
+      "model": {
+        "domain": "software",
+        "carriers": [
+          {
+            "id": "bit",
+            "layer": "information",
+            "dimension": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "boxes": [
+          {
+            "id": "driver",
+            "name": "Driver",
+            "role": "tool",
+            "inputs": [
+              {
+                "id": "x",
+                "carrier": "bit"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "x": "0"
+                },
+                "out": {
+                  "y": "0"
+                }
+              },
+              {
+                "in": {
+                  "x": "1"
+                },
+                "out": {
+                  "y": "1"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "product",
+            "name": "Product",
+            "role": "product",
+            "inputs": [
+              {
+                "id": "in",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {
+                  "in": "0"
+                },
+                "out": {}
+              },
+              {
+                "in": {
+                  "in": "1"
+                },
+                "out": {}
+              }
+            ],
+            "feasibility": [
+              {
+                "requires": {
+                  "in": 1
+                }
+              }
+            ]
+          },
+          {
+            "id": "backup",
+            "name": "Backup",
+            "role": "tool",
+            "outputs": [
+              {
+                "id": "y",
+                "carrier": "bit"
+              }
+            ],
+            "behavior": [
+              {
+                "in": {},
+                "out": {
+                  "y": "0"
+                }
+              }
+            ],
+            "feasibility": [
+              {
+                "provides": {
+                  "y": 1
+                },
+                "cost": {
+                  "usd": 1
+                }
+              }
+            ]
+          }
+        ],
+        "wires": [
+          {
+            "id": "deliver",
+            "from": {
+              "box": "driver",
+              "port": "y"
+            },
+            "to": {
+              "box": "product",
+              "port": "in"
+            },
+            "carrier": "bit",
+            "polarity": "useful"
+          }
+        ]
+      },
+      "trim": [
+        "driver"
+      ],
+      "contract": {
+        "target": {
+          "domain": "software",
+          "carriers": [
+            {
+              "id": "bit",
+              "layer": "information",
+              "dimension": "bit",
+              "values": [
+                "0",
+                "1"
+              ]
+            }
+          ],
+          "boxes": [
+            {
+              "id": "driver",
+              "name": "Driver",
+              "role": "tool",
+              "inputs": [
+                {
+                  "id": "x",
+                  "carrier": "bit"
+                }
+              ],
+              "outputs": [
+                {
+                  "id": "y",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "x": "0"
+                  },
+                  "out": {
+                    "y": "0"
+                  }
+                },
+                {
+                  "in": {
+                    "x": "1"
+                  },
+                  "out": {
+                    "y": "1"
+                  }
+                }
+              ],
+              "feasibility": [
+                {
+                  "provides": {
+                    "y": 1
+                  },
+                  "cost": {
+                    "usd": 1
+                  }
+                }
+              ]
+            },
+            {
+              "id": "product",
+              "name": "Product",
+              "role": "product",
+              "inputs": [
+                {
+                  "id": "in",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {
+                    "in": "0"
+                  },
+                  "out": {}
+                },
+                {
+                  "in": {
+                    "in": "1"
+                  },
+                  "out": {}
+                }
+              ],
+              "feasibility": [
+                {
+                  "requires": {
+                    "in": 1
+                  }
+                }
+              ]
+            },
+            {
+              "id": "backup",
+              "name": "Backup",
+              "role": "tool",
+              "outputs": [
+                {
+                  "id": "y",
+                  "carrier": "bit"
+                }
+              ],
+              "behavior": [
+                {
+                  "in": {},
+                  "out": {
+                    "y": "0"
+                  }
+                }
+              ],
+              "feasibility": [
+                {
+                  "provides": {
+                    "y": 1
+                  },
+                  "cost": {
+                    "usd": 1
+                  }
+                }
+              ]
+            }
+          ],
+          "wires": [
+            {
+              "id": "deliver",
+              "from": {
+                "box": "driver",
+                "port": "y"
+              },
+              "to": {
+                "box": "product",
+                "port": "in"
+              },
+              "carrier": "bit",
+              "polarity": "useful"
+            }
+          ]
+        },
+        "acceptable": [
+          {
+            "carrier": "bit",
+            "values": [
+              "0",
+              "1"
+            ]
+          }
+        ],
+        "budget": {
+          "usd": 5
+        }
+      },
+      "implementation": {
+        "contract": {
+          "operating_envelope": "declared finite bit model",
+          "resource_binding": "all-behavior-rows"
+        },
+        "declared_harms": [],
+        "evidence": [
+          {
+            "claim": "behavior and resource rows",
+            "source": "Synthetic regression fixture; not an empirical measurement",
+            "operating_envelope": "declared finite bit model"
+          }
+        ]
+      }
+    },
+    "expect": {
+      "verdict": "rejected"
+    }
+  }
+]

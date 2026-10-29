@@ -1,5 +1,10 @@
 # Sources and research notes
 
+The full bibliography is maintained in [theory/REFERENCES.md](../../../theory/REFERENCES.md),
+including current foundations, research-review literature, deferred alternatives, official TRIZ
+sources, AI-TRIZ studies and case articles. Each entry records its role and any provenance gap.
+The notes below explain how those sources inform the skill.
+
 ## Primary current references
 
 - [MATRIZ methodology](https://matriz.org/methodology/) — current official structure: problem
@@ -205,10 +210,10 @@ Considered and not adopted:
 
 ## Matrix variants (Matrix 2003, business matrices) — deliberately not shipped
 
-Darrell Mann's Matrix 2003 (48 parameters, rebuilt from post-Altshuller patent analysis;
-*Hands-On Systematic Innovation*, CREAX Press / IFR Press) and the later Business Matrix 3.0
-(IFR Press, 2018) extend the classical matrix toward business and software conflicts. Valeri
-Souchkov's business-oriented matrix adaptation serves the same goal. This repository ships only
+Mann, Dewulf, Zlotin and Zusman's *Matrix 2003: Updating the TRIZ Contradiction Matrix*
+(CREAX Press, 2003; 48 parameters, rebuilt from post-Altshuller patent analysis) and Mann's later
+*Business Matrix 3.0* (IFR Press, 2018) extend the classical matrix toward business and software
+conflicts. Valeri Souchkov's business-oriented matrix adaptation serves the same goal. This repository ships only
 the classical Altshuller matrix because: (a) the variant tables are recent creative compilations
 whose redistribution terms have not been cleared; (b) TRIZfest-2025 business practitioners
 report the classical matrix is often *easier* to interpret than the adapted ones, with
@@ -265,7 +270,24 @@ interpretation; replace its provenance note if the original source is identified
 
 ## Matrix provenance
 
-`data/matrix.json` was imported from the matrix workbook linked in its metadata. Its parameter and
-principle numbering is canonical; the English descriptions in this repository are concise
-paraphrases. The underlying table is Altshuller's and widely republished; regenerate the file from
-a source of your own choosing with the importer if needed.
+Current `data/matrix.json` metadata links the official classical-matrix reference. The original
+source notes describe a workbook import, but the current metadata does not retain a workbook URL;
+that provenance gap is recorded in [R63](../../../theory/REFERENCES.md#r63). Parameter and principle
+numbering is canonical; the English descriptions here are concise paraphrases. The underlying
+table is Altshuller's and widely republished; regenerate it from an explicitly attributed source
+with the importer when needed.
+
+## Assurance extension and future work
+
+The implemented finite capabilities and exact limitations are recorded in
+[categorical-assurance.md](../../../docs/categorical-assurance.md). The separate
+[categorical-future-plan.md](../../../docs/categorical-future-plan.md) preserves the eight-workstream
+roadmap, decisions on all eighteen supplied suggestions, and falsifying cases. The complete
+[theory/REFERENCES.md bibliography](../../../theory/REFERENCES.md) also includes the existing
+theory foundations, methods used to correct the suggestions, alternatives considered but not
+adopted, and the TRIZ/AI and evaluation sources above; it is not limited to future work.
+It distinguishes implementation from research analogies: certifying model checking (Namjoshi),
+verified checkers (Alkassar et al.), implementation-aware co-design (Censi), bounded component
+synthesis (Iannopollo et al.), sound abstraction/refinement, exact global-section constraints,
+network calculus, and DPO with interfaces. A citation alone does not establish that a kernel
+operation satisfies a paper's hypotheses.

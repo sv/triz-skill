@@ -2,8 +2,9 @@
  * The Lean theorem behind each verdict. A `basis` names the statement in
  * theory/CategoricalTriz.lean, or a Mathlib lemma that file uses, that a verdict's reasoning rests on. That theorem proves the
  * abstract fact, and tests check the TypeScript against it; nothing is extracted from Lean. Typing,
- * harm-loop witness, separation, reachable- and unreachable-escalation, strict weakness, and
- * preserved-behaviour verdicts can also be certified per instance (src/act-cert.ts). A
+ * harm-loop witness, separation, reachable- and unreachable-escalation, state-only safety, every
+ * weakness pair (strict, equal, incomparable), and preserved- and changed-behaviour verdicts can
+ * also be certified per instance (src/act-cert.ts). A
  * basis never means the TRIZ reading of a verdict is proved. Verdicts that need no theorem, such
  * as a shared value that satisfies both demands, cite none.
  *
@@ -26,7 +27,7 @@ export const THEOREMS = [
   "IsFinest.addPort", "factors_split_iff", "IsFinest.factors_iff",
   "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
   "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff",
-  "admits_incomparable", "card_lt_of_strictly_weaker",
+  "incomparable_of_witnesses", "card_lt_of_strictly_weaker",
   "reachIn_iff_trace", "reachWithin_iff_trace", "reach_of_trace", "reachIn_of_trace", "reachWithin_saturated", "unreachable_of_invariant",
   "fixed_on_cycle", "closed_reachIn", "trapped_reachIn", "recurrent_reach", "return_ge_two",
   "kleene_lfp", "kleeneStep_upperClosure", "codesign_lfp",

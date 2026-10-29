@@ -317,6 +317,57 @@ theorem external_mono (d : OpenDiagram V I O) {A A' : d.Box → Set (d.Port → 
   rintro x y ⟨s, ⟨hv, hb, hw⟩, hx, hy⟩
   exact ⟨s, ⟨hv, fun b => h b (hb b), hw⟩, hx, hy⟩
 
+/-! ## Explicit bridges for finite certificate row tables
+
+These theorems relate the two Lean representations: the certificates' row tables (`Rows`) and
+open diagrams. They do not prove that the TypeScript encoder or evaluator implements either
+representation correctly. One-hole and two-hole contexts are in "A box left open" below. -/
+
+/-- A row table as an open diagram over the encoded values. -/
+def rowsDiagram {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (input : I → Vr) (output : O → Vr) : OpenDiagram V I O where
+  Port := Vr
+  Box := Bx
+  Wire := Wr
+  values _ := Set.univ
+  behavior b := {v | ∃ k, t.box k = b ∧ ∀ x, t.fixes k x = true → v x = t.val k x}
+  src := t.src
+  tgt := t.tgt
+  input := input
+  output := output
+
+/-- The certificate steady relation agrees with the open diagram steady states. -/
+theorem rows_steady_iff {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (input : I → Vr) (output : O → Vr) (v : Vr → V) :
+    v ∈ (rowsDiagram t input output).steadyStates ↔ t.Steady v := by
+  constructor
+  · rintro ⟨_, hb, hw⟩
+    exact ⟨hw, hb⟩
+  · rintro ⟨hw, hb⟩
+    exact ⟨fun _ => trivial, hb, hw⟩
+
+/-- Total interface reads identify Rows.relation with the external relation restricted to the
+situation domain. Optional unread inputs require projection, outside this theorem's hypotheses. -/
+theorem rows_relation_iff_external {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (dom : I → V → Bool) (input : I → Vr) (output : O → Vr) (x : I → V) (y : O → V) :
+    t.relation dom (fun i => some (input i)) output x y ↔
+      (∀ i, dom i (x i) = true) ∧ (rowsDiagram t input output).external x y := by
+  constructor
+  · rintro ⟨hd, v, hv, hi, ho⟩
+    refine ⟨hd, v, (rows_steady_iff t input output v).mpr hv, ?_, ?_⟩
+    · funext i
+      exact hi i (input i) rfl
+    · funext o
+      exact ho o
+  · rintro ⟨hd, v, hv, hi, ho⟩
+    refine ⟨hd, v, (rows_steady_iff t input output v).mp hv, ?_, ?_⟩
+    · intro i p hp
+      have h : input i = p := Option.some.inj hp
+      rw [← h]
+      exact congrFun hi i
+    · intro o
+      exact congrFun ho o
+
 /-! ## A box left open
 
 The weakest specification fixes every box but one and asks what that box must do. Here the open

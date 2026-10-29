@@ -18,6 +18,7 @@ import { analysisBasis, trimBasis } from "../src/act-basis.js";
 import { matchRule, TREND_RULES, type Rule } from "../src/act-rule.js";
 import { nineWindows } from "../src/act-windows.js";
 import { modelCertificate } from "../src/act-cert.js";
+import { globalSeparation } from "../src/act-global.js";
 import { toolSpecs } from "../src/tools.js";
 import { supportConcepts, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
 // triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
@@ -322,8 +323,7 @@ const cases: Case[] = [
   { code: "certificate-input-sequence", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], inputs: [[], [], []], certificate: true },
     pick: (r) => r.certificate, path: "$.inputs" },
   { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
-    pick: (r) => r.certificate, path: "$.unsafe", hint: /Raise horizon/ },
-  { code: "not-certifiable", tool: "triz_weakness", args: { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true }, pick: (r) => r.certificate, path: "$.concepts" },
+    pick: (r) => r.certificate, path: "$.horizon", hint: /increase the horizon/ },
   { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
   // rule negative application conditions and weakness priors
   { code: "forbid-violated", tool: "triz_rule_apply", args: {
@@ -357,6 +357,9 @@ const cases: Case[] = [
     match: { boxes: { old: "A", object: "P" }, ports: { old: { out: "p" }, object: { in: "q" } }, wires: { f: "w" }, carriers: { c: "c" } },
   }, path: "$.rule.forbid[0]" },
   { code: "invalid-prior", tool: "triz_weakness", args: { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE, priors: [{ box: "support", port: "nope", weights: { oiled: 1 } }] }, path: "$.priors[0]" },
+  { code: "prior-malformed", tool: "triz_weakness", args: { concepts: [{ id: "a", model: thermo() }, { id: "b", model: thermo() }], acceptable: [{ box: "plant", port: "sig", values: ["on"] }], joint_prior: [{ input: [], weight: 1 }] }, path: "$.joint_prior[0].input" },
+  { code: "required-input-malformed", tool: "triz_adequacy", args: { model: thermo(), scope: "upstream", acceptable: [{ box: "plant", port: "sig", values: ["on"] }], required_inputs: [[]] }, path: "$.required_inputs[0]" },
+  { code: "invalid-argument", kernel: () => globalSeparation({ variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }), input: { variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }, path: "$.regions['0'].variables['0']" },
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;

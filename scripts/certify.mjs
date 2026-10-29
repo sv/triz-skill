@@ -3,7 +3,7 @@
  * Check a Lean certificate: the `content` of triz_export format "lean", or of the `certificate`
  * that triz_separate, triz_dynamics, triz_weakness, or triz_behavior returns, saved as a .lean file.
  *
- *   node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...
+ *   node scripts/certify.mjs [--local | --remote] [--tamper] [--request request.json] <file.lean>...
  *
  * Local (the default; --local says so explicitly): `lake env lean` against theory/, so the
  * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Build it once
@@ -27,8 +27,9 @@
  * --tamper also checks that the certificate cannot be bent: with every verdict negated, each
  * verdict theorem must fail where it is declared; with one function's carrier changed, `typed`
  * must fail; with the unsafe set emptied, `escalation` must fail; with the unsafe set filled,
- * `unreachable` must fail; with no deliverable value acceptable, every weakness verdict must fail;
- * with no situation allowed, `nonempty` must fail. A data tamper is tried only where a verdict
+ * `unreachable` must fail; with no deliverable value acceptable, strict-inclusion and opposed
+ * membership witnesses must fail; with no situation allowed, `nonempty` must fail; with the
+ * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
  * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
  * Locally, all the files and their tampered copies share one Lean process, so the theory's imports
@@ -36,11 +37,17 @@
  * go back to it by line. A copy outside the generator's grammar runs alone, and so does every copy
  * whose messages the batch cannot place (see runLocalBatch).
  *
- * This checks the proofs of the statements in the file. Whether the file encodes your model is
- * read from its id tables, or checked by generating it again and comparing.
+ * Without --request, this checks the statements about the file's tables. --request binds the
+ * manifest to authoritative request JSON, independently compares normalized row/wiring/interface
+ * data, then regenerates to detect staleness, before any file reaches Lean; a file that is not
+ * bound is not checked. Regeneration is not an encoder-correctness proof.
+ * State-only negative claims use invariants over all port valuations. Saturated port-target
+ * negatives use finite state invariants against consistent target configurations. Time-varying
+ * inputs and negatives supported only to a horizon remain unsupported.
  */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -130,6 +137,10 @@ const rows = (inner) => `!\\[(?:${inner}(?:, ${inner})*)?\\]`;
 const re = (s) => new RegExp(`^${s}$`);
 /** Every declaration line the generator writes at column 0; data only, so the meaning stays in theory/. */
 const DECLARATIONS = [
+  re('def certificateManifest : String := ""'),
+  re(`def (?:firstOnly|secondOnly)\\d+X\\d+ : Input → Value := ${NUMS}`),
+  re(`def invariantStates : List \\(Machine → State\\) := \\[(?:${NUMS}(?:, ${NUMS})*)?\\]`),
+  re("abbrev invariant : Set \\(\\(Machine → State\\) × \\(Port → Value\\)\\) := \\{c \\| c\\.1 ∈ invariantStates\\}"),
   re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable) := Fin \\d+"),
   re("abbrev Cell := (?:Unit|Fin \\d+(?: × Fin \\d+)*)"),
   re(`def (?:boxId|portId|fnId|carrierId|demandId|valueId) : (?:Box|Port|Fn|Carrier|Demand|Val) → String := ${STRS}`),
@@ -148,7 +159,7 @@ const DECLARATIONS = [
   re(`def (?:fnSource|fnTarget) : Fn → Port := ${NUMS}`),
   re("def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩"),
   re("def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩"),
-  re(`def (?:initial|unsafeState) : Machine → State → Bool := ${rows(BOOLS)}`),
+  re(`def (?:initial|unsafeState|safeState) : Machine → State → Bool := ${rows(BOOLS)}`),
   re(`def unsafeValue : Port → Value → Bool := ${rows(BOOLS)}`),
   re(`def (?:acceptable : Deliverable|inputDomain : Input) → Value → Bool := ${rows(BOOLS)}`),
   re(`def trace : Fin \\d+ → \\(Machine → State\\) × \\(Port → Value\\) := ${rows(`\\(${NUMS}, ${NUMS}\\)`)}`),
@@ -191,12 +202,31 @@ function statementOk(name, s) {
     return [`(values ${i} ∩ values ${j}).Nonempty`, pairSection(i, j), `¬ ${pairSection(i, j)}`].includes(s);
   }
   if ((m = /^pair_(\d+)_(\d+)_values$/.exec(name))) return s === `Disjoint (values ${m[1]}) (values ${m[2]})`;
+  if (name === "invariantInitial") return s === "system.starts initial ⊆ invariant";
+  if (name === "invariantClosed") return s === "Closed system.Step invariant";
+  if (name === "invariantDisjoint") return s === "Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true}";
+  if (name === "invariantSafe") return s === "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true";
+  if (name === "unreachable") return [
+    "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)",
+    "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
+  ].includes(s);
+  if (name === "safetyInvariant") return s === "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ∀ m, safeState m (b.1 m) = true";
   if (name === "escalation") return /^∃ a ∈ system\.starts initial, ∃ b ∈ system\.target unsafeState unsafeValue, reachWithin system\.Step \d+ a b$/.test(s);
-  if (name === "unreachable") return s === "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b";
   const model = (side) => `${side}.rows.relation inputDomain ${side}.reads ${side}.delivers`;
   if (name === "preserved") return s === `${model("Baseline")} = ${model("Concept")}`;
   if (name === "nonempty") return s === `∃ u y, ${model("Baseline")} u y`;
   const relation = (i) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
+  if (name === "behaviorPreserved") return s === `${relation(0)} = ${relation(1)}`;
+  if (name === "behaviorChanged") return [
+    ...[[0, 1], [1, 0]].map(([a, b]) => `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`),
+    ...[["Baseline", "Concept"], ["Concept", "Baseline"]].map(([a, b]) => `∃ u y, ${model(a)} u y ∧ ¬ ${model(b)} u y`),
+  ].includes(s);
+  if ((m = /^equal_(\d+)_(\d+)$/.exec(name))) return m[1] !== m[2] && s === `admits ${relation(m[1])} (accepts acceptable) = admits ${relation(m[2])} (accepts acceptable)`;
+  if ((m = /^incomparable_(\d+)_(\d+)$/.exec(name))) return m[1] !== m[2] && s === `¬ AtLeastAsWeak (accepts acceptable) ${relation(m[1])} ${relation(m[2])} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(m[2])} ${relation(m[1])}`;
+  if ((m = /^(firstOnly|secondOnly)_(\d+)_(\d+)$/.exec(name))) {
+    const [, side,a,b] = m, [x,y] = side === "firstOnly" ? [a,b] : [b,a], u = `${side}${a}X${b}`;
+    return a !== b && s === `${u} ∈ admits ${relation(x)} (accepts acceptable) ∧ ${u} ∉ admits ${relation(y)} (accepts acceptable)`;
+  }
   if ((m = /^weaker_(\d+)_(\d+)$/.exec(name))) {
     const [, w, t] = m;
     return w !== t && s === `AtLeastAsWeak (accepts acceptable) ${relation(w)} ${relation(t)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(t)} ${relation(w)}`;
@@ -526,9 +556,15 @@ export function tamperVariants(content) {
   const verdicts = (short) => theorems(content).filter((t) => short.test(t.short) && t.depth === 1).map((t) => t.name);
   const data = (name, tampered, mustFail) => { if (tampered !== content && mustFail.length) variants.push({ name, content: tampered, mustFail }); };
   data("the unsafe set emptied", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, false), verdicts(/^escalation$/));
-  data("the unsafe set filled", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, true), verdicts(/^unreachable$/));
-  data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count)_\d+_\d+$/));
+  const names = new Set(theorems(content).map((t) => t.name));
+  const unsafeProofs = verdicts(/^unreachable$/).map((name) => {
+    const disjoint = name.replace(/\.unreachable$/, ".invariantDisjoint");
+    return names.has(disjoint) ? disjoint : name;
+  });
+  data("the unsafe set filled", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, true), unsafeProofs);
+  data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/));
   data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
+  data("invariant emptied", content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m, "def invariantStates : List (Machine → State) := []"), verdicts(/^invariantInitial$/));
   return variants;
 }
 
@@ -556,14 +592,182 @@ export function rejected(variant, run) {
   return { ok: problems.length === 0, mode: run.mode, failed: errors.length, problems };
 }
 
+/** Canonical authoritative request, independent of the TypeScript certificate generator. */
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map((v) => canonical(v) ?? "null").join(",")}]`;
+  if (value !== null && typeof value === "object") return `{${Object.entries(value).filter(([,v]) => v !== undefined).sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0).map(([k,v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+/** Remove comments while preserving literal strings and line numbers. No model text executes. */
+function dataCode(src) {
+  let out="",depth=0,quoted=false;
+  for(let i=0;i<src.length;i++) {
+    const c=src[i],two=src.slice(i,i+2);
+    if(quoted) { out+=c; if(c==="\\") out+=src[++i]??""; else if(c==='"') quoted=false; }
+    else if(depth) { if(two==="/-") {depth++;i++;} else if(two==="-/") {depth--;i++;} else if(c==="\n") out+="\n"; }
+    else if(two==="/-") {depth=1;i++;} else if(two==="--") {while(i<src.length&&src[i]!=="\n") i++;if(i<src.length) out+="\n";}
+    else {out+=c;if(c==='"') quoted=true;}
+  }
+  return out;
+}
+/** Read literal tables without evaluating Lean, JavaScript, or model text. */
+function literalTables(content) {
+  const tables = new Map(), stack = [];
+  for (const line of dataCode(content).split("\n")) {
+    let m;
+    if ((m = /^namespace ([A-Z][A-Za-z0-9]*)$/.exec(line))) stack.push(m[1]);
+    else if (/^end /.test(line)) stack.pop();
+    else if ((m = /^def (\w+) : .* := (.*)$/.exec(line))) {
+      const rhs = m[2];
+      if (rhs.startsWith('"') || rhs.startsWith("![") || /^\[(?:!\[|\])/.test(rhs)) {
+        // Strings are kept intact while vector notation outside them is replaced.
+        let json = "", quoted = false, escaped = false;
+        for (let i = 0; i < rhs.length; i++) { const c = rhs[i]; if (quoted) { json += c; if (escaped) escaped = false; else if (c === "\\") escaped = true; else if (c === '\"') quoted = false; } else if (c === '\"') { quoted = true; json += c; } else if (c === "!" && rhs[i+1] === "[") {} else json += c; }
+        try { tables.set([...stack.slice(1),m[1]].join("."), JSON.parse(json)); } catch { /* Other data (Option, Rating, tuples) use dedicated comparisons. */ }
+      }
+    }
+  }
+  return tables;
+}
+
+/** Compare the request to normalized literal tables with a separate direct encoder.
+This checks correspondence and request binding; it is not a proof of the TypeScript encoder. */
+export function checkCorrespondence(content, request) {
+  if (!request || typeof request !== "object" || !["model","separation","weakness","behavior","dynamics"].includes(request.kind)) return ["authoritative request needs a supported certificate kind"];
+  if (code(content) === null) return ["certificate is outside the lexical data subset"];
+  content = dataCode(content);
+  const problems = [], tables = literalTables(content), manifestText = tables.get("certificateManifest");
+  let manifest;
+  try { manifest = JSON.parse(manifestText); } catch { return ["missing or invalid certificate manifest"]; }
+  const normalized = { ...request, ...(["behavior","weakness"].includes(request.kind) ? { scope: request.scope ?? "upstream" } : {}) };
+  const source = createHash("sha256").update(canonical(normalized)).digest("hex");
+  const scope = ["model","separation"].includes(request.kind) ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : normalized.scope;
+  for (const [key,value] of Object.entries({ format: "triz-certificate-v2", kind: request.kind, source, schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: createHash("sha256").update(fs.readFileSync(THEORY_FILE)).digest("hex"), schemaSource: createHash("sha256").update(fs.readFileSync(path.resolve(here,"../src/act.ts"))).digest("hex"), lean: "4.32.2", mathlib: "v4.32.2", scope })) if (manifest[key] !== value) problems.push(`manifest ${key} does not match the authoritative request or supported pin`);
+  const outer = /^namespace ([A-Z][A-Za-z0-9]*)$/m.exec(content)?.[1]; if (manifest.namespace !== outer) problems.push("manifest namespace differs from the certificate namespace");
+  const normalizedIds = (v) => typeof v === "string" ? [...v].map((ch)=>{const n=ch.codePointAt(0);return /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/u.test(ch)&&(n>0xffff||(n>=0xd800&&n<=0xdfff))?"\ufffd":ch;}).join("") : Array.isArray(v) ? v.map(normalizedIds) : v;
+  const eq = (name,value) => { if (canonical(tables.get(name)) !== canonical(normalizedIds(value))) problems.push(`table ${name} does not encode the authoritative request`); };
+  const raw = (name,value) => { const found = [...content.matchAll(new RegExp(`^def ${name} : .* := (.*)$`, "gm"))].map((m) => m[1]); if (found.length !== 1 || found[0] !== value) problems.push(`table ${name} does not encode the authoritative request`); };
+  const key = (b,side,p) => JSON.stringify([b,side,p]);
+  const portsOf = (boxes,extra=[]) => { const out = []; for (const b of boxes) for (const [side,ps] of [["in",b.inputs??[]],["out",b.outputs??[]]]) for (const p of ps) out.push({box:b.id,side,port:p.id,carrier:p.carrier}); for (const p of extra) if (!out.some((q) => q.box === p.box && q.side === "in" && q.port === p.port)) out.push({...p,side:"in"}); return out; };
+  if (request.kind === "model") {
+    const m = request.model, ports = portsOf(m.boxes), pi = new Map(ports.map((p,i)=>[key(p.box,p.side,p.port),i])), bi = new Map(m.boxes.map((b,i)=>[b.id,i]));
+    eq("boxId",m.boxes.map((b)=>b.id)); eq("portId",ports.map((p)=>p.port)); eq("fnId",m.wires.map((w)=>w.id)); eq("carrierId",m.carriers.map((c)=>c.id));
+    eq("portBox",ports.map((p)=>bi.get(p.box))); eq("portIsOutput",ports.map((p)=>p.side === "out")); eq("portCarrier",ports.map((p)=>m.carriers.findIndex((c)=>c.id === p.carrier)));
+    for (const [name,value] of [["src",m.wires.map((w)=>`(${bi.get(w.from.box)}, ${pi.get(key(w.from.box,"out",w.from.port))})`)], ["tgt",m.wires.map((w)=>`(${bi.get(w.to.box)}, ${pi.get(key(w.to.box,"in",w.to.port))})`)], ["carrier",m.wires.map((w)=>m.carriers.findIndex((c)=>c.id===w.carrier))]]) if (!content.includes(`  ${name} := ![${value.join(", ")}]`)) problems.push(`diagram ${name} does not encode the authoritative request`);
+    raw("rating",`![${m.wires.map((w)=>`.${w.polarity}`).join(", ")}]`);
+  }
+  const contradictions=request.kind==="separation"?[request.contradiction]:request.kind==="model"?request.model.contradictions??[]:[];
+  for (const [i,pc] of contradictions.entries()) {
+    const prefix=`Separation${i}.`, values=[...new Set(pc.demands.flatMap((d)=>d.values))].sort();
+    eq(prefix+"contradictionId",pc.id); eq(prefix+"parameter",pc.parameter); eq(prefix+"demandId",pc.demands.map((d)=>d.id)); eq(prefix+"valueId",values);
+    eq(prefix+"valueTable",pc.demands.map((d)=>values.map((v)=>d.values.includes(v))));
+    for (const axis of ["space","time","condition","direction","level"]) {
+      const cells=[...new Set(pc.axes?.[axis]??pc.demands.flatMap((d)=>d[axis]??[]))].sort();
+      if (!cells.length) continue;
+      eq(prefix+axis+"Cell",cells); eq(prefix+axis+"Table",pc.demands.map((d)=>cells.map((c)=>(d[axis]??cells).includes(c))));
+    }
+  }
+  if (["behavior","weakness","dynamics"].includes(request.kind)) {
+    const concepts = request.kind === "weakness" ? request.concepts : request.kind === "behavior" ? [{model:request.baseline,id:"baseline"},{model:request.concept,id:"concept"}] : [{model:request.model}];
+    const delivered = (m) => m.boxes.filter((b)=>b.role === "product").flatMap((b)=>(b.inputs??[]).filter((p)=>m.wires.some((w)=>w.to.box===b.id&&w.to.port===p.id&&w.polarity!=="harmful")).map((p)=>({box:b.id,port:p.id,carrier:p.carrier})));
+    const target = delivered(concepts[0].model), orders = new Map();
+    const toBaseline = (box) => request.kind === "behavior" && Object.hasOwn(request.boxMap ?? {}, box) ? request.boxMap[box] : box;
+    const endpoint = (p) => JSON.stringify([p.box, p.port, p.carrier]);
+    const offered = request.kind === "behavior" ? new Map(delivered(request.concept).map((p) => [endpoint({ ...p, box: toBaseline(p.box) }), p])) : null;
+    if (offered && target.some((p) => !offered.has(endpoint(p)))) return [...problems, "the concept does not supply the baseline deliverable interface"];
+    const order = (id) => { if (!orders.has(id)) orders.set(id,[...new Set(concepts.flatMap(({model:m})=>m.carriers.find((c)=>c.id===id)?.values??[]))].sort()); return orders.get(id); };
+    const entries = concepts.map(({model:m,id},ci) => {
+      const observe = request.kind === "behavior" && ci === 1 ? target.map((p) => offered.get(endpoint(p))) : target;
+      const namespace = request.kind === "dynamics" ? "" : request.kind === "behavior" ? ["Baseline", "Concept"][ci] : `Concept${ci}`;
+      const rename = request.kind === "behavior" && ci === 1 ? toBaseline : (box) => box;
+      const reached = new Set(request.kind === "dynamics" ? [...m.boxes.filter((b)=>b.transition).map((b)=>b.id),...[...request.spec.unsafe??[],...request.spec.safe??[],...(request.spec.separation??[]).flatMap((d)=>d.where)].map((c)=>c.box)] : normalized.scope === "whole" ? m.boxes.map((b)=>b.id) : m.wires.filter((w)=>observe.some((d)=>d.box===w.to.box&&d.port===w.to.port)).map((w)=>w.from.box));
+      for (let size=-1;size!==reached.size;) { size=reached.size; for (const w of m.wires) if (reached.has(w.to.box)) reached.add(w.from.box); }
+      const boxes=m.boxes.filter((b)=>reached.has(b.id)), ports=portsOf(boxes,request.kind==="dynamics"?[]:observe), pi=new Map(ports.map((p,i)=>[key(p.box,p.side,p.port),i]));
+      const wires=m.wires.filter((w)=>pi.has(key(w.to.box,"in",w.to.port))), names=ports.map((p)=>request.kind==="dynamics"?m.carriers.find((c)=>c.id===p.carrier).values:order(p.carrier));
+      const rows=boxes.flatMap((b,bi)=>[...b.behavior??[],...b.transition??[]].map((row)=>({box:bi,fixes:ports.map((p)=>p.box===b.id),values:ports.map((p,i)=>p.box===b.id?names[i].indexOf((p.side==="in"?row.in:row.out)[p.port]):0),row,b})));
+      return {m,id,ci,namespace,rename,observe,boxes,ports,pi,wires,names,rows};
+    });
+    const valueWidth=Math.max(1,...entries.flatMap((e)=>e.names.map((n)=>n.length)));
+    if (request.kind !== "dynamics") {
+      const situations = [];
+      for (const e of entries) {
+        const fed = new Set(e.wires.map((w)=>e.pi.get(key(w.to.box,"in",w.to.port))));
+        for (const [i,p] of e.ports.entries()) if (p.side === "in" && !fed.has(i) && !situations.some((q)=>q.box===e.rename(p.box)&&q.port===p.port)) situations.push({...p,box:e.rename(p.box),declared:e.m.carriers.find((c)=>c.id===p.carrier).values});
+      }
+      eq("inputId",situations.map((p)=>`${p.box}.${p.port}`)); eq("deliverableId",target.map((p)=>`${p.box}.${p.port}`));
+      eq("inputValueId",situations.map((p)=>[...order(p.carrier),...Array(valueWidth-order(p.carrier).length).fill("")]));
+      eq("deliverableValueId",target.map((p)=>[...order(p.carrier),...Array(valueWidth-order(p.carrier).length).fill("")]));
+      eq("inputDomain",situations.map((p)=>Array.from({length:valueWidth},(_,v)=>v<order(p.carrier).length && p.declared.includes(order(p.carrier)[v]))));
+      for (const e of entries) {
+        const fed = new Set(e.wires.map((w)=>e.pi.get(key(w.to.box,"in",w.to.port))));
+        const expected = `![${situations.map((q)=>{const p=e.ports.findIndex((p,i)=>p.side==="in"&&!fed.has(i)&&e.rename(p.box)===q.box&&p.port===q.port);return p<0?"none":`some ${p}`;}).join(", ")}]`;
+        const block=content.split(`namespace ${e.namespace}\n`)[1]?.split(`end ${e.namespace}\n`)[0]??"";
+        if (!block.includes(`def reads : Input → Option Port := ${expected}`)) problems.push(`table ${e.namespace}.reads does not encode the authoritative request`);
+        eq(`${e.namespace}.delivers`,e.observe.map((p)=>e.pi.get(key(p.box,"in",p.port))));
+      }
+      if (request.kind === "weakness") eq("acceptable",target.map((p)=>{
+        const entry=request.acceptable.find((a)=>a.box===p.box&&a.port===p.port)??request.acceptable.find((a)=>a.carrier===p.carrier);
+        const levels=concepts[0].model.carriers.find((c)=>c.id===p.carrier).levels??[];
+        const accepted=entry?.values??levels.filter((l)=>(entry.at_least===undefined||l.from>=entry.at_least)&&(entry.below===undefined||l.from<entry.below)).map((l)=>l.value);
+        return Array.from({length:valueWidth},(_,v)=>v<order(p.carrier).length&&accepted.includes(order(p.carrier)[v]));
+      }));
+    }
+    for (const e of entries) {
+      const prefix=e.namespace ? `${e.namespace}.` : "", set=(n,v)=>eq(prefix+n,v);
+      set("boxId",e.boxes.map((b)=>b.id)); set("portOwner",e.ports.map((p)=>p.box)); set("portId",e.ports.map((p)=>p.port)); set("fnId",e.wires.map((w)=>w.id));
+      set("portValueId",e.names.map((n)=>[...n,...Array(valueWidth-n.length).fill("")]));
+      set("rowBox",e.rows.map((r)=>r.box)); set("rowFixes",e.rows.map((r)=>r.fixes)); set("rowValue",e.rows.map((r)=>r.values));
+      set("fnSource",e.wires.map((w)=>e.pi.get(key(w.from.box,"out",w.from.port)))); set("fnTarget",e.wires.map((w)=>e.pi.get(key(w.to.box,"in",w.to.port))));
+      if (request.kind==="dynamics") { const machines=e.boxes.filter((b)=>b.transition); set("rowState",e.rows.map((r)=>r.b.transition?r.b.state.indexOf(r.row.state):0)); set("rowNext",e.rows.map((r)=>r.b.transition?r.b.state.indexOf(r.row.next):0)); raw("rowMachine",`![${e.rows.map((r)=>r.b.transition?`some ${machines.findIndex((b)=>b.id===r.b.id)}`:"none").join(", ")}]`); const width=Math.max(1,...machines.map((b)=>b.state.length)); eq("initial",machines.map((b)=>Array.from({length:width},(_,i)=>(request.spec.initial?.[b.id]??b.initial).includes(b.state[i])))); eq("machineId",machines.map((b)=>b.id)); eq("stateId",machines.map((b)=>[...b.state,...Array(width-b.state.length).fill("")]));
+        const stateTarget=(conditions)=>machines.map((b)=>Array.from({length:width},(_,i)=>(tables.has("invariantStates")||i<b.state.length)&&conditions.filter((c)=>c.box===b.id&&"state" in c).every((c)=>c.state.includes(b.state[i]))));
+        if (request.spec.unsafe) {
+          eq("unsafeState",stateTarget(request.spec.unsafe));
+          if (!tables.has("invariantStates")) eq("unsafeValue",e.ports.map((p,j)=>Array.from({length:valueWidth},(_,i)=>i<e.names[j].length&&request.spec.unsafe.filter((c)=>c.box===p.box&&c.port===p.port&&"values" in c).every((c)=>c.values.includes(e.names[j][i])))));
+        }
+        if (request.spec.safe && tables.has("invariantStates")) eq("safeState",stateTarget(request.spec.safe)); }
+    }
+  }
+  return problems;
+}
+
+/**
+ * The binding half of checkRequest, without Lean: the problems that keep `content` from being bound
+ * to `request`, none when it is. Regeneration detects generator staleness; the independent table
+ * checks above check correspondence.
+ */
+export function bindRequest(content, request) {
+  let problems;
+  try { problems = [...lint(content),...checkCorrespondence(content, request)]; }
+  catch (e) { return [`malformed authoritative request: ${e.message ?? e}`]; }
+  if (problems.length) return problems;
+  const manifest = JSON.parse(literalTables(content).get("certificateManifest"));
+  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,priors:r.priors,jointPrior:r.jointPrior,boxMap:r.boxMap}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
+  const regen = spawnSync(process.execPath,["--import","tsx","--input-type=module","-e",program],{cwd:path.resolve(here,".."),input:JSON.stringify(request),encoding:"utf8",maxBuffer:64<<20});
+  if (regen.status !== 0) return [`cannot regenerate the authoritative request: ${regen.stderr.trim()}`];
+  let generated; try { generated=JSON.parse(regen.stdout); } catch { return ["generator returned invalid JSON"]; }
+  if (!generated?.ok || generated.content !== content) return ["certificate is stale or differs from current request regeneration; this is a staleness check, not an encoder-correctness proof"];
+  return [];
+}
+
+/** Bind `content` to `request` (bindRequest), then check it as check does; an unbound file never reaches Lean. */
+export async function checkRequest(content, request, opts = {}) {
+  const problems = bindRequest(content, request);
+  if (problems.length) return { ok:false,mode:"binding",certified:[],problems };
+  return check(content,opts);
+}
+
 async function main(argv) {
-  const files = argv.filter((a) => !a.startsWith("--"));
   const remote = argv.includes("--remote");
   const tamper = argv.includes("--tamper");
+  const requestAt = argv.indexOf("--request");
+  const requestFile = requestAt < 0 ? undefined : argv[requestAt + 1];
+  const files = argv.filter((a, i) => !a.startsWith("--") && (requestAt < 0 || i !== requestAt + 1));
   if (!files.length || (remote && argv.includes("--local"))) {
-    console.error("usage: node scripts/certify.mjs [--local | --remote] [--tamper] <file.lean>...");
+    console.error("usage: node scripts/certify.mjs [--local | --remote] [--tamper] [--request request.json] <file.lean>...");
     return 2;
   }
+  if (requestAt >= 0 && (!requestFile || requestFile.startsWith("--"))) throw new Error("--request needs an authoritative request JSON file");
+  const request = requestFile ? JSON.parse(fs.readFileSync(requestFile, "utf8")) : undefined;
   if (remote) {
     console.log(`Sending data off this machine (--remote): each certificate, with the model's ids and tables, and`);
     console.log(`theory/CategoricalTriz.lean go to AXLE at ${AXLE_URL} (${AXLE_ENVIRONMENT}). The verdict then trusts`);
@@ -576,16 +780,20 @@ async function main(argv) {
   }
   const mode = remote ? "remote" : "local";
   const contents = files.map((file) => fs.readFileSync(file, "utf8"));
-  // Tampered copies count only for an accepted certificate. Locally, one batch checks every
+  // With --request, a file not bound to the request is reported and never reaches Lean.
+  const binding = contents.map((c) => (request ? bindRequest(c, request) : []));
+  const bound = contents.flatMap((_, i) => (binding[i].length ? [] : [i]));
+  // Tampered copies count only for an accepted certificate. Locally, one batch checks every bound
   // certificate and the copies of those in the grammar; remotely, a copy goes to AXLE only once
   // its certificate is accepted.
-  const copies = contents.map((c) => (tamper && !lint(c).length ? tamperVariants(c) : []));
-  const local = remote ? null : await checkAll({ certificates: contents, tampered: copies.flat() }, { mode });
-  const checks = contents.filter((c) => !lint(c).length).length + copies.flat().length;
+  const copies = contents.map((c, i) => (tamper && !binding[i].length && !lint(c).length ? tamperVariants(c) : []));
+  const local = remote ? null : await checkAll({ certificates: bound.map((i) => contents[i]), tampered: copies.flat() }, { mode });
+  const checks = bound.filter((i) => !lint(contents[i]).length).length + copies.flat().length;
   if (local) console.log(`  ${local.batched} of ${checks} Lean checks shared one process.`);
   let failed = 0, n = 0;
   for (const [i, file] of files.entries()) {
-    const r = local ? local.certificates[i] : await check(contents[i], { mode });
+    const r = binding[i].length ? { ok: false, mode: "binding", certified: [], problems: binding[i] }
+      : local ? local.certificates[bound.indexOf(i)] : await check(contents[i], { mode });
     const verdicts = local?.tampered.slice(n, (n += copies[i].length));
     if (r.info) console.log(`  AXLE info: ${JSON.stringify(r.info)}`);
     if (r.ok) {
@@ -612,6 +820,6 @@ async function main(argv) {
   return failed ? 1 : 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
+if (process.argv[1] && fs.existsSync(process.argv[1]) && import.meta.url === pathToFileURL(fs.realpathSync(process.argv[1])).href) {
   main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { console.error(e.message ?? e); process.exit(1); });
 }

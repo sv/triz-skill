@@ -8,6 +8,7 @@
  * handshake, lists tools, and asserts fail-closed + canonical lookups. Used in
  * CI after build and in the release workflow before npm publish.
  */
+import fs from "node:fs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -220,6 +221,15 @@ if (!series.ok || series.flows?.paths?.line?.join() !== "pump,valves") fail("mer
 const lagging = await json("triz_rule_apply", { model, rule_id: "uneven-development" });
 console.log(`triz_rule_apply uneven-development -> ${lagging.verdict}`);
 if (!lagging.ok) fail("uneven-development detector failed");
+
+const assuranceExamples = JSON.parse(fs.readFileSync(new URL("../examples/assurance/requests.json", import.meta.url), "utf8"));
+for (const example of assuranceExamples) {
+  if (!names.includes(example.tool)) fail(`missing assurance tool ${example.tool}`);
+  const result = await json(example.tool, example.args);
+  if (result.ok === false) fail(`${example.tool}: ${JSON.stringify(result)}`);
+  for (const [key, expected] of Object.entries(example.expect)) if (result[key] !== expected) fail(`${example.tool}.${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(result[key])}`);
+}
+console.log(`finite assurance examples: ${assuranceExamples.length} passed through MCP stdio`);
 
 await client.close();
 console.log("SMOKE OK");

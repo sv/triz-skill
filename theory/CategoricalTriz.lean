@@ -1352,6 +1352,14 @@ theorem admits_mono_ok {R : α → β → Prop} {ok ok' : β → Prop} (h : ∀ 
     admits R ok ⊆ admits R ok' :=
   fun _ ⟨hu, hy⟩ => ⟨hu, fun y hr => h y (hy y hr)⟩
 
+/-- Two opposed admitted-situation witnesses establish incomparability for any relations.
+Each membership includes a steady output and acceptance of every possible output. -/
+theorem incomparable_of_witnesses {ok : β → Prop} {R S : α → β → Prop} {u v : α}
+    (huR : u ∈ admits R ok) (huS : u ∉ admits S ok)
+    (hvS : v ∈ admits S ok) (hvR : v ∉ admits R ok) :
+    ¬ AtLeastAsWeak ok R S ∧ ¬ AtLeastAsWeak ok S R :=
+  ⟨fun h => hvR (h hvS), fun h => huS (h huR)⟩
+
 /-- Delivering the input and delivering its negation, with `true` acceptable: each concept admits
 a situation the other rejects, so the inclusion order is not total. -/
 theorem admits_incomparable :

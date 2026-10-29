@@ -94,11 +94,11 @@ tools, and exactly what is and is not claimed, is in
 | Stage | Tools | What they do |
 |---|---|---|
 | Lookup | `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_matrix_multi`, `triz_resolve`, `triz_effects`, `triz_route`, `triz_tool_catalog`, `triz_evals` | Read the canonical data: parameters, principles, matrix cells, effects, the method router, and the eval suites |
-| Model | `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
-| Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
-| Transform | `triz_transform`, `triz_rule_apply` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
-| Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
-| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_dynamics`, `triz_weakness`, `triz_behavior` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Model | `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export`, `triz_isomorphism`, `triz_behavior_refinement`, `triz_subsystem_summary` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
+| Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow`, `triz_global_separation`, `triz_queue`, `triz_conservation` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
+| Transform | `triz_transform`, `triz_rule_apply`, `triz_trim_rewrite`, `triz_rewrite_pair`, `triz_rule_set` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
+| Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, `triz_adequacy`, `triz_implementations`, `triz_absorber_assignments`, `triz_synthesize` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
+| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_behavior`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
 | Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
 
 ### Tools
@@ -128,9 +128,30 @@ tools, and exactly what is and is not claimed, is in
 | `triz_abstraction` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms listed |
 | `triz_flow` | Flow analysis over declared flow paths (boxes in series): per flow, bottleneck, accumulation, and leak candidates, and loops |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
+| `triz_adequacy` | Require nonblocking and acceptable outputs at every required operating input |
+| `triz_isomorphism` | Verify or search an annotation-preserving value/state/wiring bijection |
+| `triz_behavior_refinement` | Check exact complete whole-model relation inclusion under an explicit interface/value map |
+| `triz_subsystem_summary` | Compose an exact stateless boundary summary and report hidden harms |
+| `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
+| `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
+| `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_global_separation` | Find one assignment satisfying every allowed overlapping local relation |
+| `triz_queue` | Compile and check an explicitly scheduled finite queue for overflow |
+| `triz_conservation` | Check declared extensive consumption or shared intensive minimum levels |
+| `triz_rule_set` | Check a sufficient termination measure for a validated named rule subset |
+| `triz_rewrite_pair` | Check whether two named rewrites commute in their two orders |
+| `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
 ## Function models as typed data
+
+The eight-workstream assurance extension adds whole-model behavior, operational adequacy,
+input-bound Lean certificates, semantic isomorphism/refinement, joint implementation and finite
+synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
+and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
+[Future work and acceptance criteria](docs/categorical-future-plan.md) and
+[literature references](theory/REFERENCES.md) are kept in separate files; these bounded capabilities do not close every research exclusion.
+
 
 `triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function
 model written as an open wiring diagram, defined by
@@ -251,12 +272,13 @@ models share a wiring shape. Each verdict names in `basis` the theorem in `theor
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
-and proves them, and `node scripts/certify.mjs` checks it with local Lean (or, only with
-`--remote`, by sending the file to the AXLE service). `triz_dynamics`, `triz_weakness`, and `triz_behavior` with `certificate: true` do the same for a
-reachable escalation (the composed rows and the shortest trace), an unreachable one (the
-composed rows and the reached states as an inductive invariant), each strictly ordered pair of
-concepts (their rows, the inclusion, and the count), and a preserved verdict (both models'
-rows, and their relations equal and not empty). Nothing is extracted from Lean. The structured verdicts of the
+and proves them, and `node scripts/certify.mjs` checks it with local Lean. Only explicit
+`--remote` sends the certificate and its model data to the AXLE service. `triz_behavior`, `triz_dynamics` and `triz_weakness` with `certificate: true` cover
+supported finite behavior comparisons, reachable escalation/state-only inductive safety, and
+strict, equal or incomparable concept pairs. Manifests bind the source request and scope;
+`node scripts/certify.mjs --local --tamper --request request.json result.lean` checks source/table
+correspondence and the listed proofs. Unsupported cases and caps return an explicit reason.
+Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
@@ -420,7 +442,8 @@ construction.
 The ranked backlog of the categorical-model work — certificates for the verdicts that have
 none, properties to promote from tested to proved, and the larger categorical closures — lives
 in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in
-categorical-model.md's "What is not claimed".
+categorical-model.md's "What is not claimed". The acceptance criteria of the assurance
+workstreams are in [docs/categorical-future-plan.md](docs/categorical-future-plan.md).
 
 ## Publishing and distribution
 

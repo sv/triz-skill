@@ -1,45 +1,18 @@
 /**
- * Per-instance Lean certificates: translation validation of kernel verdicts.
- *
- * The kernel (src/act.ts) is TypeScript. Tests check it against theory/CategoricalTriz.lean, and
- * nothing is extracted from Lean. A certificate checks one run instead. It encodes one model as
- * finite tables, states the kernel's verdicts about those tables in the theory's terms, and
- * proves each by `decide` and the theorem the verdict cites. Lean then checks that instance.
- *
- *  - checkModel ok       — `Wiring.Typed` of the encoded diagram: every function runs from an
- *                          output port to an input port, both of its carrier. Duplicate ids and
- *                          behaviour rows are not encoded.
- *  - harmLoops witnesses — for each reported cycle, the function is negative, its return path is
- *                          checked step by step, and `edge_on_cycle` closes the loop. That the
- *                          list of loops is complete is not certified.
- *  - separationCheck     — whether one value meets every demand; each pair's status (compatible: a
- *                          shared value; separated: disjoint values, the exact separating axes,
- *                          and `glue_of_disjoint_regions`; irreducible: disjoint values, a shared
- *                          cell, and `no_section_of_overlap`); gluable or not, by
- *                          `exists_section_iff`.
- *  - boundedDynamics     — an escalation: the composed boxes' rows as a `Sync` table, and the
- *                          initial and unsafe sets as Bool tables. Reachable: the kernel's shortest
- *                          trace, and `reach_of_trace` with each step and the end decided on the
- *                          tables. Unreachable: the global states the search reached as an
- *                          inductive invariant, and `unreachable_of_invariant` with its three
- *                          checks (it holds every start, is closed under steps, misses the unsafe
- *                          set) decided over every valuation of the composed ports.
- *  - weaknessRanking     — each strictly ordered pair: both concepts' rows as `Rows` tables, the
- *                          relation each composes, strict inclusion of what they admit
- *                          (`AtLeastAsWeak` one way and not the other), and the strictly larger
- *                          count (`card_lt_of_strictly_weaker`), all decided over every valuation.
- *  - compareBehavior     — a preserved verdict (`triz_behavior` with compare_to or trim): both
- *                          models' rows as `Rows` tables, their relations equal and not empty,
- *                          decided over every situation and valuation.
- *
- * Statements come from the kernel's result, not from a second implementation. The generator only
- * finds witnesses (the wire behind a step, a shared cell) and fails closed when one is missing.
- * Ids appear only inside escaped string literals, so model text cannot inject Lean. Pure: the
- * hosted Worker bundles it.
+ * Per-instance Lean certificates over finite declarations; nothing is extracted from Lean.
+ * Structural typing, separation, reachable traces, inductive safety, behavior comparisons,
+ * and every weakness pair are independently decided on the encoded tables. A manifest binds
+ * the authoritative request, scope, schema, generator and theory pins. --request additionally
+ * checks normalized correspondence with a separate direct encoder and detects stale output;
+ * neither check establishes encoder correctness. State-only safety invariants include every
+ * valuation of each selected state, since Sync.Step leaves successor valuations unrestricted.
+ * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target).
+ * Time inputs and negative claims unsupported by an invariant fail closed. Ids remain escaped
+ * string literals. This module is pure and works in the hosted Worker.
  */
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
 import { at, fail, issue, quoted, type Failure } from "./act-issues.js";
-import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, trimPreservesBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
+import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable, type BehaviorScope, type JointPriorRow, type Prior } from "./act-behavior.js";
 import { applyTrim } from "./act-rewrite.js";
 import { boundedDynamics, reachedStates, type DynamicsSpec } from "./act-dynamics.js";
 
@@ -50,7 +23,52 @@ export const MAX_CERT_WIRING = 250_000;
 export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
-export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[] } | Failure;
+/** Exact source pins; refresh deliberately when the theory or model schema changes. */
+export const CERTIFICATE_THEORY_SOURCE = "4f454df65878905dd9699e724c45298293803cd76d6d256344c7ce5f9c102893";
+export const CERTIFICATE_SCHEMA_SOURCE = "c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb";
+export interface CertificateManifest {
+  format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
+  source: string; schema: "function-model-v1"; generator: "triz-cert-2";
+  theory: "CategoricalTriz/v2"; theorySource: string; schemaSource: string; lean: "4.32.2"; mathlib: "v4.32.2";
+  scope: "structural" | BehaviorScope | "dynamics-upstream";
+}
+export type CertificateRequest =
+  | { kind: "model"; model: FunctionModel }
+  | { kind: "separation"; contradiction: PhysicalContradiction }
+  | { kind: "dynamics"; model: FunctionModel; spec: DynamicsSpec }
+  | { kind: "weakness"; concepts: Array<{ id: string; model: FunctionModel }>; acceptable: Acceptable[]; scope?: BehaviorScope; maxStates?: number; priors?: Prior[]; jointPrior?: JointPriorRow[] }
+  | { kind: "behavior"; baseline: FunctionModel; concept: FunctionModel; scope?: BehaviorScope; maxStates?: number; boxMap?: Record<string, string> };
+export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[]; manifest: CertificateManifest } | Failure;
+
+/** Canonical JSON binds the supplied request, including its array order and all declared metadata. */
+export function canonicalRequest(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((x) => canonicalRequest(x) ?? "null").join(",")}]`;
+  if (value !== null && typeof value === "object") return `{${Object.entries(value).filter(([, v]) => v !== undefined).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, v]) => `${JSON.stringify(k)}:${canonicalRequest(v)}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+/** Portable SHA-256: generation is synchronous and also runs in the hosted Worker. */
+export function requestDigest(value: unknown): string {
+  const bytes = new TextEncoder().encode(canonicalRequest(value));
+  const k = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  const h = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const padded = new Uint8Array(Math.ceil((bytes.length + 9) / 64) * 64); padded.set(bytes); padded[bytes.length] = 128;
+  const view = new DataView(padded.buffer); view.setUint32(padded.length - 4, bytes.length * 8); view.setUint32(padded.length - 8, Math.floor(bytes.length / 0x20000000));
+  const rotate = (x: number, n: number) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < padded.length; off += 64) {
+    const w = Array<number>(64); for (let i = 0; i < 16; i++) w[i] = view.getUint32(off + 4 * i);
+    for (let i = 16; i < 64; i++) { const a = w[i-15], b = w[i-2]; w[i] = (w[i-16] + (rotate(a,7)^rotate(a,18)^(a>>>3)) + w[i-7] + (rotate(b,17)^rotate(b,19)^(b>>>10))) >>> 0; }
+    let [a,b,c,d,e,f,g,j] = h;
+    for (let i = 0; i < 64; i++) { const t = (j + (rotate(e,6)^rotate(e,11)^rotate(e,25)) + ((e&f)^(~e&g)) + k[i] + w[i]) >>> 0; const u = ((rotate(a,2)^rotate(a,13)^rotate(a,22)) + ((a&b)^(a&c)^(b&c))) >>> 0; j=g; g=f; f=e; e=(d+t)>>>0; d=c; c=b; b=a; a=(t+u)>>>0; }
+    [a,b,c,d,e,f,g,j].forEach((x,i) => h[i] = (h[i] + x) >>> 0);
+  }
+  return h.map((x) => x.toString(16).padStart(8,"0")).join("");
+}
+function certified(request: CertificateRequest, namespace: string, content: string, certifies: Certified[]): Certificate {
+  const scope = request.kind === "model" || request.kind === "separation" ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : request.scope ?? "upstream";
+  const manifest: CertificateManifest = { format: "triz-certificate-v2", kind: request.kind, namespace, source: requestDigest(request), schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: CERTIFICATE_THEORY_SOURCE, schemaSource: CERTIFICATE_SCHEMA_SOURCE, lean: "4.32.2", mathlib: "v4.32.2", scope };
+  return { ok: true, namespace, content: content.replace("open CategoricalTriz\n", `open CategoricalTriz\n\ndef certificateManifest : String := ${leanString(JSON.stringify(manifest))}\n`), certifies, manifest };
+}
+
 
 const AXES: Axis[] = Axis.options;
 const NAMESPACE = /^[A-Z][A-Za-z0-9]*$/;
@@ -96,7 +114,7 @@ const HEADER = (what: string) => [
   "Generated by triz-mcp from the kernel's verdicts. Each theorem states one verdict about the finite",
   "data in this file, in the terms of `theory/CategoricalTriz.lean`, and Lean checks the proof. This",
   "certifies these verdicts for this one instance; nothing is extracted from Lean. The id tables are",
-  "the encoding: read them to see that the data is the model you meant.",
+  "the encoding. Use --request with the original request JSON to verify binding and correspondence.",
   "",
   "Check with `node scripts/certify.mjs <file>` in a checkout of github.com/sv/triz-skill: Lean",
   "against `theory/` once it is built. `--remote` sends this file to the AXLE service instead.",
@@ -333,7 +351,7 @@ export function modelCertificate(model: FunctionModel, opts: { namespace?: strin
     if (!Array.isArray(s)) return { ok: false, errors: s.errors.map((e) => (e.startsWith("contradiction ") ? e : `contradiction '${pc.id}': ${e}`)), issues: s.issues.map((i) => (i.message.startsWith("contradiction ") ? i : { ...i, message: `contradiction '${pc.id}': ${i.message}` })) };
     sections.push(s);
   }
-  return { ok: true, namespace: ns, content: assemble("one function model", ns, sections), certifies };
+  return certified({ kind: "model", model }, ns, assemble("one function model", ns, sections), certifies);
 }
 
 /** Certificate for one physical contradiction's separation verdicts. Fails closed. */
@@ -343,7 +361,7 @@ export function separationCertificate(pc: PhysicalContradiction, opts: { namespa
   const certifies: Certified[] = [];
   const s = separationSection(pc, "Separation0", certifies, ns, opts.root);
   if (!Array.isArray(s)) return s;
-  return { ok: true, namespace: ns, content: assemble("one physical contradiction", ns, [s]), certifies };
+  return certified({ kind: "separation", contradiction: pc }, ns, assemble("one physical contradiction", ns, [s]), certifies);
 }
 
 /** Cap on the work of deciding a dynamics, weakness, or behaviour certificate; see `rowWork`. An invariant near the cap takes Lean about six seconds. */
@@ -422,15 +440,10 @@ function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[
 const rowWork = (checks: number, rows: number, ports: number, wires: number) => checks * (rows * (ports + 1) + wires);
 
 /**
- * Certificate of a `triz_dynamics` escalation verdict. The composed boxes' rows are the data.
- *  - reachable: from an initial state, a run reaches the unsafe set within the trace's length;
- *    the kernel's shortest trace is the witness (`reach_of_trace`).
- *  - unreachable: no run from an initial state reaches it, at any horizon; the global states the
- *    search reached are the witness, an inductive invariant (`unreachable_of_invariant`). Lean
- *    decides that they hold every start, that every step from them at every valuation names one
- *    of them, and that none of them meets the unsafe set at any valuation.
- * Fails closed on anything else: an escalation unreachable only within the horizon or undecided,
- * a trace that ends blocked, an input sequence, and past MAX_CERT_ROWS.
+ * A reachable dynamics verdict is checked by its row-derived trace. A saturated unreachable
+ * verdict uses the reached global states to exclude every admitted unsafe configuration.
+ * State-only safety and independently provable negative verdicts use a reconstructed state
+ * closure. Unsupported bounded-only and time-varying claims fail closed.
  */
 export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, opts: { namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
@@ -439,8 +452,8 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     return fail([issue("certificate-input-sequence", "$.inputs", "an input sequence indexes the runs by time; a certificate covers runs without inputs",
       "Drop inputs to certify the escalation over every boundary value, or keep inputs and read the verdict without a certificate.")]);
   }
-  if (!spec.unsafe) {
-    return fail([issue("certificate-needs-unsafe", "$.unsafe", "pass unsafe: the certificate states an escalation into it",
+  if (!spec.unsafe && !spec.safe) {
+    return fail([issue("certificate-needs-unsafe", "$.unsafe", "pass unsafe or safe: the certificate states supported reachability or safety claims",
       "Pass unsafe, the target set whose reachability the certificate states, e.g. [{ box, state: [...] }].")]);
   }
   const r = boundedDynamics(model, spec);
@@ -448,12 +461,12 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   if (!r.decided) {
     return fail([issue("not-certifiable", "$.model", r.note, `Declare behavior or transition for ${quoted(r.missingBehavior)}; the runs depend on them, so nothing is decided to certify.`)]);
   }
-  const esc = r.escalation!;
+  const esc = r.escalation;
+  const stateOnly = [...spec.unsafe ?? [], ...spec.safe ?? []].every((c) => "state" in c);
+  if (!esc || (esc.verdict !== "reachable" && stateOnly) || esc.verdict === "unreachable-within-horizon") return dynamicsInvariantCertificate(model, spec, ns, r);
   if (esc.verdict !== "reachable" && esc.verdict !== "unreachable") {
     return fail([issue("not-certifiable", "$.unsafe", `the escalation is ${esc.verdict}: only a reachable escalation, which a trace witnesses, or an unreachable one, which an invariant witnesses, is certified`,
-      esc.verdict === "unreachable-within-horizon"
-        ? "Raise horizon until the reachable set stops growing (verdict unreachable); a bound within the horizon has no invariant to state."
-        : "Declare the rows the blocked state lacks (the trace ends there), so the verdict is decided.")]);
+      "Declare the rows the blocked state lacks (the trace ends there), so the verdict is decided.")]);
   }
   if (esc.verdict === "reachable" && !esc.trace[esc.trace.length - 1].values) {
     return fail([issue("not-certifiable", "$.unsafe", "the trace ends in a blocked state, which has no valuation to certify",
@@ -477,11 +490,11 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   // valuation of the ports at each listed state, and every global state once per admitted one.
   const reached = esc.verdict === "unreachable" ? reachedStates(model, spec) : undefined;
   if (esc.verdict === "unreachable" && !reached) {
-    return fail([issue("internal-error", "$.model", "the search that saturated did not list its reached states", "Report this with the model; the kernel's verdict and its invariant disagree.")]);
+    return fail([issue("cap-exceeded", "$.max_states", "reconstructing the invariant exceeds the reached-state exploration cap", "Raise max_states within its limit, or certify a smaller model; invariant reconstruction also counts blocked global states.")]);
   }
   const globals = states ** machines.length;
   const work = rowWork(esc.verdict === "reachable" ? esc.trace.length + 2 : reached!.length * values ** ports.length * (globals + 2) + globals, rows.length, ports.length, wires.length);
-  if (work > MAX_CERT_ROWS) {
+  if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
     return fail([issue("cap-exceeded", "$.model", `deciding the ${reached ? "invariant" : "trace"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
       reached
         ? "Declare fewer ports, values, or states on the composed boxes, or certify a smaller part of the model: the invariant is decided over every valuation of their ports."
@@ -491,7 +504,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   // Targets as Bool tables: a condition on a box's state or a port's value; several on one intersect.
   const stateOk = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length));
   const valueOk = ports.map((_, p) => Array.from({ length: values }, (_, v) => v < names(p).length));
-  for (const c of spec.unsafe) {
+  for (const c of spec.unsafe!) {
     if ("state" in c) {
       const k = machines.findIndex((m) => m.box === c.box);
       stateOk[k] = stateOk[k].map((ok, s) => ok && c.state.includes(machines[k].states[s]));
@@ -535,8 +548,8 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
         "unreachable", "∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b",
         "unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))"),
     );
-    const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches the unsafe set, at any horizon" }];
-    return { ok: true, namespace: ns, content: assemble("one unreachable escalation", ns, [lines]), certifies };
+    const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, at any horizon" }];
+    return certified({ kind: "dynamics", model, spec }, ns, assemble("one unreachable escalation", ns, [lines]), certifies);
   }
   const config = (step: { state: string[]; values?: string[] }) =>
     `(${stateIndices(step.state)}, ${vec(ports.map((q, p) => names(p).indexOf(step.values![vars.at(q.box, q.side, q.port)])))})`;
@@ -556,28 +569,24 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
       "⟨traceOf trace 0, by decide +kernel, reach_of_trace (τ := traceOf trace) (by decide +kernel) le_rfl (by decide +kernel)⟩"),
   );
   const certifies = [{ theorem: `${ns}.escalation`, verdict: `boundedDynamics: a run reaches the unsafe set at time ${k}` }];
-  return { ok: true, namespace: ns, content: assemble("one escalation trace", ns, [lines]), certifies };
+  return certified({ kind: "dynamics", model, spec }, ns, assemble("one escalation trace", ns, [lines]), certifies);
 }
 
 /**
- * Certificate of every strictly ordered pair of a `triz_weakness` ranking: the weaker concept admits
- * every situation the other admits and one more, so its count is strictly larger. Each concept's
- * rows are the data, in its own namespace. Fails closed when no pair is strictly ordered, and past
- * MAX_CERT_ROWS: deciding enumerates every valuation of each concept's ports.
+ * Certificate of all pairs in a weakness ranking. Strict inclusion also certifies a larger count;
+ * equality compares admitted sets; incomparability records opposed admitted/rejected witnesses.
+ * Admission requires existence AND acceptance of every output. Rows are encoded independently
+ * of the verdict and checked over every valuation, subject to MAX_CERT_ROWS.
  */
-export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { namespace?: string; maxStates?: number } = {}): Certificate {
+export function weaknessCertificate(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: { namespace?: string; maxStates?: number; scope?: BehaviorScope; priors?: Prior[]; jointPrior?: JointPriorRow[] } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
-  const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates });
+  const r = weaknessRanking(concepts, acceptable, { maxStates: opts.maxStates, scope: opts.scope, priors: opts.priors, jointPrior: opts.jointPrior });
   if (!r.ok) return r;
   if (r.verdict !== "ranked") {
-    return fail([issue("not-certifiable", "$.concepts", `the ranking is ${r.verdict}: ${r.note}`, "Decide the ranking first (declare the missing behaviour, or lower the values past the cap); only a decided strict inclusion is certified.")]);
+    return fail([issue("not-certifiable", "$.concepts", `the ranking is ${r.verdict}: ${r.note}`, "Decide the ranking first (declare the missing behaviour, or reduce the values below the cap); only a decided ranking is certified.")]);
   }
-  const strict = r.pairs.filter((p) => p.order === "first-weaker" || p.order === "second-weaker");
-  if (!strict.length) {
-    return fail([issue("not-certifiable", "$.concepts", "no pair is strictly ordered: only a strict inclusion (first-weaker or second-weaker) is certified",
-      "Read pairs without a certificate: an incomparable or equal pair states no strict inclusion.")]);
-  }
+  const pairs = r.pairs;
 
   // Value indices: one order per carrier id, the sorted union of its values in every concept. A
   // function's two ends share a carrier, and a situation or deliverable is read the same way in
@@ -591,7 +600,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
   const deliverableValues = deliverables.map((d) => order(d.carrier));
 
   const encoded = concepts.map((c) => {
-    const composed = behaviorPlan(c.model, deliverables).composed;
+    const composed = behaviorPlan(c.model, deliverables, { scope: opts.scope }).composed;
     const ports = encodedPorts(composed, deliverables);
     const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
     const wires = encodedWires(c.model, at);
@@ -608,10 +617,10 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     const k = encoded.findIndex((e) => e.reads[j] >= 0);
     return concepts[k].model.carriers.find((x) => x.id === q.carrier)!.values ?? [];
   });
-  for (const p of strict) {
+  for (const p of pairs) {
     const pair = p.concepts.map((id) => encoded.find((e) => e.id === id)!);
     const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.ports.length), e.rows.length, e.ports.length, e.wires.length), 0);
-    if (work > MAX_CERT_ROWS) {
+    if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
       return fail([issue("cap-exceeded", "$.concepts", `concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
         "Certify smaller concepts: fewer ports or values on the composed boxes. The decision enumerates every valuation of each concept's ports.")]);
     }
@@ -657,8 +666,23 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
   });
   lines.push("/-! ## Verdicts -/", "");
   const certifies: Certified[] = [];
-  for (const p of strict) {
+  for (const p of pairs) {
     const [a, b] = p.concepts.map((id) => concepts.findIndex((c) => c.id === id));
+    if (p.order === "equal") {
+      lines.push(...theorem("The two concepts admit exactly the same situations (existence and all outputs acceptable).",
+        `equal_${a}_${b}`, `admits ${relation(a)} (accepts acceptable) = admits ${relation(b)} (accepts acceptable)`, "by ext u; revert u; decide +kernel"));
+      certifies.push({ theorem: `${ns}.equal_${a}_${b}`, verdict: `weaknessRanking: '${concepts[a].id}' and '${concepts[b].id}' admit equal situations` });
+      continue;
+    }
+    if (p.order === "incomparable") {
+      const witness = (input: Array<{ box: string; port: string; value: string }>) => vec(situations.map((q, j) => inputValues[j].indexOf(input.find(same(q))!.value)));
+      lines.push(`def firstOnly${a}X${b} : Input → Value := ${witness(p.onlyFirst!)}`, `def secondOnly${a}X${b} : Input → Value := ${witness(p.onlySecond!)}`, "",
+        ...theorem("A situation admitted only by the first concept.", `firstOnly_${a}_${b}`, `firstOnly${a}X${b} ∈ admits ${relation(a)} (accepts acceptable) ∧ firstOnly${a}X${b} ∉ admits ${relation(b)} (accepts acceptable)`, "by decide +kernel"),
+        ...theorem("A situation admitted only by the second concept.", `secondOnly_${a}_${b}`, `secondOnly${a}X${b} ∈ admits ${relation(b)} (accepts acceptable) ∧ secondOnly${a}X${b} ∉ admits ${relation(a)} (accepts acceptable)`, "by decide +kernel"),
+        ...theorem("Neither concept admits every situation the other admits.", `incomparable_${a}_${b}`, `¬ AtLeastAsWeak (accepts acceptable) ${relation(a)} ${relation(b)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(b)} ${relation(a)}`, `incomparable_of_witnesses firstOnly_${a}_${b}.1 firstOnly_${a}_${b}.2 secondOnly_${a}_${b}.1 secondOnly_${a}_${b}.2`));
+      certifies.push({ theorem: `${ns}.incomparable_${a}_${b}`, verdict: `weaknessRanking: '${concepts[a].id}' and '${concepts[b].id}' are incomparable` });
+      continue;
+    }
     const [w, s] = p.order === "first-weaker" ? [a, b] : [b, a];
     lines.push(
       ...theorem(`\`weaknessRanking\`: concept ${w} admits every situation concept ${s} admits, and one it does not.`,
@@ -673,54 +697,99 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
       { theorem: `${ns}.count_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' admits strictly more situations than '${concepts[s].id}'` },
     );
   }
-  return { ok: true, namespace: ns, content: assemble("strict inclusions of a weakness ranking", ns, [lines]), certifies };
+  return certified({ kind: "weakness", concepts, acceptable, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.priors !== undefined ? { priors: opts.priors } : {}), ...(opts.jointPrior !== undefined ? { jointPrior: opts.jointPrior } : {}) }, ns, assemble("all pairs of a weakness ranking", ns, [lines]), certifies);
+}
+
+type DecidedDynamics = Extract<ReturnType<typeof boundedDynamics>, { decided: true }>;
+/** Independently enumerate the step relation from rows, then prove state-only inductive safety.
+Successor valuations are arbitrary in Sync.Step, so the invariant deliberately contains ALL
+valuations of each selected global state; a BFS list of valid configurations would not be closed. */
+function dynamicsInvariantCertificate(model: FunctionModel, spec: DynamicsSpec, ns: string, r: DecidedDynamics): Certificate {
+  const targets = [...spec.unsafe ?? [], ...spec.safe ?? []];
+  if (targets.some((c) => !("state" in c))) return fail([issue("not-certifiable", "$.model", "this safety-invariant certificate requires state-only targets", "Port-target unreachability requires a saturated escalation without safe predicates; bounded-only port safety is not certified.")]);
+  if (r.escalation?.verdict === "undecided" || r.invariance?.verdict === "violated" || r.invariance?.verdict === "undecided") return fail([issue("not-certifiable", "$.model", "no negative dynamics verdict can be certified", "Provide a state-only invariant or an unreachable unsafe target.")]);
+  const composed = r.composed.map((id) => model.boxes.find((b) => b.id === id)!);
+  const ports = encodedPorts(composed), at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
+  const names = (p: number) => model.carriers.find((c) => c.id === ports[p].carrier)!.values!;
+  const values = Math.max(1, ...ports.map((_, p) => names(p).length)), machines = r.machines;
+  const states = Math.max(1, ...machines.map((m) => m.states.length));
+  const rows = rowTables(composed, ports, at, (p, v) => names(p).indexOf(v));
+  for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
+  const wires = encodedWires(model, at);
+  const stateCount = states ** machines.length, valueCount = values ** ports.length;
+  const work = rowWork(stateCount ** 2 * valueCount, rows.length, ports.length, wires.length);
+  if (!Number.isFinite(work) || work > MAX_CERT_ROWS) return fail([issue("cap-exceeded", "$.model", `deciding inductive closure reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`, "Use fewer stateful boxes, ports, values, or rows.")]);
+  const tuples = (width: number, count: number) => Array.from({ length: width ** count }, (_, n) => { let k = n; return Array.from({ length: count }, () => { const x = k % width; k = Math.floor(k / width); return x; }); });
+  const ss = tuples(states, machines.length), vv = tuples(values, ports.length);
+  const fits = (row: typeof rows[number], st: number[], vl: number[], next: number[]) => row.fixes.every((fixed, p) => !fixed || vl[p] === row.values[p]) && (row.mach === undefined || (st[row.mach] === row.state && next[row.mach] === row.next));
+  const step = (st: number[], next: number[]) => vv.some((vl) => wires.every((w) => vl[w.src!] === vl[w.tgt]) && composed.every((_, b) => rows.some((row) => row.box === b && fits(row, st, vl, next))));
+  const initial = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length && m.initial.includes(m.states[s])));
+  const reached = new Set(ss.flatMap((st, i) => st.every((s, m) => initial[m][s]) ? [i] : []));
+  const queue = [...reached]; for (let i = 0; i < queue.length; i++) for (let j = 0; j < ss.length; j++) if (!reached.has(j) && step(ss[queue[i]], ss[j])) { reached.add(j); queue.push(j); }
+  const table = (conditions: NonNullable<DynamicsSpec["safe"]>) => machines.map((m) => Array.from({ length: states }, (_, s) => conditions.filter((c) => c.box === m.box && "state" in c).every((c) => "state" in c && c.state.includes(m.states[s]))));
+  const unsafe = spec.unsafe && table(spec.unsafe), safe = spec.safe && table(spec.safe);
+  if ((unsafe && [...reached].some((i) => ss[i].every((s, m) => unsafe[m][s]))) || (safe && [...reached].some((i) => ss[i].some((s, m) => !safe[m][s])))) return fail([issue("not-certifiable", "$.horizon", "the independently closed state set does not establish an invariant; only the bounded horizon verdict holds", "Bounded-layer certificates are not implemented; increase the horizon to find the later counterexample, or read the bounded verdict without a certificate.")]);
+  const lines = ["/-! ## Independently derived state invariant -/", "", `abbrev Machine := ${fin(machines.length)}`, `abbrev State := ${fin(states)}`, `abbrev Value := ${fin(values)}`,
+    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values),
+    `def machineId : Machine → String := ${vec(machines.map((m) => leanString(m.box)))}`,
+    `def stateId : Machine → State → String := ${nested(machines.map((m) => padded(m.states.map(leanString), states)), (x) => x)}`,
+    `def rowMachine : Row → Option Machine := ${vec(rows.map((row) => row.mach === undefined ? "none" : `some ${row.mach}`))}`,
+    `def rowState : Row → State := ${vec(rows.map((row) => row.state))}`, `def rowNext : Row → State := ${vec(rows.map((row) => row.next))}`,
+    "def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩",
+    `def initial : Machine → State → Bool := ${nested(initial, String)}`,
+    `def invariantStates : List (Machine → State) := [${[...reached].sort((a,b) => a-b).map((i) => vec(ss[i])).join(", ")}]`,
+    "abbrev invariant : Set ((Machine → State) × (Port → Value)) := {c | c.1 ∈ invariantStates}", "",
+    ...theorem("Every initial configuration is in the invariant.", "invariantInitial", "system.starts initial ⊆ invariant", "by intro a ha; revert a; decide +kernel"),
+    ...theorem("The actual row-derived step relation preserves the invariant, including every successor valuation.", "invariantClosed", "Closed system.Step invariant", "by rintro ⟨s, v⟩ hs ⟨t, w⟩ h; exact (show ∀ s v t, s ∈ invariantStates → system.Step (s, v) (t, v) → t ∈ invariantStates from by decide +kernel) s v t hs h")];
+  const certifies: Certified[] = [];
+  if (unsafe) {
+    lines.push(`def unsafeState : Machine → State → Bool := ${nested(unsafe, String)}`, "",
+      ...theorem("The invariant misses every unsafe state.", "invariantDisjoint", "Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true}", "Set.disjoint_left.mpr (by decide +kernel)"),
+      ...theorem("No initial run reaches an unsafe state at any finite time.", "unreachable", "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)", "by intro a ha n b h hb; exact unreachable_of_invariant invariantInitial invariantClosed invariantDisjoint n a ha b hb h"));
+    certifies.push({ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: the state-only unsafe target is unreachable at every horizon" });
+  }
+  if (safe) {
+    lines.push(`def safeState : Machine → State → Bool := ${nested(safe, String)}`, "",
+      ...theorem("Every invariant state meets the safe state conditions.", "invariantSafe", "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true", "by decide +kernel"),
+      ...theorem("Every initial run meets the safe state conditions at every finite time.", "safetyInvariant", "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ∀ m, safeState m (b.1 m) = true", "by intro a ha n b h; exact invariantSafe b (closed_reachIn invariantClosed (invariantInitial ha) n h)"));
+    certifies.push({ theorem: `${ns}.safetyInvariant`, verdict: "boundedDynamics: the state-only safe conditions are invariant at every horizon" });
+  }
+  return certified({ kind: "dynamics", model, spec }, ns, assemble("state-only inductive safety", ns, [lines]), certifies);
 }
 
 type Comparison = Extract<ReturnType<typeof compareBehavior>, { ok: true }>;
 
-/**
- * Certificate of a `triz_behavior` comparison whose verdict is `preserved`: the concept's
- * input→deliverable relation equals the baseline's, and is not empty. Both models' composed rows
- * are the data, as weakness certificates encode them, each in its own namespace and its own box
- * ids. The situations are the union of both models' boundary inputs in the baseline's ids (the
- * concept's renamed through `box_map`); each model reads its own, and an input only one reads
- * ranges over that model's declared values. The deliverables are the baseline's; the concept is
- * composed for those alone, so `gainedDeliverables` stay out of the relation, as in the kernel.
- * Fails closed on any other verdict, and past MAX_CERT_ROWS: deciding enumerates every valuation
- * of each model's ports.
+/** Relation equality (including nonemptiness), or a member/nonmember witness, over aligned row tables.
+ * Models retain their own ids; inputs use baseline ids, and only baseline deliverables are observed.
+ * Scope, box-map transport, one-sided input domains and the exact request are bound in the manifest.
  */
-export function behaviorCertificate(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number; namespace?: string } = {}): Certificate {
+export function behaviorCertificate(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number; scope?: BehaviorScope; namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
   if (typeof ns !== "string") return ns;
-  const r = compareBehavior(baseline, concept, { boxMap: opts.boxMap, maxStates: opts.maxStates });
-  return r.ok ? preservedCertificate(baseline, concept, opts.boxMap ?? {}, r, ns) : r;
+  const r = compareBehavior(baseline, concept, opts);
+  return r.ok ? comparisonCertificate(baseline, concept, opts, r, ns) : r;
 }
 
-/** Certificate of a trim's `preserved` verdict (triz_behavior with trim): the model against its own trim (applyTrim). */
-export function trimCertificate(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, { box: string; port: string }>; maxStates?: number }, opts: { namespace?: string } = {}): Certificate {
-  const ns = namespaceOf(opts);
-  if (typeof ns !== "string") return ns;
-  const r = trimPreservesBehavior(model, spec);
-  if (!r.ok) return r;
+/** Apply the declared trim, then certify its exact baseline/concept comparison in the selected scope. */
+export function trimCertificate(model: FunctionModel, spec: { trim: string[]; absorb?: Record<string, { box: string; port: string }>; maxStates?: number; scope?: BehaviorScope }, opts: { namespace?: string } = {}): Certificate {
   const applied = applyTrim(model, spec);
   if (!applied.ok) return applied;
-  return preservedCertificate(model, applied.model, {}, r, ns);
+  return behaviorCertificate(model, applied.model, { ...opts, maxStates: spec.maxStates, scope: spec.scope });
 }
 
-function preservedCertificate(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>, r: Comparison, ns: string): Certificate {
-  if (r.verdict !== "preserved") {
-    return fail([issue("not-certifiable", "$.model", `the verdict is ${r.verdict} (${r.reason}): only a preserved verdict is certified`,
-      r.verdict === "changed"
-        ? "Read the counterexample without a certificate: it names the input and the outputs only one model has."
-        : "Decide the comparison first (declare the missing behaviour, or check the loops when neither model has a steady state); only an equality is certified.")]);
+function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, opts: { boxMap?: Record<string, string>; maxStates?: number; scope?: BehaviorScope }, r: Comparison, ns: string): Certificate {
+  if (r.verdict === "undecided" || (r.verdict === "changed" && r.reason !== "counterexample")) {
+    return fail([issue("not-certifiable", "$.model", `the verdict is ${r.verdict} (${r.reason}): no row-relation verdict can be certified`,
+      "Declare missing behavior and preserve the compared deliverable interface; equality of empty relations is not a preserved verdict.")]);
   }
+  const boxMap = opts.boxMap ?? {};
   const align = alignment(baseline, concept, boxMap);
   if (!align.ok) return align;
   const situations = r.inputs, deliverables = r.deliverables;
   const key = (d: { box: string; port: string; carrier: string }) => JSON.stringify([d.box, d.port, d.carrier]);
   const offered = new Map(deliverablePorts(concept).map((d) => [key(align.toBaseline(d)), d]));
   const observed = deliverables.map((d) => offered.get(key(d)));
-  if (observed.some((d) => !d)) return fail([issue("internal-error", "$.model", "a preserved concept lacks a baseline deliverable", "Report this with the models; the kernel's verdict and its certificate disagree.")]);
+  if (observed.some((d) => !d)) return fail([issue("internal-error", "$.model", "a compared concept lacks a baseline deliverable", "Report this with the models; the kernel's verdict and its certificate disagree.")]);
 
   // Value indices: one order per carrier id, the sorted union of its values in both models, so a
   // situation or deliverable is read the same way in both and every equality compares one order.
@@ -731,7 +800,7 @@ function preservedCertificate(baseline: FunctionModel, concept: FunctionModel, b
     { name: "Baseline", doc: "the baseline (`compare_to`, or the model before its trim)", model: baseline, observe: deliverables, toBaseline: (box: string) => box },
     { name: "Concept", doc: "the concept (`model`, or the model after its trim)", model: concept, observe: observed.map((d) => d!), toBaseline: (box: string) => align.toBaseline({ box, port: "", carrier: "" }).box },
   ].map((side) => {
-    const composed = behaviorPlan(side.model, side.observe).composed;
+    const composed = behaviorPlan(side.model, side.observe, { scope: opts.scope }).composed;
     const ports = encodedPorts(composed, side.observe);
     const at = new Map(ports.map((p, i) => [portKeyOf(p.box, p.side, p.port), i]));
     const wires = encodedWires(side.model, at);
@@ -751,8 +820,8 @@ function preservedCertificate(baseline: FunctionModel, concept: FunctionModel, b
   // An input ranges over the values its carrier declares in the baseline when the baseline reads it, else in the concept.
   const declaredInput = situations.map((q, j) => sides.find((s) => s.reads[j] >= 0)!.model.carriers.find((x) => x.id === q.carrier)!.values ?? []);
   const work = sides.reduce((n, s) => n + rowWork(values ** (situations.length + deliverables.length + s.ports.length), s.rows.length, s.ports.length, s.wires.length), 0);
-  if (work > MAX_CERT_ROWS) {
-    return fail([issue("cap-exceeded", "$.model", `deciding the equality reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
+  if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
+    return fail([issue("cap-exceeded", "$.model", `deciding the ${r.verdict === "preserved" ? "equality" : "relation comparison"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
       "Certify smaller models: fewer ports or values on the composed boxes. The decision enumerates every valuation of each model's ports.")]);
   }
 
@@ -789,17 +858,24 @@ function preservedCertificate(baseline: FunctionModel, concept: FunctionModel, b
       "",
     );
   }
-  lines.push(
-    "/-! ## Verdicts -/",
-    "",
-    ...theorem("`compareBehavior`: the concept relates every situation to exactly the deliverable values the baseline does, decided over every situation and valuation.",
-      "preserved", `${relation("Baseline")} = ${relation("Concept")}`, "by funext u y; apply propext; revert u y; decide +kernel"),
-    ...theorem("`compareBehavior`: the relations are not empty: some situation has a steady state, so the equality is not vacuous.",
-      "nonempty", `∃ u y, ${relation("Baseline")} u y`, "by decide +kernel"),
-  );
-  const certifies: Certified[] = [
-    { theorem: `${ns}.preserved`, verdict: "compareBehavior: preserved, the input→deliverable relations are equal" },
-    { theorem: `${ns}.nonempty`, verdict: "compareBehavior: the relations are not empty" },
-  ];
-  return { ok: true, namespace: ns, content: assemble("a preserved input→deliverable relation", ns, [lines]), certifies };
+  lines.push("/-! ## Verdicts -/", "");
+  const certifies: Certified[] = [];
+  if (r.verdict === "preserved") {
+    lines.push(
+      ...theorem("`compareBehavior`: the concept relates every situation to exactly the deliverable values the baseline does, decided over every situation and valuation.",
+        "preserved", `${relation("Baseline")} = ${relation("Concept")}`, "by funext u y; apply propext; revert u y; decide +kernel"),
+      ...theorem("`compareBehavior`: the relations are not empty: some situation has a steady state, so the equality is not vacuous.",
+        "nonempty", `∃ u y, ${relation("Baseline")} u y`, "by decide +kernel"),
+    );
+    certifies.push(
+      { theorem: `${ns}.preserved`, verdict: "compareBehavior: preserved, the input→deliverable relations are equal" },
+      { theorem: `${ns}.nonempty`, verdict: "compareBehavior: the relations are not empty" },
+    );
+  } else {
+    const [a, b] = r.counterexample.onlyBaseline.length ? ["Baseline", "Concept"] : ["Concept", "Baseline"];
+    lines.push(...theorem("A pair belongs to one relation and does not belong to the other.", "behaviorChanged", `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`, "by decide +kernel"));
+    certifies.push({ theorem: `${ns}.behaviorChanged`, verdict: "compareBehavior: a pair belongs to only one declared input-output relation" });
+  }
+  const request: CertificateRequest = { kind: "behavior", baseline, concept, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.boxMap !== undefined ? { boxMap: opts.boxMap } : {}) };
+  return certified(request, ns, assemble("one behavior comparison", ns, [lines]), certifies);
 }

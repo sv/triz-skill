@@ -2,7 +2,7 @@
 export interface Message { severity: "error" | "warning" | "info"; line: number; text: string; }
 /** `batched`: the run shared one Lean process with others (runLocalBatch). */
 export interface Run { mode: "local" | "remote"; messages: Message[]; toolProblems: string[]; info?: unknown; batched?: boolean; }
-export interface Verdict { ok: boolean; mode: "local" | "remote" | "grammar"; certified: string[]; problems: string[]; info?: unknown; }
+export interface Verdict { ok: boolean; mode: "local" | "remote" | "grammar" | "binding"; certified: string[]; problems: string[]; info?: unknown; }
 export interface Variant { name: string; content: string; mustFail: string[]; }
 type Mode = { mode?: "local" | "remote" };
 export interface TamperVerdict { ok: boolean; mode: "local" | "remote"; failed: number; problems: string[]; }
@@ -30,3 +30,7 @@ export function checkAll(items: { certificates?: string[]; tampered?: Variant[] 
 export function tamperVariants(content: string): Variant[];
 export function checkTampered(variant: Variant, opts?: Mode): Promise<TamperVerdict>;
 export function rejected(variant: Variant, run: Run): TamperVerdict;
+
+export function checkCorrespondence(content: string, request: import("../src/act-cert.js").CertificateRequest): string[];
+export function bindRequest(content: string, request: import("../src/act-cert.js").CertificateRequest): string[];
+export function checkRequest(content: string, request: import("../src/act-cert.js").CertificateRequest, opts?: Mode): Promise<Verdict>;

@@ -541,7 +541,7 @@ export function fromHypergraph(h: OpenHypergraph): { ok: true; model: FunctionMo
   return check.ok ? { ok: true, model } : { ok: false, errors: check.errors };
 }
 
-export const CERTIFICATE_NOTE = "Lean checks these verdicts for this one instance; nothing is extracted. Save as a .lean file and, in a checkout of github.com/sv/triz-skill, run `node scripts/certify.mjs <file>`: Lean against theory/ once it is built. Only with --remote does it send the file, and so the model, to the AXLE service (which you then trust). The id tables are the encoding; read them to see that the data is your model.";
+export const CERTIFICATE_NOTE = "Generated Lean certificate: check the listed claims and source correspondence with `node scripts/certify.mjs --local --tamper --request request.json <file>`. The manifest binds the authoritative request and records scope and pins; generation alone is not successful proof checking. Local Lean uses theory/; without a build the checker stops. Only explicit --remote sends the certificate and its model data to AXLE, which you then trust. Nothing is extracted and no physical declaration is empirically validated.";
 
 const DOT_NOTE = "Render with Graphviz: dot -Tsvg model.dot > model.svg (or -Tpng). Boxes show name, «role» (header colour), input ports left and output ports right with their carriers; open ports in italics. Functions: harmful red, insufficient dashed, excessive bold; flows dotted blue. The legend lists what occurs.";
 const MERMAID_NOTE = "Paste into a ```mermaid block: GitHub, GitLab, and many chat clients render it as is (or use the Mermaid CLI). Mermaid has no ports, so each edge names its ports and carrier; use format dot to see ports. Functions: harmful red, insufficient dashed, excessive thick; flows dotted blue.";
@@ -581,7 +581,7 @@ export function exportModel(model: FunctionModel, format: ExportFormat) {
   if (!check.ok) return fail(check.issues);
   if (format === "lean") {
     const cert = modelCertificate(model);
-    return cert.ok ? { ok: true as const, format, content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } : cert;
+    return cert.ok ? { ok: true as const, format, content: cert.content, certifies: cert.certifies, manifest: cert.manifest, note: CERTIFICATE_NOTE } : cert;
   }
   if (format === "dot") return { ok: true as const, format, content: toDot(model), note: DOT_NOTE };
   if (format === "mermaid") return { ok: true as const, format, content: toMermaid(model), note: MERMAID_NOTE };

@@ -4,10 +4,10 @@ name: Lean
 on:
   push:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   pull_request:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
   workflow_dispatch:
 

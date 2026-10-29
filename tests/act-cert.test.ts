@@ -30,7 +30,7 @@ import { supportConcept, supportConcepts, SUPPORT_ACCEPTABLE } from "./support/c
 import { toolSpecs } from "../src/tools.js";
 // triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
 import "../src/data.js";
-import { accept, batchFile, check, checkAll, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
+import { accept, batchFile, bindRequest, check, checkAll, checkCorrespondence, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -55,6 +55,7 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
 };
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
+const tables = (c: Certificate) => content(c).replace(/^def certificateManifest : String := .*\n/m, "");
 const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
 const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
 
@@ -227,15 +228,26 @@ test("without local Lean, nothing is sent to AXLE unless --remote is given", () 
     assert.equal(cli.status, 2, cli.stdout + cli.stderr);
     assert.match(cli.stderr, /lake build.*--remote/s);
     assert.doesNotMatch(cli.stdout + cli.stderr, /Sending data|Checking locally|AXLE info|AXLE \d/);
-    // The library has no fallback either: without mode "remote", check, checkTampered, and checkAll throw rather than fetch.
+    const conflicting = spawnSync(process.execPath, [script, "--local", "--remote", "--request", path.join(home, "missing.json"), fixturePath("SoftwareCache")], { env, encoding: "utf8" });
+    assert.equal(conflicting.status, 2, conflicting.stdout + conflicting.stderr);
+    assert.match(conflicting.stderr, /usage:.*--request/);
+    assert.doesNotMatch(conflicting.stdout + conflicting.stderr, /Sending data|ENOENT/);
+    // Request-bound checks inherit the same explicit opt-in; staleness checking never opts in.
+    const request = { kind: "model", model: { domain: "software", carriers: [], boxes: [], wires: [] } } as const;
+    const bound = modelCertificate({ ...request.model, carriers: [], boxes: [], wires: [] });
+    assert.ok(bound.ok);
+    // The library has no fallback either: without mode "remote", check, checkTampered, checkAll, and checkRequest throw rather than fetch.
     const probe = `globalThis.fetch = () => { throw new Error("fetch called"); };
       const m = await import(${JSON.stringify(pathToFileURL(script).href)});
       const src = (await import("node:fs")).readFileSync(${JSON.stringify(fixturePath("SoftwareCache"))}, "utf8");
-      for (const run of [() => m.check(src), () => m.checkTampered(m.tamperVariants(src)[0]), () => m.checkAll({ certificates: [src], tampered: m.tamperVariants(src) })]) {
-        try { await run(); console.log("checked"); } catch (e) { console.log(e.message === m.NO_LOCAL_LEAN ? "refused" : e.message); }
+      const bound = ${JSON.stringify(bound.content)}, request = ${JSON.stringify(request)};
+      for (const mode of [undefined, "remote"]) {
+        for (const run of [() => m.check(src, {mode}), () => m.checkTampered(m.tamperVariants(src)[0], {mode}), () => m.checkAll({ certificates: [src], tampered: m.tamperVariants(src) }, {mode}), () => m.checkRequest(bound, request, {mode})]) {
+          try { await run(); console.log("checked"); } catch (e) { console.log(e.message === m.NO_LOCAL_LEAN ? "refused" : e.message); }
+        }
       }`;
     const lib = spawnSync(process.execPath, ["--input-type=module", "-e", probe], { env, encoding: "utf8" });
-    assert.equal(lib.stdout, "refused\nrefused\nrefused\n", lib.stdout + lib.stderr);
+    assert.equal(lib.stdout, "refused\nrefused\nrefused\nrefused\nfetch called\nfetch called\nfetch called\nfetch called\n", lib.stdout + lib.stderr);
   } finally {
     fs.rmSync(home, { recursive: true, force: true });
   }
@@ -413,8 +425,9 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   const m = example("bearing-heat-dynamics");
   const fails = (c: Certificate) => (c.ok ? "" : c.errors.join("; "));
   assert.match(fails(dynamicsCertificate(m, {})), /pass unsafe/);
-  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /the escalation is unreachable-within-horizon: only a reachable escalation, which a trace witnesses, or an unreachable one, which an invariant witnesses/);
-  assert.match(fails(dynamicsCertificate(damped(), { unsafe: HOT, horizon: 1 })), /the escalation is unreachable-within-horizon/, "a bound within the horizon has no invariant, however the search would end");
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /only the bounded horizon verdict holds/);
+  assert.ok(dynamicsCertificate(damped(), { unsafe: HOT }).ok);
+  assert.ok(dynamicsCertificate(damped(), { unsafe: HOT, horizon: 1 }).ok, "the independent state closure can establish an all-horizons invariant beyond a bounded search");
   assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, inputs: [[], [], []] })), /an input sequence indexes the runs by time/);
   // A run that blocks where the unsafe set's port conditions have no value leaves the verdict undecided.
   const stuckHot = example("bearing-heat-dynamics");
@@ -448,16 +461,16 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   assert.match(fails(dynamicsCertificate(wide, { unsafe: HOT })), new RegExp(`past the certificate limit of ${MAX_CERT_ROWS}`));
 });
 
-test("a weakness certificate states each strictly ordered pair, and only those", () => {
+test("a weakness certificate states strict, equal, and incomparable pairs", () => {
   const concepts = supportConcepts();
   const r = weaknessRanking(concepts, SUPPORT_ACCEPTABLE);
   assert.ok(r.ok && r.verdict === "ranked");
   const c = weaknessCertificate(concepts, SUPPORT_ACCEPTABLE);
   assert.ok(c.ok);
-  // ball and bushing are incomparable: no theorem; each is strictly weaker than tight.
+  // Opposed witnesses certify ball and bushing are incomparable; each is strictly weaker than tight.
   assert.deepEqual(r.pairs.map((p) => p.order), ["incomparable", "first-weaker", "first-weaker"]);
-  assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_0_2", "TrizCertificate.count_0_2", "TrizCertificate.weaker_1_2", "TrizCertificate.count_1_2"]);
-  assert.match(c.certifies[0].verdict, /'ball' is strictly weaker than 'tight'/);
+  assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.incomparable_0_1", "TrizCertificate.weaker_0_2", "TrizCertificate.count_0_2", "TrizCertificate.weaker_1_2", "TrizCertificate.count_1_2"]);
+  assert.match(c.certifies[1].verdict, /'ball' is strictly weaker than 'tight'/);
   assert.match(c.content, /^namespace Concept2$/m);
   assert.match(c.content, /^def conceptId : String := "tight"$/m);
   assert.match(c.content, /^theorem count_1_2 : \(admitted \(accepts acceptable\) \(Concept2\.rows\.relation inputDomain Concept2\.reads Concept2\.delivers\)\)\.card < /m);
@@ -468,23 +481,23 @@ test("a weakness certificate states each strictly ordered pair, and only those",
     for (const k of x.model.carriers) if (k.values) k.values = [...k.values].reverse();
     return x;
   });
-  assert.equal(content(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), c.content);
+  assert.equal(tables(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), tables(c));
   // Acceptability given per carrier, or as a threshold through the carrier's levels: the same table.
   const byCarrier = weaknessCertificate(concepts, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", values: ["supported"] }]);
-  assert.equal(content(byCarrier), c.content);
+  assert.equal(tables(byCarrier), tables(c));
   const levelled = supportConcepts().map((x) => {
     x.model.carriers.find((k) => k.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
     return x;
   });
-  assert.equal(content(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), c.content);
+  assert.equal(tables(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), tables(c));
   // second-weaker pairs name the weaker concept first.
   const flipped = weaknessCertificate([concepts[2], concepts[0]], SUPPORT_ACCEPTABLE);
   assert.ok(flipped.ok);
   assert.deepEqual(flipped.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_1_0", "TrizCertificate.count_1_0"]);
 
   const fails = (x: Certificate) => (x.ok ? "" : x.errors.join("; "));
-  assert.match(fails(weaknessCertificate([concepts[0], concepts[1]], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
-  assert.match(fails(weaknessCertificate([concepts[0], { id: "again", model: concepts[0].model }], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
+  assert.ok(weaknessCertificate([concepts[0], concepts[1]], SUPPORT_ACCEPTABLE).ok);
+  assert.ok(weaknessCertificate([concepts[0], { id: "again", model: concepts[0].model }], SUPPORT_ACCEPTABLE).ok);
   const unknown = structuredClone(concepts[1]);
   delete unknown.model.boxes.find((b) => b.id === "support")!.behavior;
   assert.match(fails(weaknessCertificate([concepts[0], unknown], SUPPORT_ACCEPTABLE)), /the ranking is undecided/);
@@ -504,14 +517,14 @@ test("triz_dynamics and triz_weakness return certificates, or the reason there i
   const none = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, certificate: true });
   assert.equal(none.escalation.verdict, "unreachable-within-horizon");
   assert.deepEqual(none.certificate.ok, false);
-  assert.match(none.certificate.errors.join(), /only a reachable escalation/);
+  assert.match(none.certificate.errors.join(), /only the bounded horizon verdict holds/);
   assert.equal((await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT })).certificate, undefined);
 
   const weak = await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
   assert.equal(weak.verdict, "ranked");
   assert.equal(weak.certificate.content, content(weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE)));
   const incomparable = await call("triz_weakness", { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
-  assert.match(incomparable.certificate.errors.join(), /no pair is strictly ordered/);
+  assert.equal(incomparable.certificate.format, "lean");
   assert.equal((await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE })).certificate, undefined);
 });
 
@@ -640,22 +653,31 @@ function stuck(): FunctionModel {
 /** Cold with high friction: cold expands nominally, so the bearing's friction is low there. */
 const COLD_FRICTION = [{ box: "shaft", state: ["cold"] }, { box: "bearing", port: "friction", values: ["high"] }];
 
-test("an unreachable certificate states the reached global states as an inductive invariant", () => {
+test("an unreachable certificate states a closed invariant and distinguishes state-only from admitted targets", () => {
   const r = boundedDynamics(damped(), { unsafe: HOT });
   assert.ok(r.ok && r.decided && r.escalation?.verdict === "unreachable");
   assert.deepEqual(r.escalation.basis, ["reachWithin_iff_trace", "reachWithin_saturated", "unreachable_of_invariant"]);
   const c = dynamicsCertificate(damped(), { unsafe: HOT });
   assert.ok(c.ok);
-  assert.deepEqual(c.certifies, [{ theorem: "TrizCertificate.unreachable", verdict: "boundedDynamics: no run reaches the unsafe set, at any horizon" }]);
-  assert.match(c.content, /^theorem unreachable : ∀ n, ∀ a ∈ system\.starts initial, ∀ b ∈ system\.target unsafeState unsafeValue, ¬ reachIn system\.Step n a b :=$/m);
-  assert.match(c.content, /^def invariant : Fin 2 → Machine → State := !\[!\[0\], !\[1\]\]$/m, "cold and warm, the states the search reached");
-  assert.match(c.content, /unreachable_of_invariant \(system\.starts_subset_holding/);
+  assert.deepEqual(c.certifies, [{ theorem: "TrizCertificate.unreachable", verdict: "boundedDynamics: the state-only unsafe target is unreachable at every horizon" }]);
+  assert.match(c.content, /^theorem unreachable : ∀ a ∈ system\.starts initial, ∀ n b, reachIn system\.Step n a b → ¬ \(∀ m, unsafeState m \(b\.1 m\) = true\) :=$/m);
+  assert.match(c.content, /^def invariantStates : List \(Machine → State\) := \[!\[0\], !\[1\]\]$/m, "cold and warm, with every valuation included");
+  assert.match(c.content, /unreachable_of_invariant invariantInitial invariantClosed invariantDisjoint/);
   assert.doesNotMatch(c.content, /^def trace /m);
   assert.deepEqual(lint(c.content), []);
-  // The data is the escalation certificate's: the same rows, but for the next states the damping changes.
-  const escalating = content(dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT }));
-  const data = (x: string) => x.slice(x.indexOf("abbrev Machine"), x.indexOf("\n/--", x.indexOf("def unsafeValue"))).replace(/^def rowNext .*$/m, "");
-  assert.equal(data(c.content), data(escalating));
+  // An admitted port target uses the saturated reached-state table and Consistent target.
+  const admitted = dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] });
+  assert.ok(admitted.ok);
+  assert.match(admitted.content, /^theorem unreachable : ∀ n, ∀ a ∈ system\.starts initial, ∀ b ∈ system\.target unsafeState unsafeValue, ¬ reachIn system\.Step n a b :=$/m);
+  assert.match(admitted.content, /^def invariant : Fin 2 → Machine → State := !\[!\[0\], !\[1\]\]$/m);
+  assert.deepEqual(lint(admitted.content), []);
+  // PR39 also permits a safe-state query beside this unsafe port target; only escalation is certified.
+  const combinedSpec = { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }], safe: [{ box: "shaft", state: ["cold", "warm"] }] };
+  const combined = dynamicsCertificate(damped(), combinedSpec);
+  assert.ok(combined.ok);
+  assert.deepEqual(combined.certifies, admitted.certifies);
+  assert.equal(combined.content.replace(/^def certificateManifest :.*$/m, ""), admitted.content.replace(/^def certificateManifest :.*$/m, ""));
+  assert.deepEqual(checkCorrespondence(combined.content, { kind: "dynamics", model: damped(), spec: combinedSpec }), []);
 
   // A blocked state is reached, so the invariant lists it: here the shaft blocks once hot.
   const blocked = boundedDynamics(stuck(), { unsafe: COLD_FRICTION });
@@ -666,6 +688,38 @@ test("an unreachable certificate states the reached global states as an inductiv
   // Without a stateful box, the one global state has no machine: a port condition no steady state meets.
   const stateless = dynamicsCertificate(example("bearing-heat-behavior"), { unsafe: [{ box: "bearing", port: "friction", values: ["high"] }, { box: "bearing", port: "preload-in", values: ["nominal"] }] });
   assert.match(content(stateless), /^def invariant : Fin 1 → Machine → State := !\[!\[\]\]$/m);
+});
+
+test("port-target invariant reconstruction reports an extra exploration cap without a false internal error", () => {
+  const model: FunctionModel = { domain: "software", carriers: [{ id: "bit", layer: "information", dimension: "bit", values: ["0", "1"] }], boxes: [
+    { id: "m", name: "Machine", role: "tool", state: ["a", "b", "c"], initial: ["a", "b"], outputs: [{ id: "o", carrier: "bit" }],
+      transition: [{ state: "c", next: "c", in: {}, out: { o: "0" } }] },
+  ], wires: [] };
+  const spec = { unsafe: [{ box: "m", state: ["c"] }, { box: "m", port: "o", values: ["1"] }], maxStates: 2 };
+  const result = boundedDynamics(model, spec);
+  assert.ok(result.ok && result.decided && result.escalation?.verdict === "unreachable" && result.blocked.count === 2);
+  const certificate = dynamicsCertificate(model, spec);
+  assert.ok(!certificate.ok);
+  assert.deepEqual(certificate.issues.map((i) => [i.code, i.path]), [["cap-exceeded", "$.max_states"]]);
+  assert.match(certificate.errors.join(), /reconstructing the invariant exceeds/);
+});
+
+test("aligned behavior certificates bind box maps and scope for equal and changed row relations", () => {
+  const baseline = copier(), split = splitCopier();
+  const productBehavior = ["0", "1"].flatMap((px) => ["0", "1"].map((py) => ({ in: { px, py }, out: {} })));
+  baseline.boxes.find((b) => b.id === "p")!.behavior = productBehavior;
+  split.model.boxes.find((b) => b.id === "p")!.behavior = productBehavior;
+  const options = { boxMap: split.boxMap, scope: "whole" as const };
+  const request = { kind: "behavior" as const, baseline, concept: split.model, ...options };
+  const preserved = content(behaviorCertificate(baseline, split.model, options));
+  assert.deepEqual(checkCorrespondence(preserved, request), []);
+  assert.match(checkCorrespondence(preserved, { ...request, boxMap: {} }).join(), /manifest source/);
+  assert.match(checkCorrespondence(preserved, { ...request, scope: "upstream" }).join(), /manifest (source|scope)/);
+  for (const row of split.model.boxes.find((b) => b.id === "s1")!.behavior!) row.out.x = row.out.x === "0" ? "1" : "0";
+  const changed = content(behaviorCertificate(baseline, split.model, options));
+  assert.match(changed, /^theorem behaviorChanged : ∃ u y, Baseline\.rows\.relation .* ∧ ¬ Concept\.rows\.relation .* :=$/m);
+  assert.deepEqual(lint(changed), []);
+  assert.deepEqual(checkCorrespondence(changed, request), []);
 });
 
 test("a behaviour certificate states a preserved verdict: equal relations, not empty", () => {
@@ -706,7 +760,7 @@ test("a behaviour certificate states a preserved verdict: equal relations, not e
   assert.match(gained.content, /^def deliverableId : Deliverable → String := !\["shaft\.drive", "shaft\.support"\]$/m);
 
   const fails = (x: Certificate) => (x.ok ? "" : x.errors.join("; "));
-  assert.match(fails(behaviorCertificate(copier(), split.model)), /the verdict is changed \(counterexample\): only a preserved verdict is certified/);
+  assert.ok(behaviorCertificate(copier(), split.model).ok, "a changed row relation has a member/nonmember certificate");
   const blank = example("bearing-heat-behavior");
   delete blank.boxes.find((b) => b.id === "housing")!.behavior;
   assert.match(fails(trimCertificate(blank, BEARING_TRIM)), /the verdict is undecided \(missing-behavior\)/);
@@ -736,18 +790,19 @@ test("triz_dynamics and triz_behavior return unreachable and preserved certifica
   assert.equal(mapped.certificate.content, content(behaviorCertificate(copier(), split.model, { boxMap: split.boxMap })));
   const changed = await call("triz_behavior", { model: split.model, compare_to: copier(), certificate: true });
   assert.equal(changed.verdict, "changed");
-  assert.match(changed.certificate.errors.join(), /only a preserved verdict is certified/);
-  assert.match((await call("triz_behavior", { model: bearing, certificate: true })).certificate.errors.join(), /needs compare_to or trim/);
+  assert.equal(changed.certificate.content, content(behaviorCertificate(copier(), split.model)));
+  assert.deepEqual(changed.certificate.certifies.map((x: { theorem: string }) => x.theorem), ["TrizCertificate.behaviorChanged"]);
+  assert.match((await call("triz_behavior", { model: bearing, certificate: true })).certificate.errors.join(), /needs a decided comparison or applied trim/);
   const hole = example("bearing-heat-behavior");
   delete hole.boxes.find((b) => b.id === "housing")!.behavior;
   const spec = await call("triz_behavior", { model: hole, trim: ["bearing"], weakest_spec: true, certificate: true });
   assert.equal(spec.ok, true);
-  assert.match(spec.certificate.errors.join(), /weakest specification is not certified/);
+  assert.match(spec.certificate.errors.join(), /residual certification is not implemented/);
   assert.equal((await call("triz_behavior", { model: bearing, trim: ["bearing"] })).certificate, undefined);
 });
 
 test("the tamper variants of an unreachable certificate fill the unsafe set instead of emptying it", () => {
-  const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
+  const d = content(dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "BearingDamped" }));
   assert.deepEqual(tamperVariants(d).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["BearingDamped.unreachable"]], ["the unsafe set filled", ["BearingDamped.unreachable"]]]);
   assert.match(tamperVariants(d)[1].content, /^def unsafeState : Machine → State → Bool := !\[!\[true, true, true\]\]$/m);
   const e = fs.readFileSync(fixturePath("BearingEscalation"), "utf8");
@@ -759,7 +814,7 @@ test("the tamper variants of an unreachable certificate fill the unsafe set inst
 });
 
 test("the checker's grammar pins the unreachable and preserved verdicts", () => {
-  const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
+  const d = content(dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "BearingDamped" }));
   const t = fs.readFileSync(fixturePath("BearingTrim"), "utf8");
   assert.deepEqual([lint(d), lint(t)], [[], []]);
   const tampers: Record<string, string> = {
@@ -777,7 +832,7 @@ test("the checker's grammar pins the unreachable and preserved verdicts", () => 
 });
 
 leanTest("Lean rejects an invariant that is not closed or meets the unsafe set, and a concept whose relation changed", async () => {
-  const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
+  const d = content(dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "BearingDamped" }));
   const t = fs.readFileSync(fixturePath("BearingTrim"), "utf8");
   const concept = t.indexOf("namespace Concept\n");
   const variants = [
@@ -797,7 +852,10 @@ leanTest("Lean accepts unreachable and preserved certificates of blocked runs, s
   const hostile = hostileDynamics();
   for (const r of hostile.boxes.find((b) => b.transition)!.transition!) if (r.state === "h😀" || (r.state === "w-/" && r.in["heat-in"] === "high")) r.next = "w-/";
   const split = splitCopier();
+  const changed = splitCopier();
+  for (const row of changed.model.boxes.find((b) => b.id === "s1")!.behavior!) row.out.x = row.out.x === "0" ? "1" : "0";
   const parts = [
+    behaviorCertificate(copier(), changed.model, { boxMap: changed.boxMap, namespace: "ChangedMapped" }),
     dynamicsCertificate(stuck(), { unsafe: COLD_FRICTION }, { namespace: "Blocked" }),
     dynamicsCertificate(example("bearing-heat-behavior"), { unsafe: [{ box: "bearing", port: "friction", values: ["high"] }, { box: "bearing", port: "preload-in", values: ["nominal"] }] }, { namespace: "Stateless" }),
     dynamicsCertificate(hostile, { unsafe: [{ box: "s -/ #exit /- \"x\"", state: ["h😀"] }] }, { namespace: "HostileDamped" }),
@@ -813,4 +871,36 @@ leanTest("Lean accepts unreachable and preserved certificates of blocked runs, s
   assert.ok(r.ok, r.problems.join("\n"));
   assert.equal(r.certified.length, theorems(combined).length);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
+});
+
+/** A bit through one box into a product, each output per input as `output` says (as in tests/act-cert-assurance.test.ts). */
+function bitThrough(output: (x: string) => string = (x) => x): FunctionModel {
+  return { domain: "software", carriers: [{ id: "bit", layer: "information", dimension: "bit", values: ["0", "1"] }], boxes: [
+    { id: "f", name: "Function", role: "tool", inputs: [{ id: "x", carrier: "bit" }], outputs: [{ id: "y", carrier: "bit" }], behavior: ["0", "1"].map((x) => ({ in: { x }, out: { y: output(x) } })) },
+    { id: "p", name: "Product", role: "product", inputs: [{ id: "in", carrier: "bit" }], behavior: ["0", "1"].map((x) => ({ in: { in: x }, out: {} })) },
+  ], wires: [{ id: "w", from: { box: "f", port: "y" }, to: { box: "p", port: "in" }, carrier: "bit", polarity: "useful" }] };
+}
+/** A machine that stays safe; later and bad are declared but unreachable. */
+function safeMachine(): FunctionModel {
+  return { domain: "software", carriers: [], boxes: [{ id: "m", name: "Machine", role: "tool", state: ["safe", "later", "bad"], initial: ["safe"], transition: [
+    { state: "safe", next: "safe", in: {}, out: {} }, { state: "later", next: "bad", in: {}, out: {} }, { state: "bad", next: "bad", in: {}, out: {} },
+  ] }], wires: [] };
+}
+
+leanTest("Lean accepts whole-scope behaviour, equal and incomparable weakness, and state-only safety certificates, and rejects their tampered copies", async () => {
+  const bit = [{ carrier: "bit", values: ["1"] }];
+  const a = bitThrough(), b = bitThrough((x) => (x === "0" ? "1" : "0"));
+  const texts = [
+    behaviorCertificate(a, a, { scope: "whole", namespace: "WholePreserved" }),
+    behaviorCertificate(a, b, { scope: "whole" }),
+    weaknessCertificate([{ id: "a", model: a }, { id: "b", model: a }], bit, { namespace: "EqualPair" }),
+    weaknessCertificate([{ id: "a", model: a }, { id: "b", model: b }], bit, { namespace: "IncomparablePair" }),
+    dynamicsCertificate(safeMachine(), { unsafe: [{ box: "m", state: ["bad"] }], safe: [{ box: "m", state: ["safe"] }] }, { namespace: "StateOnlySafe" }),
+  ].map(content);
+  const variants = texts.flatMap(tamperVariants);
+  const { certificates, tampered } = await checkAll({ certificates: texts, tampered: variants }, { mode: "local" });
+  for (const r of certificates) assert.ok(r.ok, r.problems.join("\n"));
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
+  // The changed comparison Lean accepted above is the one bound to its request.
+  assert.deepEqual(bindRequest(texts[1], { kind: "behavior", baseline: a, concept: b, scope: "whole" }), []);
 });

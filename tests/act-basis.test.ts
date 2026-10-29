@@ -152,7 +152,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   collect(await call("triz_weakness", { concepts: [{ id: "a", model: levelled }, { id: "b", model: levelled }], acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }, { carrier: "radial-load", at_least: 2500 }] }));
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
-    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "incomparable_of_witnesses", "card_lt_of_strictly_weaker",
     "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band",
     "trapped_reachIn", "closed_reachIn", "recurrent_reach", "covers_feasible_iff", "not_covers_feasible_iff", "required_row_of_eq",
     "safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff",
@@ -166,7 +166,7 @@ test("every basis cited by any tool output names a listed theorem", async () => 
  * be cited or listed.
  */
 test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
-  const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
+  const sanity = ["admits_incomparable", "relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
     "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans",
     // Helpers of the two-box statements the kernel cites, and dynamics read as behaviour, which the kernel does not compute.
     "PreservesUnions₂.mono", "le_safeRows_iff", "concept_safe", "relTrace_mealyRel_iff", "relTrace_mealyRel_fixed",

@@ -1758,4 +1758,11 @@ example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
   have := (h 0 3).mpr bot_le
   exact absurd this (by decide)
 
+/-! ## Generic opposed witnesses -/
+example :
+    ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) ∧
+      ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = !u) (fun u y => y = u) :=
+  incomparable_of_witnesses (u := true) (v := false)
+    (by decide) (by decide) (by decide) (by decide)
+
 end CategoricalTriz.Witnesses

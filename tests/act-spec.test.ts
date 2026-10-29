@@ -614,7 +614,7 @@ test("weakness ranking: inclusion first, incomparable pairs with a witness each 
   ]);
   assert.deepEqual(r.pairs, [
     { concepts: ["ball", "bushing"], order: "incomparable", onlyFirst: [{ box: "support", port: "lube", value: "oiled" }, { box: "support", port: "temp", value: "hot" }],
-      onlySecond: [{ box: "support", port: "lube", value: "dry" }, { box: "support", port: "temp", value: "normal" }], basis: ["admits_incomparable"] },
+      onlySecond: [{ box: "support", port: "lube", value: "dry" }, { box: "support", port: "temp", value: "normal" }], basis: ["incomparable_of_witnesses"] },
     { concepts: ["ball", "tight"], order: "first-weaker", onlyFirst: [{ box: "support", port: "lube", value: "oiled" }, { box: "support", port: "temp", value: "hot" }], basis: ["card_lt_of_strictly_weaker"] },
     { concepts: ["bushing", "tight"], order: "first-weaker", onlyFirst: [{ box: "support", port: "lube", value: "dry" }, { box: "support", port: "temp", value: "normal" }], basis: ["card_lt_of_strictly_weaker"] },
   ]);
