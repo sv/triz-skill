@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.sv/triz",
   "title": "TRIZ",
-  "description": "Deterministic, read-only TRIZ knowledge: parameters, principles, matrix, tool routing, effects.",
-  "version": "0.3.0",
+  "description": "Deterministic, read-only TRIZ: matrix, principles, effects, routing, type-checked function models.",
+  "version": "0.4.0",
   "repository": {
     "url": "https://github.com/sv/triz-skill.git",
     "source": "github"
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "triz-mcp",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"

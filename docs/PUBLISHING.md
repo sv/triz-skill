@@ -49,7 +49,9 @@ Release flow:
 
 3. The Release workflow runs two jobs:
    - `publish` checks that all three versions match the tag, runs typecheck, build, tests, and
-     the smoke test, then runs `pnpm publish` via OIDC and creates the GitHub release.
+     the smoke test, then runs `pnpm publish` via OIDC and creates the GitHub release. It skips
+     the upload when the version is already on npm, so re-running it after a later step failed
+     is safe.
    - `mcp-registry` then publishes `server.json`, using a pinned, Sigstore-verified
      `mcp-publisher`. Re-run this job on its own if the registry hiccups.
 
