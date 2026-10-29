@@ -23,6 +23,12 @@
 import { z } from "zod";
 
 const Id = z.string().min(1);
+/**
+ * Resource-dimension key. JSON Schema validators reject `__proto__` through this pattern; zod's
+ * record parser drops that key before validating it (never touching the prototype), so it can
+ * neither reach nor pollute the kernel's per-dimension dictionaries.
+ */
+const Dim = z.string().min(1).regex(/^(?!__proto__$)/, "'__proto__' is not a usable dimension name");
 
 export const Polarity = z.enum(["useful", "insufficient", "excessive", "harmful"])
   .describe("TRIZ function rating: useful at the right level, useful but insufficient, useful but excessive, or harmful");
@@ -52,7 +58,7 @@ export const Box = z.strictObject({
   action: z.string().optional().describe("Main action verb, e.g. 'support', 'route', 'monetize'"),
   inputs: z.array(Port).optional(),
   outputs: z.array(Port).optional(),
-  cost: z.record(z.string(), z.number().nonnegative()).optional()
+  cost: z.record(Dim, z.number().nonnegative()).optional()
     .describe("Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together"),
 }).meta({ id: "Box" });
 
@@ -98,9 +104,9 @@ export const FunctionModel = z.strictObject({
   carriers: z.array(Carrier),
   boxes: z.array(Box),
   wires: z.array(Wire),
-  budget: z.record(z.string(), z.number().nonnegative()).optional()
+  budget: z.record(Dim, z.number().nonnegative()).optional()
     .describe("Resource limit per cost dimension"),
-  weights: z.record(z.string(), z.number().positive()).optional()
+  weights: z.record(Dim, z.number().positive()).optional()
     .describe("Explicit normalization to a scalar ideality: one weight per cost dimension plus 'harmful'"),
   contradictions: z.array(PhysicalContradiction).optional(),
 });
@@ -124,6 +130,17 @@ const inputs = (b: Box) => b.inputs ?? [];
 const outputs = (b: Box) => b.outputs ?? [];
 const NEGATIVE: ReadonlySet<Polarity> = new Set(["harmful", "excessive"]);
 const SUPERSYSTEM: ReadonlySet<string> = new Set(["environment", "supersystem"]);
+
+/** Own-property lookup: dimension names are user data, so never read inherited keys like `constructor`. */
+const own = (dict: Record<string, number> | undefined, key: string): number | undefined =>
+  dict && Object.hasOwn(dict, key) ? dict[key] : undefined;
+
+/** Sum per-dimension costs into a Map, then emit a plain object whose keys are all own. */
+function sumCosts(costs: Iterable<Record<string, number> | undefined>): Record<string, number> {
+  const total = new Map<string, number>();
+  for (const c of costs) for (const [dim, v] of Object.entries(c ?? {})) total.set(dim, (total.get(dim) ?? 0) + v);
+  return Object.fromEntries(total);
+}
 
 function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
@@ -190,8 +207,8 @@ function stronglyConnected(nodes: string[], adj: Map<string, string[]>): string[
   return out;
 }
 
-/** Shortest path from `start` to `goal` inside `within` (BFS, sorted neighbours). */
-function shortestPath(start: string, goal: string, adj: Map<string, string[]>, within: Set<string>): string[] {
+/** Shortest path from `start` to `goal` inside `within` (BFS, sorted neighbours); [] if unreachable. */
+export function shortestPath(start: string, goal: string, adj: Map<string, string[]>, within: Set<string>): string[] {
   const prev = new Map<string, string | null>([[start, null]]);
   const queue = [start];
   while (queue.length) {
@@ -201,6 +218,7 @@ function shortestPath(start: string, goal: string, adj: Map<string, string[]>, w
       if (within.has(w) && !prev.has(w)) { prev.set(w, v); queue.push(w); }
     }
   }
+  if (!prev.has(goal)) return [];
   const path: string[] = [];
   for (let v: string | null = goal; v !== null; v = prev.get(v) ?? null) path.unshift(v);
   return path;
@@ -236,17 +254,23 @@ export function harmLoops(model: FunctionModel): HarmLoop[] {
     loops.push({
       boxes: scc,
       negative: negative.map((w) => w.id),
-      cycles: negative.map((w) => ({ via: w.id, path: [w.from.box, ...shortestPath(w.to.box, w.from.box, adj, members)] })),
+      cycles: negative.map((w) => {
+        const back = shortestPath(w.to.box, w.from.box, adj, members);
+        // Same-SCC membership guarantees a return path; never emit a witness without one.
+        if (!back.length) throw new Error(`harmLoops invariant: no return path ${w.to.box} → ${w.from.box} for '${w.id}'`);
+        return { via: w.id, path: [w.from.box, ...back] };
+      }),
     });
   }
   return loops.sort((a, b) => a.boxes[0].localeCompare(b.boxes[0]));
 }
 
-const deliverableKey = (w: Wire) => `${w.to.box}:${w.carrier}`;
+/** A product function is identified by the product box, the input port it arrives on, and its carrier. */
+const deliverableKey = (w: Wire) => JSON.stringify([w.to.box, w.to.port, w.carrier]);
 
 export interface IdealityProfile {
   functions: Record<Polarity, number>;
-  deliverables: Array<{ key: string; box: string; carrier: string; polarity: Polarity }>;
+  deliverables: Array<{ key: string; box: string; port: string; carrier: string; polarity: Polarity }>;
   costs: Record<string, number>;
   budget?: { overBudget: string[]; unbudgeted: string[]; withinBudget: boolean };
   ratio: { computable: true; value: number; formula: string } | { computable: false; reason: string };
@@ -264,28 +288,27 @@ export function idealityProfile(model: FunctionModel): IdealityProfile {
   const products = new Set(model.boxes.filter((b) => b.role === "product").map((b) => b.id));
   const deliverables = model.wires
     .filter((w) => w.polarity !== "harmful" && products.has(w.to.box))
-    .map((w) => ({ key: deliverableKey(w), box: w.to.box, carrier: w.carrier, polarity: w.polarity }))
+    .map((w) => ({ key: deliverableKey(w), box: w.to.box, port: w.to.port, carrier: w.carrier, polarity: w.polarity }))
     .sort((a, b) => a.key.localeCompare(b.key));
-  const costs: Record<string, number> = {};
-  for (const b of model.boxes) for (const [dim, v] of Object.entries(b.cost ?? {})) costs[dim] = (costs[dim] ?? 0) + v;
+  const costs = sumCosts(model.boxes.map((b) => b.cost));
   const dims = Object.keys(costs).sort();
 
   const profile: IdealityProfile = { functions, deliverables, costs, ratio: { computable: false, reason: "" } };
   if (model.budget) {
-    const overBudget = dims.filter((d) => d in model.budget! && costs[d] > model.budget![d]);
-    const unbudgeted = dims.filter((d) => !(d in model.budget!));
+    const overBudget = dims.filter((d) => (own(model.budget, d) ?? Infinity) < costs[d]);
+    const unbudgeted = dims.filter((d) => own(model.budget, d) === undefined);
     profile.budget = { overBudget, unbudgeted, withinBudget: !overBudget.length && !unbudgeted.length };
   }
-  const missing = [...dims, "harmful"].filter((d) => !(d in (model.weights ?? {})));
+  const missing = [...dims, "harmful"].filter((d) => own(model.weights, d) === undefined);
   if (missing.length) {
     profile.ratio = {
       computable: false,
       reason: `no explicit weight for ${missing.map((d) => `'${d}'`).join(", ")}; costs in different dimensions are not summed. Compare models with compareIdeality instead.`,
     };
   } else {
-    const w = model.weights!;
+    const weight = (d: string) => own(model.weights, d)!;
     const useful = functions.useful + functions.insufficient + functions.excessive;
-    const denominator = dims.reduce((s, d) => s + w[d] * costs[d], 0) + w.harmful * functions.harmful;
+    const denominator = dims.reduce((s, d) => s + weight(d) * costs[d], 0) + weight("harmful") * functions.harmful;
     profile.ratio = denominator === 0
       ? { computable: false, reason: "no costs and no harmful functions: the ratio is unbounded" }
       : { computable: true, value: useful / denominator, formula: "useful functions / (Σ weight·cost + weight_harmful·harmful functions)" };
@@ -312,7 +335,7 @@ export function compareIdeality(baseline: FunctionModel, concept: FunctionModel)
   const axis = (name: string, x: number, y: number) => { if (y < x) better.push(name); else if (y > x) worse.push(name); };
   axis("harmful", a.functions.harmful, b.functions.harmful);
   axis("defective", a.functions.insufficient + a.functions.excessive, b.functions.insufficient + b.functions.excessive);
-  for (const d of [...new Set([...Object.keys(a.costs), ...Object.keys(b.costs)])].sort()) axis(`cost:${d}`, a.costs[d] ?? 0, b.costs[d] ?? 0);
+  for (const d of [...new Set([...Object.keys(a.costs), ...Object.keys(b.costs)])].sort()) axis(`cost:${d}`, own(a.costs, d) ?? 0, own(b.costs, d) ?? 0);
   if (gainedDeliverables.length) better.push("deliverables");
   const verdict: Verdict = !before.size ? "indeterminate"
     : lostDeliverables.length ? "concept-loses-functions"
@@ -370,8 +393,7 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
   });
   const orphaned = functions.filter((f) => f.rule === null).map((f) => f.wire);
   const touching = model.wires.filter((w) => trimmed.has(w.from.box) || trimmed.has(w.to.box));
-  const costRelief: Record<string, number> = {};
-  for (const id of trim) for (const [dim, v] of Object.entries(boxes.get(id)!.cost ?? {})) costRelief[dim] = (costRelief[dim] ?? 0) + v;
+  const costRelief = sumCosts(trim.map((id) => boxes.get(id)!.cost));
   const verb = (wire: string) => model.wires.find((w) => w.id === wire)!.verb ?? "perform its function on";
   const trimmedNames = trim.map(name).join(" and ");
   return {
@@ -398,9 +420,10 @@ const MAX_CELLS = 10_000;
  * region of the space × time × condition × direction × level base (omitted axis = whole axis).
  * The axes are MATRIZ's five separation types; `condition` is its "relation (conditions)". A parameter
  * assignment satisfying every demand exists iff every cell's active demands share a value; on a
- * finite discrete base no cohomology is needed to decide it. For each pair of demands with no
- * common value, the axes on which their regions are disjoint are the separation principles that
- * apply; a pair overlapping on every axis is irreducible at this resolution.
+ * finite discrete base no cohomology is needed to decide it. It is a physical contradiction iff
+ * no single value meets every demand — pairwise compatibility is not enough. For each pair of
+ * demands with no common value, the axes on which their regions are disjoint are the separation
+ * principles that apply; a pair overlapping on every axis is irreducible at this resolution.
  */
 export function separationCheck(pc: PhysicalContradiction) {
   const errors: string[] = [];
@@ -437,19 +460,20 @@ export function separationCheck(pc: PhysicalContradiction) {
     const admissible = active.reduce<string[] | null>((acc, d) => (acc === null ? [...d.values] : acc.filter((v) => d.values.includes(v))), null);
     if (admissible !== null && !admissible.length) conflictCells.push({ cell, demands: active.map((d) => d.id) });
   }
-  const contradictory = pairs.some((p) => p.status !== "compatible");
+  const sharedValues = pc.demands.slice(1).reduce((acc, d) => acc.filter((v) => d.values.includes(v)), [...pc.demands[0].values]);
   return {
     ok: true as const,
     parameter: pc.parameter,
-    contradiction: contradictory || conflictCells.length > 0,
+    contradiction: sharedValues.length === 0,
     gluable: conflictCells.length === 0,
+    sharedValues,
     pairs,
     conflictCells: conflictCells.slice(0, 50),
     conflictCellCount: conflictCells.length,
-    route: !contradictory && !conflictCells.length
-      ? "No opposing demands: a value satisfies every demand. Not a physical contradiction; choose that value."
+    route: sharedValues.length
+      ? `Not a physical contradiction: ${sharedValues.map((v) => `'${v}'`).join(", ")} satisfies every demand; choose it.`
       : !conflictCells.length
-        ? "Demands are already separated: assign the parameter piecewise along the separating axes."
+        ? "No single value satisfies every demand, but each cell's demands agree: assign the parameter piecewise, along the separating axes where pairs name them and cell by cell otherwise."
         : "Irreducible on the conflict cells at this resolution: refine an axis (finer zones, intervals, conditions), try separation between system levels, or escalate to ARIZ.",
   };
 }
@@ -462,12 +486,20 @@ export function analyseModel(model: FunctionModel, compareTo?: FunctionModel) {
     const base = checkModel(compareTo);
     if (!base.ok) return { ok: false as const, errors: base.errors.map((e) => `compare_to: ${e}`) };
   }
+  const separation = [];
+  const separationErrors: string[] = [];
+  for (const pc of model.contradictions ?? []) {
+    const r = separationCheck(pc);
+    if (r.ok) separation.push({ id: pc.id, ...r });
+    else separationErrors.push(...r.errors.map((e) => `contradiction '${pc.id}': ${e}`));
+  }
+  if (separationErrors.length) return { ok: false as const, errors: separationErrors };
   return {
     ok: true as const,
     domain: model.domain,
     harmLoops: harmLoops(model),
     ideality: idealityProfile(model),
-    separation: (model.contradictions ?? []).map((pc) => ({ id: pc.id, ...separationCheck(pc) })),
+    separation,
     comparison: compareTo ? compareIdeality(compareTo, model) : undefined,
     note: "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.",
   };

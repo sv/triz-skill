@@ -39,7 +39,9 @@
       "description": "Resource limit per cost dimension",
       "type": "object",
       "propertyNames": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!__proto__$)"
       },
       "additionalProperties": {
         "type": "number",
@@ -50,7 +52,9 @@
       "description": "Explicit normalization to a scalar ideality: one weight per cost dimension plus 'harmful'",
       "type": "object",
       "propertyNames": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^(?!__proto__$)"
       },
       "additionalProperties": {
         "type": "number",
@@ -145,7 +149,9 @@
           "description": "Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together",
           "type": "object",
           "propertyNames": {
-            "type": "string"
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
           },
           "additionalProperties": {
             "type": "number",

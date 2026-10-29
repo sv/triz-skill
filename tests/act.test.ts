@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   FunctionModel, checkModel, harmLoops, idealityProfile, compareIdeality, trimCandidates, separationCheck,
-  analyseModel, functionModelJsonSchema, type PhysicalContradiction,
+  analyseModel, functionModelJsonSchema, shortestPath, type PhysicalContradiction,
 } from "../src/act.js";
 import { toolSpecs } from "../src/tools.js";
 
@@ -260,4 +260,89 @@ test("kernel tools are registered and answer over the shared spec", async () => 
   for (const name of ["triz_function_model", "triz_trim", "triz_separate"]) assert.ok(specs[name], name);
   const out = JSON.parse((await specs.triz_trim.handler({ model: example("bearing-heat"), trim: ["bearing"] })).content[0].text);
   assert.equal(out.verdict, "typed-feasible");
+});
+
+// Review regressions (PR #4).
+
+test("deliverables are per product port: dropping one of two same-carrier inputs loses a function", () => {
+  const base: FunctionModel = {
+    domain: "physical",
+    carriers: [{ id: "force", layer: "energy", dimension: "N" }],
+    boxes: [
+      { id: "lifter", name: "Lifter", role: "tool", outputs: [{ id: "up", carrier: "force" }], cost: { usd: 10 } },
+      { id: "clamp", name: "Clamp", role: "tool", outputs: [{ id: "grip", carrier: "force" }], cost: { usd: 10 } },
+      { id: "part", name: "Part", role: "product", inputs: [{ id: "lift", carrier: "force" }, { id: "clamp", carrier: "force" }] },
+    ],
+    wires: [
+      { id: "w-lift", from: { box: "lifter", port: "up" }, to: { box: "part", port: "lift" }, carrier: "force", polarity: "useful" },
+      { id: "w-clamp", from: { box: "clamp", port: "grip" }, to: { box: "part", port: "clamp" }, carrier: "force", polarity: "useful" },
+    ],
+  };
+  const concept = clone(base);
+  concept.wires = concept.wires.filter((w) => w.id !== "w-clamp");
+  concept.boxes = concept.boxes.filter((b) => b.id !== "clamp");
+  const c = compareIdeality(base, concept);
+  assert.equal(c.verdict, "concept-loses-functions");
+  assert.deepEqual(c.lostDeliverables, [JSON.stringify(["part", "clamp", "force"])]);
+});
+
+test("cost dimensions are own keys: 'constructor' is just a name, '__proto__' never reaches the kernel", () => {
+  const m = example("bearing-heat");
+  m.boxes.find((b) => b.id === "housing")!.cost = { constructor: 10 };
+  m.budget = undefined;
+  m.weights = { harmful: 1 };
+  const p = idealityProfile(m);
+  assert.equal(p.costs.constructor, 10);
+  assert.equal(p.ratio.computable, false);
+  if (!p.ratio.computable) assert.match(p.ratio.reason, /'constructor'/);
+
+  m.weights = { harmful: 1, constructor: 1, usd_unit: 1, service_h_year: 1 };
+  const q = idealityProfile(m);
+  assert.ok(q.ratio.computable && Number.isFinite(q.ratio.value));
+
+  const relief = trimCandidates(m, ["housing", "bearing"]);
+  assert.ok(relief.ok);
+  assert.deepEqual(relief.costRelief, { constructor: 10, usd_unit: 18, service_h_year: 2 });
+
+  const plain = example("bearing-heat");
+  assert.ok(compareIdeality(plain, m).better.length >= 0);
+  assert.ok(!compareIdeality(m, plain).worse.includes("cost:constructor"));
+
+  const raw = JSON.parse(JSON.stringify(example("bearing-heat")));
+  raw.boxes[0].cost = JSON.parse('{"__proto__": 5, "usd_unit": 1}');
+  const parsed = FunctionModel.parse(raw).boxes[0].cost!;
+  assert.deepEqual(Object.keys(parsed), ["usd_unit"]);
+  assert.equal(Object.getPrototypeOf(parsed), Object.prototype);
+  const schema = functionModelJsonSchema() as any;
+  assert.equal(schema.$defs.Box.properties.cost.propertyNames.pattern, "^(?!__proto__$)");
+});
+
+test("separation: pairwise-compatible demands in separate cells need a piecewise assignment", () => {
+  const r = separationCheck(pc([
+    { id: "a", values: ["x", "y"], time: ["morning"] },
+    { id: "b", values: ["y", "z"], time: ["noon"] },
+    { id: "c", values: ["x", "z"], time: ["night"] },
+  ]));
+  assert.ok(r.ok);
+  assert.ok(r.pairs.every((p) => p.status === "compatible"));
+  assert.deepEqual(r.sharedValues, []);
+  assert.equal(r.contradiction, true);
+  assert.equal(r.gluable, true);
+  assert.match(r.route, /piecewise/);
+  assert.doesNotMatch(r.route, /choose it/);
+});
+
+test("witness paths fail closed: an unreachable goal yields no path, never a one-node witness", () => {
+  const adj = new Map([["a", ["b"]], ["b", []]]);
+  assert.deepEqual(shortestPath("b", "a", adj, new Set(["a", "b"])), []);
+  assert.deepEqual(shortestPath("a", "b", adj, new Set(["a", "b"])), ["a", "b"]);
+  assert.deepEqual(shortestPath("a", "a", adj, new Set(["a"])), ["a"]);
+});
+
+test("an invalid embedded contradiction fails the whole analysis", () => {
+  const m = example("bearing-heat");
+  m.contradictions![0].demands[1].id = m.contradictions![0].demands[0].id;
+  const r = analyseModel(m);
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.deepEqual(r.errors, ["contradiction 'clearance': duplicate demand id 'precision'"]);
 });

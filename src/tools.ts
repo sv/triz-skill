@@ -95,7 +95,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_function_model",
-      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison. Any dangling, mis-directed, or mistyped wire fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
+      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison. Any dangling, mis-directed, or mistyped wire, or an invalid embedded contradiction, fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
       shape: {
         model: act.FunctionModel.describe("The model to analyse (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),
