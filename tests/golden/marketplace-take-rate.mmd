@@ -1,0 +1,17 @@
+---
+title: "Two-sided marketplace raising its take rate (working translation; loop is a hypothesis to test)"
+---
+flowchart LR
+  classDef tool fill:#d6e4f5,color:#111,stroke:#333
+  classDef product fill:#d5ecd4,color:#111,stroke:#333,stroke-width:3px
+  classDef mediator fill:#e8e8e8,color:#111,stroke:#333
+  b0["Marketplace platform<br/>«tool»"]:::tool
+  b1["Merchants (supply side)<br/>«mediator»"]:::mediator
+  b2["Consumers (demand side)<br/>«product»"]:::product
+  b0 -- "send orders to<br/>match → orders-in : orders" --> b1
+  b0 == "charge [excessive]<br/>charge → fee-in : fee" ==> b1
+  b1 -- "offer listings to<br/>list → browse : listings" --> b2
+  b1 -- "pass fees on to [harmful]<br/>markup → pay : price" --> b2
+  b2 -. "spend through [insufficient]<br/>spend → revenue : gmv" .-> b0
+  linkStyle 3 stroke:#c00,color:#c00,stroke-width:2px
+  linkStyle 4 stroke-dasharray:6 4

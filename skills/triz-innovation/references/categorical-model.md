@@ -33,7 +33,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; over the main parameters of value only with `mpv_weights`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; sanity lemma, never cited: `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
-| Drawing the model | Graphviz DOT, or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
+| Drawing the model | Graphviz DOT (ports drawn), a Mermaid flowchart (ports named on edges), or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
 | Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate`, `triz_dynamics`, and `triz_weakness` with `certificate`; checked by Lean (`scripts/certify.mjs`) | `Wiring.Typed`, `Wiring.Acts`, `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`; row tables `Sync.Step`, `Rows.relation` with `reach_of_trace`, `AtLeastAsWeak`, `card_lt_of_strictly_weaker` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend` |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_overlay`, `typed_dpo` |
@@ -201,9 +201,9 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    future is that column's model, ready to pass on to another tool, and a reached present
    equals its snapshot up to order. On `ok: false` the grid also carries top-level `errors` and
    `issues`, collected from the invalid windows and transitions.
-7. **Share.** Use `triz_export` for a DOT drawing or the hypergraph form. With `compare_to`,
-   `triz_function_model` also reports whether the two models have the same wiring shape. Use
-   format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
+7. **Share.** Use `triz_export` for a DOT drawing, a Mermaid flowchart to paste into markdown, or
+   the hypergraph form. With `compare_to`, `triz_function_model` also reports whether the two
+   models have the same wiring shape. Use format `lean` for a certificate that Lean can check (see Certificates); `triz_separate`,
    `triz_dynamics`, and `triz_weakness` return one with `certificate: true`.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,

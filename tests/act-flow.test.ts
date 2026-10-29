@@ -6,6 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { FunctionModel, checkModel } from "../src/act.js";
 import { destutter, flowAnalysis, mapFlows, restrictFlows, stepsOf } from "../src/act-flow.js";
 import { merge } from "../src/act-principles.js";
@@ -257,6 +258,15 @@ test("exports carry flows: a lossless hypergraph round trip, and dotted DOT edge
   assert.deepEqual(fromHypergraph(JSON.parse(JSON.stringify(toHypergraph(m)))), { ok: true, model: m });
   const dot = toDot(m);
   assert.match(dot, /"valve-a" -> "valve-b" \[label="loop \(water\)", style="dotted"/);
+});
+
+test("DOT with flows renders with Graphviz (record shapes made dot drop flat flow edges)", (t) => {
+  if (spawnSync("dot", ["-V"]).error) { t.skip("graphviz not installed"); return; }
+  for (const m of [line(), requests()]) {
+    const r = spawnSync("dot", ["-Tplain"], { input: toDot(m) });
+    assert.equal(r.status, 0, r.stderr.toString());
+    assert.doesNotMatch(r.stderr.toString(), /warning|error/i, r.stderr.toString());
+  }
 });
 
 test("abstraction: each detailed flow passes along the map like a merge and is matched against the coarse flows", async () => {
