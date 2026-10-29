@@ -22,6 +22,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono` |
+| Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, escalating (a trap, with a shortest trace), oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `return_ge_two` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
@@ -46,7 +47,9 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    temperature, a queue length, or a balance. Call `triz_dynamics` with the unsafe set as
    `unsafe`. A `reachable` verdict comes with a shortest trace: the mechanism to substantiate,
    row by row. Model a damped concept and check that the set is `unreachable`, or pass a safe
-   set to check invariance (see [Declared dynamics](#declared-dynamics)).
+   set to check invariance (see [Declared dynamics](#declared-dynamics)). The result's `loops`
+   says whether the loop runs away into a trap, settles in one of several wells, or oscillates
+   (see [Loop classification](#loop-classification)).
 3. **Trim.** Call `triz_trim` with the boxes to remove. The output holds three things:
    - each orphaned function, which blocks the trim;
    - each absorber, ordered rule B (the object serves itself) and then rule C (another
@@ -223,10 +226,43 @@ the steady states. The agreement holds only at fixed points a run reaches. A run
 settle: a delay in a negation loop oscillates. A steady state may never be reached from the
 declared initial states. Nothing is claimed about convergence.
 
+### Loop classification
+
+Without `inputs`, `triz_dynamics` also classifies how the loops behave in the long run, in
+`loops`. It works on the reachable state graph: the global states of the boxes that declare
+`transition`, with an edge from s to s' when some step from s can move to s'. Steady-state
+`behavior` rows are never read as transitions: a model whose composed boxes declare no
+`transition` is not classified, and neither is one with `inputs`, whose runs vary with time.
+
+- **Exploration.** Breadth first, without a horizon, up to the cap. It starts from the initial
+  states and, when `safe` names states, from every state that meets the safe set's state
+  conditions. Past the cap the result says `complete: false`: every closed component it lists is
+  closed, but others may be missed.
+- **Closed components.** A strongly connected component is closed when no edge leaves it, so a
+  run that enters it never leaves. Each closed component settles (it has a fixed point, a state
+  that can step to itself), oscillates (a cycle and no fixed point), or blocks (one state with no
+  step, which is not classified).
+- **Classes.** Every class that applies is listed:
+  - `bistable`: fixed points in two or more closed components;
+  - `escalating`: a closed component meets the unsafe set, a trap. A shortest trace from a start
+    into it is the counterexample, and says whether it starts from an initial or a safe state;
+  - `oscillating`: a closed component with a cycle and no fixed point. The result gives one
+    shortest cycle, whose length is at least two, and the period, the gcd of the cycle lengths.
+    A period of 1 means cycles of coprime lengths, not a fixed point.
+
+  `none` means no closed component was found within the cap. A model whose only closed
+  component settles at one fixed point outside the unsafe set has no class. `harmLoops` lists
+  the harm loops through the stateful boxes; the classification is of the composite they run in.
+
+In `theory/`, `Closed` says no step leaves a set. Lean proves that a fixed point lies on a cycle
+(`fixed_on_cycle`), that a closed set holds every run that enters it at any number of steps
+(`closed_reachIn`), and that without a fixed point every return takes at least two steps
+(`return_ge_two`).
+
 In `bearing-heat-dynamics.json` the shaft has a temperature state. From `cold`, the
-heat → preload loop reaches `hot` in two steps. The tests also check a damped variant, where a
-warm shaft sheds the extra friction heat: there `hot` is unreachable, and `cold` or `warm` is
-invariant at any horizon.
+heat → preload loop reaches `hot` in two steps, and `hot` is a trap: the loop is `escalating`.
+The tests also check a damped variant, where a warm shaft sheds the extra friction heat: there
+`hot` is unreachable, `cold` or `warm` is invariant at any horizon, and the shaft settles warm.
 
 In `theory/`, `mealyStep` is one step of a machine under the admissible inputs, and `reachIn`
 and `reachWithin` are reachability in exactly and within n steps. Lean proves:
@@ -299,7 +335,9 @@ example cohort churn against fee changes. Name it only from that evidence.
 - Dynamics are finite and discrete. Smooth dynamics (ODEs, tangent bundles), controller
   synthesis, double categories, and profunctor coend formulas are not adopted. A `reachable`
   trace is a candidate mechanism whose rows must be substantiated. `unreachable` holds for the
-  rows and initial states as declared. Dynamics verdicts are not covered by the label-blindness
+  rows and initial states as declared. A loop class describes the declared state graph:
+  `escalating` means a closed component meets the unsafe set, not that a physical quantity
+  grows without bound. Dynamics verdicts are not covered by the label-blindness
   property tests, and traces break ties in declaration order.
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are

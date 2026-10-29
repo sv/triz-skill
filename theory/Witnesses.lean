@@ -162,7 +162,7 @@ any one hypothesis breaks it. Lemmas without hypotheses (`reachIn_iff_trace`,
 def succStep : ℕ → ℕ → Prop := fun a b => b = a + 1
 
 /-- Negation on `Bool`: from `false`, the reachable set `{false, true}` is complete after one step. -/
-def flip : Bool → Bool → Prop := fun a b => b = !a
+def negStep : Bool → Bool → Prop := fun a b => b = !a
 
 /-! ### `mealyStep_mono`
 
@@ -267,15 +267,15 @@ Negation on `Bool` from `false` meets the hypothesis at `k = 1`: two steps add n
 bound holds at a larger horizon. Without it, the successor relation from `0` reaches `1` within
 one step but not within zero. -/
 
-example : (∀ b, (∃ a ∈ ({false} : Set Bool), reachIn flip 2 a b) → ∃ a ∈ ({false} : Set Bool), reachWithin flip 1 a b) ∧
-    ∃ a ∈ ({false} : Set Bool), reachWithin flip 5 a true := by
+example : (∀ b, (∃ a ∈ ({false} : Set Bool), reachIn negStep 2 a b) → ∃ a ∈ ({false} : Set Bool), reachWithin negStep 1 a b) ∧
+    ∃ a ∈ ({false} : Set Bool), reachWithin negStep 5 a true := by
   refine ⟨?_, false, Set.mem_singleton _, 1, by norm_num, false, rfl, rfl⟩
   rintro b ⟨a, ha, c, ⟨d, hd, hdc⟩, hcb⟩
   rw [Set.mem_singleton_iff] at ha
   subst ha hd
   refine ⟨false, Set.mem_singleton _, 0, Nat.zero_le _, ?_⟩
   show false = b
-  simp only [flip] at hdc hcb
+  simp only [negStep] at hdc hcb
   rw [hcb, hdc]
   rfl
 
@@ -286,5 +286,55 @@ example : (∃ a ∈ ({0} : Set ℕ), reachWithin succStep 1 a 1) ∧
   rw [Set.mem_singleton_iff] at ha
   subst ha
   exact absurd (reachWithin_succStep h) (by norm_num)
+
+/-! ### `fixed_on_cycle`
+
+A self-loop is a cycle; without the self-loop hypothesis, the empty relation has no cycle. -/
+
+example : Relation.TransGen (fun a b : Bool => a = b) true true := fixed_on_cycle rfl
+
+example : ¬ Relation.TransGen (fun _ _ : Unit => False) () () := by
+  intro h
+  cases h with
+  | single h => exact h
+  | tail _ h => exact h
+
+/-! ### `closed_reachIn`
+
+`{true}` is closed under the identity step and holds the run. Without closedness, negation leaves
+`{false}` in one step. Without the start in the set, a closed set says nothing about the run. -/
+
+example : true ∈ ({true} : Set Bool) ∧ Closed (fun a b : Bool => a = b) {true} :=
+  ⟨Set.mem_singleton _, fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha⟩
+
+example : reachIn (fun a b : Bool => a = b) 3 true true ∧ true ∈ ({true} : Set Bool) :=
+  ⟨⟨true, ⟨true, ⟨true, rfl, rfl⟩, rfl⟩, rfl⟩,
+    closed_reachIn (C := {true}) (fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha) (Set.mem_singleton true) 3 ⟨true, ⟨true, ⟨true, rfl, rfl⟩, rfl⟩, rfl⟩⟩
+
+example : false ∈ ({false} : Set Bool) ∧ reachIn negStep 1 false true ∧ true ∉ ({false} : Set Bool) :=
+  ⟨Set.mem_singleton _, ⟨false, rfl, rfl⟩, by simp⟩
+
+example : Closed (fun a b : Bool => a = b) {true} ∧ reachIn (fun a b : Bool => a = b) 0 false false ∧
+    false ∉ ({true} : Set Bool) :=
+  ⟨fun (a : Bool) ha (b : Bool) (hb : a = b) => hb ▸ ha, rfl, by simp⟩
+
+/-! ### `return_ge_two`
+
+Negation on `Bool` has no fixed point and returns in two steps. Without `h`, the identity returns
+in one step. Without `hn`, every state returns in zero steps. Without `hc`, there is no return in
+one step to bound. -/
+
+example : (∀ s, ¬ negStep s s) ∧ reachIn negStep 2 false false ∧ 2 ≤ 2 :=
+  ⟨fun s h => by cases s <;> simp [negStep] at h, ⟨true, ⟨false, rfl, rfl⟩, rfl⟩,
+    return_ge_two (r := negStep) (fun s h => by cases s <;> simp [negStep] at h) (by norm_num) ⟨true, ⟨false, rfl, rfl⟩, rfl⟩⟩
+
+example : reachIn (fun a b : Bool => a = b) 1 true true ∧ ¬ 2 ≤ 1 := ⟨⟨true, rfl, rfl⟩, by norm_num⟩
+
+example : reachIn negStep 0 false false ∧ ¬ 2 ≤ 0 := ⟨rfl, by norm_num⟩
+
+example : (∀ s, ¬ negStep s s) ∧ ¬ reachIn negStep 1 false false :=
+  ⟨fun s h => by cases s <;> simp [negStep] at h, fun ⟨c, hc, h⟩ => by
+    subst hc
+    simp [negStep] at h⟩
 
 end CategoricalTriz.Witnesses

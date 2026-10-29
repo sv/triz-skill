@@ -410,3 +410,106 @@ test("triz_dynamics: snake-case arguments, the same verdicts, and fail-closed er
   assert.equal((await call({ model: damped(), safe: COOL })).invariance.verdict, "invariant");
   assert.equal((await call({ model: spacer(FOLLOWS), horizon: 4, separation: CLEARANCE })).separation.verdict, "realizable");
 });
+
+/** One stateless-port box whose state follows the given edges (several edges from a state are alternatives). */
+function graph(edges: Array<[from: string, to: string]>, initial: string[]): FunctionModel {
+  const states = [...new Set(edges.flat())];
+  return {
+    domain: "physical", carriers: [],
+    boxes: [{ id: "ball", name: "Ball", role: "product", state: states, initial, transition: edges.map(([s, n]) => ({ state: s, in: {}, next: n, out: {} })) }],
+    wires: [],
+  };
+}
+const TWO_WELLS: Array<[string, string]> = [["top", "left"], ["top", "right"], ["left", "left"], ["right", "right"]];
+/** A negation loop whose state is declared: the inverter emits the negation of its state and stores its input. */
+const inverter: FunctionModel = {
+  domain: "software",
+  carriers: [{ id: "bit", layer: "information", dimension: "bit", values: ["0", "1"] }],
+  boxes: [{ id: "inverter", name: "Inverter", role: "tool", inputs: [{ id: "x", carrier: "bit" }], outputs: [{ id: "y", carrier: "bit" }], state: ["0", "1"], initial: ["0"],
+    transition: ["0", "1"].flatMap((s) => ["0", "1"].map((x) => ({ state: s, in: { x }, next: x, out: { y: s === "0" ? "1" : "0" } }))) }],
+  wires: [{ id: "w-loop", from: { box: "inverter", port: "y" }, to: { box: "inverter", port: "x" }, carrier: "bit", polarity: "harmful" }],
+};
+
+test("loop classification: a two-well model is bistable", () => {
+  const r = run(graph(TWO_WELLS, ["top"]), {});
+  assert.ok(r.loops.classified);
+  assert.equal(r.loops.complete, true);
+  assert.deepEqual(r.loops.classes, ["bistable"]);
+  assert.deepEqual(r.loops.closed.map((c) => [c.states, c.kind]), [[[["left"]], "settles"], [[["right"]], "settles"]]);
+  assert.deepEqual(r.loops.bistable, { components: [0, 1], fixedPoints: [["left"], ["right"]], basis: ["fixed_on_cycle", "closed_reachIn"] });
+  // From a single well there is one closed component: settling is no class.
+  const left = run(graph(TWO_WELLS, ["left"]), {});
+  assert.ok(left.loops.classified);
+  assert.deepEqual(left.loops.classes, []);
+});
+
+test("loop classification: the bearing's heat → preload runaway is a trap; the damped bearing settles outside it", () => {
+  const r = run(escalating(), { unsafe: HOT });
+  assert.ok(r.loops.classified);
+  assert.deepEqual(r.loops.classes, ["escalating"]);
+  assert.deepEqual(r.loops.harmLoops, [{ boxes: ["bearing", "shaft"], negative: ["w-heat", "w-preload"] }]);
+  assert.deepEqual(r.loops.closed, [{ size: 1, states: [["hot"]], kind: "settles", fixedPoints: [["hot"]], unsafe: true }]);
+  const [trap] = r.loops.escalating!;
+  assert.equal(trap.from, "initial");
+  assert.deepEqual(trap.trace, r.escalation!.trace);
+  assert.deepEqual(trap.basis, ["closed_reachIn", "reach_of_trace"]);
+  const calm = run(damped(), { unsafe: HOT });
+  assert.ok(calm.loops.classified);
+  assert.deepEqual(calm.loops.classes, []);
+  assert.deepEqual(calm.loops.closed, [{ size: 1, states: [["warm"]], kind: "settles", fixedPoints: [["warm"]], unsafe: false }]);
+});
+
+test("loop classification: a negation loop with declared state oscillates with period 2", () => {
+  const r = run(inverter, {});
+  assert.ok(r.loops.classified);
+  assert.deepEqual(r.loops.classes, ["oscillating"]);
+  assert.deepEqual(r.loops.oscillating, [{ component: 0, period: 2, cycle: [["0"], ["1"], ["0"]], basis: ["closed_reachIn", "return_ge_two"] }]);
+  assert.equal(r.fixedPoints.count, 0);
+  // Cycles of lengths 2 and 3 and no fixed point: the period (their gcd) is 1, the shortest cycle still has length 2.
+  const mixed = run(graph([["a", "b"], ["b", "a"], ["b", "c"], ["c", "a"]], ["a"]), {});
+  assert.ok(mixed.loops.classified);
+  assert.deepEqual(mixed.loops.oscillating?.map((o) => [o.period, o.cycle]), [[1, [["a"], ["b"], ["a"]]]]);
+});
+
+test("loop classification: classes coexist, safe states are starts, and 'none' only when no closed component is found", () => {
+  const edges: Array<[string, string]> = [...TWO_WELLS, ["top", "ring1"], ["ring1", "ring2"], ["ring2", "ring1"]];
+  const all = run(graph(edges, ["top"]), { unsafe: [{ box: "ball", state: ["right"] }] });
+  assert.ok(all.loops.classified);
+  assert.deepEqual(all.loops.classes, ["bistable", "escalating", "oscillating"]);
+  assert.deepEqual(all.loops.closed.map((c) => c.kind), ["settles", "settles", "oscillates"]);
+
+  // From the left well alone the right well is unreachable; from the declared safe state top it is a trap.
+  const spec = { unsafe: [{ box: "ball", state: ["right"] }], safe: [{ box: "ball", state: ["top", "left"] }] };
+  const fromSafe = run(graph(TWO_WELLS, ["left"]), spec);
+  assert.ok(fromSafe.escalation?.verdict === "unreachable");
+  assert.ok(fromSafe.loops.classified);
+  assert.deepEqual(fromSafe.loops.starts, { initial: 1, safe: 1 });
+  const [trap] = fromSafe.loops.escalating!;
+  assert.equal(trap.from, "safe");
+  assert.deepEqual(trap.trace.map((st) => st.state[0]), ["top", "right"]);
+  assert.deepEqual(checkRun(graph(TWO_WELLS, ["left"]), spec, trap.trace, "safe"), { ok: true, errors: [] });
+  assert.match(errors(checkRun(graph(TWO_WELLS, ["left"]), spec, trap.trace)), /'top' is not an initial state of 'ball'/);
+
+  // A chain longer than the cap: no closed component is reached within it.
+  const chain = graph(Array.from({ length: 60 }, (_, i) => [`s${i}`, `s${Math.min(i + 1, 59)}`] as [string, string]), ["s0"]);
+  const cut = run(chain, { horizon: 5, maxStates: 30 });
+  assert.ok(cut.loops.classified);
+  assert.equal(cut.loops.complete, false);
+  assert.deepEqual(cut.loops.classes, ["none"]);
+  const whole = run(chain, { horizon: 5 });
+  assert.ok(whole.loops.classified && whole.loops.complete);
+  assert.deepEqual(whole.loops.closed.map((c) => c.states), [[["s59"]]]);
+
+  // A blocked state is a closed component that is not classified.
+  const stuck = run(heater([["on", "hot"], ["off", "hot"]]), {});
+  assert.ok(stuck.loops.classified);
+  assert.deepEqual(stuck.loops.closed.map((c) => [c.states, c.kind]), [[[["hot"]], "blocked"]]);
+  assert.deepEqual(stuck.loops.classes, []);
+});
+
+test("loop classification applies only to declared transitions, and not to time-varying inputs", () => {
+  const stateless = run(example("bearing-heat-behavior"), { safe: [{ box: "shaft", port: "support", values: ["supported"] }] });
+  assert.deepEqual(stateless.loops, { classified: false, reason: "no composed box declares transition; behavior rows are steady states, not transitions" });
+  const sequenced = run(heater(), { inputs: power("on", "off") });
+  assert.equal(sequenced.loops.classified, false);
+});

@@ -94,7 +94,7 @@ missing.
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time snapshot |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
-| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run |
+| `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -130,7 +130,8 @@ is steady state; it says nothing about dynamics.
 When boxes declare state (`state`, `initial`, and `transition` rows), `triz_dynamics` explores
 every run up to a horizon. It decides whether a harm loop escalates into an unsafe set, with a
 shortest trace, and whether a safe set is invariant. It also decides whether one run meets
-time-separated demands within their windows. Only finite, discrete dynamics are covered.
+time-separated demands within their windows. It classifies the loops' long-run behaviour as
+bistable, escalating into a trap, or oscillating. Only finite, discrete dynamics are covered.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
@@ -158,8 +159,9 @@ with no `sorry`:
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
   trace is monotone and yanks a swap to the identity;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
-  layer that adds nothing completes the reachable set, and reachability is monotone in the
-  transition rows.
+  layer that adds nothing completes the reachable set, reachability is monotone in the
+  transition rows, a closed set holds every run that enters it, and without a fixed point every
+  return takes two steps or more.
 
 `theory/Witnesses.lean` checks that none of the typing, behaviour-monotonicity, or dynamics
 lemmas is vacuous. For each, a concrete diagram or relation meets all its hypotheses, and a counterexample

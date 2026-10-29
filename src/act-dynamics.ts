@@ -22,6 +22,12 @@
  *    blocked runs, and three verdicts. Escalation: some run reaches an unsafe set (shortest
  *    trace). Invariance: every reachable configuration is in a safe set. Separation in time: one
  *    run visits each demand's target set within its window.
+ *  - Loop classification — on the reachable graph of the stateful boxes' global states, each
+ *    closed strongly connected component (no step leaves it) settles at a fixed point, oscillates
+ *    (a cycle and no fixed point), or blocks. Classes: bistable (fixed points in two or more
+ *    closed components), escalating (a closed component meets the unsafe set: a trap, with a
+ *    shortest trace into it), oscillating. Only boxes that declare transition carry state;
+ *    behavior rows are steady states, never read as transitions.
  *  - checkRun — re-checks a trace step by step against the declared rows, independently of the
  *    search. Every trace boundedDynamics returns passes it.
  *
@@ -29,7 +35,7 @@
  * rows as declared. Continuous time, convergence rates, and control are outside the kernel.
  */
 import { z } from "zod";
-import { checkModel, type FunctionModel } from "./act.js";
+import { checkModel, harmLoops, type FunctionModel } from "./act.js";
 import { MAX_STATES, bindRow, joinRows, portVariables, type Binding, type Box, type PortVariables, type Typed } from "./act-behavior.js";
 import type { Theorem } from "./act-basis.js";
 
@@ -76,6 +82,12 @@ const SATURATED: Theorem[] = ["reachWithin_iff_trace", "reachWithin_saturated"];
 const TIMED: Theorem[] = ["reachIn_of_trace"];
 /** A configuration at exactly time t iff some trace of exactly t steps ends there. */
 const TIMED_EXHAUSTED: Theorem[] = ["reachIn_iff_trace"];
+/** Fixed points lie on cycles, and a run that enters a closed component never leaves it. */
+const BISTABLE: Theorem[] = ["fixed_on_cycle", "closed_reachIn"];
+/** A sound trace into a closed component, which the run never leaves. */
+const TRAP: Theorem[] = ["closed_reachIn", "reach_of_trace"];
+/** A closed component without a fixed point: every return takes two steps or more. */
+const OSCILLATING: Theorem[] = ["closed_reachIn", "return_ge_two"];
 
 const tupleKey = (t: unknown[]) => JSON.stringify(t);
 const product = (sizes: number[]) => sizes.reduce((n, k) => n * k, 1);
@@ -187,6 +199,8 @@ interface System {
   allowed: (t: number) => Map<number, Set<string>>;
   holds: (target: Condition[]) => Predicate;
   atBlocked: (target: Condition[]) => Blocked;
+  /** The global states meeting a target's state conditions; undefined when it names none. */
+  meetsStates: (target: Condition[]) => ((state: string[]) => boolean) | undefined;
 }
 type Compiled = { kind: "failure"; errors: string[] } | { kind: "undecided"; plan: Plan } | ({ kind: "system" } & System);
 
@@ -245,7 +259,8 @@ function compile(model: FunctionModel, spec: DynamicsSpec): Compiled {
     const ports = states.length < target.length;
     return (state) => (!states.every((a) => a.ok.has(state[a.at])) ? "fails" : ports ? "undetermined" : "holds");
   };
-  return { kind: "system", plan: p, vars, machines, initial, tables, slot, sequence: spec.inputs !== undefined, allowed, holds, atBlocked };
+  const meetsStates = (target: Condition[]) => (target.some((c) => "state" in c) ? (state: string[]) => atBlocked(target)(state) !== "fails" : undefined);
+  return { kind: "system", plan: p, vars, machines, initial, tables, slot, sequence: spec.inputs !== undefined, allowed, holds, atBlocked, meetsStates };
 }
 
 const horizonOf = (spec: DynamicsSpec) => spec.horizon ?? (spec.inputs ? spec.inputs.length - 1 : DEFAULT_HORIZON);
@@ -255,8 +270,7 @@ interface Node { time: number; state: string[]; values: string[]; next: string[]
 export interface RunStep { time: number; state: string[]; values?: string[]; }
 
 /** Every step from a global state at time t: each consistent valuation with the next states its rows allow. */
-function stepper(s: System, budget: { explored: number; max: number }) {
-  const memo = new Map<string, Step[]>();
+function stepper(s: System, budget: { explored: number; max: number }, memo = new Map<string, Step[]>()) {
   return (state: string[], t: number): Step[] | undefined => {
     const key = tupleKey([s.sequence ? t : 0, state]);
     const hit = memo.get(key);
@@ -296,15 +310,20 @@ const traceTo = (n: Node): RunStep[] => {
   return out;
 };
 
-/** Each step of the trace is admitted by the declared rows, from an initial state over the allowed inputs. */
-function runErrors(s: System, trace: RunStep[]): string[] {
+/**
+ * Each step of the trace is admitted by the declared rows over the allowed inputs, from an initial
+ * state, or (from "safe") from a state that meets the safe set's state conditions.
+ */
+function runErrors(s: System, trace: RunStep[], from: "initial" | "safe" = "initial", safe?: Condition[]): string[] {
+  const safeState = safe && s.meetsStates(safe);
   const errors: string[] = [];
   if (!trace.length) return ["the trace is empty"];
   const n = s.vars.variables.length;
   trace.forEach((step, t) => {
     if (step.time !== t) errors.push(`step ${t}: time ${step.time}, expected ${t}`);
     if (step.state.length !== s.machines.length) { errors.push(`step ${t}: ${step.state.length} states for ${s.machines.length} stateful boxes`); return; }
-    if (t === 0) s.machines.forEach((m, k) => { if (!s.initial[k].includes(step.state[k])) errors.push(`step 0: '${step.state[k]}' is not an initial state of '${m.id}'`); });
+    if (t === 0 && from === "initial") s.machines.forEach((m, k) => { if (!s.initial[k].includes(step.state[k])) errors.push(`step 0: '${step.state[k]}' is not an initial state of '${m.id}'`); });
+    if (t === 0 && from === "safe" && !safeState?.(step.state)) errors.push("step 0: the state does not meet the safe set's state conditions");
     if (!step.values) { if (t !== trace.length - 1) errors.push(`step ${t}: only the last step may block`); return; }
     if (step.values.length !== n) { errors.push(`step ${t}: ${step.values.length} values for ${n} variables`); return; }
     const values = step.values;
@@ -326,14 +345,15 @@ function runErrors(s: System, trace: RunStep[]): string[] {
 
 /**
  * Re-check a trace (as boundedDynamics returns it: states aligned to `machines`, values to
- * `variables`) against the declared rows: an initial state first, then every step admitted by
- * every composed box's rows, the inputs allowed at its time, and each next state named by a row.
+ * `variables`) against the declared rows: an initial state first (or, from "safe", a state that
+ * meets the safe set's state conditions), then every step admitted by every composed box's rows,
+ * the inputs allowed at its time, and each next state named by a row.
  */
-export function checkRun(model: FunctionModel, spec: DynamicsSpec, trace: RunStep[]) {
+export function checkRun(model: FunctionModel, spec: DynamicsSpec, trace: RunStep[], from: "initial" | "safe" = "initial") {
   const s = compile(model, spec);
   if (s.kind === "failure") return { ok: false as const, errors: s.errors };
   if (s.kind === "undecided") return { ok: false as const, errors: [`declare behavior or transition for ${s.plan.missing.map((id) => `'${id}'`).join(", ")}`] };
-  const errors = runErrors(s, trace);
+  const errors = runErrors(s, trace, from, spec.safe);
   return { ok: errors.length === 0, errors };
 }
 
@@ -357,10 +377,11 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
   const starts = product(s.initial.map((x) => x.length));
   if (starts > max) return { ok: false as const, errors: [`the initial states have ${starts} combinations; the cap is ${max}. Declare fewer initial states`] };
   const budget = { explored: 0, max };
-  const steps = stepper(s, budget);
+  const memo = new Map<string, Step[]>();
+  const steps = stepper(s, budget, memo);
   const OVERFLOW = { ok: false as const, errors: [`the bounded search passed ${max} states. Lower the horizon, declare fewer states or values, or split the model`] };
-  const verified = (trace: RunStep[]) => {
-    const errors = runErrors(s, trace);
+  const verified = (trace: RunStep[], from: "initial" | "safe" = "initial") => {
+    const errors = runErrors(s, trace, from, spec.safe);
     // The search only follows admitted rows; never emit a trace the declared rows reject.
     if (errors.length) throw new Error(`boundedDynamics invariant: ${errors.join("; ")}`);
     return trace;
@@ -437,6 +458,9 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
 
   const separation = spec.separation && separate(s, spec.separation, steps, budget, verified);
   if (separation === null) return OVERFLOW;
+  const loops = s.sequence ? { classified: false as const, reason: "the inputs vary with time; omit inputs to classify the loops" }
+    : !s.machines.length ? { classified: false as const, reason: "no composed box declares transition; behavior rows are steady states, not transitions" }
+    : classify(model, s, spec, memo, max, verified);
 
   const states = new Map<string, string[]>();
   for (const n of nodes) states.set(tupleKey(n.state), n.state);
@@ -464,10 +488,169 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
     ...(escalation ? { escalation } : {}),
     ...(invariance ? { invariance } : {}),
     ...(separation ? { separation } : {}),
+    loops,
     statesExplored: budget.explored,
     assumption: ASSUMPTION,
     note: SEMANTICS + (blocked.size ? ` ${blocked.size} runs block: a state with no row for its inputs. The declared rows say nothing after it; a target is checked there on its state conditions only.` : ""),
   };
+}
+
+/** Strongly connected components, iteratively: a state graph can be deeper than the call stack. */
+function components(n: number, succ: (v: number) => number[]): number[][] {
+  const index = new Array<number>(n).fill(-1), low = new Array<number>(n).fill(0), onStack = new Array<boolean>(n).fill(false);
+  const stack: number[] = [], out: number[][] = [];
+  let next = 0;
+  for (let root = 0; root < n; root++) {
+    if (index[root] >= 0) continue;
+    const work: Array<[number, number]> = [[root, 0]];
+    while (work.length) {
+      const top = work[work.length - 1], v = top[0];
+      if (top[1] === 0 && index[v] < 0) { index[v] = low[v] = next++; stack.push(v); onStack[v] = true; }
+      const ws = succ(v);
+      if (top[1] < ws.length) {
+        const w = ws[top[1]++];
+        if (index[w] < 0) work.push([w, 0]);
+        else if (onStack[w]) low[v] = Math.min(low[v], index[w]);
+        continue;
+      }
+      work.pop();
+      if (work.length) { const u = work[work.length - 1][0]; low[u] = Math.min(low[u], low[v]); }
+      if (low[v] === index[v]) {
+        const c: number[] = [];
+        let w: number;
+        do { w = stack.pop()!; onStack[w] = false; c.push(w); } while (w !== v);
+        out.push(c.sort((a, b) => a - b));
+      }
+    }
+  }
+  return out;
+}
+
+const gcd = (a: number, b: number): number => (b ? gcd(b, a % b) : a);
+
+interface Vertex { state: string[]; from: "initial" | "safe"; depth: number; parent?: number; via?: string[]; steps?: Step[]; succ: number[]; }
+
+/**
+ * Loop classification on the reachable state graph: the stateful boxes' global states, with an
+ * edge s → s' when some step from s can move to s'. Explored breadth first, without a horizon and
+ * up to the cap, from the initial states and, when the safe set names states, from every global
+ * state that meets them. A closed component (every edge from it stays in it, all of it explored)
+ * settles (it has a fixed point), oscillates (a cycle and no fixed point), or blocks (one state
+ * with no step; not classified). Past the cap the graph is incomplete: every closed component
+ * found is still closed, but one may be missed.
+ */
+function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map<string, Step[]>, max: number, verified: (t: RunStep[], from: "initial" | "safe") => RunStep[]) {
+  const budget = { explored: 0, max };
+  const steps = stepper(s, budget, memo);
+  const vertices: Vertex[] = [], index = new Map<string, number>();
+  let complete = true;
+  const add = (state: string[], from: Vertex["from"], parent?: number, via?: string[]) => {
+    const k = tupleKey(state), at = index.get(k);
+    if (at !== undefined) return at;
+    if (++budget.explored > max) { complete = false; return undefined; }
+    index.set(k, vertices.length);
+    vertices.push({ state, from, depth: parent === undefined ? 0 : vertices[parent].depth + 1, parent, via, succ: [] });
+    return vertices.length - 1;
+  };
+  for (const s0 of initialStates(s)) if (complete) add(s0, "initial");
+  const safeState = spec.safe && s.meetsStates(spec.safe);
+  let safeStarts = 0;
+  if (safeState) {
+    if (product(s.machines.map((m) => m.state!.length)) > max) complete = false;
+    else for (const s0 of allStates(s)) {
+      if (!complete) break;
+      if (safeState(s0) && !index.has(tupleKey(s0))) { add(s0, "safe"); safeStarts++; }
+    }
+  }
+  for (let i = 0; i < vertices.length && complete; i++) {
+    const out = steps(vertices[i].state, 0);
+    if (!out) { complete = false; break; }
+    const succ = new Set<number>();
+    for (const st of out) for (const n of st.next) {
+      const j = complete ? add(n, vertices[i].from, i, st.values) : undefined;
+      if (j !== undefined) succ.add(j);
+    }
+    if (!complete) break;
+    vertices[i].steps = out;
+    vertices[i].succ = [...succ];
+  }
+
+  const sccs = components(vertices.length, (v) => vertices[v].succ);
+  const comp = new Array<number>(vertices.length);
+  sccs.forEach((c, ci) => c.forEach((v) => { comp[v] = ci; }));
+  const closedSets = sccs
+    .filter((c) => c.every((v) => vertices[v].steps && vertices[v].succ.every((w) => comp[w] === comp[c[0]])))
+    .sort((a, b) => a[0] - b[0]);
+  const unsafe = spec.unsafe && s.holds(spec.unsafe);
+  const pathTo = (v: number) => { const path: number[] = []; for (let u: number | undefined = v; u !== undefined; u = vertices[u].parent) path.unshift(u); return path; };
+  const closed = closedSets.map((c) => {
+    const members = new Set(c);
+    const blocked = c.length === 1 && !vertices[c[0]].succ.length;
+    const fixedPoints = c.filter((v) => vertices[v].succ.includes(v));
+    const kind = blocked ? "blocked" as const : fixedPoints.length ? "settles" as const : "oscillates" as const;
+    // Shortest cycle through the first member, and the period: the gcd of level differences along internal edges.
+    let cycle: number[] | undefined, period = 0;
+    if (kind === "oscillates") {
+      const root = c[0], level = new Map([[root, 0]]), parent = new Map<number, number>(), queue = [root];
+      for (let u = queue.shift(); u !== undefined; u = queue.shift()) {
+        for (const w of vertices[u].succ) {
+          if (!members.has(w)) continue;
+          if (w === root && !cycle) { cycle = [root]; for (let x: number | undefined = u; x !== undefined && x !== root; x = parent.get(x)) cycle.splice(1, 0, x); cycle.push(root); }
+          if (!level.has(w)) { level.set(w, level.get(u)! + 1); parent.set(w, u); queue.push(w); }
+        }
+      }
+      for (const u of c) for (const w of vertices[u].succ) if (members.has(w)) period = gcd(period, Math.abs(level.get(u)! + 1 - level.get(w)!));
+    }
+    // A trap meets the unsafe set at a member some step from it satisfies; the nearest one to a start.
+    const entry = unsafe && kind !== "blocked"
+      ? c.map((v) => ({ v, st: vertices[v].steps!.find((st) => unsafe(vertices[v].state, st.values)) }))
+        .filter((x) => x.st).sort((a, b) => vertices[a.v].depth - vertices[b.v].depth || a.v - b.v)[0]
+      : undefined;
+    return { c, kind, fixedPoints, cycle, period, entry };
+  });
+
+  const listed = (vs: number[]) => vs.slice(0, LISTED).map((v) => vertices[v].state);
+  const report = closed.map((x) => ({
+    size: x.c.length, states: listed(x.c), kind: x.kind, fixedPoints: listed(x.fixedPoints),
+    ...(x.cycle ? { cycle: x.cycle.map((v) => vertices[v].state), period: x.period } : {}),
+    ...(unsafe && x.kind !== "blocked" ? { unsafe: x.entry !== undefined } : {}),
+  }));
+  const settling = closed.flatMap((x, i) => (x.kind === "settles" ? [i] : []));
+  const bistable = settling.length >= 2 && { components: settling, fixedPoints: settling.flatMap((i) => listed(closed[i].fixedPoints)), basis: BISTABLE };
+  const escalating = closed.flatMap((x, i) => {
+    if (!x.entry) return [];
+    const path = pathTo(x.entry.v), from = vertices[path[0]].from;
+    const trace: RunStep[] = path.map((v, t) => ({ time: t, state: vertices[v].state, values: t + 1 < path.length ? vertices[path[t + 1]].via! : x.entry!.st!.values }));
+    return [{ component: i, from, time: path.length - 1, trace: verified(trace, from), basis: TRAP }];
+  });
+  const oscillating = closed.flatMap((x, i) => (x.kind === "oscillates" ? [{ component: i, period: x.period, cycle: x.cycle!.map((v) => vertices[v].state), basis: OSCILLATING }] : []));
+  const classes = closed.length
+    ? [...(bistable ? ["bistable" as const] : []), ...(escalating.length ? ["escalating" as const] : []), ...(oscillating.length ? ["oscillating" as const] : [])]
+    : ["none" as const];
+  const machines = new Set(s.machines.map((m) => m.id));
+  return {
+    classified: true as const, complete, states: vertices.length,
+    starts: { initial: vertices.filter((v) => v.parent === undefined && v.from === "initial").length, safe: safeStarts },
+    harmLoops: harmLoops(model).filter((l) => l.boxes.some((b) => machines.has(b))).map((l) => ({ boxes: l.boxes, negative: l.negative })),
+    closed: report, classes,
+    ...(bistable ? { bistable } : {}),
+    ...(escalating.length ? { escalating } : {}),
+    ...(oscillating.length ? { oscillating } : {}),
+    note: (classes[0] === "none"
+      ? "No closed component was found within the cap."
+      : "Every run that enters a closed component stays in it. Classes can coexist; a component that settles at one fixed point outside the unsafe set belongs to no class.")
+      + (complete ? " The reachable state graph was explored completely, without a horizon." : " The cap cut the exploration: every closed component listed is closed, but others may be missed.")
+      + " The graph is over the states of boxes that declare transition; harmLoops lists the harm loops through them.",
+  };
+}
+
+/** Every global state of the stateful boxes, in declaration order. */
+function* allStates(s: System): Generator<string[]> {
+  const sizes = s.machines.map((m) => m.state!.length), total = product(sizes);
+  for (let n = 0; n < total; n++) {
+    let rest = n;
+    yield s.machines.map((m, k) => { const x = m.state![rest % sizes[k]]; rest = Math.floor(rest / sizes[k]); return x; });
+  }
 }
 
 /**

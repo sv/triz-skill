@@ -441,6 +441,38 @@ theorem reachWithin_saturated {A : Set σ} {k : ℕ}
     · exact ⟨a', ha', j + 1, hj, c, hj', hcb⟩
     · exact h b ⟨a', ha', c, hj', hcb⟩
 
+/-! ### Loop classification
+
+The kernel classifies the closed strongly connected components of the reachable state graph. A
+component is closed when no step leaves it. -/
+
+/-- No step leaves `C`. -/
+def Closed (r : σ → σ → Prop) (C : Set σ) : Prop := ∀ a ∈ C, ∀ b, r a b → b ∈ C
+
+/-- A fixed point lies on a cycle: the run can stay there forever. -/
+theorem fixed_on_cycle {s : σ} (h : r s s) : Relation.TransGen r s s :=
+  Relation.TransGen.single h
+
+/-- A run that enters a closed set never leaves it, at any number of steps (a trap). -/
+theorem closed_reachIn {C : Set σ} (hC : Closed r C) {a : σ} (ha : a ∈ C) (n : ℕ) {b : σ}
+    (h : reachIn r n a b) : b ∈ C := by
+  induction n generalizing b with
+  | zero => exact (show a = b from h) ▸ ha
+  | succ n ih =>
+    obtain ⟨c, hac, hcb⟩ := h
+    exact hC c (ih hac) b hcb
+
+/-- Without a fixed point, a return to the start takes at least two steps: an oscillation's
+cycles have length two or more. -/
+theorem return_ge_two (h : ∀ s, ¬ r s s) {s : σ} {n : ℕ} (hn : 0 < n) (hc : reachIn r n s s) :
+    2 ≤ n := by
+  rcases n with _ | _ | n
+  · exact absurd hn (lt_irrefl 0)
+  · obtain ⟨c, hsc, hcs⟩ := hc
+    obtain rfl : s = c := hsc
+    exact (h s hcs).elim
+  · omega
+
 end Dynamics
 
 /-! ## Trimming as a Kan extension (stated, not decided)

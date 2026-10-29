@@ -27,7 +27,7 @@ recalling principle numbers or matrix cells.
 | `triz_nine_windows(present, past?, future?, subsystem[])` | Subsystem, system, and supersystem views per time snapshot, with harm loops per window |
 | `triz_export(model, format)` | Graphviz DOT or an open hypergraph of a model that type-checks |
 | `triz_behavior(model, trim?, absorb?, max_states?)` | Input→deliverable relation from declared box behaviour (steady states, relational trace); with `trim`, decide preserved, changed (counterexample), or undecided |
-| `triz_dynamics(model, horizon?, initial?, inputs?, unsafe?, safe?, separation?, max_states?)` | Bounded runs of boxes with declared state: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run |
+| `triz_dynamics(model, horizon?, initial?, inputs?, unsafe?, safe?, separation?, max_states?)` | Bounded runs of boxes with declared state: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (trap), or oscillating |
 
 The matrix is a heuristic index. A blank or diagonal cell stays blank; never invent a
 recommendation.
@@ -51,7 +51,7 @@ recommendation.
 | Improving A worsens B | Technical contradiction; matrix; inventive principles |
 | One property must have opposing values | Physical contradiction; separation principles |
 | Interaction is absent, weak, excessive, or harmful | Functional analysis; Su-Field; inventive standards |
-| A harm loop may escalate over time: runaway heat, a retry storm, a fee spiral | Functional analysis with declared state; harm loops (`triz_function_model`), then escalation and invariance (`triz_dynamics`) |
+| A harm loop may escalate over time: runaway heat, a retry storm, a fee spiral | Functional analysis with declared state; harm loops (`triz_function_model`), then escalation, invariance, and the loop's class (`triz_dynamics`): bistable, escalating, or oscillating |
 | A property must take different values at different stages, and the system must get there by itself | Physical contradiction; separation in time; Principle 15, Dynamics (`triz_separate` along time, then `triz_dynamics` separation) |
 | Component creates cost but little value | Function-cost analysis; trimming |
 | Capability exists in another system or field | Benchmarking; feature transfer; functional-oriented search; effects |

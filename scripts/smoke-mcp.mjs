@@ -122,6 +122,7 @@ const heater = {
 const escalates = await json("triz_dynamics", { model: heater, unsafe: [{ box: "heater", state: ["hot"] }] });
 console.log(`triz_dynamics heater -> ${escalates.escalation?.verdict} at t=${escalates.escalation?.time}`);
 if (escalates.escalation?.verdict !== "reachable" || escalates.escalation.trace.length !== 2) fail("escalation wrong");
+if (!escalates.loops?.classes?.includes("escalating")) fail("loop classification wrong");
 const held = await json("triz_dynamics", { model: heater, inputs: [[{ box: "heater", port: "power", values: ["off"] }], [{ box: "heater", port: "power", values: ["off"] }]], safe: [{ box: "heater", state: ["cold"] }] });
 if (held.invariance?.verdict !== "invariant-within-horizon") fail("invariance under an input sequence wrong");
 const capped = await json("triz_dynamics", { model: heater, unsafe: [{ box: "heater", state: ["hot"] }], max_states: 1 });
