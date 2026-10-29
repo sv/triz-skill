@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `triz_nine_windows` `transitions`: `triz_transform` sequences linking the times, checked against the snapshots and restricted to the subsystem (`restrict_rewrite`).
 - `triz_export`: export a model as Graphviz DOT or an open hypergraph.
 - `triz_behavior`: compose declared box behaviour (carrier `values`, box `behavior`) into the input→deliverable relation, with feedback by the relational trace (steady states); with `trim`, decide whether the trim preserves it: `preserved`, `changed` with a counterexample, or `undecided`.
-- Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`.
+- `triz_behavior` `compare_to` and `box_map` decide any concept, such as a `triz_transform` result, against a baseline; interpose mediators declare `behavior` (rows or `identity`); segment and take_out split a box's behaviour over the parts when it is the product of its projections (`behaviourallyIndependent`).
+- Verdicts cite the theorem they rely on (`basis`) in `theory/`, a Lean 4 package with no `sorry`, and only where its statement is exactly what the verdict uses.
 - `theory/Witnesses.lean`: each typing lemma's and behaviour-monotonicity lemma's hypotheses hold on a concrete diagram or relation, and dropping any one breaks it.
 - Router entries name the MCP tools that carry out their method (`mcp_tools`).
 - Network-of-problems nodes can carry a physical contradiction; core-conflict ties favour irreducible ones.

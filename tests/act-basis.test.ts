@@ -84,10 +84,11 @@ test("every basis cited by any tool output names a listed theorem", async () => 
 });
 
 /**
- * Lemmas that pin down the semantics on fixed examples, or state a law the tests check, are not
- * the statement any verdict uses, so none may be cited or listed.
+ * Lemmas that pin down the semantics on fixed examples, state a fact no check computes, or serve
+ * other proofs (restriction's functor laws) are not the statement any verdict uses, so none may
+ * be cited or listed.
  */
-test("semantic sanity lemmas are proved but never listed as a verdict basis", () => {
+test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
   const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);

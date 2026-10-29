@@ -94,7 +94,7 @@ missing.
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
-| `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `trim`, decide whether the trim preserves it |
+| `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
@@ -131,9 +131,12 @@ no-dangling conditions. Two built-in rules encode evolution lines whose text des
 structural move: mono → bi, and self-adjusting feedback.
 
 When boxes declare behaviour (finite carrier `values` and relation rows), `triz_behavior`
-decides a trim instead of only screening it: `preserved`, `changed` with a counterexample input,
-or `undecided` (boxes that need behaviour, or no steady state in either model). The semantics
-is steady state; it says nothing about dynamics.
+decides a concept against a baseline instead of only screening it: `preserved`, `changed` with
+a counterexample input, or `undecided` (boxes that need behaviour, or no steady state in either
+model). The concept can be a trim or any `triz_transform` result; a segment's `boxMap` maps its
+parts back. Segmentation gives each part its projection of the box's relation when that relation
+is the product of the projections, and Intermediary's mediator can declare an identity relation.
+The semantics is steady state; it says nothing about dynamics.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
 as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
@@ -161,7 +164,12 @@ with no `sorry`:
   and system rows of the 9 windows, with two steps, form a functor from time × (box sets)ᵒᵖ to
   sets;
 - series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
-  trace is monotone and yanks a swap to the identity.
+  trace is monotone and yanks a swap to the identity;
+- a relation is the product of its projections iff it is a product at all, for two parts and
+  for any family of parts.
+
+Verdicts cite only the statements they use exactly; the others are labelled semantic sanity
+lemmas in categorical-model.md.
 
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite, or
 behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
