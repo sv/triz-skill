@@ -2,7 +2,6 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Pi
 import Mathlib.CategoryTheory.ComposableArrows.Basic
 import Mathlib.CategoryTheory.Functor.Currying
-import Mathlib.CategoryTheory.Functor.KanExtension.Basic
 import Mathlib.CategoryTheory.Subfunctor.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Fin.VecNotation
@@ -17,8 +16,7 @@ import Mathlib.Order.Comparable
 
 Each section states, over Mathlib, the fact that one check in `src/act*.ts` relies on. This is
 not a formal model of TRIZ: it pins down what the deterministic checks decide and why they are
-sound, and names the one statement (trimming as a Kan extension) the kernel does *not* decide.
-See `skills/triz-innovation/references/categorical-model.md`.
+sound. See `skills/triz-innovation/references/categorical-model.md`.
 
 No `sorry`: `lake build --wfail` in `theory/` checks every proof and fails on any `sorry`.
 -/
@@ -465,7 +463,12 @@ Mathlib's `Relation.Comp` (some middle value links the two relations), which can
 either way (`Relation.comp_assoc`, which verdicts cite). The statements below add that series
 composition is monotone, that adding rows never removes a steady state, and they pin down the
 trace on the loops the tests check. The TypeScript evaluator is checked against them by tests,
-not by extraction. -/
+not by extraction.
+
+For a model that declares behaviour, `trimPreservesBehavior` decides whether a trim keeps the
+input→deliverable relation equal to the baseline's. Its verdict depends on the absorber chosen,
+not only on the boxes trimmed, so no statement about what remains after deleting the trimmed
+boxes can stand for it. -/
 
 section Behaviour
 
@@ -512,32 +515,5 @@ theorem relTrace_not_loop : ¬ relTrace (fun (p q : PUnit × Bool) => q.2 = !p.2
   cases u <;> simp at hu
 
 end Behaviour
-
-/-! ## Trimming as a Kan extension (stated, not decided)
-
-Let `ι : J' ⥤ J` include the shape of the trimmed diagram into the original and `D : J ⥤ C` be
-the original system. The system is recoverable from what remains when `D` is a left Kan
-extension of its restriction `ι ⋙ D` along `ι`, with identity unit. `trimCandidates` does not
-decide this: it checks only the carrier-typing condition any such factorization needs. For a
-model that declares behaviour, `trimPreservesBehavior` decides a finite relational question
-instead: whether the trimmed model's input→deliverable relation (above) equals the baseline's.
-That is not proved equivalent to `Recoverable`. The statement is over abstract functors: no
-theorem here links it to `Wiring`, and nothing decides it. -/
-
-section Trimming
-
-open CategoryTheory
-
-variable {J' J C : Type*} [Category J'] [Category J] [Category C]
-
-/-- `D` is recoverable from its restriction along `ι`. -/
-abbrev Recoverable (ι : J' ⥤ J) (D : J ⥤ C) : Prop :=
-  D.IsLeftKanExtension (𝟙 (ι ⋙ D))
-
-/-- Sanity check: trimming nothing loses nothing. -/
-theorem recoverable_id (D : J ⥤ C) : Recoverable (𝟭 J) D :=
-  Functor.isLeftKanExtensionId D
-
-end Trimming
 
 end CategoricalTriz

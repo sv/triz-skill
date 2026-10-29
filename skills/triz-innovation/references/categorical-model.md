@@ -18,7 +18,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Flow (substance, energy, data, money) | carrier with `layer` and `dimension` | — | — |
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
-| Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated over abstract functors, `recoverable_id`; not linked to the kernel, not decided |
+| Trimming rules A/B/C | delete the trimmed boxes; re-attach each function they performed on a remaining box to a typed absorber | `triz_trim`: carrier screen; `triz_transform` `trim` applies it | `typed_reroute` |
 | Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
@@ -196,10 +196,18 @@ example cohort churn against fee changes. Name it only from that evidence.
 
 ## What is not claimed
 
-- Nothing computes a Kan extension, an optic or lens, or a Grothendieck fibration.
-  - Trimming as a Kan extension: `Recoverable` states it over abstract functors, and its one
-    theorem, `recoverable_id`, is the case where nothing is trimmed. No theorem links it to
-    `Wiring`, `triz_trim`, or the applied trim, and nothing decides it.
+- Trimming is not framed as a Kan extension of what remains. `theory/` once stated it
+  (`Recoverable`, never decided), and the statement was removed for three reasons:
+  - It took no absorber, but the decided trim depends on one. With the same box trimmed,
+    `triz_behavior` returns `preserved` for one absorber and `changed` for another (test "the
+    decided trim depends on the absorber, not only on the trimmed boxes"). No statement about
+    the trimmed boxes alone can agree with that verdict.
+  - It needed the trimmed model to include into the original. A trim that re-attaches a
+    function (rules B and C) adds a wire the original lacks, so there is no inclusion. A trim
+    by rule A alone is a restriction; there the statement would be well typed.
+  - No functor from a function model to a category of systems was ever defined, so it
+    constrained nothing the kernel computes.
+- Nothing computes an optic or lens, or a Grothendieck fibration.
   - The system operator is not claimed to be a fibration. What is proved is a functor from the
     time chain times the opposite poset of box sets to sets (`Wiring.restrictionGrid`). It
     covers the subsystem and system rows, not the supersystem collapse, and no Grothendieck
@@ -209,9 +217,8 @@ example cohort churn against fee changes. Name it only from that evidence.
   exists exactly when every cell admits a value (`exists_section_iff`). So the only obstruction
   to gluing is a cell with no admissible value, and the cell scan finds every such cell. Nothing
   is claimed for a base whose regions carry more structure.
-- For models that declare behaviour, `triz_behavior` decides a finite relational question
-  instead: whether the trimmed model's input→deliverable relation equals the baseline's. It is
-  not proved equivalent to `Recoverable`. Series composition is Mathlib's `Relation.Comp`, and
+- For models that declare behaviour, `triz_behavior` decides a finite relational question:
+  whether the trimmed model's input→deliverable relation equals the baseline's. Series composition is Mathlib's `Relation.Comp`, and
   its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
   that the trace is monotone, that the trace of a swap is the identity, that every value is a
   steady state of an identity loop, and that a negation loop has none. The evaluator is checked

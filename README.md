@@ -158,9 +158,9 @@ with no `sorry`:
 behaviour-monotonicity lemmas is vacuous. For each, a concrete diagram or relation meets all its
 hypotheses, and a counterexample shows each hypothesis is needed.
 
-It also states trimming as a left Kan extension. No theorem links that statement to the
-kernel, and nothing decides it. `triz_behavior` decides a finite relational question instead,
-which is not proved equivalent.
+Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
+relational check, and its verdict depends on the absorber chosen. `theory/` does not state
+trimming as a Kan extension; categorical-model.md says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts

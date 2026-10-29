@@ -118,9 +118,6 @@ it supports here.
 - **Fong & Spivak (2019)**, *An Invitation to Applied Category Theory: Seven Sketches in
   Compositionality*, Cambridge University Press, doi:10.1017/9781108668804.
   Monoidal preorders, resource theories, co-design, wiring diagrams.
-- **Mac Lane**, *Categories for the Working Mathematician*, 2nd ed., Springer GTM 5 (1998),
-  chapter "Kan Extensions".
-  The trimming statement `Recoverable` in `theory/`, stated and not decided.
 - **Fritz (2017)**, *Resource convertibility and ordered commutative monoids*, Mathematical
   Structures in Computer Science 27(6), 850–938, doi:10.1017/S0960129515000444.
   **Censi (2015)**, *A mathematical theory of co-design*,
@@ -158,6 +155,12 @@ it supports here.
 
 Considered and not adopted:
 
+- **Mac Lane**, *Categories for the Working Mathematician*, 2nd ed., Springer GTM 5 (1998),
+  chapter "Kan Extensions".
+  Trimming as a left Kan extension of what remains. It was stated in `theory/`, never decided,
+  and then removed. The decided trim (`triz_behavior`) depends on the absorber chosen, a trim
+  that re-attaches a function is not an inclusion of the trimmed model, and no functor from a
+  function model was defined (categorical-model.md).
 - **Baez & Master (2020)**, *Open Petri nets*, MSCS 30(3), 314–341.
   **Baez & Pollard (2017)**, *A compositional framework for reaction networks*, Rev. Math.
   Phys. 29, 1750028.
