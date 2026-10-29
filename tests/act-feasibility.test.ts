@@ -359,6 +359,16 @@ test("a dominated feasibility row fails closed in every tool that takes a model"
     triz_dynamics: { model: bad },
     triz_flow: { model: bad },
   };
+  const metadata = { contract: { operating_envelope: "declared", resource_binding: "all-behavior-rows" }, declared_harms: [], evidence: [{ claim: "rows", source: "fixture", operating_envelope: "declared" }] };
+  const contract = { target: bad, acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }], budget: {} };
+  Object.assign(args, {
+    triz_adequacy: { model: bad, acceptable: contract.acceptable },
+    triz_subsystem_summary: { model: bad, boxes: ["bearing"] },
+    triz_rewrite_pair: { model: bad, first: {}, second: {} },
+    triz_trim_rewrite: { model: bad, trim: ["bearing"] },
+    triz_absorber_assignments: { model: bad, trim: ["bearing"], contract, implementation: metadata },
+    triz_synthesize: { model: bad, contract, implementation: metadata, holes: [{ box: "housing", alternatives: [{ id: "declared", behavior: [{ in: {}, out: {} }], feasibility: {} }] }] },
+  });
   const takesModel = toolSpecs().filter((s) => ["model", "present"].some((k) => k in s.shape));
   assert.deepEqual(takesModel.map((s) => s.name).sort(), Object.keys(args).sort());
   for (const s of takesModel) {

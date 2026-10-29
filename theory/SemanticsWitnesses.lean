@@ -319,4 +319,37 @@ example : ((fun _ => true, Sum.elim (fun _ => true) fun _ => false) : (Unit ⊕ 
         (Interface.hom (I := .of Unit) (O := .of Unit) (boxOf negate)))).rel :=
   (semantics_tensorHom _ _ _ _).mpr ⟨(external_boxOf _ _ _).mpr rfl, (external_boxOf _ _ _).mpr rfl⟩
 
+/-! ## Finite row bridge and one-hole residual context
+
+A copy table has actual steady states, and the one-hole context accepts an actual row. -/
+def copyTable : Rows Unit Bool Bool Empty Bool where
+  box _ := ()
+  fixes _ _ := true
+  val row _ := row
+  src w := w.elim
+  tgt w := w.elim
+
+example : copyTable.Steady (fun _ => true) :=
+  ⟨fun w => w.elim, fun _ => ⟨true, rfl, fun _ _ => rfl⟩⟩
+
+example : (rowsDiagram copyTable (fun _ : Unit => false) (fun _ : Unit => true)).external
+    (fun _ => true) (fun _ => true) := by
+  exact ((rows_relation_iff_external copyTable (fun _ _ => true)
+    (fun _ : Unit => false) (fun _ : Unit => true) (fun _ => true) (fun _ => true)).mp
+     ⟨fun _ => rfl, (fun _ => true), ⟨fun w => w.elim, fun _ => ⟨true, rfl, fun _ _ => rfl⟩⟩,
+      fun _ _ h => by cases h; rfl, fun _ => rfl⟩).2
+
+local instance : DecidableEq (boxOf copy).Box := inferInstanceAs (DecidableEq Unit)
+
+example : PreservesUnions ((boxOf copy).oneHoleContext () (fun v => v false) (fun v => v true)) :=
+  oneHoleContext_preservesUnions _ _ _ _
+
+example : ((fun _ : Unit => true), (fun _ : Unit => true)) ∈
+    (boxOf copy).oneHoleContext () (fun v => v false) (fun v => v true) {(true, true)} := by
+  refine ⟨(fun _ => true), ⟨fun _ => trivial, ?_, fun w => w.elim⟩, rfl, rfl⟩
+  intro b
+  cases b
+  change (true, true) ∈ ({(true, true)} : Set (Bool × Bool))
+  exact Set.mem_singleton _
+
 end CategoricalTriz.SemanticsWitnesses

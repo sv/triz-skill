@@ -314,6 +314,146 @@ theorem external_mono (d : OpenDiagram V I O) {A A' : d.Box → Set (d.Port → 
   rintro x y ⟨s, ⟨hv, hb, hw⟩, hx, hy⟩
   exact ⟨s, ⟨hv, fun b => h b (hb b), hw⟩, hx, hy⟩
 
+/-! ## Explicit bridges for finite certificate row tables and one-hole contexts
+
+These theorems relate the two Lean representations. They do not prove that the TypeScript
+encoder or evaluator implements either representation correctly. -/
+
+/-- A row table as an open diagram over the encoded values. -/
+def rowsDiagram {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (input : I → Vr) (output : O → Vr) : OpenDiagram V I O where
+  Port := Vr
+  Box := Bx
+  Wire := Wr
+  values _ := Set.univ
+  behavior b := {v | ∃ k, t.box k = b ∧ ∀ x, t.fixes k x = true → v x = t.val k x}
+  src := t.src
+  tgt := t.tgt
+  input := input
+  output := output
+
+/-- The certificate steady relation agrees with the open diagram steady states. -/
+theorem rows_steady_iff {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (input : I → Vr) (output : O → Vr) (v : Vr → V) :
+    v ∈ (rowsDiagram t input output).steadyStates ↔ t.Steady v := by
+  constructor
+  · rintro ⟨_, hb, hw⟩
+    exact ⟨hw, hb⟩
+  · rintro ⟨hw, hb⟩
+    exact ⟨fun _ => trivial, hb, hw⟩
+
+/-- Total interface reads identify Rows.relation with the external relation restricted to the
+situation domain. Optional unread inputs require projection, outside this theorem's hypotheses. -/
+theorem rows_relation_iff_external {Bx Rw Vr Wr : Type u} (t : Rows Bx Rw Vr Wr V)
+    (dom : I → V → Bool) (input : I → Vr) (output : O → Vr) (x : I → V) (y : O → V) :
+    t.relation dom (fun i => some (input i)) output x y ↔
+      (∀ i, dom i (x i) = true) ∧ (rowsDiagram t input output).external x y := by
+  constructor
+  · rintro ⟨hd, v, hv, hi, ho⟩
+    refine ⟨hd, v, (rows_steady_iff t input output v).mpr hv, ?_, ?_⟩
+    · funext i
+      exact hi i (input i) rfl
+    · funext o
+      exact ho o
+  · rintro ⟨hd, v, hv, hi, ho⟩
+    refine ⟨hd, v, (rows_steady_iff t input output v).mp hv, ?_, ?_⟩
+    · intro i p hp
+      have h : input i = p := Option.some.inj hp
+      rw [← h]
+      exact congrFun hi i
+    · intro o
+      exact congrFun ho o
+
+/-- Replace one box relation, keeping every other constraint fixed. -/
+def oneHole (d : OpenDiagram V I O) (hole : d.Box) [DecidableEq d.Box]
+    (R : Set (d.Port → V)) : OpenDiagram V I O :=
+  d.withBehavior (fun b => if b = hole then R else d.behavior b)
+
+/-- An actual one-hole diagram context preserves arbitrary unions of its hole rows.
+The witness valuation uses one row of the hole, including in feedback and fan-in diagrams. -/
+theorem external_oneHole_union (d : OpenDiagram V I O) (hole : d.Box) [DecidableEq d.Box]
+    (R : Set (d.Port → V)) :
+    {p : (I → V) × (O → V) | (d.oneHole hole R).external p.1 p.2} =
+      ⋃ v ∈ R, {p : (I → V) × (O → V) | (d.oneHole hole {v}).external p.1 p.2} := by
+  ext p
+  simp only [Set.mem_setOf_eq, oneHole, withBehavior, external, steadyStates]
+  constructor
+  · rintro ⟨v, ⟨hv, hb, hw⟩, hi, ho⟩
+    have hr : v ∈ R := by
+      have h := hb hole
+      rw [if_pos rfl] at h
+      exact h
+    refine Set.mem_iUnion.mpr ⟨v, Set.mem_iUnion.mpr ⟨hr, v, ⟨hv, ?_, hw⟩, hi, ho⟩⟩
+    intro b
+    by_cases h : b = hole
+    · rw [if_pos h]
+      exact Set.mem_singleton v
+    · rw [if_neg h]
+      have h' := hb b
+      rw [if_neg h] at h'
+      exact h'
+  · intro hp
+    obtain ⟨v, hv⟩ := Set.mem_iUnion.mp hp
+    obtain ⟨hr, s, ⟨hs, hb, hw⟩, hi, ho⟩ := Set.mem_iUnion.mp hv
+    refine ⟨s, ⟨hs, ?_, hw⟩, hi, ho⟩
+    intro b
+    by_cases h : b = hole
+    · rw [if_pos h]
+      have h' := hb b
+      rw [if_pos h] at h'
+      exact (Set.mem_singleton_iff.mp h') ▸ hr
+    · rw [if_neg h]
+      have h' := hb b
+      rw [if_neg h] at h'
+      exact h'
+
+/-- A one-hole context acting on a local input-output relation. `readIn` and `readOut`
+project a global valuation to that hole's local row; the rest of the diagram is fixed. -/
+def oneHoleContext {A B : Type u} (d : OpenDiagram V I O) (hole : d.Box) [DecidableEq d.Box]
+    (readIn : (d.Port → V) → A) (readOut : (d.Port → V) → B) :
+    SetRel A B → SetRel (I → V) (O → V) := fun R =>
+  {p | (d.oneHole hole {v | (readIn v, readOut v) ∈ R}).external p.1 p.2}
+
+/-- The concrete one-hole context satisfies the exact union-preservation hypothesis used by
+the residual theorems in CategoricalTriz, for arbitrary local input/output projections. -/
+theorem oneHoleContext_preservesUnions {A B : Type u} (d : OpenDiagram V I O) (hole : d.Box)
+    [DecidableEq d.Box] (readIn : (d.Port → V) → A) (readOut : (d.Port → V) → B) :
+    PreservesUnions (d.oneHoleContext hole readIn readOut) := by
+  intro R
+  ext p
+  simp only [Set.mem_setOf_eq, oneHoleContext, oneHole, withBehavior, external, steadyStates]
+  constructor
+  · rintro ⟨v, ⟨hv, hb, hw⟩, hi, ho⟩
+    have hr : (readIn v, readOut v) ∈ R := by
+      have h := hb hole
+      rw [if_pos rfl] at h
+      exact h
+    refine Set.mem_iUnion.mpr ⟨(readIn v, readOut v), Set.mem_iUnion.mpr ⟨hr, v, ⟨hv, ?_, hw⟩, hi, ho⟩⟩
+    intro b
+    by_cases h : b = hole
+    · rw [if_pos h]
+      exact Set.mem_singleton _
+    · rw [if_neg h]
+      have h' := hb b
+      rw [if_neg h] at h'
+      exact h'
+  · intro hp
+    obtain ⟨q, hq⟩ := Set.mem_iUnion.mp hp
+    obtain ⟨hr, v, ⟨hv, hb, hw⟩, hi, ho⟩ := Set.mem_iUnion.mp hq
+    refine ⟨v, ⟨hv, ?_, hw⟩, hi, ho⟩
+    intro b
+    by_cases h : b = hole
+    · rw [if_pos h]
+      have h' := hb b
+      rw [if_pos h] at h'
+      change (readIn v, readOut v) ∈ R
+      rw [Set.mem_singleton_iff.mp h']
+      exact hr
+    · rw [if_neg h]
+      have h' := hb b
+      rw [if_neg h] at h'
+      exact h'
+
 end OpenDiagram
 
 /-! ## Open diagrams up to the semantics form a category; the semantics is a functor to `RelCat`

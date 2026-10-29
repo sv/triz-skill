@@ -10,7 +10,7 @@ import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
 import { exportModel, CERTIFICATE_NOTE } from "./act-export.js";
-import { dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
+import { behaviorCertificate, dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
 import { withSuggestions } from "./act-suggest.js";
 import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
@@ -19,13 +19,21 @@ import { nineWindows } from "./act-windows.js";
 import { Rule, RuleIds, RuleMatch, TREND_DETECTORS, TREND_RULES, applyRule, laggingSubsystem, matchRule } from "./act-rule.js";
 import { flowAnalysis } from "./act-flow.js";
 import { merge, rerate, feedback, retarget, reverse, standby, cheapCopy } from "./act-principles.js";
-import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES, type Acceptable } from "./act-behavior.js";
+import { compareBehavior, externalBehavior, trimPreservesBehavior, weakestSpec, weakestTrimSpec, weaknessRanking, MAX_STATES, operationalAdequacy, type Acceptable, type BehaviorScope, type JointPriorRow, type OperatingSituation as Situation } from "./act-behavior.js";
 import { boundedDynamics, Target, PortValues, TimedDemand, DEFAULT_HORIZON, MAX_HORIZON } from "./act-dynamics.js";
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "./act-feasibility.js";
 import { levelsConsistency } from "./act-levels.js";
 import { AbstractionMap, checkAbstraction } from "./act-abstraction.js";
 import { fail, issue, quoted, rebase, zodHint, type Issue, type Warning } from "./act-issues.js";
 import { lintModel, lintTrim } from "./act-lint.js";
+import { SemanticIsomorphismRequest, semanticIsomorphism } from "./act-semantic-iso.js";
+import { RefinementRequest, SummaryRequest, behaviorRefinement, summarizeSubsystem } from "./act-refinement.js";
+import { RuleSetRequest, RewritePairRequest, TrimRewriteRequest, analyzeRuleSet, analyzeRewritePair, trimRewrite } from "./act-rule-analysis.js";
+import { ImplementationRequest, AbsorberAssignmentsRequest, OperatingSituation, evaluateImplementations, enumerateAbsorberAssignments } from "./act-contract.js";
+import { SynthesisRequest, synthesizeFinite } from "./act-synthesis.js";
+import { GlobalSeparationRequest, globalSeparation } from "./act-global.js";
+import { QueueRequest, ConservationRequest, analyzeQueue, checkConservation } from "./act-quantitative.js";
+
 import type { McpServer as McpServerV1 } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { McpServer as McpServerV2 } from "@modelcontextprotocol/server";
 
@@ -171,7 +179,7 @@ const AcceptableEntry = z.strictObject({
 
 type BehaviorArgs = {
   model: act.FunctionModel; compare_to?: act.FunctionModel; box_map?: Record<string, string>; trim?: string[];
-  absorb?: Record<string, { box: string; port: string }>; max_states?: number; weakest_spec?: boolean;
+  absorb?: Record<string, { box: string; port: string }>; max_states?: number; weakest_spec?: boolean; scope?: BehaviorScope; full_relation?: boolean; certificate?: boolean;
 };
 
 /**
@@ -181,7 +189,7 @@ type BehaviorArgs = {
  * and the one box without behaviour is specified instead.
  */
 function behavior(args: BehaviorArgs) {
-  const { model, compare_to, box_map, trim, absorb, max_states: maxStates, weakest_spec } = args;
+  const { model, compare_to, box_map, trim, absorb, max_states: maxStates, weakest_spec, scope, full_relation: fullRelation } = args;
   const issues = [
     ...(trim && compare_to ? [issue("trim-with-compare-to", "$.trim", "trim and compare_to are exclusive: trim compares the model with its own trim; to compare a trimmed concept, pass it as model",
       "Drop compare_to to decide the model's own trim, or apply the trim with triz_transform and pass the result as model with compare_to.")] : []),
@@ -191,9 +199,9 @@ function behavior(args: BehaviorArgs) {
       "Add compare_to (the baseline whose relation the box must give) or trim (the untrimmed model's relation is the target), or drop weakest_spec.")] : []),
   ];
   if (issues.length) return fail(issues);
-  if (weakest_spec) return compare_to ? weakestSpec(model, compare_to, { boxMap: box_map, maxStates }) : weakestTrimSpec(model, { trim: trim!, absorb, maxStates });
-  if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates });
-  return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates }) : externalBehavior(model, { maxStates });
+  if (weakest_spec) return compare_to ? weakestSpec(model, compare_to, { boxMap: box_map, maxStates, scope, fullRelation }) : weakestTrimSpec(model, { trim: trim!, absorb, maxStates, scope, fullRelation });
+  if (compare_to) return compareBehavior(compare_to, model, { boxMap: box_map, maxStates, scope, fullRelation });
+  return trim ? trimPreservesBehavior(model, { trim, absorb, maxStates, scope, fullRelation }) : externalBehavior(model, { maxStates, scope, fullRelation });
 }
 
 function transform(model: act.FunctionModel, t: Transformation) {
@@ -262,7 +270,7 @@ export interface ToolSpec {
 
 /** A certificate as a tool result carries it: the Lean file and what it certifies, or why there is none. */
 const certificateField = (c: Certificate) => (c.ok
-  ? { format: "lean" as const, content: c.content, certifies: c.certifies, note: CERTIFICATE_NOTE }
+  ? { format: "lean" as const, content: c.content, certifies: c.certifies, manifest: c.manifest, note: CERTIFICATE_NOTE }
   : { ok: false as const, errors: c.errors, issues: c.issues });
 
 function text(payload: unknown) {
@@ -398,7 +406,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         return text({
           ...result,
           ...(along ? { along: dynamizeBasis(act.dynamize(contradiction, along, "$.contradiction")) } : {}),
-          ...(cert ? { certificate: { format: "lean", content: cert.content, certifies: cert.certifies, note: CERTIFICATE_NOTE } } : {}),
+          ...(cert ? { certificate: { format: "lean", content: cert.content, certifies: cert.certifies, manifest: cert.manifest, note: CERTIFICATE_NOTE } } : {}),
         });
       },
     },
@@ -438,7 +446,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_behavior",
-      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). Only boxes that can reach a deliverable are composed; feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). With `weakest_spec` (and compare_to or trim), give the weakest box specification (residual in Rel) for the one box of the concept that can reach a deliverable and declares no behaviour, against the same target: spec, every row of that box whose composite stays inside the target, with preserves:true when declaring it gives exactly the target (any behaviour that does is contained in it); impossible, when the spec's composite misses part of the target (an uncovered input is given; no behaviour of that box gives the target, and the empty relation, which always stays inside, is never read as preserving) or a deliverable is lost; undecided for several boxes without behaviour (several-holes), missing baseline behaviour, an empty target, or past the cap (state-cap). When the box to specify declares `producible` rows (what it can physically produce), the spec is the residual cut down to them: spec when that still covers the target (producible.infeasible lists the residual rows left out); impossible with reason infeasible when the residual covers the target but its producible rows do not, with requiredInfeasible giving, per missing target pair, the residual rows that deliver it, none producible (every relation that gives the target contains one of each); impossible with reason not-covered when the residual itself does not cover. Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
+      description: "Compose declared box behaviour (carrier `values`, box `behavior` rows) into the model's external relation: boundary inputs (unwired input ports) to deliverables (product input ports fed by a non-harmful function). The default upstream scope composes boxes that can reach a deliverable and explicitly assumes omitted boxes accept everything; scope whole composes every box, including downstream and disconnected constraints. full_relation returns all rows within the search cap. Feedback loops compose by the relational trace, so every consistent steady state counts, and the steady states are listed. This is steady-state semantics, not dynamics. With `compare_to`, decide whether the model (a concept, e.g. a triz_transform result) has the baseline's input→deliverable relation; pass segment's or take_out's boxMap as `box_map`. `trim` is shorthand: perform the trim as triz_transform does and compare the result with the model. Verdict preserved; changed (a lost deliverable, or a counterexample input with the differing outputs and which relation contains which); or undecided (reason missing-behavior: the boxes that can reach a deliverable and declare no behaviour; reason no-steady-state: neither model has a steady state at any input, so equal empty relations say nothing). With `weakest_spec` (and compare_to or trim), give the weakest box specification (residual in Rel) for the one box of the concept that can reach a deliverable and declares no behaviour, against the same target: spec, every row of that box whose composite stays inside the target, with preserves:true when declaring it gives exactly the target (any behaviour that does is contained in it); impossible, when the spec's composite misses part of the target (an uncovered input is given; no behaviour of that box gives the target, and the empty relation, which always stays inside, is never read as preserving) or a deliverable is lost; undecided for several boxes without behaviour (several-holes), missing baseline behaviour, an empty target, or past the cap (state-cap). When the box to specify declares `producible` rows (what it can physically produce), the spec is the residual cut down to them: spec when that still covers the target (producible.infeasible lists the residual rows left out); impossible with reason infeasible when the residual covers the target but its producible rows do not, with requiredInfeasible giving, per missing target pair, the residual rows that deliver it, none producible (every relation that gives the target contains one of each); impossible with reason not-covered when the residual itself does not cover. Fails closed on ill-typed behaviour, an ambiguous or mismatched box_map, inputs whose values differ between the models, and past the state cap. The verdict holds for the relations as declared; substantiating them, the absorber's or mediator's first, is outside the kernel.",
       shape: {
         model: act.FunctionModel.describe("The model to compose (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model; with it, decide whether the model preserves the baseline's input→deliverable relation"),
@@ -447,30 +455,43 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         trim: BoxIds.min(1).optional().describe("Boxes to trim; with it, decide whether the trim preserves the external behaviour"),
         absorb: z.record(z.string(), act.Endpoint).optional().describe("With trim: function wire id → absorber output port; default: the first absorber triz_trim lists"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on boundary valuations and search states (default and maximum ${MAX_STATES})`),
+        scope: z.enum(["upstream", "whole"]).optional().describe("Default upstream assumes omitted boxes accept all received values; whole composes every declared box constraint"),
+        full_relation: z.boolean().optional().describe("Return every relation row within the search cap; default output is truncated for display"),
+        certificate: z.boolean().optional().describe("With compare_to or trim: independently certify a finite equality or inequality under the selected scope"),
         weakest_spec: z.boolean().optional().describe("With compare_to or trim: give the weakest specification for the one box that can reach a deliverable and declares no behaviour, against the same target"),
       },
-      handler: async (args: Parameters<typeof behavior>[0]) =>
-        text({ ...behavior(args), warnings: warnings([[args.model, "$.model"], [args.compare_to, "$.compare_to"]]) }),
+      handler: async (args: Parameters<typeof behavior>[0]) => {
+        const result = behavior(args);
+        const payload = { ...result, warnings: warnings([[args.model, "$.model"], [args.compare_to, "$.compare_to"]]) };
+        if (!args.certificate || !result.ok) return text(payload);
+        const applied = args.trim ? applyTrim(args.model, { trim: args.trim, absorb: args.absorb }) : undefined;
+        const certificate = args.weakest_spec || (!args.compare_to && !applied?.ok)
+          ? fail([issue("not-certifiable", "$.certificate", "This certificate needs a decided comparison or applied trim; residual certification is not implemented.", "Use compare_to or trim without weakest_spec.")])
+          : behaviorCertificate(args.compare_to ?? args.model, applied?.ok ? applied.model : args.model, { scope: args.scope, maxStates: args.max_states, boxMap: args.box_map });
+        return text({ ...payload, certificate: certificateField(certificate) });
+      },
     },
     {
       name: "triz_weakness",
-      description: "Rank candidate concepts that declare behaviour by the operating situations they admit (references/weakness.md). A situation is a valuation of the concepts' boundary inputs (unwired input ports, matched by box and port id) over their carriers' declared values: the declared input space is weakness.md's list of operating situations. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable (`acceptable`: per deliverable port, or per carrier for all its deliverables, the values that are, listed or derived from a threshold `at_least`/`below` that is a declared level of the carrier; required for every deliverable; derived sets are listed under acceptable in the result). Give each operating condition the same box and port id in every concept (e.g. an environment box with an unwired input); readByOne lists the inputs only one concept reads. Ranked by set inclusion: weakest (admits everything any other admits), maximal, and every pair as equal, first-weaker, second-weaker, or incomparable, with a situation only one admits each way. The admitted count is a secondary figure: it depends on how finely carrier values are declared. Fails closed when the concepts deliver different ports, an input several read ranges over different values, or acceptable misses a deliverable or names an undeclared value; undecided on missing behaviour or past the state cap. Filter concepts for adequacy first; for safety, integrity, or authorisation decisions admitting more is the wrong direction. With `certificate: true`, also returns a Lean file that encodes each concept's rows and proves every strictly ordered pair: inclusion one way and not the other (AtLeastAsWeak) and the strictly larger count (card_lt_of_strictly_weaker), decided over every valuation; without a strict pair, or past its cap, `certificate` gives the reason there is none.",
+      description: "Rank candidate concepts that declare behaviour by the operating situations they admit (references/weakness.md). A situation is a valuation of the concepts' boundary inputs (unwired input ports, matched by box and port id) over their carriers' declared values: the declared input space is weakness.md's list of operating situations. A concept admits a situation when it has a steady state there and every deliverable output there is acceptable (`acceptable`: per deliverable port, or per carrier for all its deliverables, the values that are, listed or derived from a threshold `at_least`/`below` that is a declared level of the carrier; required for every deliverable; derived sets are listed under acceptable in the result). Give each operating condition the same box and port id in every concept (e.g. an environment box with an unwired input); readByOne lists the inputs only one concept reads. Ranked by set inclusion: weakest (admits everything any other admits), maximal, and every pair as equal, first-weaker, second-weaker, or incomparable, with a situation only one admits each way. The admitted count is a secondary figure: it depends on how finely carrier values are declared. Fails closed when the concepts deliver different ports, an input several read ranges over different values, or acceptable misses a deliverable or names an undeclared value; undecided on missing behaviour or past the state cap. Filter concepts for adequacy first; for safety, integrity, or authorisation decisions admitting more is the wrong direction. An explicit complete joint prior additionally reports admitted operating probability mass separately from inclusion and counts. With `certificate: true`, also returns a Lean file that encodes each concept's rows and proves every equal, incomparable, or strictly ordered pair: inclusion one way and not the other (AtLeastAsWeak) and the strictly larger count (card_lt_of_strictly_weaker), decided over every valuation; past its cap, `certificate` gives the reason there is none. Prior mass is not certified.",
       shape: {
         concepts: z.array(z.strictObject({ id: Id, model: act.FunctionModel })).min(2).describe("Candidate concepts, each a model that declares behaviour for every box that can reach a deliverable"),
         acceptable: z.array(AcceptableEntry).min(1)
           .describe("Per deliverable port (a product input port), or per carrier for every deliverable it carries, the acceptable values: listed, or derived from a threshold (at_least, below) through the carrier's levels. An output is acceptable when every deliverable's value is"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on situations and search states per concept (default and maximum ${MAX_STATES})`),
-        certificate: z.boolean().optional().describe("Also return a Lean certificate of every strictly ordered pair (check it with scripts/certify.mjs); incomparable and equal pairs are not certified"),
+        scope: z.enum(["upstream", "whole"]).optional(),
+        prior: z.array(z.strictObject({ input: OperatingSituation, weight: z.number().nonnegative() })).min(1).optional().describe("Explicit joint mass for EVERY complete situation, including zero mass; no independent-input assumption"),
+        certificate: z.boolean().optional().describe("Also return a Lean certificate of every inclusion, equality, or incomparability pair within its cap; prior mass is not certified"),
       },
-      handler: async ({ concepts, acceptable, max_states, certificate }: { concepts: Array<{ id: string; model: act.FunctionModel }>; acceptable: Acceptable[]; max_states?: number; certificate?: boolean }) => {
-        const r = weaknessRanking(concepts, acceptable, { maxStates: max_states });
+      handler: async ({ concepts, acceptable, max_states, certificate, scope, prior }: { concepts: Array<{ id: string; model: act.FunctionModel }>; acceptable: Acceptable[]; max_states?: number; certificate?: boolean; scope?: BehaviorScope; prior?: JointPriorRow[] }) => {
+        const r = weaknessRanking(concepts, acceptable, { maxStates: max_states, scope, prior });
         if (!certificate || !r.ok) return text(r);
-        return text({ ...r, certificate: certificateField(weaknessCertificate(concepts, acceptable, { maxStates: max_states })) });
+        return text({ ...r, certificate: certificateField(weaknessCertificate(concepts, acceptable, { maxStates: max_states, scope, prior })) });
       },
     },
     {
       name: "triz_dynamics",
-      description: "Bounded dynamics of a function model whose boxes declare `state`, `initial`, and `transition` rows (state, inputs) → (next state, outputs): each such box is a nondeterministic Mealy machine (a lens with a residual is one, with the residual as state); boxes with `behavior` are stateless. Boxes compose synchronously along the wiring: wires are instantaneous, memory lives only in declared state, and a loop through stateless boxes resolves within a step as in triz_behavior. From the initial states, over the boundary inputs you allow at each time (default: every value), every run is explored breadth first up to `horizon` steps; the result lists the reachable states, the fixed points among them, and the runs that block (a state with no row for its inputs). `unsafe` decides escalation: reachable (with a shortest trace), unreachable (the reachable set stopped growing, so at no horizon), or unreachable-within-horizon. `safe` decides invariance: violated (shortest trace), invariant, or invariant-within-horizon. A blocked state meets a target by its state conditions; a port condition there leaves the verdict undecided (reason blocked), never safe. `separation` takes two to four demands, each a target set with a time window, and decides whether one run visits each within its window (separation in time along a trajectory, Principle 15): realizable with a witness trace, unrealizable (a demand never met, or no single run meets them all), or undecided (a blocked run might meet them all). Without `inputs`, `loops` classifies the closed components (no step leaves them) of the reachable graph of the global states of boxes that declare transition, explored without a horizon up to the cap, from the initial states and every state meeting `safe`'s state conditions: bistable (fixed points in two or more closed components), trapped (a closed component every configuration of which meets `unsafe`: an absorbing trap, with a shortest trace into it), recurrent (a closed component that meets `unsafe` and also holds a safe configuration: the run can recover but never leaves it, with a shortest trace into it and the safe configuration), oscillating (a cycle and no fixed point, with its period and one cycle); each closed component reports `unsafe` (it meets the set) and `allUnsafe` (it lies inside it); classes can coexist, and 'none' means no closed component was found within the cap. Behavior rows are never read as transitions. Every trace is re-checked against the declared rows. With `certificate: true` and a reachable escalation (no `inputs`, a trace that does not end blocked), also returns a Lean file that encodes the composed boxes' rows and the trace and proves the escalation with reach_of_trace; otherwise `certificate` gives the reason there is none. Fails closed on ill-typed rows, unknown targets, and past the state cap. Verdicts hold for the rows as declared; continuous dynamics, convergence rates, and control are not modelled.",
+      description: "Bounded dynamics of a function model whose boxes declare `state`, `initial`, and `transition` rows (state, inputs) → (next state, outputs): each such box is a nondeterministic Mealy machine (a lens with a residual is one, with the residual as state); boxes with `behavior` are stateless. Boxes compose synchronously along the wiring: wires are instantaneous, memory lives only in declared state, and a loop through stateless boxes resolves within a step as in triz_behavior. From the initial states, over the boundary inputs you allow at each time (default: every value), every run is explored breadth first up to `horizon` steps; the result lists the reachable states, the fixed points among them, and the runs that block (a state with no row for its inputs). `unsafe` decides escalation: reachable (with a shortest trace), unreachable (the reachable set stopped growing, so at no horizon), or unreachable-within-horizon. `safe` decides invariance: violated (shortest trace), invariant, or invariant-within-horizon. A blocked state meets a target by its state conditions; a port condition there leaves the verdict undecided (reason blocked), never safe. `separation` takes two to four demands, each a target set with a time window, and decides whether one run visits each within its window (separation in time along a trajectory, Principle 15): realizable with a witness trace, unrealizable (a demand never met, or no single run meets them all), or undecided (a blocked run might meet them all). Without `inputs`, `loops` classifies the closed components (no step leaves them) of the reachable graph of the global states of boxes that declare transition, explored without a horizon up to the cap, from the initial states and every state meeting `safe`'s state conditions: bistable (fixed points in two or more closed components), trapped (a closed component every configuration of which meets `unsafe`: an absorbing trap, with a shortest trace into it), recurrent (a closed component that meets `unsafe` and also holds a safe configuration: the run can recover but never leaves it, with a shortest trace into it and the safe configuration), oscillating (a cycle and no fixed point, with its period and one cycle); each closed component reports `unsafe` (it meets the set) and `allUnsafe` (it lies inside it); classes can coexist, and 'none' means no closed component was found within the cap. Behavior rows are never read as transitions. Every trace is re-checked against the declared rows. With `certificate: true`, supported reachable escalations encode and prove their row-derived trace. Supported state-only negative results instead encode a closed invariant, initial coverage, and unsafe exclusion or safe containment. Input schedules, bounded-only negative results, negative port targets and loop-class certificates give an explicit unsupported reason. Certificates have source-bound manifests and require independent Lean checking. Fails closed on ill-typed rows, unknown targets, and past the state cap. Verdicts hold for the rows as declared; continuous dynamics, convergence rates, and control are not modelled.",
       shape: {
         model: act.FunctionModel,
         horizon: z.number().int().min(0).max(MAX_HORIZON).optional().describe(`Steps to explore (times 0 to horizon); default: the length of inputs minus one, else ${DEFAULT_HORIZON}`),
@@ -481,7 +502,7 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
         safe: Target.optional().describe("Invariance: does every reachable configuration meet every condition?"),
         separation: z.array(TimedDemand).min(2).max(4).optional().describe("Separation in time: does one run visit each demand's target set within its window?"),
         max_states: z.number().int().positive().max(MAX_STATES).optional().describe(`Cap on configurations and search states (default and maximum ${MAX_STATES})`),
-        certificate: z.boolean().optional().describe("Also return a Lean certificate of a reachable escalation: the composed rows and the shortest trace (check it with scripts/certify.mjs); other verdicts are not certified"),
+        certificate: z.boolean().optional().describe("Also return a Lean certificate of a reachable escalation or supported state-only inductive safety verdict; unsupported targets, inputs and caps return an explicit reason"),
       },
       handler: async ({ model, max_states, certificate, ...rest }: { model: act.FunctionModel; max_states?: number; certificate?: boolean } & Omit<Parameters<typeof boundedDynamics>[1], "maxStates">) => {
         const spec = { ...rest, maxStates: max_states };
@@ -546,6 +567,23 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
       handler: async () => text(triz.evals()),
     },
   ];
+
+  const finiteTools: Array<[string, string, z.ZodObject<any>, (args: any) => unknown]> = [
+    ["triz_adequacy", "Check nonblocking and acceptable outputs over required operating situations under an explicit scope. Equality of two partial relations does not establish adequacy.", z.strictObject({ model: act.FunctionModel, acceptable: z.array(AcceptableEntry).min(1), required_inputs: z.array(OperatingSituation).min(1).optional(), scope: z.enum(["upstream", "whole"]).default("whole"), max_states: z.number().int().min(1).max(MAX_STATES).optional() }), ({ model, acceptable, required_inputs, scope, max_states }: { model: act.FunctionModel; acceptable: Acceptable[]; required_inputs?: Situation[]; scope: BehaviorScope; max_states?: number }) => operationalAdequacy(model, acceptable, { requiredInputs: required_inputs, scope, maxStates: max_states })],
+    ["triz_isomorphism", "Verify or search a bijection preserving wiring and declared semantic annotations; search continues past incompatible automorphisms and returns undecided on its global budget.", SemanticIsomorphismRequest, semanticIsomorphism],
+    ["triz_behavior_refinement", "Compose two WHOLE models and check exact equality or directional inclusion under explicit boundary and deliverable value maps. Complete relations are checked; no physical transfer is inferred.", RefinementRequest, behaviorRefinement],
+    ["triz_subsystem_summary", "Compose a stateless subsystem into an exact finite boundary relation with an explicit port map, fixed cost, and hidden-harm list. Empty relations are reported without inventing unknown behavior.", SummaryRequest, summarizeSubsystem],
+    ["triz_implementations", "Evaluate named complete implementations against one whole-model behavior, adequacy, declared-harm and resource contract. Never splice behavior and cost from different modes; provenance remains declared.", ImplementationRequest, evaluateImplementations],
+    ["triz_absorber_assignments", "Enumerate all compatible absorber endpoints and complete assignments under one finite contract and a shared work budget. Separate per-function successes do not establish joint sufficiency.", AbsorberAssignmentsRequest, enumerateAbsorberAssignments],
+    ["triz_synthesize", "Search the Cartesian product of finite behavior/resource alternatives for several stateless holes on fixed wiring. Each complete tuple meets one shared contract; capped search is undecided, impossibility is only within this declared library.", SynthesisRequest, synthesizeFinite],
+    ["triz_global_separation", "Decide exact finite global compatibility of allowed tuples on overlapping variable contexts, with a witness or complete empty join. Pairwise projection compatibility alone is insufficient; no cohomology is computed.", GlobalSeparationRequest, globalSeparation],
+    ["triz_queue", "Compile a finite discrete queue with explicit arrivals, service/storage capacity, schedule and units, then check overflow through existing dynamics. All declared arrival combinations within the schedule are considered.", QueueRequest, analyzeQueue],
+    ["triz_conservation", "Check declared consumptive versus shared-level supply constraints for explicit units. Consumptive branches sum; shared intensive requirements use max. No physical law is inferred from labels.", ConservationRequest, checkConservation],
+    ["triz_rule_set", "Validate a named rule subset and establish termination when every successful application strictly decreases lexicographic box/wire counts. No global confluence or critical-pair completeness is inferred.", RuleSetRequest, analyzeRuleSet],
+    ["triz_rewrite_pair", "Replay two named structural rewrites in both orders and check whether those occurrences commute. Interference does not prove nonconfluence.", RewritePairRequest, analyzeRewritePair],
+    ["triz_trim_rewrite", "Return an applied trim as explicit deletion/gluing data with its declared absorbers, interface, and checked replay. No Kan-extension claim is made.", TrimRewriteRequest, trimRewrite],
+  ];
+  for (const [name, description, schema, run] of finiteTools) specs.push({ name, description, shape: schema.shape, handler: async (args) => text(run(schema.parse(args))) });
 
   if (graph) {
     specs.push(

@@ -41,3 +41,11 @@ jobs:
 
       - name: Certificates (acceptance + tamper)
         run: node scripts/certify.mjs --local --tamper theory/Certificates/*.lean
+
+      - uses: pnpm/action-setup@v4
+
+      - run: pnpm install --frozen-lockfile
+
+      # The ordinary test job has no Lean build; require actual pinned-kernel checks here.
+      - name: Request-bound behavior, weakness, and inductive certificates
+        run: TRIZ_REQUIRE_LEAN=1 node --import tsx --test tests/act-cert-assurance.test.ts

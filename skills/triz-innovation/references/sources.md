@@ -269,3 +269,15 @@ interpretation; replace its provenance note if the original source is identified
 principle numbering is canonical; the English descriptions in this repository are concise
 paraphrases. The underlying table is Altshuller's and widely republished; regenerate the file from
 a source of your own choosing with the importer if needed.
+
+## Assurance extension and future work
+
+The implemented finite capabilities and exact limitations are recorded in
+[categorical-assurance.md](../../../docs/categorical-assurance.md). The separate
+[categorical-future-plan.md](../../../docs/categorical-future-plan.md) preserves the eight-workstream
+roadmap, decisions on all eighteen supplied suggestions, falsifying cases and primary references.
+It distinguishes implementation from research analogies: certifying model checking (Namjoshi),
+verified checkers (Alkassar et al.), implementation-aware co-design (Censi), bounded component
+synthesis (Iannopollo et al.), sound abstraction/refinement, exact global-section constraints,
+network calculus, and DPO with interfaces. A citation alone does not establish that a kernel
+operation satisfies a paper's hypotheses.

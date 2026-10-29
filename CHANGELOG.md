@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Whole-model behavior scope, operational adequacy, explicit joint-prior operating coverage, and
+  annotation-preserving semantic isomorphism search.
+- Input-bound Lean certificate manifests and request/table correspondence checking; supported
+  behavior equality/inequality, all weakness pair outcomes, and state-only inductive safety.
+- Joint implementation/resource/harm contracts, complete bounded absorber assignments and
+  fixed-wiring multi-hole library synthesis.
+- Exact behavioral refinement and subsystem summaries, overlapping-constraint global joins,
+  discrete queue and conserved-quantity adapters, restricted rule termination and rewrite replay.
+- Extended annotation-renaming/permutation tests and a separate cited future-work plan.
+
+
 ### Changed
 
 - The Release workflow's MCP Registry job waits up to 15 minutes for the version to appear on npm before publishing.

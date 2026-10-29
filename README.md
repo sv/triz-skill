@@ -105,6 +105,14 @@ missing.
 
 ## Function models as typed data
 
+The eight-workstream assurance extension adds whole-model behavior, operational adequacy,
+input-bound Lean certificates, semantic isomorphism/refinement, joint implementation and finite
+synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
+and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
+[Future work, acceptance criteria and primary references](docs/categorical-future-plan.md) are
+kept separately; these bounded capabilities do not close every research exclusion.
+
+
 `triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function
 model written as an open wiring diagram, defined by
 [`function-model.schema.json`](skills/triz-innovation/schemas/function-model.schema.json):
@@ -208,9 +216,12 @@ on; a test checks that every cited name is a theorem there. Typing, harm-loop wi
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or
 `triz_separate` with `certificate: true`) writes a Lean file that states them about the model
 and proves them, and `node scripts/certify.mjs` checks it with local Lean or, failing that, the
-AXLE service. `triz_dynamics` and `triz_weakness` with `certificate: true` do the same for a
-reachable escalation (the composed rows and the shortest trace) and for each strictly ordered
-pair of concepts (their rows, the inclusion, and the count). Nothing is extracted from Lean. The structured verdicts of the
+AXLE service. `triz_behavior`, `triz_dynamics` and `triz_weakness` with `certificate: true` cover
+supported finite behavior comparisons, reachable escalation/state-only inductive safety, and
+strict, equal or incomparable concept pairs. Manifests bind the source request and scope;
+`node scripts/certify.mjs --local --tamper --request request.json result.lean` checks source/table
+correspondence and the listed proofs. Unsupported cases and caps return an explicit reason.
+Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions

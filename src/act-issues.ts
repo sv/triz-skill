@@ -95,6 +95,10 @@ export const ISSUE_CODES = {
   "unbound-carrier-variable": "A carrier variable used only on the right side is not bound",
   "not-right-only-variable": "carriers binds a variable that is not used only on the right side",
   "distinct-carriers": "Carrier variables the rule declares distinct bind the same carrier",
+  // Assurance and extended finite checks
+  "invalid-argument": "An argument or cross-reference is invalid for the requested finite check",
+  "prior-malformed": "A joint operating-situation prior is invalid, duplicated, or incomplete",
+  "required-input-malformed": "A required operating situation is invalid or duplicated",
   // Behaviour and weakness
   "no-deliverables": "No product box receives a non-harmful function",
   "box-map-unknown-box": "box_map names a box the concept or baseline does not have",
@@ -130,7 +134,7 @@ export const ISSUE_CODES = {
   "invalid-namespace": "The certificate namespace is not a usable Lean identifier",
   "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe target",
   "certificate-input-sequence": "A dynamics certificate was asked for runs under an input sequence, which it does not encode",
-  "not-certifiable": "The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair",
+  "not-certifiable": "The requested verdict or scope is unsupported by the finite certificate generator",
   // Lints (warnings channel)
   "defect-on-loss-carrier": "Lint: a loss-like flow (pressure drop, friction, leakage, …) is rated excessive or insufficient",
   "trim-level-functions": "Lint: the trim removes excessive or insufficient functions, listed under levelProblems",

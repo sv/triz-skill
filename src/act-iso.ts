@@ -157,7 +157,7 @@ function refine(g: Incidence, colours: number[]): number[] {
 }
 
 /** Search for a shape-preserving bijection a → b within `budget` individualization steps. */
-export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_000) {
+export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_000, options: { accept?: (mapping: ModelMapping, charge: () => void) => boolean } = {}) {
   const ca = checkModel(a), cb = checkModel(b);
   if (!ca.ok || !cb.ok) return { ok: false as const, errors: [...ca.errors.map((e) => `a: ${e}`), ...cb.errors.map((e) => `b: ${e}`)] };
   const ga = incidence(a), gb = incidence(b);
@@ -186,6 +186,15 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
   };
   const targetEdges = edgeSet(n, 2 * n, (v) => v);
   let steps = 0;
+  const charge = () => { if (++steps > budget) throw new Budget(); };
+  const mappingFrom = (image: number[]): ModelMapping => {
+    const pairs = (kind: Incidence["ref"][number]["kind"], box?: string) =>
+      Object.fromEntries(image.flatMap((w, v) => (ga.ref[v].kind === kind && ga.ref[v].box === box ? [[ga.ref[v].id, gb.ref[w].id]] : [])));
+    return {
+      boxes: pairs("box"), wires: pairs("wire"), carriers: pairs("carrier"), dims: pairs("dim"),
+      ports: Object.fromEntries(a.boxes.map((x) => [x.id, pairs("port", x.id)])),
+    };
+  };
   const search = (cs: number[]): number[] | null => {
     if (!balanced(cs)) return null;
     const size = new Map<number, number>();
@@ -197,14 +206,17 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
       for (let v = n; v < 2 * n; v++) byColour.set(cs[v], v);
       const f = (v: number) => (v < n ? byColour.get(cs[v])! : v);
       const ok = g.colour.slice(0, n).every((c, v) => c === g.colour[f(v)]) && edgeSet(0, n, f) === targetEdges;
-      return ok ? Array.from({ length: n }, (_, v) => f(v) - n) : null;
+      if (!ok) return null;
+      const image = Array.from({ length: n }, (_, v) => f(v) - n);
+      charge();
+      return !options.accept || options.accept(mappingFrom(image), charge) ? image : null;
     }
     let u = 0;
     while (cs[u] !== cell) u++;
     const fresh = Math.max(...cs) + 1;
     for (let v = n; v < 2 * n; v++) {
       if (cs[v] !== cell) continue;
-      if (++steps > budget) throw new Budget();
+      charge();
       const next = [...cs];
       next[u] = fresh;
       next[v] = fresh;
@@ -221,13 +233,7 @@ export function findIsomorphism(a: FunctionModel, b: FunctionModel, budget = 10_
     throw e;
   }
   if (!image) return { ok: true as const, decided: true as const, isomorphic: false as const, reason: "no bijection preserves roles, port sides, shared carriers, wiring, polarities, and costs" };
-  // Built from entries, never by assignment, so an id like '__proto__' becomes an own key.
-  const pairs = (kind: Incidence["ref"][number]["kind"], box?: string) =>
-    Object.fromEntries(image.flatMap((w, v) => (ga.ref[v].kind === kind && ga.ref[v].box === box ? [[ga.ref[v].id, gb.ref[w].id]] : [])));
-  const mapping: ModelMapping = {
-    boxes: pairs("box"), wires: pairs("wire"), carriers: pairs("carrier"), dims: pairs("dim"),
-    ports: Object.fromEntries(a.boxes.map((x) => [x.id, pairs("port", x.id)])),
-  };
+  const mapping = mappingFrom(image);
   const verified = checkIsomorphism(a, b, mapping);
   if (!verified.ok) throw new Error(`internal: search returned an unverified mapping: ${verified.errors.join("; ")}`);
   // Isomorphic models get the same verdicts: typing and harm cycles transport along the bijection.

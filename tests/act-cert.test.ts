@@ -39,6 +39,7 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
 };
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
+const tables = (c: Certificate) => content(c).replace(/^def certificateManifest : String := .*\n/m, "");
 const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
 const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
 
@@ -318,10 +319,10 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   const m = example("bearing-heat-dynamics");
   const fails = (c: Certificate) => (c.ok ? "" : c.errors.join("; "));
   assert.match(fails(dynamicsCertificate(m, {})), /pass unsafe/);
-  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /the escalation is unreachable-within-horizon: only a reachable escalation/);
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /only the bounded horizon verdict holds/);
   const damped = example("bearing-heat-dynamics");
   for (const r of damped.boxes.find((b) => b.id === "shaft")!.transition!) if (r.state === "hot" || (r.state === "warm" && r.in["heat-in"] === "high")) r.next = "warm";
-  assert.match(fails(dynamicsCertificate(damped, { unsafe: HOT })), /the escalation is unreachable: only a reachable escalation/);
+  assert.ok(dynamicsCertificate(damped, { unsafe: HOT }).ok);
   assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, inputs: [[], [], []] })), /an input sequence indexes the runs by time/);
   // A run that blocks in the unsafe state has no valuation there.
   const stuck = example("bearing-heat-dynamics");
@@ -339,16 +340,16 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   assert.match(fails(dynamicsCertificate(wide, { unsafe: HOT })), new RegExp(`past the certificate limit of ${MAX_CERT_ROWS}`));
 });
 
-test("a weakness certificate states each strictly ordered pair, and only those", () => {
+test("a weakness certificate states strict, equal, and incomparable pairs", () => {
   const concepts = supportConcepts();
   const r = weaknessRanking(concepts, SUPPORT_ACCEPTABLE);
   assert.ok(r.ok && r.verdict === "ranked");
   const c = weaknessCertificate(concepts, SUPPORT_ACCEPTABLE);
   assert.ok(c.ok);
-  // ball and bushing are incomparable: no theorem; each is strictly weaker than tight.
+  // Opposed witnesses certify ball and bushing are incomparable; each is strictly weaker than tight.
   assert.deepEqual(r.pairs.map((p) => p.order), ["incomparable", "first-weaker", "first-weaker"]);
-  assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_0_2", "TrizCertificate.count_0_2", "TrizCertificate.weaker_1_2", "TrizCertificate.count_1_2"]);
-  assert.match(c.certifies[0].verdict, /'ball' is strictly weaker than 'tight'/);
+  assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.incomparable_0_1", "TrizCertificate.weaker_0_2", "TrizCertificate.count_0_2", "TrizCertificate.weaker_1_2", "TrizCertificate.count_1_2"]);
+  assert.match(c.certifies[1].verdict, /'ball' is strictly weaker than 'tight'/);
   assert.match(c.content, /^namespace Concept2$/m);
   assert.match(c.content, /^def conceptId : String := "tight"$/m);
   assert.match(c.content, /^theorem count_1_2 : \(admitted \(accepts acceptable\) \(Concept2\.rows\.relation inputDomain Concept2\.reads Concept2\.delivers\)\)\.card < /m);
@@ -359,23 +360,23 @@ test("a weakness certificate states each strictly ordered pair, and only those",
     for (const k of x.model.carriers) if (k.values) k.values = [...k.values].reverse();
     return x;
   });
-  assert.equal(content(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), c.content);
+  assert.equal(tables(weaknessCertificate(reordered, SUPPORT_ACCEPTABLE)), tables(c));
   // Acceptability given per carrier, or as a threshold through the carrier's levels: the same table.
   const byCarrier = weaknessCertificate(concepts, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", values: ["supported"] }]);
-  assert.equal(content(byCarrier), c.content);
+  assert.equal(tables(byCarrier), tables(c));
   const levelled = supportConcepts().map((x) => {
     x.model.carriers.find((k) => k.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
     return x;
   });
-  assert.equal(content(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), c.content);
+  assert.equal(tables(weaknessCertificate(levelled, [SUPPORT_ACCEPTABLE[0], { carrier: "radial-load", at_least: 2500 }])), tables(c));
   // second-weaker pairs name the weaker concept first.
   const flipped = weaknessCertificate([concepts[2], concepts[0]], SUPPORT_ACCEPTABLE);
   assert.ok(flipped.ok);
   assert.deepEqual(flipped.certifies.map((x) => x.theorem), ["TrizCertificate.weaker_1_0", "TrizCertificate.count_1_0"]);
 
   const fails = (x: Certificate) => (x.ok ? "" : x.errors.join("; "));
-  assert.match(fails(weaknessCertificate([concepts[0], concepts[1]], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
-  assert.match(fails(weaknessCertificate([concepts[0], { id: "again", model: concepts[0].model }], SUPPORT_ACCEPTABLE)), /no pair is strictly ordered/);
+  assert.ok(weaknessCertificate([concepts[0], concepts[1]], SUPPORT_ACCEPTABLE).ok);
+  assert.ok(weaknessCertificate([concepts[0], { id: "again", model: concepts[0].model }], SUPPORT_ACCEPTABLE).ok);
   const unknown = structuredClone(concepts[1]);
   delete unknown.model.boxes.find((b) => b.id === "support")!.behavior;
   assert.match(fails(weaknessCertificate([concepts[0], unknown], SUPPORT_ACCEPTABLE)), /the ranking is undecided/);
@@ -395,14 +396,14 @@ test("triz_dynamics and triz_weakness return certificates, or the reason there i
   const none = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, certificate: true });
   assert.equal(none.escalation.verdict, "unreachable-within-horizon");
   assert.deepEqual(none.certificate.ok, false);
-  assert.match(none.certificate.errors.join(), /only a reachable escalation/);
+  assert.match(none.certificate.errors.join(), /only the bounded horizon verdict holds/);
   assert.equal((await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT })).certificate, undefined);
 
   const weak = await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
   assert.equal(weak.verdict, "ranked");
   assert.equal(weak.certificate.content, content(weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE)));
   const incomparable = await call("triz_weakness", { concepts: supportConcepts().slice(0, 2), acceptable: SUPPORT_ACCEPTABLE, certificate: true });
-  assert.match(incomparable.certificate.errors.join(), /no pair is strictly ordered/);
+  assert.equal(incomparable.certificate.format, "lean");
   assert.equal((await call("triz_weakness", { concepts: supportConcepts(), acceptable: SUPPORT_ACCEPTABLE })).certificate, undefined);
 });
 

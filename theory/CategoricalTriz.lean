@@ -975,6 +975,14 @@ theorem admits_mono_ok {R : α → β → Prop} {ok ok' : β → Prop} (h : ∀ 
     admits R ok ⊆ admits R ok' :=
   fun _ ⟨hu, hy⟩ => ⟨hu, fun y hr => h y (hy y hr)⟩
 
+/-- Two opposed admitted-situation witnesses establish incomparability for any relations.
+Each membership includes a steady output and acceptance of every possible output. -/
+theorem incomparable_of_witnesses {ok : β → Prop} {R S : α → β → Prop} {u v : α}
+    (huR : u ∈ admits R ok) (huS : u ∉ admits S ok)
+    (hvS : v ∈ admits S ok) (hvR : v ∉ admits R ok) :
+    ¬ AtLeastAsWeak ok R S ∧ ¬ AtLeastAsWeak ok S R :=
+  ⟨fun h => hvR (h hvS), fun h => huS (h huR)⟩
+
 /-- Delivering the input and delivering its negation, with `true` acceptable: each concept admits
 a situation the other rejects, so the inclusion order is not total. -/
 theorem admits_incomparable :
@@ -1118,6 +1126,14 @@ theorem closed_reachIn {C : Set σ} (hC : Closed r C) {a : σ} (ha : a ∈ C) (n
   | succ n ih =>
     obtain ⟨c, hac, hcb⟩ := h
     exact hC c (ih hac) b hcb
+
+/-- An inductive invariant containing every initial state and missing every unsafe state
+excludes the unsafe set at every finite time. Closure is checked against the actual relation. -/
+theorem unreachable_of_inductive {I A U : Set σ}
+    (hA : A ⊆ I) (hI : Closed r I) (hU : Disjoint I U) :
+    ∀ a ∈ A, ∀ n b, reachIn r n a b → b ∉ U := by
+  intro a ha n b h hb
+  exact Set.disjoint_left.mp hU (closed_reachIn hI (hA ha) n h) hb
 
 /-- A closed set inside the unsafe set is an absorbing trap: from any of its states, every state
 reachable at any number of steps is unsafe. A closed set that only meets the unsafe set holds the

@@ -1402,4 +1402,17 @@ example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
   have := (h 0 3).mpr bot_le
   exact absurd this (by decide)
 
+/-! ## Generic opposed witnesses and an actual inductive invariant -/
+example :
+    ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) ∧
+      ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = !u) (fun u y => y = u) :=
+  incomparable_of_witnesses (u := true) (v := false)
+    (by decide) (by decide) (by decide) (by decide)
+
+example : ∀ a ∈ ({false} : Set Bool), ∀ n b,
+    reachIn (fun a b : Bool => b = a) n a b → b ∉ ({true} : Set Bool) :=
+  unreachable_of_inductive (I := ({false} : Set Bool)) subset_rfl
+    (fun a ha b hab => by rw [hab]; exact ha)
+    (Set.disjoint_left.mpr (by decide))
+
 end CategoricalTriz.Witnesses
