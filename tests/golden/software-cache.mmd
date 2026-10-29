@@ -1,0 +1,21 @@
+---
+title: "Read path of an API behind a Redis cache"
+---
+flowchart LR
+  classDef tool fill:#d6e4f5,color:#111,stroke:#333
+  classDef product fill:#d5ecd4,color:#111,stroke:#333,stroke-width:3px
+  classDef mediator fill:#e8e8e8,color:#111,stroke:#333
+  b0["API client<br/>«product»"]:::product
+  b1["API gateway<br/>«mediator»"]:::mediator
+  b2["API service<br/>«tool»"]:::tool
+  b3["Redis cluster<br/>«mediator»"]:::mediator
+  b4["Postgres<br/>«mediator»"]:::mediator
+  b0 -- "call<br/>out → in : request" --> b1
+  b1 -- "route<br/>fwd → req : request" --> b2
+  b2 -- "serve<br/>resp → in : response" --> b0
+  b2 -- "query<br/>lookup → get : query" --> b3
+  b3 -- "cache results for<br/>hit → cache-in : cached" --> b2
+  b3 -- "serve stale results to [harmful]<br/>hit → cache-in : cached" --> b2
+  b2 -- "query<br/>lookup → sql : query" --> b4
+  b4 -- "return rows to<br/>result → rows-in : rows" --> b2
+  linkStyle 5 stroke:#c00,color:#c00,stroke-width:2px

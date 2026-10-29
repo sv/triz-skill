@@ -1,0 +1,19 @@
+---
+title: "Batch workers sharing a database connection pool (same wiring shape as bearing-heat; costs illustrative)"
+---
+flowchart LR
+  classDef tool fill:#d6e4f5,color:#111,stroke:#333
+  classDef product fill:#d5ecd4,color:#111,stroke:#333,stroke-width:3px
+  classDef mediator fill:#e8e8e8,color:#111,stroke:#333
+  classDef environment fill:#f3f3f3,color:#111,stroke:#555,stroke-dasharray:5 3
+  b0["Job scheduler<br/>«tool»"]:::tool
+  b1["Batch worker<br/>«product»"]:::product
+  b2["Connection pool<br/>«mediator»"]:::mediator
+  b3["Database (direct connections)<br/>«mediator»"]:::mediator
+  b4["Tracing backend<br/>«environment»"]:::environment
+  b0 -- "dispatch jobs to<br/>dispatch → jobs-in : jobs" --> b1
+  b2 -- "lease sessions to<br/>lease → session-in : sessions" --> b1
+  b2 -- "block [harmful]<br/>contention → wait-in : wait" --> b1
+  b1 -- "retry against [harmful]<br/>retry → retry-in : retries" --> b2
+  linkStyle 2 stroke:#c00,color:#c00,stroke-width:2px
+  linkStyle 3 stroke:#c00,color:#c00,stroke-width:2px

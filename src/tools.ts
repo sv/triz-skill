@@ -404,12 +404,12 @@ export function toolSpecs(opts: { graph?: GraphModule } = {}): ToolSpec[] {
     },
     {
       name: "triz_export",
-      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (boxes as record nodes with input and output port fields, functions as edges; harmful red, insufficient dashed, excessive bold), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
+      description: "Export a function model that type-checks: 'dot' gives Graphviz DOT (each box a table: name and «role» in a role-coloured header, input ports left and output ports right with their carriers, open ports in italics; functions as edges between ports, harmful red, insufficient dashed, excessive bold; flows dotted blue; a legend of what occurs; render with `dot -Tsvg`), 'mermaid' gives a Mermaid flowchart that GitHub, GitLab, and many chat clients render without tools (Mermaid has no ports, so each edge names its out port, in port, and carrier), 'hypergraph' gives an open hypergraph (ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface), 'lean' gives a certificate: a Lean file that encodes the model as finite data and states the kernel's verdicts about it (typing, each harm-loop witness cycle, and the separation verdicts of embedded contradictions), each proved against theory/CategoricalTriz.lean, so Lean can check this one model's verdicts (`certifies` lists them; nothing is extracted). A model that fails the type-check is not exported (ok:false with the errors).",
       shape: {
         model: act.FunctionModel,
-        format: z.enum(["dot", "hypergraph", "lean"]),
+        format: z.enum(["dot", "mermaid", "hypergraph", "lean"]),
       },
-      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "hypergraph" | "lean" }) => text(exportModel(model, format)),
+      handler: async ({ model, format }: { model: act.FunctionModel; format: "dot" | "mermaid" | "hypergraph" | "lean" }) => text(exportModel(model, format)),
     },
     {
       name: "triz_transform",

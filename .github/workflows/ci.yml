@@ -29,6 +29,10 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # The DOT export tests render with Graphviz when it is installed, and skip otherwise.
+      - name: Install Graphviz
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends graphviz
+
       - run: pnpm typecheck
 
       - run: pnpm build

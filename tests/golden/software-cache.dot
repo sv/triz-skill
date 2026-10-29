@@ -1,18 +1,18 @@
 digraph function_model {
-  graph [rankdir=LR, label="Read path of an API behind a Redis cache", labelloc=t];
-  node [shape=record, fontname="Helvetica", fontsize=11];
-  edge [fontname="Helvetica", fontsize=9];
-  "client" [label="{{<i0> in (response)}|API client\n«product»|{<o0> out (request)}}", penwidth=2];
-  "gateway" [label="{{<i0> in (request)}|API gateway\n«mediator»|{<o0> fwd (request)|<o1> edge-cache (cached)}}"];
-  "app" [label="{{<i0> req (request)|<i1> cache-in (cached)|<i2> rows-in (rows)}|API service\n«tool»|{<o0> resp (response)|<o1> lookup (query)|<o2> memo (cached)}}"];
-  "redis" [label="{{<i0> get (query)}|Redis cluster\n«mediator»|{<o0> hit (cached)}}"];
-  "postgres" [label="{{<i0> sql (query)}|Postgres\n«mediator»|{<o0> result (rows)}}"];
-  "client":o0:e -> "gateway":i0:w [label="call", color="black"];
-  "gateway":o0:e -> "app":i0:w [label="route", color="black"];
-  "app":o0:e -> "client":i0:w [label="serve", color="black"];
-  "app":o1:e -> "redis":i0:w [label="query", color="black"];
-  "redis":o0:e -> "app":i1:w [label="cache results for", color="black"];
-  "redis":o0:e -> "app":i1:w [label="serve stale results to [harmful]", color="red3", fontcolor="red3"];
-  "app":o1:e -> "postgres":i0:w [label="query", color="black"];
-  "postgres":o0:e -> "app":i2:w [label="return rows to", color="black"];
+  graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=10, nodesep=0.3, ranksep=0.6, labelloc=t, label=<<TABLE BORDER="0" CELLSPACING="0"><TR><TD><FONT POINT-SIZE="14"><B>Read path of an API behind a Redis cache</B></FONT></TD></TR><TR><TD><TABLE BORDER="0" CELLSPACING="3" CELLPADDING="2"><TR><TD BGCOLOR="#d6e4f5" BORDER="1" COLOR="gray50">«tool»</TD><TD BGCOLOR="#d5ecd4" BORDER="1" COLOR="gray50">«product»</TD><TD BGCOLOR="#e8e8e8" BORDER="1" COLOR="gray50">«mediator»</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="1" COLOR="gray20"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">useful</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="2" COLOR="red3"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">harmful</TD><TD><I>open port</I></TD></TR></TABLE></TD></TR></TABLE>>];
+  node [shape=plain, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  "client" [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d5ecd4"><B>API client</B><BR/><FONT POINT-SIZE="9">«product»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">in <FONT POINT-SIZE="9" COLOR="gray35">response</FONT></TD><TD PORT="o0" ALIGN="RIGHT">out <FONT POINT-SIZE="9" COLOR="gray35">request</FONT></TD></TR></TABLE>>];
+  "gateway" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>API gateway</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">in <FONT POINT-SIZE="9" COLOR="gray35">request</FONT></TD><TD PORT="o0" ALIGN="RIGHT">fwd <FONT POINT-SIZE="9" COLOR="gray35">request</FONT></TD></TR><TR><TD></TD><TD PORT="o1" ALIGN="RIGHT"><I>edge-cache <FONT POINT-SIZE="9" COLOR="gray35">cached</FONT></I></TD></TR></TABLE>>];
+  "app" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d6e4f5"><B>API service</B><BR/><FONT POINT-SIZE="9">«tool»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">req <FONT POINT-SIZE="9" COLOR="gray35">request</FONT></TD><TD PORT="o0" ALIGN="RIGHT">resp <FONT POINT-SIZE="9" COLOR="gray35">response</FONT></TD></TR><TR><TD PORT="i1" ALIGN="LEFT">cache-in <FONT POINT-SIZE="9" COLOR="gray35">cached</FONT></TD><TD PORT="o1" ALIGN="RIGHT">lookup <FONT POINT-SIZE="9" COLOR="gray35">query</FONT></TD></TR><TR><TD PORT="i2" ALIGN="LEFT">rows-in <FONT POINT-SIZE="9" COLOR="gray35">rows</FONT></TD><TD PORT="o2" ALIGN="RIGHT"><I>memo <FONT POINT-SIZE="9" COLOR="gray35">cached</FONT></I></TD></TR></TABLE>>];
+  "redis" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Redis cluster</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">get <FONT POINT-SIZE="9" COLOR="gray35">query</FONT></TD><TD PORT="o0" ALIGN="RIGHT">hit <FONT POINT-SIZE="9" COLOR="gray35">cached</FONT></TD></TR></TABLE>>];
+  "postgres" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Postgres</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">sql <FONT POINT-SIZE="9" COLOR="gray35">query</FONT></TD><TD PORT="o0" ALIGN="RIGHT">result <FONT POINT-SIZE="9" COLOR="gray35">rows</FONT></TD></TR></TABLE>>];
+  "client":o0:e -> "gateway":i0:w [label="call", color="gray20"];
+  "gateway":o0:e -> "app":i0:w [label="route", color="gray20"];
+  "app":o0:e -> "client":i0:w [label="serve", color="gray20"];
+  "app":o1:e -> "redis":i0:w [label="query", color="gray20"];
+  "redis":o0:e -> "app":i1:w [label="cache results for", color="gray20"];
+  "redis":o0:e -> "app":i1:w [label="serve stale results to [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
+  "app":o1:e -> "postgres":i0:w [label="query", color="gray20"];
+  "postgres":o0:e -> "app":i2:w [label="return rows to", color="gray20"];
 }

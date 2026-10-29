@@ -93,7 +93,7 @@ missing.
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
-| `triz_export` | Export a model that type-checks as Graphviz DOT, an open hypergraph, or a Lean certificate of its verdicts |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, an open hypergraph, or a Lean certificate of its verdicts |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
@@ -196,7 +196,13 @@ weights. When the 9-windows snapshots declare rows, each time carries its behavi
 feasibility verdicts, and each change between times says how they move.
 
 `triz_nine_windows` builds system-operator views, and `triz_export` draws a model or encodes it
-as an open hypergraph. Given `compare_to`, `triz_function_model` also reports whether the two
+as an open hypergraph. Format `dot` draws each box with its «role» and its typed ports, inputs
+left and outputs right, rates each function by line style and colour, and adds a legend; render
+it with `dot -Tsvg`. Format `mermaid` renders as is in GitHub and GitLab markdown and in many
+chat clients; Mermaid has no ports, so each edge names its ports and carrier instead.
+
+![A function model drawn by triz_export format dot](docs/img/function-model-dot.svg)
+ Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
 on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
 separation verdicts can also be certified per instance: `triz_export` format `lean` (or

@@ -1,14 +1,14 @@
 digraph function_model {
-  graph [rankdir=LR, label="Batch workers sharing a database connection pool (same wiring shape as bearing-heat; costs illustrative)", labelloc=t];
-  node [shape=record, fontname="Helvetica", fontsize=11];
-  edge [fontname="Helvetica", fontsize=9];
-  "scheduler" [label="{Job scheduler\n«tool»|{<o0> dispatch (jobs)}}"];
-  "worker" [label="{{<i0> jobs-in (jobs)|<i1> session-in (sessions)|<i2> wait-in (wait)}|Batch worker\n«product»|{<o0> retry (retries)}}", penwidth=2];
-  "pool" [label="{{<i0> retry-in (retries)}|Connection pool\n«mediator»|{<o0> lease (sessions)|<o1> contention (wait)}}"];
-  "database" [label="{Database (direct connections)\n«mediator»|{<o0> connect (sessions)}}"];
-  "tracing" [label="{{<i0> spans (wait)}|Tracing backend\n«environment»}", style="dashed", color="gray40"];
-  "scheduler":o0:e -> "worker":i0:w [label="dispatch jobs to", color="black"];
-  "pool":o0:e -> "worker":i1:w [label="lease sessions to", color="black"];
-  "pool":o1:e -> "worker":i2:w [label="block [harmful]", color="red3", fontcolor="red3"];
-  "worker":o0:e -> "pool":i0:w [label="retry against [harmful]", color="red3", fontcolor="red3"];
+  graph [rankdir=LR, bgcolor="white", fontname="Helvetica", fontsize=10, nodesep=0.3, ranksep=0.6, labelloc=t, label=<<TABLE BORDER="0" CELLSPACING="0"><TR><TD><FONT POINT-SIZE="14"><B>Batch workers sharing a database connection pool (same wiring shape as bearing-heat; costs illustrative)</B></FONT></TD></TR><TR><TD><TABLE BORDER="0" CELLSPACING="3" CELLPADDING="2"><TR><TD BGCOLOR="#d6e4f5" BORDER="1" COLOR="gray50">«tool»</TD><TD BGCOLOR="#d5ecd4" BORDER="1" COLOR="gray50">«product»</TD><TD BGCOLOR="#e8e8e8" BORDER="1" COLOR="gray50">«mediator»</TD><TD BGCOLOR="#f3f3f3" BORDER="1" COLOR="gray50">«environment»</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="1" COLOR="gray20"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">useful</TD><TD><TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD WIDTH="24" HEIGHT="6" SIDES="B" BORDER="2" COLOR="red3"></TD></TR><TR><TD HEIGHT="6"></TD></TR></TABLE></TD><TD ALIGN="LEFT">harmful</TD><TD><I>open port</I></TD></TR></TABLE></TD></TR></TABLE>>];
+  node [shape=plain, fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=9, arrowsize=0.7];
+  "scheduler" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d6e4f5"><B>Job scheduler</B><BR/><FONT POINT-SIZE="9">«tool»</FONT></TD></TR><TR><TD></TD><TD PORT="o0" ALIGN="RIGHT">dispatch <FONT POINT-SIZE="9" COLOR="gray35">jobs</FONT></TD></TR></TABLE>>];
+  "worker" [label=<<TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#d5ecd4"><B>Batch worker</B><BR/><FONT POINT-SIZE="9">«product»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">jobs-in <FONT POINT-SIZE="9" COLOR="gray35">jobs</FONT></TD><TD PORT="o0" ALIGN="RIGHT">retry <FONT POINT-SIZE="9" COLOR="gray35">retries</FONT></TD></TR><TR><TD PORT="i1" ALIGN="LEFT">session-in <FONT POINT-SIZE="9" COLOR="gray35">sessions</FONT></TD><TD></TD></TR><TR><TD PORT="i2" ALIGN="LEFT">wait-in <FONT POINT-SIZE="9" COLOR="gray35">wait</FONT></TD><TD></TD></TR></TABLE>>];
+  "pool" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Connection pool</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT">retry-in <FONT POINT-SIZE="9" COLOR="gray35">retries</FONT></TD><TD PORT="o0" ALIGN="RIGHT">lease <FONT POINT-SIZE="9" COLOR="gray35">sessions</FONT></TD></TR><TR><TD></TD><TD PORT="o1" ALIGN="RIGHT">contention <FONT POINT-SIZE="9" COLOR="gray35">wait</FONT></TD></TR></TABLE>>];
+  "database" [label=<<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#e8e8e8"><B>Database (direct connections)</B><BR/><FONT POINT-SIZE="9">«mediator»</FONT></TD></TR><TR><TD></TD><TD PORT="o0" ALIGN="RIGHT"><I>connect <FONT POINT-SIZE="9" COLOR="gray35">sessions</FONT></I></TD></TR></TABLE>>];
+  "tracing" [label=<<TABLE BORDER="1" STYLE="dashed" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4"><TR><TD COLSPAN="2" BGCOLOR="#f3f3f3"><B>Tracing backend</B><BR/><FONT POINT-SIZE="9">«environment»</FONT></TD></TR><TR><TD PORT="i0" ALIGN="LEFT"><I>spans <FONT POINT-SIZE="9" COLOR="gray35">wait</FONT></I></TD><TD></TD></TR></TABLE>>];
+  "scheduler":o0:e -> "worker":i0:w [label="dispatch jobs to", color="gray20"];
+  "pool":o0:e -> "worker":i1:w [label="lease sessions to", color="gray20"];
+  "pool":o1:e -> "worker":i2:w [label="block [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
+  "worker":o0:e -> "pool":i0:w [label="retry against [harmful]", color="red3", fontcolor="red3", penwidth=1.5];
 }
