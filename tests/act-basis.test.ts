@@ -109,9 +109,19 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   });
   assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
   collect(ranked);
+  // Linked models: an abstraction, levels read in one model and across the map, thresholds as acceptable sets.
+  const levelled = structuredClone(example("bearing-heat-behavior"));
+  levelled.carriers.find((c) => c.id === "radial-load")!.levels = [{ value: "unsupported", from: 0 }, { value: "supported", from: 2500 }];
+  const numeric = example("bearing-heat-feasibility");
+  collect(await call("triz_abstraction", { detailed: numeric, coarse: levelled, map: { boxes: Object.fromEntries(numeric.boxes.map((b) => [b.id, b.id])) } }));
+  const both = structuredClone(levelled);
+  for (const b of both.boxes) b.feasibility = numeric.boxes.find((x) => x.id === b.id)!.feasibility;
+  collect(await call("triz_feasibility", { model: both }));
+  collect(await call("triz_weakness", { concepts: [{ id: "a", model: levelled }, { id: "b", model: levelled }], acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }, { carrier: "radial-load", at_least: 2500 }] }));
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
   for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "flow_merge_typed", "flow_merge_reach", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
-    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker",
+    "typed_map", "reach_map", "cycle_map", "level_monotone", "level_gc", "level_band"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 

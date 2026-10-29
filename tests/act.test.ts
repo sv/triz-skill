@@ -260,7 +260,7 @@ test("committed JSON Schemas match the zod models (regenerate with pnpm schema)"
 
 test("kernel tools are registered and answer over the shared spec", async () => {
   const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
-  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_flow"]) assert.ok(specs[name], name);
+  for (const name of ["triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction", "triz_flow"]) assert.ok(specs[name], name);
   const out = JSON.parse((await specs.triz_trim.handler({ model: example("bearing-heat"), trim: ["bearing"] })).content[0].text);
   assert.equal(out.verdict, "typed-feasible");
 });

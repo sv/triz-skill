@@ -114,12 +114,40 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "levels": {
+          "description": "Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CarrierLevel"
+          }
         }
       },
       "required": [
         "id",
         "layer",
         "dimension"
+      ],
+      "additionalProperties": false
+    },
+    "CarrierLevel": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A declared value of the carrier"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Least amount that reads as this value, in the units of the feasibility rows on this carrier"
+        }
+      },
+      "required": [
+        "value",
+        "from"
       ],
       "additionalProperties": false
     },

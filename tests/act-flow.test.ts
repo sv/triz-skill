@@ -259,6 +259,42 @@ test("exports carry flows: a lossless hypergraph round trip, and dotted DOT edge
   assert.match(dot, /"valve-a" -> "valve-b" \[label="loop \(water\)", style="dotted"/);
 });
 
+test("abstraction: each detailed flow passes along the map like a merge and is matched against the coarse flows", async () => {
+  const detailed = line();
+  const merged = only(merge(detailed, { boxes: ["valve-a", "valve-b"], into: { id: "valves", name: "Valve block" } }));
+  const identity = Object.fromEntries(detailed.boxes.map((b) => [b.id, b.id]));
+  const map = {
+    boxes: { ...identity, "valve-a": "valves", "valve-b": "valves" },
+    ports: { "valve-a": { drop: "valve-a.drop" }, "valve-b": { drop: "valve-b.drop", seep: "valve-b.seep" } },
+  };
+  const r = await call("triz_abstraction", { detailed, coarse: merged.model, map });
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  assert.deepEqual(r.flows.images.map((f: { flow: string; images: Array<{ path: string[]; matched: boolean }> }) => [f.flow, f.images.map((i) => [i.path, i.matched])]), [
+    ["loop", [[["tank", "pump", "valves", "exchanger", "tank"], true]]],
+    ["bleed", [[["valves", "sump"], true]]],
+  ]);
+  assert.deepEqual(r.flows.unbacked, []);
+  assert.deepEqual(r.flows.basis, ["reach_quotient"]);
+  // A coarse model that drops the bleed and adds a step no detailed flow takes.
+  const coarse = { ...merged.model, flows: [merged.model.flows!.find((f) => f.id === "loop")!, { id: "bypass", carrier: "water", path: ["pump", "exchanger"] }] };
+  const off = await call("triz_abstraction", { detailed, coarse, map });
+  assert.deepEqual(off.flows.images[1].images[0].missingSteps, [["valves", "sump"]]);
+  assert.deepEqual(off.flows.unbacked, [{ flow: "bypass", steps: [["pump", "exchanger"]] }]);
+  assert.equal(off.verdict, r.verdict, "flows do not change the verdict");
+});
+
+test("9 windows: the system view carries each flow's candidates, and a change lists how they move", async () => {
+  const m = line();
+  const r = await call("triz_nine_windows", { present: m, subsystem: ["pump"], transitions: { present_to_future: [{ op: "trim", trim: ["valve-a"] }] } });
+  assert.equal(r.ok, true);
+  const present = r.windows.find((w: { time: string }) => w.time === "present").system.verdicts.flows;
+  assert.deepEqual(present.flows.find((f: { id: string }) => f.id === "loop").bottlenecks, ["w-valve-a"]);
+  const delta = r.changes[0].verdicts.flows;
+  assert.deepEqual([delta.added, delta.removed, delta.rerouted], [[], [], ["loop"]]);
+  assert.deepEqual(delta.candidates, [{ flow: "loop", bottlenecks: { gone: ["w-valve-a"], new: [] }, accumulation: { gone: [], new: [] }, leaks: { gone: [], new: [] } }]);
+  assert.match(r.note, /changes\[\]\.verdicts\.flows/);
+});
+
 test("triz_flow answers over the shared tool spec and fails closed", async () => {
   const r = await call("triz_flow", { model: line() });
   assert.equal(r.ok, true);
