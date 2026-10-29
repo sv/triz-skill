@@ -95,6 +95,7 @@ missing.
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences |
 | `triz_export` | Export a model that type-checks as Graphviz DOT or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand |
+| `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, escalating (a trap), or oscillating |
 | `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -138,7 +139,11 @@ a counterexample input, or `undecided` (boxes that need behaviour, or no steady 
 model). The concept can be a trim or any `triz_transform` result; a segment's `boxMap` maps its
 parts back. Segmentation gives each part its projection of the box's relation when that relation
 is the product of the projections, and Intermediary's mediator can declare an identity relation.
-The semantics is steady state; it says nothing about dynamics.
+The semantics is steady state; it says nothing about dynamics. With `weakest_spec`, it gives the
+weakest specification for the one box without behaviour, such as an absorber: every row that
+keeps the relation inside the target. The verdict is `spec` when that specification also covers
+the target, and `impossible` when no behaviour of the box can. `triz_weakness` ranks modelled
+concepts by the situations they admit (references/weakness.md).
 
 When boxes declare feasibility (minimal rows of levels provided against levels required and
 operating cost), `triz_feasibility` finds the minimal resource vectors by Kleene's ascent to the
@@ -185,6 +190,11 @@ with no `sorry`:
 - a relation is the product of its projections iff it is a product at all, for two parts and
   for any family of parts, and for two parts iff it is a rectangle: rows (a, b) and (c, d) give
   the row (a, d);
+- series composition and the trace preserve unions, so for one unknown box the rows that keep a
+  composite inside a target form the weakest specification (a Galois connection), and the target
+  is reachable iff that specification's composite covers it;
+- concepts are ordered by inclusion of the situations they admit, and a strict inclusion gives a
+  strictly larger count;
 - reachability within n steps is an existential over traces, a counterexample trace is sound, a
   layer that adds nothing completes the reachable set, reachability is monotone in the
   transition rows, a closed set holds every run that enters it, and without a fixed point every
@@ -197,9 +207,9 @@ Verdicts cite only the statements they use exactly; categorical-model.md marks t
 never cited, and why.
 
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite,
-behaviour-monotonicity, co-design, or dynamics lemmas is vacuous. For each, a concrete diagram,
-relation, or step relation meets all its hypotheses, and a counterexample shows each hypothesis
-is needed.
+behaviour-monotonicity, residual, weakness, co-design, or dynamics lemmas is vacuous. For each, a
+concrete diagram, relation, or step relation meets all its hypotheses, and a counterexample shows
+each hypothesis is needed.
 
 Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
 relational check, and its verdict depends on the absorber chosen. `theory/` does not state

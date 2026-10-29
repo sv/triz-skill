@@ -82,8 +82,33 @@ test("every basis cited by any tool output names a listed theorem", async () => 
   for (const parts of [[["preload-in", "friction"], ["race"]], [["preload-in", "race"], ["friction"]], [["preload-in"], ["race"], ["friction"]]]) {
     collect(await call("triz_transform", { model: behaving, transformation: { op: "segment", box: "bearing", parts: parts.map((ports, i) => ({ id: `part-${i}`, ports })) } }));
   }
+  // The weakest specification (spec and impossible) and the weakness ranking (strict and incomparable pairs).
+  const open = example("bearing-heat-behavior");
+  delete open.boxes.find((b) => b.id === "housing")!.behavior;
+  collect(await call("triz_behavior", { model: open, trim: ["bearing"], weakest_spec: true }));
+  const dry = structuredClone(open);
+  dry.carriers.push({ id: "lube", layer: "material", dimension: "film", values: ["ok", "dry"] });
+  const bearingBox = dry.boxes.find((b) => b.id === "bearing")!;
+  bearingBox.inputs!.push({ id: "lube", carrier: "lube" });
+  bearingBox.behavior = bearingBox.behavior!.flatMap((r) => [{ in: { ...r.in, lube: "ok" }, out: r.out }, { in: { ...r.in, lube: "dry" }, out: { ...r.out, race: "unsupported" } }]);
+  const impossible = await call("triz_behavior", { model: dry, trim: ["bearing"], weakest_spec: true });
+  assert.equal(impossible.verdict, "impossible");
+  collect(impossible);
+  const variant = (keep: (lube: string) => boolean) => {
+    const m = structuredClone(dry);
+    const b = m.boxes.find((x) => x.id === "bearing")!;
+    b.behavior = b.behavior!.map((r) => ({ in: r.in, out: { ...r.out, race: keep(r.in.lube) ? "supported" : "unsupported" } }));
+    return m;
+  };
+  const ranked = await call("triz_weakness", {
+    concepts: [{ id: "any", model: variant(() => true) }, { id: "oiled", model: variant((l) => l === "ok") }, { id: "dry-only", model: variant((l) => l === "dry") }],
+    acceptable: [{ box: "shaft", port: "drive", values: ["rated"] }, { box: "shaft", port: "support", values: ["supported"] }],
+  });
+  assert.deepEqual(ranked.pairs.map((p: { order: string }) => p.order), ["first-weaker", "first-weaker", "incomparable"]);
+  collect(ranked);
   for (const n of cited) assert.ok(([...THEOREMS, ...MATHLIB_THEOREMS] as readonly string[]).includes(n), `cited '${n}' is not a listed theorem`);
-  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq"]) assert.ok(cited.has(n), `'${n}' is never cited`);
+  for (const n of ["typed_retarget", "typed_reverse", "typed_extend", "reach_quotient", "cheaper_part_lowers_cost", "trim_lowers_cost", "eq_projections_prod_iff", "eq_projections_prod_iff_rectangle", "eq_projections_pi_iff", "Relation.comp_eq",
+    "le_residual_iff", "covers_iff_exists_eq", "not_covers_iff", "map_empty", "admits_incomparable", "card_lt_of_strictly_weaker"]) assert.ok(cited.has(n), `'${n}' is never cited`);
   assert.ok(cited.size >= 10, `only ${[...cited].join(", ")} cited`);
 });
 
@@ -93,7 +118,8 @@ test("every basis cited by any tool output names a listed theorem", async () => 
  * be cited or listed.
  */
 test("lemmas no verdict uses exactly are proved but never listed as a verdict basis", () => {
-  const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset"];
+  const sanity = ["relTrace_not_loop", "loopStates_id", "relTrace_swap", "relation_comp_mono", "relTrace_mono", "separation_on_condition", "restrict_restrict", "restrict_of_subset",
+    "relation_comp_iSup_left", "relation_comp_iSup_right", "relTrace_iSup", "gc_residual", "map_residual_subset", "subset_residual_of_eq", "admits_bot", "admits_mono_ok", "atLeastAsWeak_refl", "atLeastAsWeak_trans"];
   for (const name of sanity) {
     assert.match(lean, new RegExp(`^theorem ${name}\\b`, "m"), name);
     assert.ok(!(THEOREMS as readonly string[]).includes(name), `'${name}' is listed as a verdict basis`);

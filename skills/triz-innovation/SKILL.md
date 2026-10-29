@@ -65,7 +65,8 @@ See [tool-selection.md](references/tool-selection.md).
    select the **weakest** — the one that commits to the fewest facts about the operating
    conditions, and therefore admits the most future situations. Simplicity and brevity break
    ties; they do not decide them. Record the commitments each rejected mechanism would have
-   made. See [weakness.md](references/weakness.md).
+   made. See [weakness.md](references/weakness.md); for concepts modelled with declared
+   behaviour, `triz_weakness` ranks them.
 5. **Substantiate.** Compare the best concept with the baseline using outcome, cost, time,
    quality, resilience, and harm measures. A failure creates a new contradiction to model.
 
@@ -93,8 +94,9 @@ Read only what the task needs:
 - exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
 - function models as typed data, harm loops, trimming screens, trims and transform results
-  decided under declared behaviour, bounded dynamics, separation checks, typed transformations,
-  9-windows views and transitions, and exports:
+  decided under declared behaviour, an unknown box's weakest specification, weakness rankings of
+  modelled concepts, bounded dynamics, separation checks, typed transformations, 9-windows views
+  and transitions, and exports:
   [categorical-model.md](references/categorical-model.md);
 - ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
 - S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);

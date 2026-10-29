@@ -541,6 +541,156 @@ example : parity ≠ Set.univ.pi (fun i => Function.eval i '' parity) := fun h =
     | 1 => h₂ 1 trivial
     | 2 => h₁ 2 trivial
   simp [parity] at this
+/-! ## Weakest box specification
+
+Every residual lemma assumes the context preserves unions (`hC`). `deliver Φ` is the shape of the
+kernel's context: a composite pair needs exactly one row of the unknown box, so it preserves
+unions. On it, the residual covers a target the box can reach, and is empty on a target that
+depends on an input the box cannot see: there the empty relation stays inside the target while no
+relation achieves it. A monotone context that does not preserve unions breaks `le_residual_iff`,
+and, into `SetRel Unit Bool`, `covers_iff_exists_eq` and `not_covers_iff`: `hC` is needed. -/
+
+/-- Each composite pair is produced by one row of the box. -/
+def deliver {α β γ δ : Type*} (Φ : α × β → γ × δ → Prop) (R : SetRel α β) : SetRel γ δ :=
+  {q | ∃ p ∈ R, Φ p q}
+
+theorem deliver_preservesUnions {α β γ δ : Type*} (Φ : α × β → γ × δ → Prop) :
+    PreservesUnions (deliver Φ) := by
+  intro R
+  ext q
+  simp [deliver]
+
+/-- The box's output is delivered. -/
+def passOn : Unit × Bool → Unit × Bool → Prop := fun p q => q.2 = p.2
+
+/-- Target `{true}`: the residual is the one row delivering `true`; its composite covers the
+target, and that row achieves it (`subset_residual_of_eq` with `h` holding). -/
+example : residual (deliver passOn) {((), true)} = {((), true)} ∧
+    ({((), true)} : SetRel Unit Bool) ⊆ deliver passOn (residual (deliver passOn) {((), true)}) ∧
+    deliver passOn {((), true)} = {((), true)} := by
+  have hW : residual (deliver passOn) {((), true)} = {((), true)} := by
+    ext ⟨u, b⟩
+    cases u
+    cases b <;> simp [residual, deliver, passOn, Set.subset_def, Prod.ext_iff]
+  have hC : deliver passOn {((), true)} = {((), true)} := by
+    ext ⟨u, b⟩
+    cases u
+    cases b <;> simp [deliver, passOn]
+  exact ⟨hW, by rw [hW, hC], hC⟩
+
+/-- Without `h`: the full relation delivers `false` too, so it is not inside the residual. -/
+example : ¬ (Set.univ : SetRel Unit Bool) ⊆ residual (deliver passOn) {((), true)} := by
+  intro h
+  have := (h (Set.mem_univ ((), false)) : deliver passOn {((), false)} ⊆ _)
+    (show ((), false) ∈ deliver passOn {((), false)} from ⟨((), false), rfl, rfl⟩)
+  simp at this
+
+/-- The box's output is delivered whatever the boundary input. -/
+def ignoreInput : Unit × Bool → Bool × Bool → Prop := fun p q => q.2 = p.2
+
+/-- The target delivers the boundary input itself, which the box cannot see: every row breaks it,
+so the residual is empty. The empty relation stays inside the target, yet nothing achieves it. -/
+example : residual (deliver ignoreInput) {q | q.2 = q.1} = ∅ ∧
+    deliver ignoreInput ∅ ⊆ {q | q.2 = q.1} ∧
+    ∀ R, deliver ignoreInput R ≠ {q | q.2 = q.1} := by
+  have hW : residual (deliver ignoreInput) {q | q.2 = q.1} = ∅ := by
+    ext ⟨u, b⟩
+    simp only [residual, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+    intro h
+    have := @h (!b, b) ⟨(u, b), rfl, rfl⟩
+    cases b <;> simp at this
+  refine ⟨hW, by simp [map_empty (deliver_preservesUnions ignoreInput)], ?_⟩
+  refine (not_covers_iff (deliver_preservesUnions ignoreInput)).1 ?_
+  rw [hW, map_empty (deliver_preservesUnions ignoreInput)]
+  intro h
+  exact h (show ((true, true) : Bool × Bool) ∈ {q : Bool × Bool | q.2 = q.1} from rfl)
+
+/-- Monotone, but not union-preserving: only the full relation has a non-empty composite. -/
+noncomputable def allOrNothing (R : SetRel Unit Bool) : SetRel Unit Unit :=
+  open Classical in if R = Set.univ then Set.univ else ∅
+
+example : Monotone allOrNothing ∧
+    ¬ ((Set.univ : SetRel Unit Bool) ⊆ residual allOrNothing ∅ ↔ allOrNothing Set.univ ⊆ ∅) := by
+  have single : ∀ p : Unit × Bool, ({p} : SetRel Unit Bool) ≠ Set.univ := fun p h => by
+    have := h ▸ Set.mem_univ ((), !p.2)
+    simp [Prod.ext_iff] at this
+  refine ⟨fun R S hRS => ?_, fun h => ?_⟩
+  · unfold allOrNothing
+    by_cases hR : R = Set.univ
+    · have hS : S = Set.univ := Set.univ_subset_iff.1 (hR ▸ hRS)
+      simp [hR, hS]
+    · simp [hR]
+  · have hu : (Set.univ : SetRel Unit Bool) ⊆ residual allOrNothing ∅ := fun p _ => by
+      simp only [residual, allOrNothing, Set.mem_setOf_eq, if_neg (single p), subset_rfl]
+    exact h.1 hu (show ((), ()) ∈ allOrNothing Set.univ by simp [allOrNothing])
+
+/-- The same shape into `SetRel Unit Bool`: the context takes only the values ∅ and everything. -/
+noncomputable def allOrNothingBool (R : SetRel Unit Bool) : SetRel Unit Bool :=
+  open Classical in if R = Set.univ then Set.univ else ∅
+
+/-- Without `hC`, `covers_iff_exists_eq` and `not_covers_iff` fail as well: the residual of
+`{((), true)}` is everything and its composite covers the target, yet no relation gives it. -/
+example : ¬ ((∃ R, allOrNothingBool R = {((), true)}) ↔
+      {((), true)} ⊆ allOrNothingBool (residual allOrNothingBool {((), true)})) ∧
+    ¬ (¬ {((), true)} ⊆ allOrNothingBool (residual allOrNothingBool {((), true)}) ↔
+      ∀ R, allOrNothingBool R ≠ {((), true)}) := by
+  have single : ∀ p : Unit × Bool, ({p} : SetRel Unit Bool) ≠ Set.univ := fun p h => by
+    have := h ▸ Set.mem_univ ((), !p.2)
+    simp [Prod.ext_iff] at this
+  have hW : residual allOrNothingBool {((), true)} = Set.univ := Set.eq_univ_of_forall fun p => by
+    simp only [residual, allOrNothingBool, Set.mem_setOf_eq, if_neg (single p), Set.empty_subset]
+  have hcov : ({((), true)} : SetRel Unit Bool) ⊆
+      allOrNothingBool (residual allOrNothingBool {((), true)}) := by
+    rw [hW]
+    simp [allOrNothingBool]
+  have hne : ∀ R, allOrNothingBool R ≠ {((), true)} := fun R h => by
+    unfold allOrNothingBool at h
+    split_ifs at h
+    · have := (Set.ext_iff.mp h ((), false)).1 trivial
+      simp at this
+    · exact (Set.ext_iff.mp h ((), true)).2 rfl
+  exact ⟨fun h => let ⟨R, hR⟩ := h.2 hcov; hne R hR, fun h => h.2 hne hcov⟩
+
+/-! ## Weakness ranking
+
+`admits_mono_ok`: a predicate that also accepts `false` admits the situation `false` as well;
+reversed, the larger admitted set is not inside the smaller, so `h` is needed. `AtLeastAsWeak` is
+transitive, and each hypothesis of `atLeastAsWeak_trans` is needed: with the incomparable pair of
+`admits_incomparable`, keeping one hypothesis by reflexivity does not give the conclusion.
+`card_lt_of_strictly_weaker` holds on a strict inclusion, fails on an equality, and a larger count
+alone gives no inclusion, which is why the ranking rests on inclusion and reports the count second. -/
+
+example : false ∉ admits (fun u y : Bool => y = u) (· = true) ∧
+    false ∈ admits (fun u y : Bool => y = u) (fun _ => True) ∧
+    admits (fun u y : Bool => y = u) (· = true) ⊆ admits (fun u y : Bool => y = u) (fun _ => True) :=
+  ⟨fun h => Bool.false_ne_true (h.2 false rfl), ⟨⟨false, rfl⟩, fun _ _ => trivial⟩,
+    admits_mono_ok fun _ _ => trivial⟩
+
+example : ¬ admits (fun u y : Bool => y = u) (fun _ => True) ⊆ admits (fun u y : Bool => y = u) (· = true) :=
+  fun h => Bool.false_ne_true ((h ⟨⟨false, rfl⟩, fun _ _ => trivial⟩).2 false rfl)
+
+example : AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = u) :=
+  atLeastAsWeak_trans (atLeastAsWeak_refl _ _) (atLeastAsWeak_refl _ _)
+
+/-- Without `h₁`: `S` and `U` agree, but `R` is incomparable with them. -/
+example : AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = u) ∧
+    ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = !u) (fun u y => y = u) :=
+  ⟨atLeastAsWeak_refl _ _, admits_incomparable.2⟩
+
+/-- Without `h₂`: `R` and `S` agree, but `U` is incomparable with them. -/
+example : AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = u) ∧
+    ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) :=
+  ⟨atLeastAsWeak_refl _ _, admits_incomparable.1⟩
+
+example : ({0} : Finset ℕ).card < ({0, 1} : Finset ℕ).card :=
+  card_lt_of_strictly_weaker (by decide)
+
+example : ({0} : Finset ℕ) ⊆ {0} ∧ ¬ ({0} : Finset ℕ).card < ({0} : Finset ℕ).card :=
+  ⟨subset_rfl, lt_irrefl _⟩
+
+example : ({0} : Finset ℕ).card < ({1, 2} : Finset ℕ).card ∧ ¬ ({0} : Finset ℕ) ⊆ {1, 2} := by
+  decide
+
 /-! ## Dynamics
 
 Each dynamics lemma with hypotheses holds on a concrete machine or step relation, and dropping
