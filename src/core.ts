@@ -21,6 +21,8 @@ export interface TrizTool {
   name: string;
   stages: ToolStage[];
   signals: string[];
+  /** MCP tools that carry out the checkable or lookup part of this method, where any do. */
+  mcp_tools?: string[];
 }
 export interface TrizEffect {
   id: number;
