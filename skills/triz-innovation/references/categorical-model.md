@@ -68,13 +68,13 @@ are in the [theory map](../../../docs/theory-map.md#theorem-inventory).
 
 ## Fields and tool dependencies
 
-Declare the fields a question needs, on the boxes that matter. A verdict whose rows are missing
-comes back `undecided` and names the boxes; it never guesses.
+Declare the fields a question needs, on the boxes that matter. Missing rows give `undecided`,
+naming the boxes, or fail closed with a code; the kernel never fills anything in.
 
 | Field | On | Unlocks | Without it |
 |---|---|---|---|
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
-| `behavior` | box | `triz_behavior` (relation, `compare_to`, `trim`), `weakest_spec` for the other boxes, `triz_weakness`, `triz_adequacy`, behaviour certificates, segment and take_out splits (`behaviourallyIndependent`, `behavior.finest`), `factorisations`, an identity `interpose`, `triz_nine_windows` `system.verdicts.behavior`, `triz_implementations`, `triz_synthesize`, `triz_behavior_refinement`, `triz_subsystem_summary` | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
+| `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
 | `producible` | a box without `behavior` or `transition` | `weakest_spec` cut to what the box can make: `impossible` with reason `infeasible`; with `feasibility` and `levels` too, the `unbacked-producible-row` lint | the spec ranges over every row of the box's declared values |
 | `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance, separation in time, `loops`; dynamics certificates; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
 | `feasibility`, `cost`, `budget` | box; box; model | `triz_feasibility` (with `trim`, each absorber's added resources), `uneven-development`, `triz_nine_windows` `system.verdicts.feasibility`, resource modes in `triz_implementations` and `triz_synthesize` | `undecided`: `missing-feasibility`, or `no-budget`, or `unbudgeted`; a box outside the solve adds only its `cost` |
@@ -128,8 +128,9 @@ The chaining rules agents get wrong:
   part delivers, or `partialDownstream` is not empty: the whole relates no more than the upstream
   part, and can relate strictly less.
 - **`priors` versus `joint_prior`.** Give one or neither (`invalid-prior`). `priors` weighs each
-  situation input, or every input of a carrier, independently: an unlisted input or value counts
-  1, and 0 rules a value out. `joint_prior` weighs every complete situation explicitly, zero
+  situation input (box and port), or every input of a carrier, independently, with a
+  nonnegative weight per declared value: an unlisted input or value counts 1, and 0 rules a value
+  out. `joint_prior` weighs every complete situation explicitly, zero
   included, for correlated conditions. Either breaks ties between incomparable concepts; neither
   changes an inclusion or a pair.
 - **Adequacy and implementations.** A relation comparison alone establishes neither. Use
@@ -197,22 +198,15 @@ The finite assurance tools:
    mechanisms (SKILL.md). Model the chosen concept and compare it with `compare_to`. A concept
    that drops a deliverable loses a function, whatever it saves.
 
-   When the boxes that matter declare behaviour, call `triz_behavior` with the same `trim` and
-   `absorb`. It decides whether the trim preserves the input→deliverable relation (see
-   [Declared behaviour](#declared-behaviour)). A `preserved` verdict holds for the relations as
-   declared; substantiate each of them, the absorber's first.
-
-   When every box that matters declares behaviour except the absorber, add `weakest_spec`. The
-   result is the absorber's weakest specification: what it must do for the trim to preserve the
-   relation, and nothing more. With an absorber and one new mediator both unknown, it gives the
-   maximal pairs of relations for the two instead. Or it says that no behaviour of the absorber
-   can (see [Weakest box specification](#weakest-box-specification)). The specification is the
-   trimming problem stated as a relation; it is still a problem to solve.
-
-   When the boxes that matter declare feasibility, call `triz_feasibility` with the same `trim`
-   and `absorb`. It decides whether the remaining boxes provide what the trim leaves them within
-   budget, and reports each absorber's added resources (see
-   [Co-design feasibility](#co-design-feasibility)).
+   Then decide the trim, passing the same `trim` and `absorb`:
+   - declared behaviour: `triz_behavior` ([Declared behaviour](#declared-behaviour)). A
+     `preserved` verdict holds for the relations as declared; substantiate each, the absorber's
+     first;
+   - behaviour everywhere but the absorber, or the absorber and one new mediator: add
+     `weakest_spec` ([Weakest box specification](#weakest-box-specification)). The specification
+     is the trimming problem stated as a relation; it is still a problem to solve;
+   - declared feasibility: `triz_feasibility`, for the remaining boxes' budget and each absorber's
+     added resources ([Co-design feasibility](#co-design-feasibility)).
 4. **Separate.** For a physical contradiction, give each demand its admissible values and the
    cells where it applies on each axis. Use `space`, `time`, `condition`, `direction`, and
    `level`, which are MATRIZ's five separation types; `condition` is MATRIZ's "relation
@@ -257,14 +251,11 @@ The finite assurance tools:
    the condition it breaks.
 
    A transformation is a move to evaluate, not a result. Compare the new model with
-   `triz_function_model` and `compare_to`. Segmenting a product box, taking a part out of one, or
-   copying one under a new id moves its deliverables to new box ids, and the result reports
-   `deliverableKeysChanged`. Pass the returned `boxMap` as `box_map` so the comparison renames
-   the parts back before matching deliverables. Without it, the moved deliverables read as lost
-   and regained. `merge` renames the merged ports as well, so no box map recovers them (see the
-   [chaining rules](#fields-and-tool-dependencies)). When the boxes that matter declare
-   behaviour, decide the result with `triz_behavior` and `compare_to` (the same `box_map`); see
-   [Behaviour through the constructions](#behaviour-through-the-constructions).
+   `triz_function_model` and `compare_to`; when the boxes that matter declare behaviour, decide it
+   with `triz_behavior` and `compare_to` too
+   ([Behaviour through the constructions](#behaviour-through-the-constructions)). After
+   `segment`, `take_out`, or `cheap_copy` under a new id, pass the returned `boxMap` as `box_map`
+   to both; after `merge`, no box map helps ([chaining rules](#fields-and-tool-dependencies)).
 
    When several modelled concepts are adequate, rank them with `triz_weakness` (see
    [Weakness ranking](#weakness-ranking)).
@@ -485,13 +476,12 @@ same system, such as a `triz_transform` result. `trim` is shorthand: the trim is
   where they differ, the outputs of each model there, and the `direction`: the concept's
   relation strictly contains the baseline's, the baseline's strictly contains it, or neither.
 
-Each model is evaluated in its own box ids. A segment or take_out of the product moves its
-deliverables to part ids. Pass the returned `boxMap` as `box_map`, and the concept's
-deliverables and boundary inputs are renamed to the baseline box before matching. Without it,
-the deliverables read as lost. The map fails closed when a key is not a concept box, or a value
-not a baseline box. It also fails closed when a mapped box has an input port its baseline box
-lacks (mismatch), or when two concept boxes land an input port on the same baseline port
-(ambiguous). The comparison is over the baseline's deliverables; `gainedDeliverables` lists the
+Each model is evaluated in its own box ids. `box_map` renames the concept's deliverables and
+boundary inputs to the baseline box before matching
+([chaining rules](#fields-and-tool-dependencies)). It fails closed when a key is not a concept
+box, or a value not a baseline box (`box-map-unknown-box`); when a mapped box has an input port
+its baseline box lacks (`box-map-port-mismatch`); or when two concept boxes land an input port on
+the same baseline port (`box-map-ambiguous`). The comparison is over the baseline's deliverables; `gainedDeliverables` lists the
 ones only the concept has, and they are not compared.
 
 The two relations are compared over the union of their boundary inputs. A port that only one
@@ -607,8 +597,7 @@ inputs.
   `excluded` keeps its meaning: rows whose composite leaves the target, producible or not. A
   transformation that adds a port to the box refuses, as it does for behaviour; `segment`,
   `take_out`, and `merge` drop `producible` from the boxes they replace.
-- **Re-check.** The kernel declares the spec (`W`, or `W ∩ F`), recomputes the concept's relation,
-  and compares it with the target before it answers.
+- **Re-check.** The spec is re-checked against the target before the kernel answers.
 - **Two boxes.** With exactly two boxes without behaviour, a pair of relations `(R₁, R₂)` stays
   inside the target iff every pair of rows, one of each box, does. A row pair is safe when its
   composite stays inside the target at every input. A row pair that no steady state uses is
@@ -635,8 +624,7 @@ inputs.
     for two boxes.
   - **Caps and re-check.** The candidate row pairs count against `max_states` before the search.
     The concepts can be exponentially many in the rows: past 10,000 the verdict is `undecided`
-    (`concept-cap`). Each returned pair is re-checked: the kernel declares both relations,
-    recomputes the concept's relation, and compares it with the target.
+    (`concept-cap`). Each returned pair is re-checked against the target.
 
 How the residual and the concepts are computed, and the lemmas behind them, are in the
 [theory map](../../../docs/theory-map.md#weakest-box-specification).
@@ -678,15 +666,13 @@ behaviour.
   Between incomparable concepts, the count depends on how finely the carriers' values are
   declared: splitting one value into two changes it. Bennett (2023, cited in weakness.md)
   measures weakness as that count, under a uniform distribution over tasks.
-- **Prior.** `priors` replaces the uniform measure: per situation input (box and port), or per
-  carrier for every input of it, a nonnegative weight per declared value; an unlisted input or
-  value counts 1, and 0 rules a value out. Each concept then carries the total prior mass of
-  what it admits (`weightedAdmitted`, ranked in `byWeight`). The weights multiply into the
-  count, so every inclusion, every pair, and `weakest` are exactly what they were: a prior
-  breaks ties between incomparable concepts, it never moves an inclusion. weakness.md's rule
-  stands: a real prior beats the uniform assumption, and the uniform count is the default.
-  `joint_prior` is the correlated alternative: an explicit weight per complete situation,
-  reported as `jointAdmittedWeight`, `jointAdmittedProbability`, and `byJointPrior`.
+- **Prior.** `priors` or `joint_prior` replaces the uniform measure
+  ([chaining rules](#fields-and-tool-dependencies)). Each concept then carries the total prior
+  mass of what it admits (`weightedAdmitted`, ranked in `byWeight`; with `joint_prior`,
+  `jointAdmittedWeight`, `jointAdmittedProbability`, and `byJointPrior`). The weights multiply
+  into the count, so every inclusion, every pair, and `weakest` are exactly what they were.
+  weakness.md's rule stands: a real prior beats the uniform assumption, and the uniform count is
+  the default.
 - **Fail closed.** The concepts must deliver the same ports. A concept that drops a deliverable
   has fewer outputs to be acceptable, so it would look weaker; the ranking refuses instead. Missing
   behaviour and the state cap give `undecided`.
@@ -1000,19 +986,14 @@ but may not follow itself. The type check fails closed on an unknown carrier, bo
   step and the rest of it form a cycle of the flow's step relation (`edge_on_cycle`). The harm
   loops that share a box with the path are listed too.
 
-Every construction carries flows, so each result still type-checks:
-
-| Construction | What happens to a flow |
-|---|---|
-| `merge`, and the supersystem `collapse` | Each box of the group becomes the merged box, and repeats in a row collapse into one step. A flow wholly inside the group is hidden and listed. |
-| `trim` | The flow closes up over a trimmed box, from the box before it to the box after. A flow left with one box is dropped. Both are reported. Whether the flow can pass without the trimmed box is part of the trimming problem. |
-| `cheap_copy` under a new id | The copy takes the box's place. |
-| `segment`, `take_out` | The flow stays on the part that keeps the box's id (`take_out`'s remainder does). With no such part, `segment` fails closed: the ports do not say which part the flow passes. |
-| `rewrite` | A flow may pass a deleted box only if the step adds a box with that id back. Otherwise the step must delete or restate the flow (`delete.flows`, `add.flows`). |
-| Rules (`triz_rule_apply`) | A flow is a hyperedge on boxes that no pattern names, so deleting a box it passes is a dangling match, refused. |
-| Subsystem view (`restrict`) | Each flow keeps its runs of consecutive boxes inside the subsystem; the flows that cross are listed in the boundary. A medium outside is dropped. |
-| `triz_abstraction` | Each detailed flow's runs inside the mapped boxes pass through the box map as through a merge (`reach_quotient`) and are matched step by step against the coarse flows of the image carrier (`flows.images`); coarse flow steps no detailed step maps to are listed (`flows.unbacked`). Flows do not change the verdict. |
-| `triz_nine_windows` | A transition must reach the snapshot's flows, and `flowsChanged` lists those it changes. Each system view carries every flow's candidates (`system.verdicts.flows`), and each change lists the flows added, removed, and re-routed and the candidates each gains or loses (`changes[].verdicts.flows`). |
+Every construction carries flows, so each result still type-checks. A trim closes a flow up over
+the trimmed box and reports it; whether the flow can pass without that box is part of the trimming
+problem. `segment` fails closed when no part keeps the box's id, since the ports do not say which
+part the flow passes, and a rule or `rewrite` refuses to delete a box a flow passes unless the step
+restates the flow. `triz_abstraction` matches detailed flows against coarse ones
+(`flows.images`, `flows.unbacked`) without changing its verdict, and `triz_nine_windows` reports
+`flowsChanged` and each time's flow candidates. What each construction does to a flow is in the
+[theory map](../../../docs/theory-map.md#flows-through-the-constructions).
 
 Under the adjacent reading, `merge` accepts a group joined by functions inside it or by steps of
 a flow inside it. Boxes on one flow with a box outside the group between them are refused, with

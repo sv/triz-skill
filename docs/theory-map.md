@@ -296,6 +296,10 @@ What each verdict computes and how it is checked, beyond what the agent referenc
   intersected with the producible ones (`safe_feasible_iff`). The concepts are those of that
   relation on the producible rows, and the same lemmas hold within the cut
   (`safe_feasible_iff_le_concept`, `concept_feasible_maximal`, `exists_eq₂_feasible_iff`).
+- **Re-check.** For one box, the kernel declares the spec (`W`, or `W ∩ F`), recomputes the
+  concept's relation, and compares it with the target before it answers. For two boxes, each
+  returned pair is re-checked: the kernel declares both relations, recomputes the concept's
+  relation, and compares it with the target.
 
 ### Weakness ranking
 
@@ -449,7 +453,7 @@ that move is `interpose`.
 
 ## The agent reference's tables in full
 
-The agent reference shortens one of its tables and one set of examples. Here they are whole.
+The agent reference shortens two of its tables and one set of examples. Here they are whole.
 
 ### Evolution lines as rules
 
@@ -470,6 +474,22 @@ detector: it reports where the line points in the model and changes nothing.
 | Transition to microlevel | "mechanism shrinks toward particle and field interactions" | Not encoded: scale is not in the wiring. |
 | Decreasing human involvement | "human does → machine does → system decides" | Not encoded: a machine performing the function in place of a human leaves the wiring as it was, and no role tells them apart. |
 | Changing the working field | "mechanical → thermal → chemical → electric → magnetic → electromagnetic" | Rule `working-field`: the matched function and its two ports go, and a function of the same rating and verb comes on a carrier the caller binds as `d`, with a port of `d` on each box. `distinct` refuses `d` equal to the matched carrier. `fieldChanges` records both carriers' layer and dimension. Still unchecked: the order of fields, since the kernel reads a carrier's layer and dimension as labels and `Layer` puts mechanical and electric fields alike under `energy`; whether `d` is a field at all; and whether the new field delivers the function. A port that carries other functions too cannot go (dangling). A product's deliverable moves to the new port and carrier (`deliverableKeysChanged`). |
+
+### Flows through the constructions
+
+Every construction carries flows, so each result still type-checks:
+
+| Construction | What happens to a flow |
+|---|---|
+| `merge`, and the supersystem `collapse` | Each box of the group becomes the merged box, and repeats in a row collapse into one step. A flow wholly inside the group is hidden and listed. |
+| `trim` | The flow closes up over a trimmed box, from the box before it to the box after. A flow left with one box is dropped. Both are reported. Whether the flow can pass without the trimmed box is part of the trimming problem. |
+| `cheap_copy` under a new id | The copy takes the box's place. |
+| `segment`, `take_out` | The flow stays on the part that keeps the box's id (`take_out`'s remainder does). With no such part, `segment` fails closed: the ports do not say which part the flow passes. |
+| `rewrite` | A flow may pass a deleted box only if the step adds a box with that id back. Otherwise the step must delete or restate the flow (`delete.flows`, `add.flows`). |
+| Rules (`triz_rule_apply`) | A flow is a hyperedge on boxes that no pattern names, so deleting a box it passes is a dangling match, refused. |
+| Subsystem view (`restrict`) | Each flow keeps its runs of consecutive boxes inside the subsystem; the flows that cross are listed in the boundary. A medium outside is dropped. |
+| `triz_abstraction` | Each detailed flow's runs inside the mapped boxes pass through the box map as through a merge (`reach_quotient`) and are matched step by step against the coarse flows of the image carrier (`flows.images`); coarse flow steps no detailed step maps to are listed (`flows.unbacked`). Flows do not change the verdict. |
+| `triz_nine_windows` | A transition must reach the snapshot's flows, and `flowsChanged` lists those it changes. Each system view carries every flow's candidates (`system.verdicts.flows`), and each change lists the flows added, removed, and re-routed and the candidates each gains or loses (`changes[].verdicts.flows`). |
 
 ### Loop classes on the examples
 
