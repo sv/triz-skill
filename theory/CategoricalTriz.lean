@@ -284,33 +284,27 @@ end Resources
 A box that declares behaviour is a relation from input values to output values. Wiring boxes in
 series composes their relations. A feedback wire takes the relational trace: `x` and `y` are
 related iff some loop value `u` is consistent. This is steady-state semantics, not dynamics. The
-kernel computes the composite of a finite model by a backtracking join. The statements below say
-that series composition can be bracketed either way and is monotone, that adding rows never
-removes a steady state, and they pin down the trace on the loops the tests check. The TypeScript
-evaluator is checked against them by tests, not by extraction. -/
+kernel computes the composite of a finite model by a backtracking join. Series wiring is
+Mathlib's `Relation.Comp` (some middle value links the two relations), which can be bracketed
+either way (`Relation.comp_assoc`, which verdicts cite). The statements below add that series
+composition is monotone, that adding rows never removes a steady state, and they pin down the
+trace on the loops the tests check. The TypeScript evaluator is checked against them by tests,
+not by extraction. -/
 
 section Behaviour
 
 variable {α β γ δ υ : Type*}
 
-/-- Series wiring: some middle value links the two relations. -/
-def relComp (R : α → β → Prop) (S : β → γ → Prop) : α → γ → Prop := fun a c => ∃ b, R a b ∧ S b c
+/-- Series composition can be bracketed either way: Mathlib's lemma, which verdicts cite. -/
+example (R : α → β → Prop) (S : β → γ → Prop) (T : γ → δ → Prop) :
+    Relation.Comp (Relation.Comp R S) T = Relation.Comp R (Relation.Comp S T) := Relation.comp_assoc
 
 /-- Feedback on the second component: some loop value is consistent (the relational trace). -/
 def relTrace (R : α × υ → β × υ → Prop) : α → β → Prop := fun a b => ∃ u, R (a, u) (b, u)
 
-theorem relComp_assoc (R : α → β → Prop) (S : β → γ → Prop) (T : γ → δ → Prop) :
-    relComp (relComp R S) T = relComp R (relComp S T) := by
-  funext a d
-  apply propext
-  constructor
-  · rintro ⟨c, ⟨b, hab, hbc⟩, hcd⟩
-    exact ⟨b, hab, c, hbc, hcd⟩
-  · rintro ⟨b, hab, c, hbc, hcd⟩
-    exact ⟨c, ⟨b, hab, hbc⟩, hcd⟩
-
-theorem relComp_mono {R R' : α → β → Prop} {S S' : β → γ → Prop} (hR : R ≤ R') (hS : S ≤ S') :
-    relComp R S ≤ relComp R' S' :=
+/-- More admissible rows in either box never remove a series-composed pair. -/
+theorem relation_comp_mono {R R' : α → β → Prop} {S S' : β → γ → Prop} (hR : R ≤ R') (hS : S ≤ S') :
+    Relation.Comp R S ≤ Relation.Comp R' S' :=
   fun a c ⟨b, hab, hbc⟩ => ⟨b, hR a b hab, hS b c hbc⟩
 
 /-- More admissible rows never remove a steady state. -/
@@ -328,12 +322,9 @@ theorem relTrace_swap : relTrace (fun (p q : α × α) => q = (p.2, p.1)) = fun 
   · rintro rfl
     exact ⟨a, rfl⟩
 
-/-- The loop values consistent at `(a, b)`: the steady states the trace ranges over. -/
+/-- The loop values consistent at `(a, b)`: the steady states the trace ranges over.
+`relTrace R a b` is, by definition, `(loopStates R a b).Nonempty`. -/
 def loopStates (R : α × υ → β × υ → Prop) (a : α) (b : β) : Set υ := {u | R (a, u) (b, u)}
-
-theorem relTrace_iff_loopStates (R : α × υ → β × υ → Prop) (a : α) (b : β) :
-    relTrace R a b ↔ (loopStates R a b).Nonempty :=
-  Iff.rfl
 
 /-- An identity self-loop is consistent at every loop value (the tests' identity loop). -/
 theorem loopStates_id : loopStates (fun (p q : PUnit × υ) => q = p) PUnit.unit PUnit.unit = Set.univ :=

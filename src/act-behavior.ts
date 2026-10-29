@@ -40,8 +40,8 @@ const LISTED_STATES = 10;
 const portKey = (box: string, side: "in" | "out", port: string) => JSON.stringify([box, side, port]);
 const endKey = (e: Endpoint) => JSON.stringify([e.box, e.port]);
 const tupleKey = (t: string[]) => JSON.stringify(t);
-/** An (input, output) pair is in the relation iff its set of steady states is non-empty. */
-const TRACE: Theorem[] = ["relTrace_iff_loopStates"];
+/** Composing the boxes' relations along the wiring does not depend on how the series is bracketed. */
+const SERIES: Theorem[] = ["Relation.comp_assoc"];
 const product = (sizes: number[]) => sizes.reduce((n, k) => n * k, 1);
 
 const NO_DELIVERABLES = "no deliverables: mark the box the main function acts on as role 'product' and feed it a non-harmful function";
@@ -213,7 +213,7 @@ function summary(e: Evaluation, p: Plan) {
     downstream: p.downstream,
     partialDownstream: p.partialDownstream,
     statesExplored: e.explored,
-    basis: TRACE,
+    basis: SERIES,
   };
 }
 

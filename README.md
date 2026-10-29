@@ -148,8 +148,8 @@ with no `sorry`:
 - typing survives relabelling, deletion under the no-dangling condition, gluing, and
   re-attachment to a same-carrier port;
 - restriction composes;
-- series composition of relations is associative and monotone, and the relational trace is
-  monotone and yanks a swap to the identity.
+- series composition of relations (Mathlib's `Relation.Comp`) is monotone, and the relational
+  trace is monotone and yanks a swap to the identity.
 
 `theory/Witnesses.lean` checks that none of the typing lemmas is vacuous. For each, a concrete
 diagram meets all its hypotheses, and a counterexample shows each hypothesis is needed.

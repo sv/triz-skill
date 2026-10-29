@@ -80,7 +80,7 @@ test("the bearing's heat loop has two steady states; both support the shaft, and
     steadyStates: [["rated", "supported", "low", "nominal"], ["rated", "supported", "high", "high"]],
   }]);
   assert.equal(r.severalSteadyStates, 1);
-  assert.deepEqual(r.basis, ["relTrace_iff_loopStates"]);
+  assert.deepEqual(r.basis, ["Relation.comp_assoc"]);
   assert.deepEqual([r.composed, r.downstream], [["motor", "shaft", "bearing"], ["housing", "air"]]);
 });
 

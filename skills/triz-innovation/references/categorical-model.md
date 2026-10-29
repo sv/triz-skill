@@ -19,7 +19,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 | Function, rated useful (normal / insufficient / excessive) or harmful | wire from an output port to an input port, one carrier, one `polarity` | `triz_function_model`: endpoints exist, out→in, carriers agree | — |
 | Back-reaction, vicious circle | a cycle through a harmful or excessive function | strongly connected regions with one witness cycle per such function | `edge_on_cycle` |
 | Trimming rules A/B/C | the system recovered from what remains (left Kan extension of the restriction) | `triz_trim`: carrier screen only | `Recoverable` stated, `recoverable_id`; not decided |
-| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `relComp_assoc`, `relComp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
+| Declared behaviour, steady state | carrier `values` and box `behavior` rows: each box a finite relation; the external relation from boundary inputs to deliverables, with feedback by the relational trace | `triz_behavior`; with `trim`, decides whether the trim preserves that relation | `Relation.comp_assoc` (Mathlib), `relation_comp_mono`, `relTrace_mono`, `relTrace_swap`, `loopStates_id`, `relTrace_not_loop` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis`, `separation_on_condition` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
@@ -83,7 +83,8 @@ modelled as an ordinary wire in the reverse direction, so no separate "lens" fla
    `triz_function_model` also reports whether the two models have the same wiring shape.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
-as in the last column above. A test checks that every cited name is a theorem in that file.
+as in the last column above, or a Mathlib lemma a proof in that file uses. A test checks that
+every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
 extracted from Lean. A basis never means the TRIZ reading of a verdict is proved. A verdict that
 needs no theorem, such as a compatible pair, cites none.
@@ -110,8 +111,10 @@ Every row is type-checked, and an undeclared port or value fails closed.
   inputs and the deliverables. A feedback loop composes by the relational trace: an input and an
   output are related iff some loop value is consistent. The output lists the steady states.
   Several steady states at one input are all kept. An input with no steady state is listed in
-  `noSteadyState`, since it may signal a runaway loop. The relation cites
-  `relTrace_iff_loopStates`: a pair is in it iff its set of steady states is non-empty.
+  `noSteadyState`, since it may signal a runaway loop. In `theory/`, `relTrace R a b` is, by
+  definition, `(loopStates R a b).Nonempty`: a pair is related iff it has a steady state. The
+  relation cites Mathlib's `Relation.comp_assoc`: composing the relations along the wiring does
+  not depend on bracketing.
 
 With `trim`, the trim is applied as `triz_transform` does, and the verdict is one of:
 
@@ -178,10 +181,11 @@ example cohort churn against fee changes. Name it only from that evidence.
   of. Of those statements, only the trimming one is stated in Lean, and it is not decided.
 - For models that declare behaviour, `triz_behavior` decides a finite relational question
   instead: whether the trimmed model's input→deliverable relation equals the baseline's. It is
-  not proved equivalent to `Recoverable`. Lean proves only that series composition of relations
-  is associative and monotone, that the trace is monotone, that the trace of a swap is the
-  identity, that every value is a steady state of an identity loop, and that a negation loop
-  has none. The evaluator is checked by tests, not extracted from these statements.
+  not proved equivalent to `Recoverable`. Series composition is Mathlib's `Relation.Comp`, and
+  its associativity is Mathlib's `Relation.comp_assoc`. Lean proves only that it is monotone,
+  that the trace is monotone, that the trace of a swap is the identity, that every value is a
+  steady state of an identity loop, and that a negation loop has none. The evaluator is checked
+  by tests, not extracted from these statements.
 - Declared behaviour is steady-state semantics. The relational trace says nothing about
   dynamics, convergence, or which steady state the system reaches. A least fixpoint (iteration
   from no value) is not used: it needs initial loop values the model does not declare, and on an
