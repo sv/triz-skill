@@ -45,6 +45,90 @@ The strongest relevant source checks were:
    could reduce products before policy solving, if it preserves rewards and acceptance labels.
    An unweighted structural quotient alone does not preserve the new cost/occupancy verdicts.
 
+## Integrated theorem-search results
+
+A second search batch on 2026-10-30 used 12 formal/informal `/graph/embedding` queries,
+three `/search` literature queries, seven `/graph/statement` neighborhoods and six
+`/graph/paper` graphs. The [query and endpoint audit](theorem-search-2026-10-30.json) records
+the requests, identifiers and graph sizes. The documented `/graph?external_id=2603.00448`
+returned HTTP 404; its paper graph succeeded. Graph edge counts include signature,
+definition and documentation edges, not just proof dependencies. Informal edges can be
+heuristic or model-extracted. Indexed theorem numbers sometimes differ from the checked
+paper version. These graphs guide source inspection; they do not certify new proofs.
+
+Formal matches were indexed from Mathlib 4.27/4.28. Eleven relevant declarations were
+elaborated against our 4.35 pin before integration. In particular,
+`fixedPoints.lfp_eq_sSup_iterate` requires omega-Scott continuity, a hypothesis omitted by
+the search summary. The source-support certificate below uses leastness and a finite
+derivation instead, so it needs neither continuity nor a claimed iteration bound.
+
+| Connection | Integrated improvement | What it unlocks, and its boundary |
+|---|---|---|
+| Galois connections / contract quotients | `CategoricalTriz.residual_inter`, `residual_iInter`, `residual_comp` reuse Mathlib's adjoint laws | Factor target safety requirements and calculate missing-component specifications backwards through nested contexts. Exact coverage and joint-hole coupling remain separate obligations |
+| Horn closure / least fixed points | `SourceSupport.lean` proves source inclusion, closure leastness, derivation soundness and equality of a closed terminal derivation with the least closure; threshold/max compatibility is explicit. Runtime results now include `activationOrder` | Replay why a selected row is grounded; a foundation for request-bound grounding certificates. The generic proof and runtime replay tests do not yet verify an encoder or issue such certificates |
+| Acyclic constraint networks / semijoins | Behavior evaluation adds bounded overlap-aware row filtering after unary propagation. `Propagation.satisfies_pair_iff_semijoin` proves the abstract solution-preservation law; `exists_solution_of_runningIntersection` proves existence for nonempty pairwise-consistent full tables with a supplied running-intersection order | Reject incompatible multi-port correlations before costly enumeration. A future join-tree checker and constructive row-selection backend can use the completeness theorem. The current evaluator still enumerates; it does not infer acyclicity or claim global consistency for cyclic scopes or sparse wildcard rows |
+| Stationary occupation measures / LP duality | `Lifecycle.Occupation`, `occupation_of_stationary_policy`, `occupation_bias_cancel`, `occupation_cost_lower`, `occupation_attains_gain` | Compare randomized stationary competitors and certify attainment by equality on occupied actions. This supplies the mathematics for secondary availability objectives on cost-optimal stationary flows; no LP backend, optimal-face range computation or initial-state reachability encoding is added |
+
+The runtime semijoin pass preserves row order, sparse wildcards, repeated-variable equality
+and the exact set of joined assignments. Unary and overlap filtering share the existing
+1,000,000-work preprocessing allowance. If either phase exhausts it, the evaluator discards
+both phases and searches the original tables. An already empty unary-pruned table remains
+a decided contradiction. Tests compare pruning with exhaustive assignments, exercise
+join-tree instances and a cyclic counterexample, and check cap rollback. One regression
+has equal/unequal two-port tables whose unary domains remain unchanged: semijoins find
+the contradiction within a one-state search budget.
+
+`SynthesisWitnesses.lean` is a default build target covering a seeded rule, an unseeded
+self-supply cycle, compatible overlapping tables and a randomized occupation witness.
+These are mathematical witnesses, not generated per-request certificates.
+
+Integration validation checked all 17 new reusable theorem declarations and four non-vacuity
+witnesses locally; their axiom dependencies are limited to `propext`, `Classical.choice` and
+`Quot.sound`. The previously authorized `MeanCost.lean`/`Lifecycle.lean` upload was rechecked
+on AXLE's Lean 4.35 environment after adding the occupation theorems: all 13 theorem audits
+passed with no failed declarations, errors or warnings, using the same standard axioms.
+
+### Research that shapes the next adapters
+
+- **Assume-guarantee contracts.** Incer, Benveniste and Sangiovanni-Vincentelli describe
+  composition quotients as the largest missing contract satisfying a composed requirement
+  ([§2.6](https://arxiv.org/html/2309.08875v1)). Our residual laws already provide the
+  relational instance. An assumption/guarantee adapter would need explicit refinement and
+  composition correspondence proofs.
+- **Acyclic joins.** Kolaitis's [Semijoins of Annotated Relations](https://arxiv.org/html/2603.00448v1)
+  recalls the classical local-to-global theorem and extends full reducers to annotated
+  relations under positive-commutative-monoid and inner-consistency hypotheses. Our new
+  theorem covers unannotated tables with a supplied leaf-elimination order. The condition
+  concerns the constraint hypergraph, not merely a directed acyclic wiring graph. Graded
+  completeness would require the additional algebraic hypotheses.
+- **Typed grades and formal concepts.** Lai and Shen derive multi-adjoint concept lattices
+  from [quantaloid-enriched Isbell adjunctions](https://arxiv.org/html/1903.08922v2).
+  This connects our two-hole formal concepts and homogeneous quantale residuals. It suggests
+  a general catalogue with different hom-types and explicit compatible grade operations;
+  a quantaloid adapter is future work, not an installed library or arbitrary grade mixing.
+- **Feedback with delay.** Milius and Litak prove a correspondence between
+  [guarded traces and guarded fixed-point operators](https://arxiv.org/html/1309.0895v1).
+  This suggests a separate staged feedback semantics. Delay and initialization declarations
+  must be explicit; the result does not supply physical sources or prove timed startup.
+  The existing relational steady-state trace is unchanged.
+- **Physical/dynamic black boxes.** Fong and Sarazola's
+  [black-box functor construction](https://arxiv.org/abs/1812.03601) preserves composition
+  while exposing boundary behavior; their dynamical example uses **semialgebraic** relations
+  (the search summary incorrectly called them stochastic). A Physlib-backed component
+  semantics would need the corresponding interface, constitutive assumptions and functor
+  laws. The paper is a design reference, not an imported physical-effect catalogue.
+- **Initial-state-aware MDP planning.** Atia et al.'s
+  [multichain steady-state planning](https://arxiv.org/pdf/2012.02178) explicitly includes
+  initial distributions and policy-class constraints. Our stationary-flow theorems do not
+  remove that obligation. Computing availability ranges over cost-optimal flows is a
+  proposed next use; lifecycle still returns `tied-optimal-policies` when occupancy is ambiguous.
+
+The shared catalogue can therefore grow through composition laws, contract refinement,
+typed grades and explicit feedback semantics. Concrete domain entries still require their
+own validated behavior and resource declarations. Mathlib suffices for the integrated
+proofs; this search does not establish that adding Physlib or CSLib would supply the
+remaining synthesis algorithms.
+
 ## Physlib and CSLib
 
 [Physlib](https://github.com/leanprover-community/physlib) is Apache-2.0. Its current
@@ -74,9 +158,13 @@ Bounded component/topology discovery and chain insertion are also implemented in
 [component discovery](component-discovery.md) describes their scope. Generic serial laws use
 simp/grind locally; generated networks reuse finite certificates. The enumerator is not verified.
 
-First broaden lifecycle certificates to state-dependent gains and initial-condition-dependent
-occupancy in multichain models. Next make the rational request-binding encoder independent of
-the solver, and prove a concrete rational-matrix-to-kernel encoding rather than requiring its
-mass compatibility equations. Then add a dimension adapter and cost-preserving bisimulation.
+First connect the grounding derivation to a request-bound certificate with an independent
+threshold/rule encoder. Next add an explicit join-tree witness checker and constructive
+acyclic solver; the completeness theorem is now available. Then optimize secondary
+availability objectives on the cost-optimal occupation face, retaining initial-distribution
+and recurrent-class constraints. State-dependent gains and multichain policy reconstruction
+remain separate extensions. Also make the rational request-binding encoder independent of
+the solver and prove a concrete rational-matrix-to-kernel encoding rather than requiring its
+mass compatibility equations. A dimension adapter and cost-preserving bisimulation follow.
 Full physical-effect catalogues still need verified redistribution rights. These are open work,
 not additional claims of this implementation.

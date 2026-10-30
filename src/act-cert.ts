@@ -36,7 +36,7 @@ export interface Certified { theorem: string; verdict: string; }
 /** Exact source sets: include the local imports that define certificate predicates and schemas. */
 export const CERTIFICATE_THEORY_FILES = Object.freeze([...certificateSources.theory]);
 export const CERTIFICATE_SCHEMA_FILES = Object.freeze([...certificateSources.schema]);
-export const CERTIFICATE_THEORY_SOURCE = "6c1769ad0ff711b1272849f57253dc6371b927ab6ce05cdba8249e9fa9034ffb";
+export const CERTIFICATE_THEORY_SOURCE = "60720b1d235ab8d9dbe8bd0e2f36ff075ecdbec496b63527d232f8b8e1312347";
 export const CERTIFICATE_SCHEMA_SOURCE = "f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;

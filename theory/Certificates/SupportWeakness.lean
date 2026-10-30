@@ -16,7 +16,7 @@ namespace SupportWeakness
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"weakness\",\"namespace\":\"SupportWeakness\",\"source\":\"3ab3080fec2fafcaffebd1aa64d6227050a6d732962b191955e20e2658b274e8\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6c1769ad0ff711b1272849f57253dc6371b927ab6ce05cdba8249e9fa9034ffb\",\"schemaSource\":\"f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"weakness\",\"namespace\":\"SupportWeakness\",\"source\":\"3ab3080fec2fafcaffebd1aa64d6227050a6d732962b191955e20e2658b274e8\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"60720b1d235ab8d9dbe8bd0e2f36ff075ecdbec496b63527d232f8b8e1312347\",\"schemaSource\":\"f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"upstream\"}"
 
 /-! ## The situations and the deliverables -/
 

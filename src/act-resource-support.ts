@@ -17,6 +17,7 @@ export function resourceSourceSupport(
   initial: Array<[number, number]> = [],
 ) {
   const available = ports.map(() => 0), active = rows.map(() => false);
+  const activationOrder: Array<{ box: string; row: number }> = [];
   for (const [i, level] of initial) {
     charge();
     available[i] = Math.max(available[i], level);
@@ -30,6 +31,7 @@ export function resourceSourceSupport(
       const row = rows[k];
       if (!row.demand.every(([i, level]) => { charge(); return available[i] >= level; })) continue;
       active[k] = true;
+      activationOrder.push({ box: row.box, row: row.row });
       changed = true;
       for (const [i, level] of row.provide) {
         charge();
@@ -40,6 +42,7 @@ export function resourceSourceSupport(
   return {
     grounded: active.every(Boolean),
     groundedBoxes: rows.filter((_, i) => active[i]).map(r => r.box),
+    activationOrder,
     unresolved: rows.flatMap((r, k) => active[k] ? [] : [{
       box: r.box,
       row: r.row,

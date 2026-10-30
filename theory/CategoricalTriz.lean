@@ -1190,6 +1190,26 @@ theorem le_residual_iff (hC : PreservesUnions C) {R : SetRel α β} {T : SetRel 
 theorem gc_residual (hC : PreservesUnions C) : GaloisConnection C (residual C) :=
   fun _ _ => (le_residual_iff hC).symm
 
+/-- Conjunctive target requirements can be pulled back separately and then intersected.
+This is a safety law; exact target coverage remains a separate obligation. -/
+theorem residual_inter (hC : PreservesUnions C) (T U : SetRel γ δ) :
+    residual C (T ∩ U) = residual C T ∩ residual C U :=
+  (gc_residual hC).u_inf
+
+/-- The same decomposition works for an arbitrary family of target requirements. -/
+theorem residual_iInter (hC : PreservesUnions C) (T : ι → SetRel γ δ) :
+    residual C (⋂ i, T i) = ⋂ i, residual C (T i) :=
+  (gc_residual hC).u_iInf
+
+/-- Weakest specifications compose backwards through a union-preserving outer context.
+The intermediate relation is one coupled specification, not independent hole projections. -/
+theorem residual_comp {ε ζ : Type*}
+    (D : SetRel γ δ → SetRel ε ζ) (hD : PreservesUnions D) (T : SetRel ε ζ) :
+    residual (D ∘ C) T = residual C (residual D T) := by
+  ext p
+  change D (C {p}) ⊆ T ↔ C {p} ⊆ residual D T
+  exact (le_residual_iff hD).symm
+
 /-- The residual's composite stays inside `T`. -/
 theorem map_residual_subset (hC : PreservesUnions C) (T : SetRel γ δ) : C (residual C T) ⊆ T :=
   (gc_residual hC).l_u_le T

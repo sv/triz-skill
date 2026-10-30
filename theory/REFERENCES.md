@@ -695,11 +695,12 @@ NIST, *Guide to the SI*, SP 811, chapter 4, table 1.
 Only the seven base-unit symbol facts enter the parser. NIST public information may be copied
 unless marked copyrighted. No conversion factors, derived units, or domain defaults are imported.
 
-## R111 — Statement-derived effect typings
+## R111 — Entry-derived effect typings
 
 This repository, `skills/triz-innovation/data/effects.json`, existing statements of entries
-3, 7, 8, 12, 15 and 34, MIT license. Input/output quantities and conditions are derived only
-from those statements, marked `typed_from: statement`. No additional physics data is added.
+3, 7, 8, 12, 15 and 34, MIT license. Input/output quantities and conditions cite the entry's
+declared source fields; normalized tokens and the moving-conductor case are explicit in the
+installed catalogue. No additional physics data is added.
 A Koller/Roth-style catalogue search did not verify redistribution terms for any external
 catalogue, so there is no such data import.
 
@@ -744,3 +745,55 @@ algebra; [CSLib v4.35.0](https://github.com/leanprover/cslib/tree/v4.35.0), Apac
 definitions under its MIT license, with no empirical parts/physics data or case studies.
 `Certificates.GeneralIdentity` checks an instantiated finite behavior comparison; physical
 realization and resource costs do not follow from these definitions.
+
+## R117 — Theorem-search and graph audit
+
+[TheoremSearch API](https://www.theoremsearch.com/docs), queried 2026-10-30 via literature
+search, formal/informal graph embeddings, statement neighborhoods and paper graphs.
+`docs/theorem-search-2026-10-30.json` preserves query text, endpoint paths, identifiers and counts.
+Formal matches indexed Mathlib 4.27/4.28 were checked locally on 4.35. Informal graph edges are
+research navigation, not verified dependencies. No full paper text or graph corpus is imported.
+
+## R118 — Acyclic consistency and semijoins
+
+P. G. Kolaitis, *Semijoins of Annotated Relations*,
+[arXiv:2603.00448v1](https://arxiv.org/html/2603.00448v1), §§3–5, CC BY 4.0.
+Reference only; no paper text/data copied. Motivates the independently implemented semijoin
+pruner and running-intersection gluing proof. Annotated full-reducer results have additional
+monoid hypotheses; this implementation proves only the unannotated conditional statement.
+
+## R119 — Assume-guarantee quotients
+
+I. Incer, A. Benveniste and A. Sangiovanni-Vincentelli, *Some Algebraic Aspects of
+Assume-Guarantee Reasoning*, [arXiv:2309.08875v1](https://arxiv.org/html/2309.08875v1), §2.6.
+Reference for the contract interpretation of composition residuals. Mathlib's adjunction laws
+and the existing relational definitions supply the proofs; no contract-algebra adapter is claimed.
+
+## R120 — Quantaloid-enriched formal concepts
+
+H. Lai and L. Shen, *Multi-adjoint concept lattices via quantaloid-enriched categories*,
+[arXiv:1903.08922v2](https://arxiv.org/html/1903.08922v2), §§3–4.
+Research direction for heterogeneous grades and coupled specifications; no quantaloid library
+or paper text is imported. Indexed theorem numbering differs from the checked HTML version.
+
+## R121 — Guarded feedback
+
+S. Milius and T. Litak, *Guard Your Daggers and Traces: On the Equational Properties of
+Guarded (Co-)recursion*, [arXiv:1309.0895v1](https://arxiv.org/html/1309.0895v1).
+Guarded trace/fixed-point correspondence is a future staged-semantics reference, not a proof
+of physical initialization or a change to the implemented steady-state relational trace.
+
+## R122 — Compositional black-box semantics
+
+B. Fong and M. Sarazola, *A recipe for black box functors*,
+[arXiv:1812.03601](https://arxiv.org/abs/1812.03601), §7.
+Reference for future dynamic/physical semantics adapters. The example target consists of
+semialgebraic relations. No dynamics model, constitutive data or paper text is imported.
+
+## R123 — Initial-state-aware stationary planning
+
+G. K. Atia, A. Beckus, I. Alkhouri and A. Velasquez, *Steady-State Planning in Expected Reward
+Multichain MDPs*, [arXiv:2012.02178v2](https://arxiv.org/pdf/2012.02178), §§4–5.
+Reference for initial distributions and policy-class constraints in occupation-measure planning.
+The new finite rational occupation lower-bound/attainment proofs are independent. No general
+multichain solver, initial-state encoding or optimal-availability range algorithm is claimed.

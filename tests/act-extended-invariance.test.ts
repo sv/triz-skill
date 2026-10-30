@@ -104,7 +104,29 @@ function feasibilitySummary(m: Model) {
     for (const [d, n] of Object.entries(v.resources)) assert.equal(n, (r.fixed[d] ?? 0) + (operating[d] ?? 0));
     return { ...v, rows: v.rows.length };
   });
-  return { ...r, minimal, steadyState:{...r.steadyState,withinBudget:r.steadyState.withinBudget.map(i=>r.minimal[i].resources)}, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}) };
+  const witnesses = r.sourceSupport.witnesses.map((witness, i) => {
+    const available = new Map<string, number>(), active = new Set<string>();
+    for (const entry of witness.activationOrder) {
+      assert.equal(entry.row, r.minimal[i].rows.find(row => row.box === entry.box)!.row);
+      assert.ok(!active.has(entry.box));
+      const mode = m.boxes.find(b => b.id === entry.box)!.feasibility![entry.row];
+      for (const [port, level] of Object.entries(mode.requires ?? {})) {
+        for (const wire of m.wires.filter(w => w.to.box === entry.box && w.to.port === port && w.polarity !== "harmful")) {
+          assert.ok((available.get(JSON.stringify(wire.from)) ?? 0) >= level);
+        }
+      }
+      active.add(entry.box);
+      for (const [port, level] of Object.entries(mode.provides ?? {})) {
+        const key = JSON.stringify({ box: entry.box, port });
+        available.set(key, Math.max(available.get(key) ?? 0, level));
+      }
+    }
+    assert.deepEqual([...active].sort(), [...witness.groundedBoxes].sort());
+    // Row indices change under row permutation; valid activation orders can also tie.
+    // Compare the complete grounded set after independently checking the actual trace.
+    return { ...witness, activationOrder: [...active] };
+  });
+  return { ...r, minimal, sourceSupport: { ...r.sourceSupport, witnesses }, steadyState:{...r.steadyState,withinBudget:r.steadyState.withinBudget.map(i=>r.minimal[i].resources)}, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}) };
 }
 
 function flowFixture(): Model {

@@ -330,6 +330,10 @@ software models. One software model has the physical model's wiring shape. Three
 the physical model declare box behaviour, box feasibility, and a shaft temperature, so their
 trims can be decided and their heat loop's escalation classified.
 
+Behavior contracts prune incompatible multi-port correlations before enumeration, and resource
+support witnesses expose their activation order. The [mathematical integration map](docs/math-connections.md#integrated-theorem-search-results)
+explains the checked foundations for general component synthesis and the remaining adapters.
+
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:
 

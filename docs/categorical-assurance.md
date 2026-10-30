@@ -74,6 +74,21 @@ exponential. None of these theorems extracts or certifies the TypeScript impleme
 local propagation globally complete, proves a general AGREE/PBPO+ formalism, or proves physical
 realizability. Independent exhaustive feedback tests cross-check the joint finite solver.
 
+Behavior evaluation also applies overlap-aware semijoins after unary-domain propagation,
+sharing the same bounded preprocessing allowance and discarding all pruning on exhaustion.
+`Propagation.lean` proves abstract semijoin soundness and a conditional gluing theorem for
+nonempty pairwise-consistent full tables with an explicit running-intersection order. The
+runtime reducer is cross-checked against exhaustive assignments; it does not issue an
+acyclicity certificate or claim global consistency on arbitrary cyclic or wildcard tables.
+
+Resource support now reports a finite `activationOrder`. `SourceSupport.lean` proves that a
+justified activation derivation ending at a closed set equals the least Horn closure and
+relates max-combined levels to threshold facts. Per-request grounding certificates and an
+independent rule encoder remain open. `Lifecycle` also proves Bellman bounds and attainment
+for randomized stationary occupation flows, without adding initial-state reachability or an
+LP solver. The [integration map](math-connections.md#integrated-theorem-search-results)
+distinguishes these checked foundations from the research extensions they enable.
+
 ## Behavioral scope and adequacy
 
 The default `triz_behavior` scope remains `upstream` for compatibility. It assumes omitted boxes

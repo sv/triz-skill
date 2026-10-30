@@ -1,4 +1,4 @@
-import { MAX_PROPAGATION_WORK, propagateRows, type PropagationStatus } from "./act-propagation.js";
+import { MAX_PROPAGATION_WORK, propagateRows, semijoinRows, type PropagationStatus } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
@@ -258,7 +258,15 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
   // A preprocessing cap falls back to the original sets without charging the search budget; the
   // status is reported, so a state cap after a fallback names the unpruned join as its cause.
   const pruning = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!));
-  const propagated = pruning.sets, propagation: PropagationStatus = { status: pruning.status, work: pruning.work };
+  const overlaps = pruning.status !== "complete" ? undefined
+    : pruning.sets.some(set => !set.rows.length)
+      ? { sets: pruning.sets, status: "complete" as const, work: 0 }
+      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work);
+  const propagation: PropagationStatus = {
+    status: pruning.status === "complete" && overlaps?.status === "complete" ? "complete" : "fallback",
+    work: pruning.work + (overlaps?.work ?? 0),
+  };
+  const propagated = propagation.status === "complete" ? overlaps!.sets : sets;
 
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const table = new Map<string, Row>();

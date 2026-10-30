@@ -19,7 +19,10 @@ backlog in [FUTURE-PLANS.md](FUTURE-PLANS.md). Every issue and lint code is in
 The resource solver's Kleene/co-design theorems establish steady-state balance. Its additional
 source-support closure checks selected row witnesses from zero provision and conservatively
 returns undecided for unsupported circular requirements. That TypeScript guard is tested rather
-than extracted or separately Lean-certified; it does not prove timed startup or physical supply.
+than extracted or separately Lean-certified; it now records activation order.
+`SourceSupport.lean` proves the corresponding generic least-Horn-closure and finite-derivation
+laws, including max/threshold compatibility, without claiming a verified runtime encoder.
+It does not prove timed startup or physical supply.
 Lifecycle holding costs enter the same finite cost matrix checked by `Lifecycle.Optimality`;
 `Certificates.LifecycleHolding` covers a rational per-state charge and tamper rejection.
 
@@ -1053,6 +1056,18 @@ Mathlib imports/lemmas and affected proofs were migrated; warning failures remai
 | `Lifecycle` | `policy_attains_gain` | A stationary policy satisfying gain/bias equality attains its gain |
 | `Lifecycle` | `optimality_stationary` | Bellman inequalities certify no enabled stationary competitor has lower stationary expected cost |
 | `Lifecycle` | `Stationary`, `Optimality` | Decidable stochastic-row, occupancy, selected-policy and gain/bias predicates |
+| `CategoricalTriz` | `residual_inter`, `residual_iInter`, `residual_comp` | Target safety decomposes over conjunction; weakest specifications compose backwards through a union-preserving outer context |
+| `SourceSupport` | `closure_closed`, `closure_le`, `derivation_subset_closure`, `derivation_eq_closure` | A finite justified activation derivation ending at a closed set equals the least grounded closure |
+| `SourceSupport` | `closure_empty_of_nonempty_needs`, `levels_max`, `levels_zero` | No unsupported positive cycle supplies facts; max-combined amounts correspond to unions of threshold facts |
+| `Propagation` | `satisfies_pair_iff_semijoin`, `exists_solution_of_runningIntersection` | Abstract semijoins preserve solutions; nonempty pairwise-consistent full tables with a supplied running-intersection order have a global assignment |
+| `Lifecycle` | `occupation_of_stationary_policy`, `occupation_bias_cancel`, `occupation_cost_lower`, `occupation_attains_gain` | Randomized stationary occupation flows cancel potentials, satisfy Bellman lower bounds and attain them on tight occupied actions |
+
+These research-derived laws are not additional runtime `basis` claims. Behavior evaluation
+uses tested semijoin pruning with the existing all-or-nothing preprocessing cap; it still
+enumerates assignments and does not infer a join tree. `SynthesisWitnesses` checks non-vacuity
+examples as a default build target. Occupation laws do not assert initial-state reachability,
+provide an LP solver, or replace the existing tied-policy ambiguity guard. See the
+[capability and research map](math-connections.md#integrated-theorem-search-results).
 
 These names are registered in `src/act-basis.ts`; its theorem-to-file map extends the original
 single-file basis test. Cycle results cite `MeanCost.Bounds.walk_mean` for closed edge-indexed walks (including parallel edges), plus `cycle_lower`, `cycle_upper` and `attains_bound`.

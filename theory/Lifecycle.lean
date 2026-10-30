@@ -90,4 +90,92 @@ theorem optimality_stationary {n a : ℕ} (P : Fin n → Fin n → ℚ)
     (fun i => alternativeCost (choose i)) bias gain stat
   intro i
   simpa [enabled i] using (cert.2.2 (choose i)).2.2
+
+/-! Stationary state/action occupation measures include randomized policies. The flow
+equations below do not encode which recurrent classes an initial distribution can reach. -/
+
+/-- A normalized nonnegative stationary flow on declared state/action pairs. -/
+def Occupation {S A : Type*} [Fintype S] [Fintype A]
+    (P : S → A → S → ℚ) (x : S → A → ℚ) : Prop :=
+  (∀ i a, 0 ≤ x i a) ∧ (∑ i, ∑ a, x i a = 1) ∧
+    ∀ j, ∑ i, ∑ a, x i a * P i a j = ∑ a, x j a
+
+/-- Existing stationary matrix witnesses lift to occupation measures when a stochastic
+randomized policy induces that matrix. This explicitly states the policy/matrix bridge. -/
+theorem occupation_of_stationary_policy {S A : Type*} [Fintype S] [Fintype A]
+    (P : S → A → S → ℚ) (pi : S → ℚ) (policy : S → A → ℚ)
+    (nonnegative : ∀ i a, 0 ≤ policy i a) (stochastic : ∀ i, ∑ a, policy i a = 1)
+    (stat : Stationary (fun i j => ∑ a, policy i a * P i a j) pi) :
+    Occupation P (fun i a => pi i * policy i a) := by
+  refine ⟨fun i a => mul_nonneg (stat.2.2 i) (nonnegative i a), ?_, ?_⟩
+  · simp_rw [← mul_sum, stochastic, mul_one]
+    exact stat.2.1
+  · intro j
+    calc
+      (∑ i, ∑ a, pi i * policy i a * P i a j) =
+          ∑ i, pi i * (∑ a, policy i a * P i a j) := by
+        simp_rw [mul_sum, mul_assoc]
+      _ = pi j := stat.1 j
+      _ = ∑ a, pi j * policy j a := by rw [← mul_sum, stochastic j, mul_one]
+
+/-- Conservation of stationary flow cancels every state potential, including for randomized
+stationary action choices. The matrix's stochasticity is a separate model obligation. -/
+theorem occupation_bias_cancel {S A : Type*} [Fintype S] [Fintype A]
+    (P : S → A → S → ℚ) (x : S → A → ℚ) (bias : S → ℚ)
+    (flow : Occupation P x) :
+    (∑ i, ∑ a, x i a * (∑ j, P i a j * bias j)) =
+      ∑ i, ∑ a, x i a * bias i := by
+  simp_rw [mul_sum, ← mul_assoc]
+  calc
+    (∑ i, ∑ a, ∑ j, x i a * P i a j * bias j) =
+        ∑ i, ∑ j, ∑ a, x i a * P i a j * bias j := by
+      apply Finset.sum_congr rfl
+      intro i _
+      rw [sum_comm]
+    _ = ∑ j, ∑ i, ∑ a, x i a * P i a j * bias j := sum_comm
+    _ = ∑ j, (∑ a, x j a) * bias j := by
+      simp_rw [← sum_mul, flow.2.2]
+    _ = ∑ i, ∑ a, x i a * bias i := by simp_rw [sum_mul]
+
+/-- A Bellman dual inequality bounds every stationary occupation measure, not only a
+deterministic selected policy. This is the reusable LP-certificate direction. -/
+theorem occupation_cost_lower {S A : Type*} [Fintype S] [Fintype A]
+    (P : S → A → S → ℚ) (x cost : S → A → ℚ) (bias : S → ℚ) (gain : ℚ)
+    (flow : Occupation P x)
+    (bound : ∀ i a, gain + bias i ≤ cost i a + ∑ j, P i a j * bias j) :
+    gain ≤ ∑ i, ∑ a, x i a * cost i a := by
+  have hb := sum_le_sum (s := univ) (fun i _ =>
+    sum_le_sum (s := univ) (fun a _ =>
+      mul_le_mul_of_nonneg_left (bound i a) (flow.1 i a)))
+  simp_rw [mul_add, sum_add_distrib] at hb
+  rw [occupation_bias_cancel P x bias flow] at hb
+  have norm : (∑ i, ∑ a, x i a * gain) = gain := by
+    simp_rw [← sum_mul]
+    rw [flow.2.1, one_mul]
+  rw [norm] at hb
+  linarith
+
+/-- Equality on every occupied action gives a primal witness attaining the dual bound.
+Actions of zero occupation mass need not satisfy the equality. -/
+theorem occupation_attains_gain {S A : Type*} [Fintype S] [Fintype A]
+    (P : S → A → S → ℚ) (x cost : S → A → ℚ) (bias : S → ℚ) (gain : ℚ)
+    (flow : Occupation P x)
+    (tight : ∀ i a, x i a ≠ 0 → gain + bias i = cost i a + ∑ j, P i a j * bias j) :
+    (∑ i, ∑ a, x i a * cost i a) = gain := by
+  have eqn : ∀ i a, x i a * (gain + bias i) =
+      x i a * (cost i a + ∑ j, P i a j * bias j) := by
+    intro i a
+    by_cases h : x i a = 0
+    · simp [h]
+    · rw [tight i a h]
+  have total : (∑ i, ∑ a, x i a * (gain + bias i)) =
+      ∑ i, ∑ a, x i a * (cost i a + ∑ j, P i a j * bias j) :=
+    Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun a _ => eqn i a))
+  simp_rw [mul_add, sum_add_distrib] at total
+  rw [occupation_bias_cancel P x bias flow] at total
+  have norm : (∑ i, ∑ a, x i a * gain) = gain := by
+    simp_rw [← sum_mul]
+    rw [flow.2.1, one_mul]
+  rw [norm] at total
+  linarith
 end Lifecycle

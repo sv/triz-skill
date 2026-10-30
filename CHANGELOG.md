@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Integrate theorem-search results: bounded overlap-aware behavior pruning, replayable source-grounding activation order, and Lean laws for target residuals, least source closure, acyclic table gluing and randomized stationary occupation bounds. Document the capability map, graph endpoint audit and remaining adapter prerequisites.
 - Make optimal-policy ambiguity explicit, rank lifecycle priors with exact masses, guard effect hints/provenance/flow edits, and report only justified bond causality findings. Add the edge-walk cost theorem and shared complete certificate source pins.
 - Share resource source-support checks with hierarchical subsystem contracts and isolate box-local lifecycle availability from global acceptable states.
 - Guard feasible steady-state resource balances with a bounded source-support check; ungrounded circular witnesses remain undecided. Component discovery reports unused resources and supports requiring all of them.
@@ -15,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add automatic bounded component/topology discovery, finite property contracts, effect-chain insertion and replay, generated-network certificates, and Lean chain laws proved with simp/grind.
 - Add explicit SI carrier dimensions and base-unit parsing, shared declaration equality, and dimension mismatch lints.
 - Add exact per-dimension recurrent cycle-cost ranges, rational potentials, checked cycle witnesses and local Lean certificates.
-- Add typed effect filters, bounded effect-chain wiring diagrams, weakest-spec hints, and six statement-derived catalogue typings.
+- Add typed effect filters, bounded effect-chain wiring diagrams, weakest-spec hints, and six entry-derived catalogue typings.
 - Add finite rational lifecycle policy iteration, stationary occupancy/availability, certified optimality equations, and opt-in concept-specific weakness priors.
 - Add the bond-graph design and structural energy typing, causality checks and equation-structure export.
 - Upgrade Lean and Mathlib together to 4.35.0; migrate proof APIs and regenerate certificate pins without changing the npm package version.

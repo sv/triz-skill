@@ -95,6 +95,10 @@ Finite engineering contracts also require grounded resource support: a selected 
 its outputs only after its positive requirements have source-backed provision. Self-supplied
 cycles without that witness are `undecided`, even when their declared behavior has a fixed point
 and their steady-state resource equations balance. Typed-only candidates remain hypotheses.
+Source-support witnesses include `activationOrder`, the row activations in dependency order.
+Each activation's positive requirements are supplied by boundary seeds or earlier activations.
+`SourceSupport.lean` supplies a generic least-closure/derivation theorem; these runtime witnesses
+are replay-tested and are not yet request-bound Lean certificates.
 
 ## Inserting discovered effect chains
 
@@ -134,3 +138,11 @@ logical/equality/arithmetic reasoning and constructs proof terms. They help prov
 symbolic component laws. Finite certificates keep `decide +kernel`; missing physical declarations
 are never tactic assumptions. The hosted search runs no Lean process or external service.
 Open-world discovery and dynamic/continuous-property synthesis remain outside this implementation.
+
+The [integrated mathematical connections](math-connections.md#integrated-theorem-search-results)
+add residual conjunction/backward-composition laws, source-closure derivations, an acyclic
+constraint gluing theorem, and stationary occupation bounds. Behavior contracts now use
+overlap-aware semijoins to prune incompatible multi-port rows before enumeration. This can
+resolve previously capped finite contracts; it does not broaden the declared catalogue or
+prove topology-search completeness. Typed grades, guarded feedback and physical black-box
+adapters are documented extensions with explicit prerequisites.
