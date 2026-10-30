@@ -633,6 +633,14 @@ All five modules are default targets of `lake build --wfail`. None proves that t
 searches are extracted from Lean, that selected tied witnesses are canonical, or that supplied
 rows describe physical reality.
 
+The runtime hierarchy checker additionally checks explicit parent-flow routes and opt-in global
+budget/weight or independent contradiction policies. `triz_subsystem_contract` checks exact,
+nonblocking inner steady-state behavior and the supported single resource mode against a declared
+interface contract. These TypeScript checks are tested; `Hierarchy.lean` proves neither their
+resource coupling nor their implementation correct. The coupling of one resource mode to all
+behavior rows remains an empirical declaration. Import provenance and analyst review prevent
+accidental use of unconfirmed drafts; they do not authenticate source contents or analyst claims.
+
 ## What is not claimed
 
 The implemented guarantees are separated from future work in

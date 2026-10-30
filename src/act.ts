@@ -24,6 +24,7 @@
  * Pure functions (data in, verdict out) so the stdio and hosted entries share them.
  */
 import { z } from "zod";
+import { ModelProvenance, provenanceProblems, hierarchyProblems } from "./act-provenance.js";
 import { at, fail, issue, keysHint, quoted, rebase, second, where, zodHint, type Issue } from "./act-issues.js";
 
 const Id = z.string().min(1);
@@ -213,6 +214,7 @@ export const PhysicalContradiction = z.strictObject({
 export const FunctionModel = z.strictObject({
   domain: z.enum(["physical", "software", "business", "cyber-physical"]),
   system: z.string().optional(),
+  provenance: ModelProvenance.optional().describe("Embedded import source locations and explicit analyst review. Draft models cannot drive analysis; review is an assertion, not a proof of source truth"),
   carriers: z.array(Carrier),
   boxes: z.array(Box),
   wires: z.array(Wire),
@@ -409,6 +411,20 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
   if (depth > 8 || ancestors.has(model)) {
     const problem = issue("hierarchy-depth", root, "hierarchy is cyclic or exceeds eight nested levels", "Remove the cycle or reduce nesting to eight levels.");
     return { ok: false, errors: [problem.message], issues: [problem] };
+  }
+  if (model.provenance !== undefined) {
+    const problems = provenanceProblems(model.provenance);
+    if (problems.length) issues.push(issue("invalid-import-provenance", at(root, "provenance"), problems.join("; "), "Preserve complete source locations and one explicit decision per pending item."));
+    else {
+      const provenance = model.provenance;
+      const knownBoxes = new Set(model.boxes.map(b => b.id)), knownWires = new Set(model.wires.map(w => w.id));
+      const hierarchyErrors = hierarchyProblems(provenance.hierarchy ?? [], knownBoxes);
+      if (hierarchyErrors.length) issues.push(issue("invalid-import-provenance", at(root, "provenance", "hierarchy"), hierarchyErrors.join("; "), "Use acyclic single-parent containment among current boxes."));
+      if (provenance.components.some(p => !knownBoxes.has(p.id)) || provenance.interactions.some(p => !knownWires.has(p.wireId)) ||
+          model.boxes.some(b => !provenance.components.some(p => p.id === b.id)) || model.wires.some(w => !provenance.interactions.some(p => p.wireId === w.id)))
+        issues.push(issue("invalid-import-provenance", at(root, "provenance"), "Imported source mappings must cover every current box and wire and name only current ids", "Retain or explicitly remap source locations for every imported element."));
+      if (provenance.status === "draft") issues.push(issue("draft-model", at(root, "provenance"), "Imported model has unconfirmed ratings or assumptions", "Review every pending item with triz_review_import before using this model for analysis. Source review does not prove behavior or physical truth."));
+    }
   }
   const nextAncestors = new Set(ancestors).add(model);
   const carriers = new Set(model.carriers.map((c) => c.id));

@@ -25,7 +25,7 @@ console.log(`connected to ${target}`);
 const { tools } = await client.listTools();
 const names = tools.map((t) => t.name);
 console.log(`tools (${names.length}): ${names.join(", ")}`);
-for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction", "triz_flow"]) {
+for (const required of ["triz_parameter", "triz_principle", "triz_matrix", "triz_resolve", "triz_tool_catalog", "triz_effects", "triz_route", "triz_evals", "triz_function_model", "triz_trim", "triz_separate", "triz_export", "triz_transform", "triz_nine_windows", "triz_rule_apply", "triz_behavior", "triz_weakness", "triz_feasibility", "triz_dynamics", "triz_abstraction", "triz_flow", "triz_build_model", "triz_expand_hierarchy", "triz_subsystem_contract", "triz_import_source", "triz_review_import"]) {
   if (!names.includes(required)) fail(`missing tool ${required}`);
 }
 
@@ -33,6 +33,21 @@ const json = async (name, args) => {
   const r = await client.callTool({ name, arguments: args });
   return JSON.parse(r.content[0].text);
 };
+
+// Source import stays a draft through the actual stdio schema/handler boundary.
+const imported = await json("triz_import_source", { format: "bom-csv", source: {
+  id: "synthetic.csv", text: "id,name,parent_id\nroot,Assembly,\npart,Component,root\n",
+} });
+if (!imported.ok || imported.model.provenance?.status !== "draft") fail("local import did not retain draft provenance");
+const unreviewed = await json("triz_function_model", { model: imported.model });
+if (unreviewed.ok !== false || !unreviewed.issues.some(i => i.code === "draft-model")) fail("bare imported model bypassed draft guard");
+const reviewed = await json("triz_review_import", { model: imported.model,
+  decisions: imported.model.provenance.pending.map(p => ({ id: p.id, decision: "confirm", note: "Synthetic smoke fixture" })),
+});
+if (!reviewed.ok || reviewed.model.provenance.status !== "reviewed" || reviewed.model.provenance.hierarchy?.length !== 1) fail("review lost source containment");
+const confirmed = await json("triz_function_model", { model: reviewed.model });
+if (!confirmed.ok) fail("reviewed synthetic import cannot be analysed");
+console.log("local import -> embedded draft guard -> reviewed source containment passed");
 
 const cell = await json("triz_matrix", { improving: 9, worsening: 14 });
 console.log(`triz_matrix 9-14 -> [${cell.principles}]`);

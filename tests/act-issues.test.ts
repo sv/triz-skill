@@ -397,6 +397,20 @@ const cases: Case[] = [
   { code: "invalid-argument", kernel: () => globalSeparation({ variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }), input: { variables: [{ id: "x", values: ["0"] }], regions: [{ id: "r", variables: ["missing"], allowed: [["0"]] }] }, path: "$.regions['0'].variables['0']" },
 ];
 
+const importedDraft = (() => {
+  const m = bh();
+  const source = { source: "import.json", pointer: "/items/0" };
+  m.provenance = { status: "draft", components: m.boxes.map(b => ({ id: b.id, source })), interactions: m.wires.map(w => ({ wireId: w.id, source })), pending: [{ id: "review", kind: "assumption", description: "Review imported assumptions", source }] };
+  return m;
+})();
+const incompleteReview = structuredClone(importedDraft);
+incompleteReview.provenance!.status = "reviewed";
+incompleteReview.provenance!.review = { decisions: [] };
+cases.push(
+  { code: "draft-model", tool: "triz_function_model", args: { model: importedDraft }, path: "$.model.provenance" },
+  { code: "invalid-import-provenance", tool: "triz_function_model", args: { model: incompleteReview }, path: "$.model.provenance" },
+);
+
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
 const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row", "extensive-fan-out"];
 

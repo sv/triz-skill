@@ -50,7 +50,8 @@
     "docs",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "scripts/export-julia-model.jl"
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

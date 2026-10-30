@@ -366,5 +366,5 @@ test("the hosted Worker cannot bundle elkjs: no static import of it, and the Wor
   const src = (f: string) => fs.readFileSync(path.resolve(here, "../src", f), "utf8");
   for (const f of fs.readdirSync(path.resolve(here, "../src")).filter((x) => x.endsWith(".ts"))) assert.doesNotMatch(src(f), /(from|import\()\s*["'`]elkjs/, f);
   assert.doesNotMatch(src("worker.ts"), /from\s+["']\.\/elk\.js["']/);
-  assert.match(src("server.ts"), /toolSpecs\(\{ graph, layout: loadElk \}\)/);
+  assert.match(src("server.ts"), /toolSpecs\(\{ graph, layout: loadElk, localImports: true \}\)/);
 });

@@ -353,6 +353,7 @@ test("a dominated feasibility row fails closed in every tool that takes a model"
     triz_trim: { model: bad, trim: ["bearing"] },
     triz_export: { model: bad, format: "hypergraph" },
     triz_expand_hierarchy: { model: bad, box: "housing" },
+    triz_subsystem_contract: { model: bad, box: "housing", mode: "verify", contract: { behavior: [{ in: {}, out: {} }], assumptions: [{}], resources: { inputs: {}, outputs: {}, budget: {} }, operating_envelope: "test" } },
     triz_transform: { model: bad, transformation: { op: "trim", trim: ["bearing"] } },
     triz_nine_windows: { present: bad, subsystem: ["bearing"] },
     triz_behavior: { model: bad },

@@ -15,6 +15,8 @@ registers (`src/act-issues.ts`), each listed once.
 
 | Code | Raised by | Meaning |
 |---|---|---|
+| `draft-model` | imported models | Ratings or assumptions remain unconfirmed inside the model; review every pending item before analysis |
+| `invalid-import-provenance` | imported models | Source mappings or review coverage are malformed, incomplete, or name stale ids |
 | `hierarchy-depth` | model checks | A cycle or more than eight nested levels; remove the cycle or flatten a level |
 | `invalid-inner-model` | model checks | The inner declaration or model has an invalid shape |
 | `hierarchy-summary` | model checks | A nested box also declares an unchecked outer behavior, producible, state, feasibility, or cost summary |

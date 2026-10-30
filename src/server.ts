@@ -21,7 +21,7 @@ import { loadElk } from "./elk.js";
 import { version } from "./version.js";
 
 const server = new McpServer({ name: "triz-mcp", version });
-bindV1(server, toolSpecs({ graph, layout: loadElk }));
+bindV1(server, toolSpecs({ graph, layout: loadElk, localImports: true }));
 
 async function main() {
   await server.connect(new StdioServerTransport());
