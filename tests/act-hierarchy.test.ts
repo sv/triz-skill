@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FunctionModel, analyseModel, checkModel } from "../src/act.js";
+import { FunctionModel, analyseModel, checkModel, sameCarrier } from "../src/act.js";
 import { toolSpecs } from "../src/tools.js";
 import { substitute, zoomIn } from "../src/act-hierarchy.js";
 import { externalBehavior } from "../src/act-behavior.js";
@@ -107,4 +107,33 @@ test("schema rejects cyclic and deeply nested inputs before recursive parsing", 
   for (let i = 0; i < 10_000; i++) inner = { model: { boxes: [{ inner }] }, inputs: [], outputs: [] };
   const deep = model(); deep.boxes[0].inner = inner;
   assert.equal(FunctionModel.safeParse(deep).success, false);
+});
+
+test("binding and expansion compare carriers by one rule: values as a set, defaults filled, loss exact", () => {
+  // The inner model lists the values in the other order and spells out the default quantity.
+  const m = model();
+  m.boxes[0].inner.model.carriers[0] = { id: "c", quantity: "intensive", values: ["1", "0"], dimension: "bit", layer: "information" };
+  assert.equal(checkModel(m).ok, true);
+  const expanded = substitute(m, "h");
+  assert.ok(expanded.ok, JSON.stringify(!expanded.ok && expanded.issues));
+  assert.deepEqual(expanded.model.carriers, [carrier], "the parent's declaration is kept");
+  // An unbound inner carrier sharing an outer id is checked by expansion with the same rule.
+  const unbound = model();
+  unbound.carriers.push({ id: "u", layer: "energy", dimension: "W", values: ["a", "b"] });
+  unbound.boxes[0].inner.model.carriers.push({ id: "u", layer: "energy", dimension: "W", values: ["b", "a"] });
+  assert.ok(substitute(unbound, "h").ok);
+  // What does differ: a declared loss against none, the other quantity, another level threshold.
+  for (const change of [
+    (c: FunctionModel["carriers"][number]) => { c.loss = false; },
+    (c: FunctionModel["carriers"][number]) => { c.quantity = "extensive"; },
+    (c: FunctionModel["carriers"][number]) => { c.levels = [...c.values!].sort().map((value, i) => ({ value, from: 2 * i })); },
+  ]) {
+    const bound = model(); change(bound.boxes[0].inner.model.carriers[0]);
+    assert.ok(checkModel(bound).issues.some((i) => i.code === "hierarchy-binding"));
+    const shared = structuredClone(unbound); change(shared.boxes[0].inner.model.carriers[1]);
+    const r = substitute(shared, "h");
+    assert.ok(!r.ok && r.issues[0].message.includes("carrier 'u' differs"));
+  }
+  assert.equal(sameCarrier({ id: "c", layer: "information", dimension: "bit", loss: true }, { id: "c", layer: "information", dimension: "bit", loss: true }), true);
+  assert.equal(sameCarrier({ id: "c", layer: "information", dimension: "bit", levels: [{ value: "0", from: 0 }] }, { id: "c", layer: "information", dimension: "bit" }), false);
 });

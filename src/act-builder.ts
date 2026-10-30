@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Carrier, Flow, FunctionModel, Polarity, Role, checkModel } from "./act.js";
+import { Carrier, Flow, FunctionModel, Polarity, Role, checkModel, sameCarrier } from "./act.js";
 import { at, fail, issue, type Issue } from "./act-issues.js";
 import { lintModel } from "./act-lint.js";
 
@@ -37,8 +37,8 @@ const normalizeCarrier = (c: z.infer<typeof Carrier>): z.infer<typeof Carrier> =
   ...(c.values === undefined ? {} : { values: [...c.values].sort(cmp) }),
   ...(c.levels === undefined ? {} : { levels: c.levels.map(({ value, from }) => ({ value, from })) }),
   ...(c.quantity === "extensive" ? { quantity: "extensive" as const } : {}),
+  ...(c.loss === undefined ? {} : { loss: c.loss }),
 });
-const carrierKey = (c: z.infer<typeof Carrier>) => JSON.stringify(normalizeCarrier(c));
 
 /** Build only what the table declares. No behavior or function rating is inferred. */
 export function buildModel(input: BuildModelRequest) {
@@ -55,7 +55,7 @@ export function buildModel(input: BuildModelRequest) {
       issues.push(issue("unknown-box", at("$", "interactions", index, side), `unknown component '${i[side]}'`, "Use a declared component id."));
     }
     const existing = carriers.get(i.carrier.id);
-    if (existing && carrierKey(existing.carrier) !== carrierKey(i.carrier)) {
+    if (existing && !sameCarrier(existing.carrier, i.carrier)) {
       issues.push(issue("carrier-mismatch", at("$", "interactions", index, "carrier"), `conflicting declarations of carrier '${i.carrier.id}'`, `Use the same carrier descriptor as interactions[${existing.index}].carrier, or give the different carrier a distinct id.`));
     } else if (!existing) carriers.set(i.carrier.id, { carrier: normalizeCarrier(i.carrier), index });
     const key = identity(i), prior = interactions.get(key);

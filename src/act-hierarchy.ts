@@ -1,5 +1,5 @@
 /** Checked hierarchy views and explicit, conservative wiring substitution. */
-import { checkModel, type FunctionModel } from "./act.js";
+import { checkModel, sameCarrier, type FunctionModel } from "./act.js";
 import { fail, issue } from "./act-issues.js";
 
 const problem = (message: string, hint: string) => fail([issue("hierarchy-substitution", "$.model", message, hint)]);
@@ -25,10 +25,9 @@ export function substitute(model: FunctionModel, box: string) {
   if (model.domain !== inner.domain || model.flows?.length || inner.flows?.length || inner.budget || inner.weights || inner.contradictions?.length ||
       inner.boxes.some(b => b.cost || b.feasibility || b.state || b.initial || b.transition))
     return problem("substitution has unsupported domain, flow, cost, feasibility, dynamics, or inner model metadata", "Use matching domains and remove unsupported declarations before substituting; their semantics are not composed here.");
-  const canon = (x: unknown): string => JSON.stringify(x, (_k, v) => v && !Array.isArray(v) && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
   for (const carrier of inner.carriers) {
     const existing = model.carriers.find(c => c.id === carrier.id);
-    if (existing && canon(existing) !== canon(carrier)) return problem(`carrier '${carrier.id}' differs between models`, "Use the same carrier declaration for each shared id.");
+    if (existing && !sameCarrier(existing, carrier)) return problem(`carrier '${carrier.id}' differs between models`, "Use the same carrier declaration for each shared id.");
   }
   const fresh = (preferred: string, used: Set<string>) => {
     let value = preferred;
