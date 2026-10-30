@@ -73,8 +73,24 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
   const root = box
     ? at("$.model", "boxes", m.boxes.indexOf(box), "actions")
     : "$.model.actions";
+  const holding = box
+    ? (box.holding_cost ?? {})
+    : (m.lifecycle?.holding_cost ?? {});
+  const holdingRoot = box
+    ? at("$.model", "boxes", m.boxes.indexOf(box), "holding_cost")
+    : "$.model.lifecycle.holding_cost";
   const errors: ReturnType<typeof issue>[] = [];
   const ids = new Set(states);
+  for (const state of Object.keys(holding))
+    if (!ids.has(state))
+      errors.push(
+        issue(
+          "undeclared-state",
+          at(holdingRoot, state),
+          "Holding cost names an undeclared lifecycle state",
+          "Declare this state in the selected lifecycle, or remove its holding cost.",
+        ),
+      );
   if (ids.size !== states.length)
     errors.push(
       issue(
@@ -207,18 +223,26 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
                   ...new Set([
                     ...Object.keys(action.cost ?? {}),
                     ...Object.keys(r.cost ?? {}),
+                    ...Object.keys(holding[r.state] ?? {}),
                   ]),
                 ].map((d) => [
                   d,
                   show(
                     add(
                       rational(
-                        action.cost && Object.hasOwn(action.cost, d)
-                          ? action.cost[d]
+                        holding[r.state] && Object.hasOwn(holding[r.state], d)
+                          ? holding[r.state][d]
                           : 0,
                       ),
-                      rational(
-                        r.cost && Object.hasOwn(r.cost, d) ? r.cost[d] : 0,
+                      add(
+                        rational(
+                          action.cost && Object.hasOwn(action.cost, d)
+                            ? action.cost[d]
+                            : 0,
+                        ),
+                        rational(
+                          r.cost && Object.hasOwn(r.cost, d) ? r.cost[d] : 0,
+                        ),
                       ),
                     ),
                   ),
@@ -253,12 +277,13 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       reason: "lifecycle-state-cap",
     };
   const dims = [
-    ...new Set(
-      actions.flatMap((x) => [
+    ...new Set([
+      ...actions.flatMap((x) => [
         ...Object.keys(x.cost ?? {}),
         ...x.transitions.flatMap((r) => Object.keys(r.cost ?? {})),
       ]),
-    ),
+      ...Object.values(holding).flatMap((c) => Object.keys(c)),
+    ]),
   ];
   if (!dims.length)
     return fail([
@@ -308,19 +333,26 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
           d,
           add(
             rational(
-              action.cost && Object.hasOwn(action.cost, d) ? action.cost[d] : 0,
+              holding[s] && Object.hasOwn(holding[s], d) ? holding[s][d] : 0,
             ),
-            sum(
-              action.transitions
-                .filter((r) => r.state === s)
-                .map((r) =>
-                  mul(
-                    rational(r.probability!),
-                    rational(
-                      r.cost && Object.hasOwn(r.cost, d) ? r.cost[d] : 0,
+            add(
+              rational(
+                action.cost && Object.hasOwn(action.cost, d)
+                  ? action.cost[d]
+                  : 0,
+              ),
+              sum(
+                action.transitions
+                  .filter((r) => r.state === s)
+                  .map((r) =>
+                    mul(
+                      rational(r.probability!),
+                      rational(
+                        r.cost && Object.hasOwn(r.cost, d) ? r.cost[d] : 0,
+                      ),
                     ),
                   ),
-                ),
+              ),
             ),
           ),
         ]),

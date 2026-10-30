@@ -58,6 +58,7 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
   ComponentBehavior: n=>behaviorCertificate(componentContract().target,componentNetwork(),{scope:"whole",namespace:n}),
   MeanCostFixture: n=>meanCostCertificate(costModel(),{},0,"resource",{namespace:n}),
   LifecycleFixture: n=>lifecycleCertificate({model:lifecycleModel()},0,{namespace:n}),
+  LifecycleHolding: n=>{const m=lifecycleModel();m.lifecycle!.holding_cost={a:{resource:"1/3"},b:{resource:8}};return lifecycleCertificate({model:m},0,{namespace:n});},
   ...Object.fromEntries(Object.entries(FIXTURES).map(([ns, name]) => [ns, (n: string) => modelCertificate(example(name), { namespace: n })])),
   BearingEscalation: (n) => dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT }, { namespace: n }),
   SupportWeakness: (n) => weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE, { namespace: n }),

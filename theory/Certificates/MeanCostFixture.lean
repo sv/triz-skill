@@ -16,7 +16,7 @@ namespace MeanCostFixture
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"mean-cost\",\"namespace\":\"MeanCostFixture\",\"source\":\"9e0a61f9c0a0178c7a4316bd906950141d70c5c9e08dceb546551faff10f7c96\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"71dd87e0ab1cefc24d5c9531e4e79e94c01df12b59d700419fd87e7bcee5a159\",\"schemaSource\":\"9a4d48a03a66dee1f8cf0ecbbfc5e436795c4817526da848a269a011897a48e8\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"finite-cost\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"mean-cost\",\"namespace\":\"MeanCostFixture\",\"source\":\"9e0a61f9c0a0178c7a4316bd906950141d70c5c9e08dceb546551faff10f7c96\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"71dd87e0ab1cefc24d5c9531e4e79e94c01df12b59d700419fd87e7bcee5a159\",\"schemaSource\":\"d0b3ca80c2e505f7bab03c058c5b95324bcfe7583e94defb624dcaf9cef08770\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"finite-cost\"}"
 
 def costFrom : Fin 3 → Fin 2 := ![0, 0, 1]
 def costTo : Fin 3 → Fin 2 := ![0, 1, 0]

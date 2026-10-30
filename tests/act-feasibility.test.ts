@@ -236,18 +236,21 @@ test("a port has one level: fan-out meets the largest demand, and fan-in needs e
 
   const loop = pumpLoop(10);
   const f = feasibility(loop);
-  assert.ok(f.ok && f.verdict === "feasible");
+  assert.ok(f.ok && f.verdict === "undecided" && f.reason === "circular-resource-support");
+  assert.equal(f.steadyState.verdict,"feasible");
   assert.deepEqual(f.minimal[0].levels.find((l) => l.port === "flow-out"), { box: "pump", port: "flow-out", level: 10 }, "max of the field's 10 and the generator's 8");
 });
 
 test("resource loops: Kleene's ascent escalates the loop to its least fixpoint, or proves it unprovidable", () => {
   const easy = feasibility(pumpLoop(10));
-  assert.ok(easy.ok && easy.verdict === "feasible");
+  assert.ok(easy.ok && easy.verdict === "undecided" && easy.reason === "circular-resource-support");
+  assert.equal(easy.steadyState.verdict,"feasible");
   assert.deepEqual([easy.minimal[0].resources, easy.iterations], [{ usd: 5 }, 2]);
 
   // 18 L/min needs the big pump, whose 12 W needs the big generator: the ascent climbs step by step.
   const climb = feasibility(pumpLoop(18));
-  assert.ok(climb.ok && climb.verdict === "feasible");
+  assert.ok(climb.ok && climb.verdict === "undecided" && climb.reason === "circular-resource-support");
+  assert.equal(climb.steadyState.verdict,"feasible");
   assert.deepEqual(climb.minimal[0].rows, [{ box: "pump", row: 1 }, { box: "generator", row: 1 }, { box: "field", row: 0 }]);
   assert.deepEqual(climb.minimal[0].resources, { usd: 9 });
   assert.deepEqual(climb.minimal[0].levels, [{ box: "pump", port: "flow-out", level: 18 }, { box: "generator", port: "power-out", level: 12 }]);

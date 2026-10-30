@@ -40,7 +40,9 @@
  * kleeneStep_upperClosure, codesign_lfp). Feedback loops need no special case: requirements only
  * grow along the ascent, so the least fixpoint is the answer. triz_behavior's steady states
  * equate values and have no order to ascend in; that is why it uses the trace and this uses the
- * least fixpoint.
+ * least fixpoint. This establishes steady-state balance only. A separate bounded
+ * source-support closure checks selected witnesses from zero provision; a closed
+ * positive-requirement cycle without grounded provision remains undecided.
  *
  * The antichains can grow exponentially with the number of boxes and rows; no polynomial bound is
  * claimed. Antichain size, iterations, and candidate selections are capped, and past a cap the
@@ -59,7 +61,7 @@ type Endpoint = { box: string; port: string };
 const capExceeded = (message: string, path: string, hint = "Declare fewer feasibility rows per box, or split the model; the caps can only be lowered.") =>
   fail([issue("cap-exceeded", path, message, hint)]);
 
-/** Caps per solve: antichain elements, Kleene steps, and row selections tried. */
+/** Caps per solve: antichain elements, Kleene steps, and shared row-selection/source-support work. */
 export const MAX_ANTICHAIN = 1_000;
 export const MAX_ITERATIONS = 1_000;
 export const MAX_CANDIDATES = 1_000_000;
@@ -238,6 +240,27 @@ function solve(p: Problem, caps: Required<Caps>): Solution {
 
 const record = (dims: string[], v: number[]) => Object.fromEntries(dims.map((d, i) => [d, v[i]]));
 
+/** A steady balance need not justify its own resource supply. Starting at zero,
+ * activate only selected rows whose positive input requirements already have
+ * grounded provision. A stalled closure is unknown initialization/support, not
+ * a proof that the steady-state equations are inconsistent. */
+function sourceSupport(p:Problem,witness:Config,charge:()=>void) {
+  const available=p.ports.map(()=>0), active=p.composed.map(()=>false);
+  const selected=p.composed.map((_,i)=>p.rows[i].find(r=>r.index===witness.rows[i])!);
+  let changed=true;
+  while(changed) {
+    changed=false;
+    for(let k=0;k<selected.length;k++) {
+      charge();if(active[k])continue;
+      const row=selected[k];
+      if(!row.demand.every(([i,level])=>{charge();return available[i]>=level;}))continue;
+      active[k]=true;changed=true;
+      for(const [i,level] of row.provide){charge();available[i]=level;}
+    }
+  }
+  return {grounded:active.every(Boolean),groundedBoxes:p.composed.filter((_,i)=>active[i]).map(b=>b.id),unresolved:p.composed.flatMap((b,k)=>active[k]?[]:[{box:b.id,row:witness.rows[k],requirements:selected[k].demand.filter(([i,level])=>available[i]<level).map(([i,level])=>({...p.ports[i],required:level,groundedProvision:available[i]}))}])};
+}
+
 /** The minimal resource vectors against the budget: feasible, infeasible (over-budget), or undecided (no budget, or an unbudgeted dimension in use). */
 function judge(model: FunctionModel, dims: string[], vectors: number[][]) {
   const budget = model.budget;
@@ -290,7 +313,19 @@ export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listA
     };
   }
   const totals = s.minimal.map(({ s: x }) => x.c.map((v, i) => v + p.fixed[i]));
-  const { over, within, ...verdict } = judge(model, p.dims, totals);
+  const { over, within, ...balance } = judge(model, p.dims, totals);
+  let supportWork=0;
+  const support=[] as ReturnType<typeof sourceSupport>[];
+  try {
+    for(const {witness} of s.minimal) support.push(sourceSupport(p,witness,()=>{if(s.candidates + ++supportWork > full.maxCandidates)throw new Error("support-cap");}));
+  } catch(e) {
+    if(e instanceof Error&&e.message==="support-cap")return capExceeded("resource source-support checking exhausted the shared candidate/work cap","$.model");
+    throw e;
+  }
+  const groundedWithin=within.filter(i=>support[i].grounded);
+  const verdict=balance.verdict==="feasible"&&!groundedWithin.length
+    ? {verdict:"undecided" as const,reason:"circular-resource-support" as const,note:"The declared rows balance within budget, but their selected positive requirements have no grounded supply from zero-requirement rows. Initialization or an external resource source is unsubstantiated; the steady balance is not a complete feasibility witness."}
+    : balance;
   const all = s.minimal.map(({ s: x, witness }, i) => ({
     resources: record(p.dims, totals[i]),
     operating: record(p.dims, x.c),
@@ -299,10 +334,12 @@ export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listA
     levels: p.ports.flatMap((e, k) => (x.f[k] > 0 ? [{ ...e, level: x.f[k] }] : [])),
   }));
   // Affordable vectors first, so every withinBudget position resolves to a listed witness.
-  const order = [...within, ...all.map((_, i) => i).filter((i) => !within.includes(i))];
+  const order = [...groundedWithin, ...all.map((_, i) => i).filter((i) => !groundedWithin.includes(i))];
   const listed = opts.listAll ? all.length : LISTED;
-  const affordable = verdict.verdict === "feasible" ? { withinBudget: within.slice(0, listed).map((_, k) => k), withinBudgetCount: within.length } : {};
-  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, listed).map((i) => all[i]), minimalCount: all.length, ...stats };
+  const affordable = verdict.verdict === "feasible" ? { withinBudget: groundedWithin.slice(0, listed).map((_, k) => k), withinBudgetCount: groundedWithin.length } : {};
+  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, listed).map((i) => all[i]), minimalCount: all.length, ...stats,candidates:s.candidates+supportWork,supportWork,
+    steadyState:{...balance,withinBudget:within.map(i=>order.indexOf(i)),withinBudgetCount:within.length},
+    sourceSupport:{groundedCount:support.filter(x=>x.grounded).length,checkedCount:support.length,witnesses:order.slice(0,listed).map(i=>support[i]),hint:"Declare source-backed operating rows for required inputs, or substantiate initialization separately. Circular steady-state balance alone does not establish input supply."} };
 }
 
 type Result = ReturnType<typeof feasibility>;

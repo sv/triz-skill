@@ -205,6 +205,7 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `chain`, `from`, `to` | `triz_effect_insert` arguments | insert discovered chains, explicit replacement, SI checks, citations and replay | effects stay standalone hypotheses |
 | transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
 | `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
+| `holding_cost` | `lifecycle`; stateful box | explicit per-state lifecycle cost, charged once per source-state step in addition to action/outcome cost; rational costs supported | no occupancy penalty inferred from `acceptable` |
 | `energy`, `bond` | carrier; box | `triz_bond_graph` structural causality and equation structure | no inferred physical domain |
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
 | `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
@@ -1064,6 +1065,19 @@ and `usd_unit` binds.
 asks how much is needed, and solves a loop by iterating up to the least fixpoint. The
 [theory map](../../../docs/theory-map.md#co-design-feasibility) says why each is right for its
 question.
+
+The balance calculation is also reported under `steadyState`. A balanced resource loop does not
+by itself establish an input source. Before returning `feasible`, the solver checks a selected
+witness by growing grounded provision from rows with no positive requirements. Unsupported
+circular requirements return `undecided` with reason `circular-resource-support`; `sourceSupport`
+lists grounded boxes and unresolved requirements beside the unchanged minimal balance vectors.
+This is a conservative dependency check, not a timed startup simulation. It checks one selected
+witness per minimal vector; initialization or other modes may need separate substantiation.
+The shared candidate/work cap includes this check, and no decision uses a truncated display.
+
+`triz_component_search` cannot certify an ungrounded resource cycle as a complete implementation.
+Its candidates report unused resource outputs; `require_all_resources:true` requires every listed
+resource to feed a new wire. Connection alone does not establish physical consumption.
 
 The antichain (`max_antichain`, at most 1000, checked at every insertion), the Kleene steps
 (`max_iterations`, at most 1000), and the row selections tried (1,000,000 per solve) are capped.

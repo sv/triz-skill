@@ -48,6 +48,7 @@ export function renamedTwin(m: Model): Twin {
   const carriers = family(m.carriers.map((c) => c.id), "c"), flows = family((m.flows ?? []).map((f) => f.id), "f");
   const actions = family([...(m.actions ?? []), ...m.boxes.flatMap(b=>b.actions??[])].map(a=>a.id), "a");
   const dims = family([
+    ...Object.values(m.lifecycle?.holding_cost??{}).flatMap(c=>Object.keys(c)),...m.boxes.flatMap(b=>Object.values(b.holding_cost??{}).flatMap(c=>Object.keys(c))),
     ...[...(m.actions??[]), ...m.boxes.flatMap(b=>b.actions??[])].flatMap(a=>[...Object.keys(a.cost??{}),...a.transitions.flatMap(r=>Object.keys(r.cost??{}))]),
     ...m.boxes.flatMap((b) => [...Object.keys(b.cost ?? {}), ...(b.feasibility ?? []).flatMap((r) => Object.keys(r.cost ?? {})), ...(b.transition ?? []).flatMap(r => Object.keys(r.cost ?? {}))]),
     ...Object.keys(m.budget ?? {}), ...Object.keys(m.weights ?? {}).filter((d) => d !== "harmful"),
@@ -81,7 +82,7 @@ export function renamedTwin(m: Model): Twin {
   const model: Model = {
     domain: m.domain,
     ...opt(m.actions,as=>({actions:actionRows(as)})),
-    ...opt(m.lifecycle,l=>({lifecycle:{...l,states:l.states.map(V),...opt(l.acceptable,vs=>({acceptable:vs.map(V)})),...opt(l.situations,ss=>({situations:Object.fromEntries(Object.entries(ss).map(([s,input])=>[V(s),input.map(x=>({box:B(x.box),port:P(x.box,x.port),value:V(x.value)}))]))}))}})),
+    ...opt(m.lifecycle,l=>({lifecycle:{...l,states:l.states.map(V),...opt(l.holding_cost,cs=>({holding_cost:Object.fromEntries(Object.entries(cs).map(([s,c])=>[V(s),keyed(c,D)!]))})),...opt(l.acceptable,vs=>({acceptable:vs.map(V)})),...opt(l.situations,ss=>({situations:Object.fromEntries(Object.entries(ss).map(([s,input])=>[V(s),input.map(x=>({box:B(x.box),port:P(x.box,x.port),value:V(x.value)}))]))}))}})),
     ...opt(m.system, () => ({ system: "the system" })),
     carriers: m.carriers.map((c, i) => ({
       ...c, id: C(c.id), dimension: `unit ${i + 1}`,
@@ -97,6 +98,7 @@ export function renamedTwin(m: Model): Twin {
       ...opt(b.behavior, (rs) => ({ behavior: rs.map((r) => ({ in: valued(r.in, b.id), out: valued(r.out, b.id) })) })),
       ...opt(b.producible, (rs) => ({ producible: rs.map((r) => ({ in: valued(r.in, b.id), out: valued(r.out, b.id) })) })),
       ...opt(b.state, (s) => ({ state: s.map(V) })),
+      ...opt(b.holding_cost,cs=>({holding_cost:Object.fromEntries(Object.entries(cs).map(([s,c])=>[V(s),keyed(c,D)!]))})),
       ...opt(b.initial, (s) => ({ initial: s.map(V) })),
       ...opt(b.transition, (rs) => ({ transition: rs.map((r) => ({ state: V(r.state), in: valued(r.in, b.id), next: V(r.next), out: valued(r.out, b.id), ...opt(r.cost, c => ({cost:keyed(c,D)})) })) })),
       ...opt(b.feasibility, (rs) => ({ feasibility: rs.map((r) => ({

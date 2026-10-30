@@ -34,6 +34,15 @@ export const MaintenanceAction = z.strictObject({
 });
 export const LifecycleStates = z.strictObject({
   states: z.array(z.string().min(1)).min(1),
+  holding_cost: z
+    .record(
+      z.string().min(1),
+      z.lazy(() => RecurringCost),
+    )
+    .optional()
+    .describe(
+      "Declared per-step cost while occupying each source state; added once to action and outcome costs",
+    ),
   acceptable: z.array(z.string()).optional(),
   situations: z
     .record(

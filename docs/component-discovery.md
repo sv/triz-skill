@@ -83,6 +83,14 @@ returns `undecided`, `complete:false` and no ranked candidate list. `impossible-
 requires complete enumeration and all candidates decided, and concerns only this bounded space.
 Each candidate includes its checked model, template bindings and a replayable rewrite.
 
+Candidates also list `unusedResources`, the requested resource outputs that feed no newly added
+wire. `require_all_resources:true` filters these candidates and reports `unusedResourceRejected`.
+This is an explicit connection constraint, not a physical consumption/conservation theorem.
+Finite engineering contracts also require grounded resource support: a selected row may provide
+its outputs only after its positive requirements have source-backed provision. Self-supplied
+cycles without that witness are `undecided`, even when their declared behavior has a fixed point
+and their steady-state resource equations balance. Typed-only candidates remain hypotheses.
+
 ## Inserting discovered effect chains
 
 Pass a `triz_effect_chains` result's `effects` as `chain` to `triz_effect_insert`, with `model`,

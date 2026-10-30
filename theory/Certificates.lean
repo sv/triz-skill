@@ -1,5 +1,6 @@
 import Certificates.MeanCostFixture
 import Certificates.LifecycleFixture
+import Certificates.LifecycleHolding
 import Certificates.ComponentNetwork
 import Certificates.ComponentBehavior
 import Certificates.GeneralIdentity

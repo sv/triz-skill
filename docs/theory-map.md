@@ -16,6 +16,13 @@ backlog in [FUTURE-PLANS.md](FUTURE-PLANS.md). Every issue and lint code is in
 
 ## How a verdict cites Lean
 
+The resource solver's Kleene/co-design theorems establish steady-state balance. Its additional
+source-support closure checks selected row witnesses from zero provision and conservatively
+returns undecided for unsupported circular requirements. That TypeScript guard is tested rather
+than extracted or separately Lean-certified; it does not prove timed startup or physical supply.
+Lifecycle holding costs enter the same finite cost matrix checked by `Lifecycle.Optimality`;
+`Certificates.LifecycleHolding` covers a rational per-state charge and tamper rejection.
+
 Automatic [component discovery](component-discovery.md) replays each bounded network through
 `typed_delete`/`typed_glue`. Generated networks reuse existing typing and whole-model behavior
 certificates. Those do not certify the enumerator, resource/adequacy verdicts or empirical
@@ -385,9 +392,9 @@ It also shows that `recurrent_reach` needs each hypothesis.
 
 ### Co-design feasibility
 
-The ascent is Kleene's (Censi 2015, Def. 22, eq. 26). Feedback loops need no special case:
+The steady-state balance ascent is Kleene's (Censi 2015, Def. 22, eq. 26). Its feedback equations need no special case:
 demands only grow along the ascent, and where they stop growing, the minimal configurations are
-exactly the minimal feasible ones (`kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`). A
+exactly the minimal steady-state balance configurations (`kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`). A
 test checks the result against every row selection of 300 random models. Lean also proves that
 series, parallel, and feedback composition keep monotonicity (`feasibility_comp`,
 `feasibility_par`, `feasibility_trace`); no verdict cites these.
@@ -415,7 +422,10 @@ Feasibility and behaviour answer different questions about a loop. `triz_behavio
 values flow: a wire equates its ports' values, and values have no order. A loop is therefore
 solved by its steady states, the trace, and not by iterating up from a least value.
 `triz_feasibility` asks how much is needed: levels are ordered, and requirements are monotone.
-Iterating up from nothing demanded therefore reaches the least fixpoint, and that is the answer.
+Iterating up from nothing demanded therefore reaches the least balance fixpoint. A separate
+bounded source-support closure checks the selected witnesses from zero provision; unsupported
+positive cycles remain undecided even when this balance fits the budget. Grounded closure is a
+sufficient dependency justification, not a timed startup or physical-realizability theorem.
 
 ### Abstraction between models
 

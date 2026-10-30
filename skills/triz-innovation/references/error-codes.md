@@ -22,6 +22,11 @@ Reusable catalogue errors also use `invalid-argument`: unbound parameters, unkno
 ambiguous/incompatible aliases, duplicate names, absent source/license fields and library limits.
 Bind types explicitly or correct the portable catalogue schema.
 
+Resource balances with no grounded selected witness are successful analyses with
+`verdict: "undecided"` and `reason: "circular-resource-support"`; see `sourceSupport` and
+`steadyState`. Source-support work exhaustion uses `cap-exceeded`. Holding-cost keys naming
+unknown states use `undeclared-state`; negative/malformed amounts use schema validation codes.
+
 | Code | Raised by | Meaning |
 |---|---|---|
 | `draft-model` | imported models | Ratings or assumptions remain unconfirmed inside the model; review every pending item before analysis |

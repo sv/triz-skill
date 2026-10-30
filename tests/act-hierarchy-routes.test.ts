@@ -35,7 +35,8 @@ test("explicit repeated routes and medium preserve flows, loops, ids and model i
   assert.deepEqual(r.model.flows![0], { id: "f", carrier: "c", path: ["s", "h/__proto__", "h/b", "m", "h/__proto__", "h/b", "p"], medium: "h/b" });
   assert.equal(checkModel(r.model).ok, true);
   const flows = flowAnalysis(r.model); assert.ok(flows.ok); if (flows.ok) assert.ok(flows.flows.find(f => f.id === "f")!.loops.length > 0);
-  const feasible = feasibility(r.model); assert.ok(feasible.ok && feasible.verdict === "feasible");
+  const feasible = feasibility(r.model); assert.ok(feasible.ok && feasible.verdict === "undecided" && feasible.reason === "circular-resource-support");
+  assert.equal(feasible.steadyState.verdict,"feasible","expanded feedback keeps its balance, while source support is a separate unproved obligation");
 });
 
 test("missing, extra, duplicate, invalid and disconnected routes fail closed", () => {

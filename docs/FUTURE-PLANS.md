@@ -86,6 +86,10 @@ The same PR adds reusable domain-independent bundles, explicit type bindings and
 polymorphic identity/fan-out relations. Domain tags organize entries without limiting composition.
 Empirical component specifications remain separately sourced inputs.
 
+PR #51 review fixes distinguish steady resource balance from grounded input support, expose
+unused discovery resources and a require-all option, and add explicit per-state lifecycle holding
+costs. Startup/physical realizability and continuous-time cost models remain outside those checks.
+
 ## Current implementation batch
 
 Implemented in this checkout, with the remaining scope kept explicit:

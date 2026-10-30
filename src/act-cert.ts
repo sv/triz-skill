@@ -34,7 +34,7 @@ export interface Certified { theorem: string; verdict: string; }
 export const CERTIFICATE_THEORY_FILES = ["theory/CategoricalTriz.lean", "theory/MeanCost.lean", "theory/Lifecycle.lean"] as const;
 export const CERTIFICATE_SCHEMA_FILES = ["src/act.ts", "src/act-dimensions.ts", "src/act-lifecycle-schema.ts", "src/act-bond-schema.ts"] as const;
 export const CERTIFICATE_THEORY_SOURCE = "71dd87e0ab1cefc24d5c9531e4e79e94c01df12b59d700419fd87e7bcee5a159";
-export const CERTIFICATE_SCHEMA_SOURCE = "9a4d48a03a66dee1f8cf0ecbbfc5e436795c4817526da848a269a011897a48e8";
+export const CERTIFICATE_SCHEMA_SOURCE = "d0b3ca80c2e505f7bab03c058c5b95324bcfe7583e94defb624dcaf9cef08770";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
   source: string; schema: "function-model-v1"; generator: "triz-cert-2";

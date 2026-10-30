@@ -143,6 +143,7 @@ function safeHierarchy(value: unknown): boolean {
 export const Box = z.strictObject({
   bond: BondElement.optional().describe("Bond-graph element; triz_bond_graph checks causality separately from function ratings"),
   actions: z.array(MaintenanceAction).optional().describe("Declared maintenance actions on this box state space; solved by triz_lifecycle"),
+  holding_cost: z.record(Id, RecurringCost).optional().describe("Lifecycle cost per decision step in each declared source state; used with this box's actions"),
   id: Id,
   name: z.string().min(1),
   role: Role,
@@ -309,6 +310,7 @@ function rowIssues(b: Box, bi: number, carriers: FunctionModel["carriers"], root
   if (b.producible && (b.behavior || b.transition)) issues.push(issue("producible-with-rows", here("producible"), `box '${b.id}' declares producible with ${b.behavior ? "behavior" : "transition"}: producible bounds a box whose behaviour is unknown`, `Keep one: drop producible if the rows of '${b.id}' are known, or drop its ${b.behavior ? "behavior" : "transition"} to have weakest_spec specify it within producible.`));
   for (const s of duplicates(b.state ?? [])) issues.push(issue("duplicate-id", here("state", second(b.state!, s)), `box '${b.id}': duplicate state '${s}'`, `List state '${s}' once.`));
   const states = new Set(b.state ?? []);
+  for(const s of Object.keys(b.holding_cost??{}))if(!states.has(s))issues.push(issue("undeclared-state",here("holding_cost",s),`box '${b.id}': holding cost state '${s}' is not declared`,"Use a declared box state for every holding cost."));
   if (b.state) (b.initial ?? []).forEach((s, k) => {
     if (!states.has(s)) issues.push(issue("undeclared-state", here("initial", k), `box '${b.id}': initial state '${s}' is not declared in state`, `Use one of ${quoted(states)}, or add '${s}' to state.`));
   });
@@ -460,6 +462,7 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
     for (const v of duplicates(c.values ?? [])) issues.push(issue("duplicate-id", at(root, "carriers", ci, "values", second(c.values!, v)), `carrier '${c.id}': duplicate value '${v}'`, `List value '${v}' once.`));
   });
   model.carriers.forEach((c, ci) => issues.push(...levelIssues(c, ci, root)));
+  for(const s of Object.keys(model.lifecycle?.holding_cost??{}))if(!model.lifecycle!.states.includes(s))issues.push(issue("undeclared-state",at(root,"lifecycle","holding_cost",s),`holding cost state '${s}' is not declared in lifecycle.states`,"Use a declared lifecycle state for every holding cost."));
   model.boxes.forEach((b, bi) => {
     const ports = [...inputs(b).map((p, j) => ["inputs", j, p] as const), ...outputs(b).map((p, j) => ["outputs", j, p] as const)];
     const portIds = ports.map(([, , p]) => p.id);
@@ -491,7 +494,7 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
       }
       const inner = b.inner.model as FunctionModel;
       issues.push(...checkModel(inner, at(path, "model"), depth + 1, nextAncestors).issues);
-      if (b.behavior || b.producible || b.state || b.initial || b.transition || b.feasibility || b.cost || b.actions || b.bond) {
+      if (b.behavior || b.producible || b.state || b.initial || b.transition || b.feasibility || b.cost || b.actions || b.holding_cost || b.bond) {
         issues.push(issue("hierarchy-summary", path, `box '${b.id}': inner model cannot be combined with an unchecked outer summary`, "Remove outer behavior, producible, state, initial, transition, feasibility, and cost; analyze the inner model explicitly."));
       }
       for (const side of ["inputs", "outputs"] as const) {

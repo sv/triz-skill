@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Guard feasible steady-state resource balances with a bounded source-support check; ungrounded circular witnesses remain undecided. Component discovery reports unused resources and supports requiring all of them.
+- Add explicit rational per-state lifecycle holding costs, charged once per source-state decision step and included in policies, gains and certificates.
 - Add reusable domain-independent catalogues, explicit type bindings, shared abstract identity/fan-out relations, source metadata and a portable JSON schema.
 - Add automatic bounded component/topology discovery, finite property contracts, effect-chain insertion and replay, generated-network certificates, and Lean chain laws proved with simp/grind.
 - Add explicit SI carrier dimensions and base-unit parsing, shared declaration equality, and dimension mismatch lints.

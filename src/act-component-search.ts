@@ -52,6 +52,12 @@ export const ComponentSearchRequest = z.strictObject({
   max_work: z.number().int().min(1).max(1_000_000).default(100_000),
   max_states: z.number().int().min(1).max(100_000).default(10_000),
   limit: z.number().int().min(1).max(100).default(20),
+  require_all_resources: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Require every listed resource output to supply at least one new wire; candidates always report unusedResources",
+    ),
   certificate: z
     .boolean()
     .optional()
@@ -259,6 +265,7 @@ export function searchComponents(input: unknown) {
       catalogueOrigin?: (typeof prepared.origins)[string];
     }>;
     result?: Evaluation;
+    unusedResources: End[];
   };
   const candidates: Candidate[] = [],
     results: Array<{
@@ -266,7 +273,8 @@ export function searchComponents(input: unknown) {
       result: Evaluation;
     }> = [];
   let checkedCount = 0,
-    satisfyingCount = 0;
+    satisfyingCount = 0,
+    unusedResourceRejected = 0;
   const counts = Array<number>(a.catalogue.length).fill(0);
   const search = (
     boxes: Component[],
@@ -310,6 +318,13 @@ export function searchComponents(input: unknown) {
         return;
       }
       checkedCount++;
+      const unusedResources = a.resources.filter(
+        (e) => !wires.some((w) => key(w.from) === key(e)),
+      );
+      if (a.require_all_resources && unusedResources.length) {
+        unusedResourceRejected++;
+        return;
+      }
       const result =
         a.contract && a.implementation
           ? evaluateImplementation(
@@ -339,6 +354,7 @@ export function searchComponents(input: unknown) {
           model: applied.model,
           rewrite: step,
           components: choices,
+          unusedResources,
           ...(result ? { result } : {}),
         });
         candidates.sort((x, y) => x.components.length - y.components.length);
@@ -444,6 +460,7 @@ export function searchComponents(input: unknown) {
     allDecided: !capped && !unknown,
     checkedCount,
     satisfyingCount,
+    unusedResourceRejected,
     candidates: capped ? [] : candidates,
     carriersAdded: prepared.carriersAdded,
     catalogueBindings: prepared.bindings,

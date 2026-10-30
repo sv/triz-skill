@@ -80,7 +80,7 @@ function canonical(value: unknown, back: (x: string) => string = (x) => x, field
     return field === "path" ? xs : sorted(xs);
   }
   if (value && typeof value === "object") return Object.fromEntries(Object.entries(value)
-    .filter(([k]) => !["note", "system", "name", "domain", "layer", "dimension", "label", "action", "verb", "statesExplored", "iterations", "antichainPeak", "candidates"].includes(k))
+    .filter(([k]) => !["note", "system", "name", "domain", "layer", "dimension", "label", "action", "verb", "statesExplored", "iterations", "antichainPeak", "candidates", "supportWork"].includes(k))
     .map(([k, v]) => [back(k), canonical(v, back, k)]).sort(([a], [b]) => String(a).localeCompare(String(b))));
   return value;
 }
@@ -104,7 +104,7 @@ function feasibilitySummary(m: Model) {
     for (const [d, n] of Object.entries(v.resources)) assert.equal(n, (r.fixed[d] ?? 0) + (operating[d] ?? 0));
     return { ...v, rows: v.rows.length };
   });
-  return { ...r, minimal, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}) };
+  return { ...r, minimal, steadyState:{...r.steadyState,withinBudget:r.steadyState.withinBudget.map(i=>r.minimal[i].resources)}, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}) };
 }
 
 function flowFixture(): Model {

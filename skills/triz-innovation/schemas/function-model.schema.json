@@ -341,6 +341,35 @@
             "minLength": 1
           }
         },
+        "holding_cost": {
+          "description": "Declared per-step cost while occupying each source state; added once to action and outcome costs",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!__proto__$)"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+                }
+              ]
+            }
+          }
+        },
         "acceptable": {
           "type": "array",
           "items": {
@@ -919,6 +948,35 @@
               "transitions"
             ],
             "additionalProperties": false
+          }
+        },
+        "holding_cost": {
+          "description": "Lifecycle cost per decision step in each declared source state; used with this box's actions",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!__proto__$)"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+                }
+              ]
+            }
           }
         },
         "id": {

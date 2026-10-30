@@ -71,6 +71,15 @@ conditions are explicit type tokens; renaming their tokens consistently preserve
 
 ## Lifecycle policies (T4)
 
+Optional `lifecycle.holding_cost` maps model-level states to nonnegative per-step cost vectors;
+for a selected box use `box.holding_cost`. Example: `{"blocked":{"downtime":5}}` explicitly
+penalizes occupying `blocked`. Numbers and nonnegative rational strings are accepted. Each step
+cost is **source-state holding cost + action cost + outcome cost**, with the holding charge
+applied once, independently of how many outcomes an action has. It is included in exact gains,
+policy selection, nondeterministic ranges and finite certificates. A selected box uses only its
+own holding costs. Unknown state keys fail closed. These are costs per decision epoch, not
+continuous-time rates; `acceptable` controls reported availability and adds no implicit penalty.
+
 At model level declare `lifecycle: {states,acceptable?,situations?}` and `actions`; alternatively
 select a stateful box with `box` and declare its `actions`. Each action is
 `{id,guard:[state],cost?,transitions:[{state,next,probability?,cost?}]}`. A transition's cost is
