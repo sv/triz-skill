@@ -43,6 +43,31 @@ test("CLI imports only the explicit local file and rejects invalid, oversized an
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
 
+test("every CLI refusal carries a code, a path and a hint", () => {
+  const dir = mkdtempSync(path.join(tmpdir(),"triz-import-"));
+  try {
+    const file = path.join(dir,"bom.json"); writeFileSync(file,'[{"id":"a","name":"A"}]');
+    const bad = path.join(dir,"bad.json"); writeFileSync(bad,Buffer.from([0xff]));
+    const big = path.join(dir,"big.json"); writeFileSync(big,Buffer.alloc(1_000_001));
+    const invalid = path.join(dir,"invalid.json"); writeFileSync(invalid,"not json");
+    for (const [args, status, where] of [
+      [["--format","bom-json"], 2, "$.argv"],
+      [["--format","missing",file], 2, "$.format"],
+      [["--format","bom-json",dir], 1, "$.file"],
+      [["--format","bom-json",path.join(dir,"absent.json")], 1, "$.file"],
+      [["--format","bom-json",bad], 1, "$.file"],
+      [["--format","bom-json",big], 1, "$.file"],
+      [["--format","bom-json",invalid], 1, "$.source.text"],
+    ] as const) {
+      const r = cli(...args), out = JSON.parse(r.stdout);
+      assert.equal(r.status, status, args.join(" "));
+      assert.equal(out.ok, false, args.join(" "));
+      assert.ok(out.issues.length > 0 && out.issues.every((i: {code:string;path:string;hint:string}) => i.code === "invalid-argument" && i.path === where && i.hint), `${args.join(" ")}: ${r.stdout}`);
+      assert.deepEqual(out.errors, out.issues.map((i: {message:string}) => i.message));
+    }
+  } finally {rmSync(dir,{recursive:true,force:true});}
+});
+
 test("registry prefers structured Julia exports and preserves unconfirmed draft provenance", () => {
   const envelopes = [
     {format:"modelingtoolkit-json" as const, value:{format:"triz-modelingtoolkit",version:1,model_id:"demo",profile_id:"p",unknowns:["x(t)"],parameters:["k"],equations:[{lhs:"D(x(t))",rhs:"k*x(t)",lhs_refs:["x(t)"],rhs_refs:["k","x(t)"]}],observed:[],diagnostics:[]}},
