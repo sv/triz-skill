@@ -9,6 +9,12 @@ than an official MATRIZ standard. Current MATRIZ terminology and descriptions ta
 Canonical JSON is in `../data/`. When the `triz` MCP server is available, use it instead of
 recalling principle numbers or matrix cells.
 
+To call a tool, use MCP if the server is connected; otherwise use the `triz` command line, which
+runs the same tools: `triz schema <tool>` prints its description and arguments as JSON Schema,
+then `triz call <tool> args.json` prints its JSON result (exit 1 is `ok: false`, with `issues`
+to read; exit 2 is a usage or argument-schema error, the issues on stderr). Without an install,
+run `npx -y -p triz-mcp triz …`. Do not read `src/` to learn a tool's arguments.
+
 | MCP tool | Use |
 |---|---|
 | `triz_parameter(id?)` | List or retrieve the 39 engineering parameters |
