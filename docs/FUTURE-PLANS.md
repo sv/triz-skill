@@ -22,7 +22,9 @@ category theory. Their sources were checked, and the notes below keep the correc
 cautions from that check. B1–B2 build models from interaction tables and source documents, and
 S1–S5 take the semantic analyses to large models. N1–N6 propose a
 [neutral mode for models](#neutral-mode-for-models), so the agent reasons less from domain
-names. [Next priorities](#next-priorities) ranks the
+names. E1–E6 plan [system evolution and operating boundaries](#system-evolution-and-operating-boundaries),
+including joint specifications, property vectors and migration paths.
+[Next priorities](#next-priorities) ranks the
 open items by leverage and gives the build order. Literature ids (R…) refer to
 [theory/REFERENCES.md](../theory/REFERENCES.md).
 
@@ -41,7 +43,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
 | C5 | Decide time-invariant dynamics without a horizon | **Landed** in #42 | Narrowed: "Unreachability within the horizon only … not certified" now holds only under input sequences or past the cap | — |
 | C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
-| C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
+| C7 | Acyclic overlaps in `triz_global_separation` | Conditional table-gluing theorem in #51; join-tree checker/runtime integration open | Adds: complete finite feasibility checks and localised conflicts on verified join trees | M |
 | C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
 | Q1 | Graded relations over a commutative quantale, staged | Stage 1 implemented in this checkout; stage 2 open | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
 | Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
@@ -52,10 +54,16 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | B1 | A model builder from an interaction table | Implemented in this checkout | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
 | B2 | Pluggable importers that draft B1's interaction table | Local BOM/OpenAPI/code and Julia export adapters implemented; broader formats open | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
 | S1 | Steady states by variable elimination along a tree decomposition | Open; needs C1 (landed) | Adds: behaviour cost exponential in treewidth, not in the boundary inputs | M–L |
-| S2 | Generalized arc consistency before enumeration | Implemented in this checkout, bounded preprocessing with safe fallback | Adds: values and rows pruned before the steady-state search | S–M |
+| S2 | Generalized arc consistency before enumeration | Implemented; #51 adds overlap-aware semijoins under the shared fallback cap | Adds: unary values and correlated rows pruned before steady-state search | S–M |
 | S3 | Per-subsystem interface contracts | Declared/checked stateless single-mode contracts implemented; local residual synthesis open | Adds: residuals and weakest specifications against local targets | M–L |
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
+| E1 | Structured operating envelopes and system boundaries | Open; finite situations/interfaces are foundations | Adds: executable assumptions and explicit applicability limits | M |
+| E2 | Joint specifications and multidimensional Pareto search | Open; resource antichains and occupation proofs are foundations | Adds: joint comparison of assembly/mode/policy choices without implicit scalarization | M–L |
+| E3 | Safe operating regions and finite viability | Open; requires explicit environment/control quantifiers | Adds: staying safe over time, separately from steady-state admissibility | M–L |
+| E4 | Explicit evolution of context and requirements | Open; requires E1 and declared clocks/transitions | Adds: provider, workload and requirement changes with versioned assumptions | M |
+| E5 | Checked migration paths, then bounded evolution planning | Open; supplied-path validation first | Adds: safety and costs during architecture changes, not just at endpoints | L |
+| E6 | Assumption applicability and revalidation | Open; start alongside E1 | Adds: evidence/goal/envelope version binding and targeted rechecking | S–M |
 | N1 | Three registers per element: structural ids, a plain gloss, domain labels | Open | Adds: an ideation register free of use words, beside the names that checks read | S; M with N6 |
 | N2 | What to gloss and what to keep, by role | Open | Adds: glossed tool, mediator, environment, and supersystem names; verbs as parameter changes; constraints untouched | S |
 | N3 | The kernel computes; the LLM translates, never reasoning over bare ids | Open | Adds: a rule for the skill | S |
@@ -91,6 +99,13 @@ unused discovery resources and a require-all option, and add explicit per-state 
 costs. Startup/physical realizability and continuous-time cost models remain outside those checks.
 The flat and hierarchical resource paths share that bounded support check, with declared boundary
 supplies for subsystem contracts. Box-local availability uses only the request's acceptable states.
+
+The same PR adds residual conjunction/backward-composition laws, generic source-closure and
+activation-derivation proofs, conditional running-intersection gluing, and randomized stationary
+occupation bounds. These are foundations for E1–E6, not an integrated evolution optimizer.
+The [mixed-system guide](mixed-system-analysis.md) has a runnable synthetic hardware/software/
+provider example. Budgets belong to hard constraints, costs can be vectors, and component-count
+ranking is not joint Pareto optimization.
 
 ## Current implementation batch
 
@@ -149,7 +164,9 @@ Implemented in this checkout, with the remaining scope kept explicit:
   original join. A constrained 12-box chain fits a 25-node search budget that the old join
   exceeds. Exhaustive tests cover sparse rows, wired equalities, cyclic inconsistency and cap
   rollback. `Propagation.solution_iff_pruned` proves an abstract local support pass over total
-  row functions, not the TypeScript sequential fixed-point implementation.
+  row functions, not the TypeScript sequential fixed-point implementation. PR #51 adds bounded
+  overlap-aware semijoins, abstract semijoin soundness and conditional running-intersection
+  gluing. A checked join-tree extractor and constructive acyclic solver remain open.
 
 ## Next priorities
 
@@ -157,20 +174,28 @@ The initial Q1, B1, Q5 and restriction/descent scopes are implemented above, as 
 the value/hole-coordinate portion of item 5, B2's local input foundation and S3's first contract
 checker. The next useful slices are:
 
-1. **Item 7: the remaining categorical closures.** Joint residuals for three or more holes,
-   controlled trim embeddings and the whole-model greatest-fixpoint characterization landed in
-   #49; the restriction-grid lifting and target-saturated conditional descent are proved. Concept
-   lattices and unrestricted descent remain outside these results.
-2. **Item 5: remaining verdict naturality.** Extend the current concrete diagram, residual,
-   weakness and operational-adequacy transport to finite counts, resource dimensions and the
-   remaining dynamic verdict families. Capped TypeScript search and identity of selected tied
-   witnesses are separate obligations; symmetric ties do not supply a canonical single witness.
-3. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates, then S1 variable
-   elimination, S3 local residual synthesis and S5 compositional dynamics as their prerequisites
-   are met. S2 unary-domain propagation is implemented and does not replace global consistency.
+1. **E1 + E6: executable boundaries and applicability.** Bind finite operating conditions,
+   assumptions and evidence versions to checked inputs. Keep the independent rational-table
+   encoder and source-grounding certificate correspondence in the trust workstream; a wider
+   envelope must not inherit a narrower result without rechecking.
+2. **E2: joint properties and Pareto choices.** Define property orders and aggregation first
+   (including C2's non-additive costs), then retain nondominated complete assembly/mode/policy
+   witnesses. Current resource fronts, separate lifecycle optima and component-count rankings
+   remain distinct. Start with finite supplied alternatives before topology/policy search.
+3. **E4 → E3 → E5: evolving systems.** Declare context/requirement transitions and clocks;
+   verify policy/environment quantifiers and safe operating regions; check supplied migration
+   paths before bounded path optimization. Include intermediate configurations, peak resources,
+   state transfer, downtime and rollback. Endpoint typing or improvement is insufficient.
+4. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates and C7's checked
+   join-tree route, then S1 variable elimination, S3 local residual synthesis and S5 compositional
+   dynamics as their prerequisites are met. S2 pruning does not establish global consistency.
    S3's current contract checker (#46) supports stateless single-mode contracts; multiple resource
    modes need an explicit coupling.
-4. **B2 breadth and hierarchy follow-through.** Add requested source formats beyond the current
+5. **Item 5 and remaining categorical closures.** Extend concrete transport proofs to finite
+   counts, resources and dynamic verdicts. Concept lattices and unrestricted residual descent
+   remain separate obligations; neither abstract enrichment nor tied-witness selection supplies
+   an evolution planner.
+6. **B2 breadth and hierarchy follow-through.** Add requested source formats beyond the current
    adapters (SysML/free text), richer compiler-backed Quint/Lean extraction, and explicitly
    reviewed mappings from source containment to typed nested interfaces. Julia export metadata
    is preferred to source parsing; Agents snapshots do not export imperative step behavior.
@@ -183,6 +208,95 @@ outside it.
 Q4 remains documentation-only. Dynamic simulation relations are tracked separately in
 [categorical-future-plan.md](categorical-future-plan.md) §6. Q1 stage 2 remains conditional on
 an actual use case rather than being the next automatic enrichment.
+
+## System evolution and operating boundaries
+
+All E1–E6 entries below are **open plans**, with current foundations identified explicitly.
+They add no public request fields or implemented guarantees. Detailed acceptance obligations
+are collected in [categorical-future-plan.md §9](categorical-future-plan.md#9-system-evolution-operating-boundaries-and-joint-objectives).
+
+### E1. Structured operating envelopes and system boundaries
+
+- **Current foundation:** typed interfaces, subsystem contracts, finite `required_inputs`, state
+  guards and resource thresholds. `operating_envelope` itself is a descriptive label.
+- **Next slice:** bind executable envelope conditions to ports/states/quantities, preserving
+  correlations. Declare controlled choices, observations, external disturbances, scope, units,
+  initial conditions and the evidence supporting each assumption. Start with finite cells;
+  numeric range/hybrid semantics require separate adapters.
+- **Acceptance:** include in-envelope, boundary and out-of-envelope cases. Unsupported conditions
+  return an explicit applicability result rather than inheriting a guarantee. Prose labels
+  never become guards; omitted external conditions do not silently become controllable choices.
+- **Dependencies:** S3 contracts and evidence/provenance work; E6 starts in parallel.
+
+### E2. Joint specifications and multidimensional Pareto search
+
+- **Current foundation:** coupled finite contracts, resource antichains, residual conjunction
+  and randomized occupation bounds. No joint assembly/mode/policy Pareto optimizer exists.
+- **Next slice:** represent hard predicates and ordered objective vectors in one specification.
+  Budget limits are ordinary hard predicates. Declare each axis's units, minimize/maximize
+  direction and composition law; sum, maximum, path latency and probabilistic availability
+  must not be conflated. Compare complete witnesses before bounded joint search.
+- **Acceptance:** retain incomparable choices and exact ties, without implicit weights. Never
+  combine one design's money cost with another's energy or policy availability. A capped run
+  cannot claim a complete frontier. Even `(3,3)` must survive beside `(0,4)` and `(4,0)` in a
+  two-axis minimization example; weighted extreme-point scans are insufficient.
+- **Dependencies:** E1, C2 aggregation, coupled modes (§5 of the acceptance plan), and explicit
+  initial-state/recurrent-class scope for lifecycle objectives.
+
+### E3. Safe operating regions and finite viability
+
+- **Current foundation:** steady-state admitted situations, reachability/invariants and finite
+  lifecycle models. A state admitting a safe steady assignment need not remain safe over time.
+- **Next slice:** compute/check operating regions for explicit initial states, policies and
+  admissible environment transitions. Distinguish existence of a run, safety of all runs and
+  existence of a causal policy against every allowed disturbance sequence. Finite adversarial
+  policy synthesis is a separate solver from the current expected-cost MDP calculation.
+- **Acceptance:** exclude a statically safe state forced unsafe on the next step. State action/
+  observation order; a policy cannot use unobserved future disturbances. Check closure and
+  nonblocking, preserve correlated disturbances, and report maximality only after complete
+  finite checking. Wider operating coverage is a separate objective, not a frequency estimate.
+- **Dependencies:** E1, explicit context transitions (E4 where they evolve), and S5 for scaling.
+
+### E4. Explicit evolution of context and requirements
+
+- **Current foundation:** input schedules, finite state transitions and nine-windows snapshots.
+- **Next slice:** declare workload growth, provider/compatibility/quota changes, maintenance
+  opportunities and requirement/objective versions with explicit clocks and transitions.
+  Keep environmental evolution, operational state changes and architecture rewrites distinct.
+- **Acceptance:** correlated or scheduled changes are not replaced by independent per-time
+  scenarios. Unsupported future conditions remain unknown. Changing a goal produces an explicit
+  new problem; relaxing it silently cannot count as an improvement. No trend rule forecasts
+  an ecosystem actor's decisions or a future regulation.
+- **Dependencies:** E1 and explicit finite timing semantics; continuous/multi-rate models are
+  separate adapters.
+
+### E5. Checked migration paths, then bounded evolution planning
+
+- **Current foundation:** typed rewrites, transformation replay, snapshot comparisons and
+  operational transition checking. Typed architecture edits do not encode live state transfer.
+- **Next slice:** first validate a supplied migration sequence with intermediate operational
+  configurations and state/interface maps. Then search bounded architecture paths and policies
+  jointly, subject to E1 envelopes and E4 context changes, using E2's objective orders.
+- **Acceptance:** two adequate endpoints connected by an outage-producing migration fail an
+  uninterrupted-service contract. Include parallel old/new resource peaks, deployment cost,
+  synchronization/backlog transfer, temporary harms, downtime and explicit rollback paths.
+  Every stage uses one compatible architecture/mode/policy witness. Caps restrict any optimality
+  or impossibility statement to the declared search space.
+- **Dependencies:** E1/E4 for path checking; E2/E3 for objective and safety synthesis; rewrite
+  correctness and interface/state refinement remain proof obligations.
+
+### E6. Assumption applicability and revalidation
+
+- **Current foundation:** reviewed provenance, request-bound certificates and source pins.
+- **Next slice:** version proof-relevant envelopes, context models, requirements, objective
+  algebras, policies and evidence. Track dependency scopes so an assumption change identifies
+  the conclusions requiring rechecking. Observation/monitor adapters remain explicit inputs.
+- **Acceptance:** altering a bound, initial condition, correlation, aggregation rule or evidence
+  scope prevents reuse for the changed problem. A certificate about the original request
+  remains a statement about that request; it is not silently extended to new conditions.
+  Separate observed breaches, modeled violations, uncertainty and inapplicable evidence.
+- **Dependencies:** start with E1 and the encoder/request-binding workstream; no live monitoring
+  service or automatic corrective action is introduced by this roadmap.
 
 ## Landed
 
@@ -475,19 +589,23 @@ line numbers.
 
 ### C7. Acyclic overlaps in `triz_global_separation`
 
-- **Status.** Open. **Effort:** M.
+- **Status.** Runtime integration open; generic running-intersection gluing is proved in
+  `Propagation.lean` in PR #51. **Effort:** M.
 - **Constraint.** The overlap hypergraph of the regions is α-acyclic (a join tree).
-- **Today.** Ignored. Plain backtracking re-scans every region at every node
+- **Today.** This tool still uses plain backtracking to re-scan every region at every node
   (`globalSeparation`, `src/act-global.ts`) under a 100,000 work cap. The theory map records the
   triangle `x=y`, `y=z`, `x!=z`, and arc consistency is documented as insufficient
   ([R25](../theory/REFERENCES.md#r25)).
-- **Adds.** On a join tree, pairwise (semijoin) consistency is equivalent to global consistency
-  (Beeri, Fagin, Maier and Yannakakis, JACM 1983), decided by a polynomial full reducer. A conflict
-  is localised to join-tree edges. The triangle stays the minimal cyclic case.
+- **Adds.** Check an explicit join-tree witness and use semijoin reduction for complete finite
+  feasibility decisions. The abstract theorem supplies existence for nonempty pairwise-consistent
+  tables under a running-intersection order; the runtime encoding and reducer need their own
+  correspondence/completeness checks. Reduction/decision can be polynomial in explicit tables
+  on a join tree; listing every solution may still have exponential output. The triangle remains
+  a cyclic counterexample. See [R118](../theory/REFERENCES.md#r118--acyclic-consistency-and-semijoins).
 - **Risks.** Space × time grids of regions are cyclic and fall back to search; only chain and tree
   covers gain.
-- **Overlap.** Partly planned: categorical-future-plan.md §7 asks for small checked conflict
-  cores. Acyclicity is not planned.
+- **Overlap.** Shares the table foundation with S2 behavior pruning and §7's checked conflict
+  cores. The join-tree route is planned; general cyclic completeness is not supplied by it.
 
 ### C8. Totality and input-enabledness
 
@@ -920,6 +1038,7 @@ experiment that would decide it.
   need; created harms are declared data in the right-hand side and visible statically. Revisit
   only if a trim-rule use case appears.
 - **The irreducible not-claims.** Physical truth of declared rows, back-reactions the model
-  omits, smooth dynamics and controller synthesis, cross-domain transfer of solutions, and the
-  semantic half of analogy stay outside the kernel by design; see "What is not claimed" in
+  omits, general smooth/hybrid dynamics and continuous controller synthesis, empirical
+  cross-domain transfer of solutions, and the semantic half of analogy stay outside the kernel
+  by design. E3 plans only explicitly scoped finite policy/viability reasoning; see "What is not claimed" in
   the [theory map](theory-map.md#what-is-not-claimed).
