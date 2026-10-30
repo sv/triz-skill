@@ -1,5 +1,5 @@
 /** Checked hierarchy views and explicit, conservative wiring substitution. */
-import { checkModel, type FunctionModel } from "./act.js";
+import { checkModel, sameCarrier, type FunctionModel } from "./act.js";
 import { fail, issue } from "./act-issues.js";
 
 const problem = (message: string, hint: string) => fail([issue("hierarchy-substitution", "$.model", message, hint)]);
@@ -28,14 +28,10 @@ export function substitute(model: FunctionModel, box: string) {
   const crossing = (model.flows ?? []).find(f => f.path.includes(box) || f.medium === box);
   if (crossing) return problem(`parent flow '${crossing.id}' refers to hierarchical box '${box}'`,
     `Describe the intended inner route and medium explicitly before expansion: remove or revise flow '${crossing.id}', then add its expanded path using the returned box names. An inner route cannot be inferred from the interface bindings.`);
-  // Values form a set; an omitted quantity is the intensive default. Keep every other
-  // declaration exact, including loss: dropping a loss annotation changes flow linting.
-  const canonicalCarrier = (carrier: FunctionModel["carriers"][number]) => JSON.stringify({
-    ...carrier, quantity: carrier.quantity ?? "intensive", ...(carrier.values ? { values: [...carrier.values].sort() } : {}),
-  }, (_k, v) => v && !Array.isArray(v) && typeof v === "object" ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v);
+  // One equality rule for carriers, shared with checkModel's interface binding (sameCarrier).
   for (const carrier of inner.carriers) {
     const existing = model.carriers.find(c => c.id === carrier.id);
-    if (existing && canonicalCarrier(existing) !== canonicalCarrier(carrier)) return problem(`carrier '${carrier.id}' differs between models`, "Use the same carrier declaration for each shared id, including its loss annotation.");
+    if (existing && !sameCarrier(existing, carrier)) return problem(`carrier '${carrier.id}' differs between models`, "Use the same carrier declaration for each shared id, including its loss annotation.");
   }
   const fresh = (preferred: string, used: Set<string>) => {
     let value = preferred;

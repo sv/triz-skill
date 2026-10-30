@@ -66,6 +66,21 @@ export const Carrier = z.strictObject({
     .describe("Whether the flow is a loss: true when no level of it is wanted from any performer, such as a pressure drop, leakage, noise, or wear; false when some level is. Read only by the defect-on-loss-carrier lint, which then ignores its word list, so the lint gives the same warnings after any renaming. Omitted, the lint guesses from the words of the carrier id, its dimension, and the function verbs. No verdict reads it"),
 }, { error: keysHint({ unit: "the unit goes in dimension", units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
 
+/**
+ * One canonical key per carrier declaration, so every place that asks whether two declarations
+ * agree (a hierarchy binding, an expansion, the model builder) asks the same question. It reads
+ * the id, layer and dimension; `values` as a set (order and repeats do not matter); `levels` as an
+ * ordered list of thresholds; `quantity` with its intensive default; and `loss` as declared, since
+ * an omitted loss (the lint guesses from words) and `false` (silenced) lint differently.
+ */
+export function carrierDeclarationKey(c: z.infer<typeof Carrier>): string {
+  const values = c.values === undefined ? null : [...new Set(c.values)].sort();
+  const levels = c.levels === undefined ? null : c.levels.map((l) => [l.value, l.from]);
+  return JSON.stringify([c.id, c.layer, c.dimension, values, levels, c.quantity ?? "intensive", c.loss ?? null]);
+}
+/** Whether two carrier declarations agree, by `carrierDeclarationKey`. */
+export const sameCarrier = (a: z.infer<typeof Carrier>, b: z.infer<typeof Carrier>) => carrierDeclarationKey(a) === carrierDeclarationKey(b);
+
 export const Port = z.strictObject({
   id: Id.describe("Unique within its box"),
   carrier: Id.describe("Carrier id"),
@@ -457,7 +472,7 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
           const ip = ib?.[side]?.find(p => p.id === binding.inner.port);
           const boundInput = side === "inputs" && inner.wires.some(w => w.to.box === binding.inner.box && w.to.port === binding.inner.port);
           const oc = model.carriers.find(c => c.id === op?.carrier), ic = inner.carriers.find(c => c.id === ip?.carrier);
-          const equalCarrier = oc && ic && oc.id === ic.id && oc.layer === ic.layer && oc.dimension === ic.dimension && (oc.quantity ?? "intensive") === (ic.quantity ?? "intensive") && JSON.stringify([...(oc.values ?? [])].sort()) === JSON.stringify([...(ic.values ?? [])].sort()) && JSON.stringify(oc.levels ?? []) === JSON.stringify(ic.levels ?? []);
+          const equalCarrier = oc && ic && sameCarrier(oc, ic);
           if (!op || !ip || boundInput || !equalCarrier)
             issues.push(issue("hierarchy-binding", at(path, side, i), `box '${b.id}': invalid ${side} binding for '${binding.outer}'`, "Bind the correct outer side to an inner port of the same side and carrier declaration; inner inputs must be unwired."));
         });
@@ -965,13 +980,20 @@ export function analyseModel(model: FunctionModel, compareTo?: FunctionModel, op
     else separationIssues.push(...rebase(r, [], `contradiction '${pc.id}': `).issues);
   }
   if (separationIssues.length) return fail(separationIssues);
+  // Harm loops and separation read the outer wiring and the model's own contradictions only. With
+  // nested boxes an empty list is not a clean verdict, so the boxes left unread are always listed.
+  const nested = model.boxes.filter((b) => b.inner).map((b) => b.id);
+  const loopNote = "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.";
   return {
     ok: true as const,
     domain: model.domain,
+    ...(nested.length ? { incompleteHierarchy: nested } : {}),
     harmLoops: harmLoops(model),
     ideality: idealityProfile(model),
     separation,
     comparison: compareTo ? compareIdeality(compareTo, model, opts) : undefined,
-    note: "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.",
+    note: nested.length
+      ? `Incomplete hierarchy: harm loops and separation cover the outer wiring and the model's own contradictions only. The inner models of ${quoted(nested)} are not analysed, so a harm loop or a contradiction inside them is not reported. Run triz_expand_hierarchy on each nested box first, then analyse the expanded model. ${loopNote}`
+      : loopNote,
   };
 }

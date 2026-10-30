@@ -103,3 +103,79 @@ test("full relation exposes all extension candidates, and costs cannot omit unli
   assert.ok(priced.ok && "cheapestExtension" in priced);
   assert.deepEqual(priced.cheapestExtension, {status: "undecided", reason: "search-cap", searched: 100});
 });
+
+/** The bearing trimmed, its support taken over by the housing, whose behaviour is to specify. */
+function housingConcept() {
+  const baseline = FunctionModel.parse(JSON.parse(fs.readFileSync(new URL("../examples/function-models/bearing-heat-behavior.json", import.meta.url), "utf8")));
+  const concept = structuredClone(baseline);
+  concept.boxes = concept.boxes.filter(b => b.id !== "bearing");
+  concept.wires = concept.wires.filter(w => w.from.box !== "bearing" && w.to.box !== "bearing").concat({ id: "w-support", from: { box: "housing", port: "bore" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful", verb: "support" });
+  const housing = concept.boxes.find(b => b.id === "housing")!;
+  delete housing.behavior;
+  housing.producible = [{ in: {}, out: { bore: "unsupported" } }];
+  return { baseline, concept };
+}
+/** The housing feeds the shaft through a pad that never supports: no housing row gives the target. */
+function padded() {
+  const { baseline, concept } = housingConcept();
+  concept.boxes.push({ id: "pad", name: "Pad", role: "mediator", inputs: [{ id: "in", carrier: "radial-load" }], outputs: [{ id: "out", carrier: "radial-load" }],
+    behavior: ["supported", "unsupported"].map(v => ({ in: { in: v }, out: { out: "unsupported" } })) });
+  concept.wires = concept.wires.filter(w => w.id !== "w-support").concat(
+    { id: "w-bore", from: { box: "housing", port: "bore" }, to: { box: "pad", port: "in" }, carrier: "radial-load", polarity: "useful" },
+    { id: "w-support", from: { box: "pad", port: "out" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful" });
+  return { baseline, concept };
+}
+const supported = { in: {}, out: { bore: "supported" } };
+const refusedCosts = (r: ReturnType<typeof weakestSpec>, path: string, message?: RegExp) => {
+  assert.equal(r.ok, false, JSON.stringify(r));
+  if (r.ok) return;
+  assert.deepEqual(r.issues.map(i => [i.code, i.path]), [["invalid-row-costs", path]]);
+  if (message) assert.match(r.issues[0].message, message);
+};
+
+test("a residual that does not cover the target answers row costs with not-applicable, checking their shape only", () => {
+  const { baseline, concept } = padded();
+  const plain = weakestSpec(concept, baseline);
+  assert.ok(plain.ok && plain.verdict === "impossible" && plain.reason === "not-covered" && !("extensionCandidates" in plain && plain.extensionCandidates));
+  // No row is relevant here, so a well-formed cost for any row of the box is answered, not refused.
+  for (const row of [supported, { in: {}, out: { bore: "unsupported" } }]) {
+    const r = weakestSpec(concept, baseline, { rowCosts: [{ row, cost: 7 }] });
+    assert.ok(r.ok && r.verdict === "impossible" && r.reason === "not-covered", JSON.stringify(r));
+    assert.ok("cheapestExtension" in r);
+    assert.deepEqual(r.cheapestExtension, { status: "not-applicable", reason: "target-not-covered-by-residual" });
+  }
+  assert.ok(weakestSpec(concept, baseline, { rowCosts: [] }).ok);
+  // The shape is still checked: an unknown port, an undeclared value, a repeat, a bad cost or cap.
+  refusedCosts(weakestSpec(concept, baseline, { rowCosts: [{ row: { in: {}, out: { hole: "supported" } }, cost: 1 }] }), "$.row_costs[0]");
+  refusedCosts(weakestSpec(concept, baseline, { rowCosts: [{ row: { in: {}, out: { bore: "loose" } }, cost: 1 }] }), "$.row_costs[0]");
+  refusedCosts(weakestSpec(concept, baseline, { rowCosts: [{ row: supported, cost: 1 }, { row: supported, cost: 2 }] }), "$.row_costs[1]");
+  refusedCosts(weakestSpec(concept, baseline, { rowCosts: [{ row: supported, cost: -1 }] }), "$.row_costs[0]");
+  refusedCosts(weakestSpec(concept, baseline, { rowCosts: [{ row: supported, cost: 1 }], maxCostSearch: 0 }), "$.max_cost_search");
+  // Where the residual covers, a row outside extensionCandidates is still refused.
+  const { baseline: b, concept: c } = housingConcept();
+  refusedCosts(weakestSpec(c, b, { rowCosts: [{ row: supported, cost: 1 }, { row: { in: {}, out: { bore: "unsupported" } }, cost: 1 }] }), "$.row_costs[1]", /extensionCandidates/);
+});
+
+test("row costs are refused, never dropped, wherever no one-box residual is computed", () => {
+  const costs = { rowCosts: [{ row: supported, cost: 7 }] };
+  // Missing baseline behaviour: undecided without costs.
+  const { baseline, concept } = housingConcept();
+  const bare = structuredClone(baseline); delete bare.boxes.find(b => b.id === "motor")!.behavior;
+  const missing = weakestSpec(concept, bare);
+  assert.ok(missing.ok && missing.verdict === "undecided" && missing.reason === "missing-behavior");
+  refusedCosts(weakestSpec(concept, bare, costs), "$.row_costs", /missing-behavior/);
+  // Three boxes to specify: undecided without costs.
+  const three = padded().concept;
+  for (const id of ["pad", "motor"]) delete three.boxes.find(b => b.id === id)!.behavior;
+  const several = weakestSpec(three, baseline);
+  assert.ok(several.ok && several.verdict === "undecided" && several.reason === "several-holes");
+  refusedCosts(weakestSpec(three, baseline, costs), "$.row_costs", /several-holes/);
+  // Two boxes to specify: the pair path, which already refused them.
+  const two = structuredClone(concept); delete two.boxes.find(b => b.id === "motor")!.behavior;
+  refusedCosts(weakestSpec(two, baseline, costs), "$.row_costs", /single unknown box/);
+  // A lost deliverable: impossible without costs.
+  const cut = structuredClone(concept); cut.wires = cut.wires.filter(w => w.id !== "w-support");
+  const lost = weakestSpec(cut, baseline);
+  assert.ok(lost.ok && lost.verdict === "impossible" && lost.reason === "lost-deliverables");
+  refusedCosts(weakestSpec(cut, baseline, costs), "$.row_costs", /lost-deliverables/);
+});

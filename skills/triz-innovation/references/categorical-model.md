@@ -70,8 +70,23 @@ are in the [theory map](../../../docs/theory-map.md#theorem-inventory).
 
 `triz_build_model` accepts a domain, components (`id`, `name`, `role`), and interactions
 (`subject`, `action`, `object`, `carrier`, `polarity`). Each carrier supplies its id, layer and
-dimension. Optional flows reference those component and carrier ids. It generates one port per
-box/carrier/side and stable wire ids; renaming a component’s display name changes no ids. It
+dimension. Optional flows reference those component and carrier ids. It generates the ports and
+wires by one fixed scheme, and the same table always gives the same ids; renaming a component’s
+display name changes none:
+
+| Generated | Id | One per |
+|---|---|---|
+| Input port on the object | `in:<carrier>:<subject>:<action>` | interaction |
+| Output port on the subject | `out:<carrier>` | subject and carrier |
+| Wire | `wire:<subject>:<action>:<object>:<carrier>` | interaction |
+
+So two interactions bringing the same carrier into one object reach two input ports, and no
+input port is fed by two functions: no source has to agree with another under behaviour, and an
+extensive carrier never fails with `extensive-fan-in`. Declare the object's behavior or
+feasibility rows per port. An output port is shared by the subject's functions on that carrier
+and fans out: one shared level on an intensive carrier, the sum of the demands on an extensive
+one. Each part is percent-escaped (`:` as `%3A`, `%` as `%25`), so ids containing `:` never
+collide: `wire:a%3Ab:…` is subject `a:b`. Quote the generated ids back exactly. It
 validates the result and returns lints and a completeness report. Unrecorded component pairs
 are prompts to review, not claims that every pair should interact. Product reach counts any
 incoming interaction, including harm; it does not establish a useful deliverable. Ratings and
@@ -94,7 +109,11 @@ different domains, and product deliverable identity changes are still refused. E
 nested boxes one at a time. Resource and dynamic declarations are preserved and tested against
 manually flattened models; the static substitution theorem does not prove those semantics. Until expanded, semantic tools do not infer inner rows; residual
 synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
-and costs incomplete. Generic explicit deletes may remove a whole nested box; they are structural
+and costs incomplete. `triz_function_model` reads harm loops and separation over the outer wiring
+and the model's own contradictions only: with nested boxes it returns `incompleteHierarchy` (their
+ids) beside them, and its isomorphism check carries `incompleteHierarchy: true`. An empty
+`harmLoops` there is not a clean verdict, since a loop inside an inner model is not reported:
+expand first. Generic explicit deletes may remove a whole nested box; they are structural
 edits, not behavior-preservation claims.
 
 For a one-hole `weakest_spec` with an infeasible producible bound, `extensionCandidates.rows`
@@ -104,8 +123,14 @@ candidate exactly once in `row_costs: [{ row: { in, out }, cost }]`, with nonneg
 prices in one common caller-chosen unit. `cheapestExtension` finds the least total cost set,
 paying once per added row even when it covers several target pairs. It changes no Boolean
 verdict and adds no rows to the model. `max_cost_search` caps the exact search at up to 100,000
-nodes; cap or integer overflow gives `undecided`, with no optimality claim. Two-hole costs are
-unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
+nodes; cap or integer overflow gives `undecided`, with no optimality claim. When the residual
+itself misses the target (`impossible`, `not-covered`), no added row can help: `cheapestExtension`
+is `{ status: "not-applicable", reason: "target-not-covered-by-residual" }`, and the supplied
+entries are checked for shape only (each a row of the box, every port once with a declared value,
+listed once, at a valid cost). Where no one-box residual is computed (two or several boxes to
+specify, missing baseline behaviour, an empty target relation, a lost deliverable) `row_costs`
+fail with `invalid-row-costs`, whose message names the result; drop them to see it. Two-hole costs
+are unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
 not certified by the graded-residual theorem.
 
 Before stateless composition, bounded unary-domain arc consistency removes unsupported values

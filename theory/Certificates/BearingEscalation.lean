@@ -16,7 +16,7 @@ namespace BearingEscalation
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingEscalation\",\"source\":\"11f65571351e7e088537eee80e260282db2b39398846b4e97a173c030d3ca79e\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"cb5380f0074bacbc87d42a4925a5d242c55a32a23593a56e2ce76043d43560c8\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingEscalation\",\"source\":\"11f65571351e7e088537eee80e260282db2b39398846b4e97a173c030d3ca79e\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"2e696d9a82a395a6dd9611096aa3f5f5ed371d1a09994ee828f0258a6adda5ab\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
 
 /-! ## The composed boxes as finite data -/
 
