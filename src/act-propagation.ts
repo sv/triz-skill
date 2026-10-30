@@ -92,3 +92,82 @@ export function propagateRows(sets: PropagationSet[], domains: readonly (readonl
   }
   return { sets: current, status: "complete", work };
 }
+
+/** Pairwise semijoins compare every jointly bound value on a table overlap, retaining
+ * correlations that unary domains lose. Sparse bindings remain wildcards. A fixed point
+ * is not a global-consistency claim for cyclic scopes or wildcard-expanded relations.
+ * As with domain propagation, exhaustion discards this entire pass. */
+export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_WORK):
+  { sets: PropagationSet[] } & PropagationStatus {
+  let work = 0;
+  const spend = (amount = 1) => (work += amount) <= maxWork;
+  const fallback = () => ({ sets, status: "fallback" as const, work });
+  // Preflight before copying rows or building indices. vars must cover every row's bindings,
+  // as in propagateRows and the evaluator's full box tables.
+  for (const set of sets) {
+    if (!spend(1 + set.vars.length)) return fallback();
+    for (const row of set.rows) if (!spend(1 + row.length)) return fallback();
+  }
+  const current = sets.map(set => set.rows.flatMap(row => {
+    const values = new Map<number, string>();
+    for (const [v, x] of row) {
+      if (values.has(v) && values.get(v) !== x) return [];
+      values.set(v, x);
+    }
+    return [{ row, values }];
+  }));
+  const finish = () => ({
+    sets: sets.map((set, i) => ({ vars: set.vars, rows: current[i].map(r => r.row) })),
+    status: "complete" as const, work,
+  });
+  if (current.some(rows => !rows.length)) return finish();
+  const touching = new Map<number, number[]>();
+  const neighbors = sets.map(() => new Set<number>());
+  for (let i = 0; i < sets.length; i++) {
+    for (const v of sets[i].vars) {
+      if (!spend()) return fallback();
+      const prior = touching.get(v) ?? [];
+      for (const other of prior) {
+        if (!spend()) return fallback();
+        if (other === i) continue;
+        neighbors[i].add(other); neighbors[other].add(i);
+      }
+      prior.push(i); touching.set(v, prior);
+    }
+  }
+  const queue: Array<[number, number]> = [], queued = new Set<string>();
+  const enqueue = (left: number, right: number) => {
+    if (!spend()) return false;
+    const key = `${left}:${right}`;
+    if (!queued.has(key)) { queued.add(key); queue.push([left, right]); }
+    return true;
+  };
+  for (let i = 0; i < neighbors.length; i++) {
+    for (const j of neighbors[i]) if (!enqueue(i, j)) return fallback();
+  }
+  for (let head = 0; head < queue.length; head++) {
+    if (!spend()) return fallback();
+    const [left, right] = queue[head];
+    queued.delete(`${left}:${right}`);
+    const keep: typeof current[number] = [];
+    for (const row of current[left]) {
+      if (!spend()) return fallback();
+      let supported = false;
+      for (const other of current[right]) {
+        if (!spend()) return fallback();
+        let compatible = true;
+        for (const [v, x] of row.values) {
+          if (!spend()) return fallback();
+          if (other.values.has(v) && other.values.get(v) !== x) { compatible = false; break; }
+        }
+        if (compatible) { supported = true; break; }
+      }
+      if (supported) keep.push(row);
+    }
+    if (keep.length === current[left].length) continue;
+    current[left] = keep;
+    if (!keep.length) return finish();
+    for (const other of neighbors[left]) if (!enqueue(other, left)) return fallback();
+  }
+  return finish();
+}

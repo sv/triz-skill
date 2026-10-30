@@ -142,6 +142,12 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
 | `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
 | `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
+| `triz_component_catalogue` | Get the shared general catalogue; reusable libraries combine across domains through explicit type bindings |
+| `triz_effect_chains` | Search bounded typed effect chains from explicit resources; hypotheses require substantiation |
+| `triz_lifecycle` | Solve declared maintenance policies and holding costs; ambiguous optimal-policy occupancy remains undecided |
+| `triz_bond_graph` | Check structural effort/flow causality, forced derivative storage and equation dependencies |
+| `triz_effect_insert` | Insert a discovered effect chain into an existing model with explicit bindings and a replayable rewrite |
 | `triz_global_separation` | Find one assignment satisfying every allowed overlapping local relation |
 | `triz_queue` | Compile and check an explicitly scheduled finite queue for overflow |
 | `triz_conservation` | Check declared extensive consumption or shared intensive minimum levels |
@@ -323,6 +329,12 @@ what is and is not claimed. `examples/function-models/` holds a physical, a busi
 software models. One software model has the physical model's wiring shape. Three copies of
 the physical model declare box behaviour, box feasibility, and a shaft temperature, so their
 trims can be decided and their heat loop's escalation classified.
+
+Behavior contracts prune incompatible multi-port correlations before enumeration, and resource
+support witnesses expose their activation order. The [mathematical integration map](docs/math-connections.md#integrated-theorem-search-results)
+explains the checked foundations for general component synthesis and the remaining adapters.
+The [mixed-system guide](docs/mixed-system-analysis.md) includes a runnable hardware, software
+and service-provider example and explains multidimensional constraints and optimization scope.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:

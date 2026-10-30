@@ -669,7 +669,7 @@ example : IsFinest twoEq (split {0, 1}) := by
       show (3 : Fin 4) ∉ {b | t 2 b} from hc] at this
   intro i j hij
   fin_cases i <;> fin_cases j <;> simp [split_apply] at hij ⊢ <;>
-    first | exact t.refl' _ | exact h01 | exact t.symm' h01 | exact h23 | exact t.symm' h23
+    first | exact h01 | exact t.symm' h01 | exact h23 | exact t.symm' h23
 
 /-- Yet each port is coupled to all the others. -/
 example (i : Fin 4) : ¬ Factors twoEq (split {i}) := by
@@ -797,7 +797,7 @@ example : residual (deliver ignoreInput) {q | q.2 = q.1} = ∅ ∧
     ∀ R, deliver ignoreInput R ≠ {q | q.2 = q.1} := by
   have hW : residual (deliver ignoreInput) {q | q.2 = q.1} = ∅ := by
     ext ⟨u, b⟩
-    simp only [residual, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+    simp only [residual, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
     intro h
     have := @h (!b, b) ⟨(u, b), rfl, rfl⟩
     cases b <;> simp at this
@@ -823,7 +823,7 @@ example : Monotone allOrNothing ∧
       simp [hR, hS]
     · simp [hR]
   · have hu : (Set.univ : SetRel Unit Bool) ⊆ residual allOrNothing ∅ := fun p _ => by
-      simp only [residual, allOrNothing, Set.mem_setOf_eq, if_neg (single p), subset_rfl]
+      simp only [residual, allOrNothing, Set.mem_ofPred_eq, ite_eq_right (single p), subset_rfl]
     exact h.1 hu (show ((), ()) ∈ allOrNothing Set.univ by simp [allOrNothing])
 
 /-- The same shape into `SetRel Unit Bool`: the context takes only the values ∅ and everything. -/
@@ -840,7 +840,7 @@ example : ¬ ((∃ R, allOrNothingBool R = {((), true)}) ↔
     have := h ▸ Set.mem_univ ((), !p.2)
     simp [Prod.ext_iff] at this
   have hW : residual allOrNothingBool {((), true)} = Set.univ := Set.eq_univ_of_forall fun p => by
-    simp only [residual, allOrNothingBool, Set.mem_setOf_eq, if_neg (single p), Set.empty_subset]
+    simp only [residual, allOrNothingBool, Set.mem_ofPred_eq, ite_eq_right (single p), Set.empty_subset]
   have hcov : ({((), true)} : SetRel Unit Bool) ⊆
       allOrNothingBool (residual allOrNothingBool {((), true)}) := by
     rw [hW]
@@ -924,7 +924,7 @@ example : ¬ ((∃ R ⊆ (Set.univ : SetRel Unit Bool), allOrNothingBool R = {((
     have := h ▸ Set.mem_univ ((), !p.2)
     simp [Prod.ext_iff] at this
   have hW : residual allOrNothingBool {((), true)} = Set.univ := Set.eq_univ_of_forall fun p => by
-    simp only [residual, allOrNothingBool, Set.mem_setOf_eq, if_neg (single p), Set.empty_subset]
+    simp only [residual, allOrNothingBool, Set.mem_ofPred_eq, ite_eq_right (single p), Set.empty_subset]
   have hne : ∀ R, allOrNothingBool R ≠ {((), true)} := fun R h => by
     unfold allOrNothingBool at h
     split_ifs at h
@@ -1548,16 +1548,16 @@ example : ∀ k, enatSucc^[k] ⊥ ≠ enatSucc.lfp := by
     induction n using ENat.recTopCoe with
     | top => rfl
     | coe m =>
-      simp only [enatSucc, OrderHom.coe_mk] at h
+      change (m : ℕ∞) + 1 = m at h
       norm_cast at h
       omega
   intro k
   have hk : enatSucc^[k] ⊥ = k := by
     induction k with
     | zero => simp
-    | succ k ih => rw [Function.iterate_succ_apply', ih]; simp [enatSucc]
+    | succ k ih => rw [Function.iterate_succ_apply', ih]; change (k : ℕ∞) + 1 = ((k+1 : ℕ) : ℕ∞); exact (ENat.natCast_add k 1).symm
   rw [hk, hlfp]
-  exact ENat.coe_ne_top k
+  exact ENat.natCast_ne_top k
 
 /-! ### `kleeneStep_upperClosure`
 

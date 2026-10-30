@@ -80,15 +80,15 @@ theorem external_substituteWired (d : OpenDiagram V I O) (inner : OpenDiagram V 
 /-- An identity inner diagram substituted into an identity context admits a concrete valuation. -/
 example : (substituteWired (OpenDiagram.id Bool : OpenDiagram Bool Bool Bool)
     (OpenDiagram.id Bool) id id).external (fun _ => true) (fun _ => true) := by
+  delta OpenDiagram.id
   rw [external_substituteWired]
   refine ⟨fun _ => true, ?_, rfl, rfl⟩
   apply mem_steadyStates_withHole.mpr
   constructor
-  · simp [OpenDiagram.steadyStates, OpenDiagram.id]
+  · simp [OpenDiagram.steadyStates]
     exact Set.mem_univ _
   · exact ⟨fun _ => true, by
-      simp [OpenDiagram.steadyStates, OpenDiagram.id]
-      exact Set.mem_univ _, rfl, rfl⟩
+      simp [OpenDiagram.steadyStates], rfl, rfl⟩
 
 /-- Nonempty concrete composition: identity diagrams relate an all-true boundary to itself. -/
 example : (seq (OpenDiagram.id Bool : OpenDiagram Bool Bool Bool)

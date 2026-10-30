@@ -244,6 +244,173 @@
       ],
       "additionalProperties": false
     },
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "guard": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "cost": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!__proto__$)"
+            },
+            "additionalProperties": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "transitions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "next": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "probability": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    {
+                      "type": "string",
+                      "maxLength": 512
+                    }
+                  ]
+                },
+                "cost": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(?!__proto__$)"
+                  },
+                  "additionalProperties": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                }
+              },
+              "required": [
+                "state",
+                "next"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "guard",
+          "transitions"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "lifecycle": {
+      "description": "Explicit global finite state space for model-level maintenance actions",
+      "type": "object",
+      "properties": {
+        "states": {
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "holding_cost": {
+          "description": "Declared per-step cost while occupying each source state; added once to action and outcome costs",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!__proto__$)"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+                }
+              ]
+            }
+          }
+        },
+        "acceptable": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "situations": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "box": {
+                  "type": "string"
+                },
+                "port": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "box",
+                "port",
+                "value"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "required": [
+        "states"
+      ],
+      "additionalProperties": false
+    },
     "carriers": {
       "type": "array",
       "items": {
@@ -313,6 +480,213 @@
     "Carrier": {
       "type": "object",
       "properties": {
+        "energy": {
+          "description": "Explicit energy effort/flow pair; no domain presets or information bonds",
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "energy",
+                "thermal-approximation"
+              ]
+            },
+            "effort": {
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "si": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "L": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "M": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "T": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "I": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "Θ": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "N": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "J": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "quantity",
+                "si"
+              ],
+              "additionalProperties": false
+            },
+            "flow": {
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "si": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "L": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "M": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "T": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "I": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "Θ": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "N": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "J": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "quantity",
+                "si"
+              ],
+              "additionalProperties": false
+            },
+            "power_si": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "L": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "M": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "T": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "I": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "Θ": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "N": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "J": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              ]
+            },
+            "approximation": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "kind",
+            "effort",
+            "flow",
+            "power_si"
+          ],
+          "additionalProperties": false
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -332,6 +706,66 @@
           "type": "string",
           "minLength": 1,
           "description": "Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"
+        },
+        "effect_quantity": {
+          "description": "Explicit effect quantity type; never inferred from free-text dimension",
+          "type": "string",
+          "minLength": 1
+        },
+        "si": {
+          "description": "Explicit SI exponent vector, or base-unit expression such as kg·m·s^-2; omitted exponents are zero",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "L": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "M": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "T": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "I": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "Θ": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "N": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "J": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          ]
+        },
+        "unit": {
+          "description": "Display unit; parsed base-unit expressions are linted against si; no conversion",
+          "type": "string"
         },
         "values": {
           "description": "Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior",
@@ -373,6 +807,10 @@
     "CarrierLevel": {
       "type": "object",
       "properties": {
+        "unit": {
+          "description": "Explicit base-unit expression for these thresholds; checked against carrier si",
+          "type": "string"
+        },
         "value": {
           "type": "string",
           "minLength": 1,
@@ -393,6 +831,154 @@
     "Box": {
       "type": "object",
       "properties": {
+        "bond": {
+          "description": "Bond-graph element; triz_bond_graph checks causality separately from function ratings",
+          "type": "object",
+          "properties": {
+            "element": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "Se",
+                "Sf",
+                "R",
+                "C",
+                "I",
+                "TF",
+                "GY"
+              ]
+            },
+            "parameters": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "element"
+          ],
+          "additionalProperties": false
+        },
+        "actions": {
+          "description": "Declared maintenance actions on this box state space; solved by triz_lifecycle",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "guard": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "cost": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?!__proto__$)"
+                },
+                "additionalProperties": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              },
+              "transitions": {
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "state": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "next": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "probability": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        {
+                          "type": "string",
+                          "maxLength": 512
+                        }
+                      ]
+                    },
+                    "cost": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^(?!__proto__$)"
+                      },
+                      "additionalProperties": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    }
+                  },
+                  "required": [
+                    "state",
+                    "next"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "id",
+              "guard",
+              "transitions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "holding_cost": {
+          "description": "Lifecycle cost per decision step in each declared source state; used with this box's actions",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!__proto__$)"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "minimum": 0
+                },
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+                }
+              ]
+            }
+          }
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -634,6 +1220,28 @@
     "TransitionRow": {
       "type": "object",
       "properties": {
+        "cost": {
+          "description": "Nonnegative cost incurred by this step; missing dimensions are zero; dimensions are never combined implicitly",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+              }
+            ]
+          }
+        },
         "state": {
           "type": "string",
           "minLength": 1,
@@ -679,6 +1287,16 @@
     "FeasibilityRow": {
       "type": "object",
       "properties": {
+        "units": {
+          "description": "Optional explicit base-unit expression per named input/output amount; checked against its carrier si",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
         "provides": {
           "description": "Output port id → level the box can provide there, in the carrier's dimension; an omitted port provides nothing (level 0)",
           "type": "object",

@@ -18,15 +18,28 @@ test("every mcp_tools name is a registered tool", () => {
   for (const n of named) assert.ok(names.has(n), `router names unknown tool '${n}'`);
 });
 
+test("every hosted tool is routed or explicitly exempt from method routing", () => {
+  const routed = new Set(triz.toolCatalog().flatMap(t => t.mcp_tools ?? []));
+  // Infrastructure and specialist checks are invoked from the model workflow,
+  // rather than presented as an implementation of a named TRIZ method.
+  const exempt = new Set([
+    "triz_tool_catalog", "triz_route", "triz_build_model", "triz_expand_hierarchy", "triz_export", "triz_behavior", "triz_dynamics", "triz_feasibility", "triz_abstraction", "triz_evals",
+    "triz_subsystem_contract", "triz_adequacy", "triz_isomorphism", "triz_behavior_refinement", "triz_subsystem_summary", "triz_implementations", "triz_absorber_assignments", "triz_synthesize",
+    "triz_global_separation", "triz_queue", "triz_conservation", "triz_rule_set", "triz_rewrite_pair", "triz_trim_rewrite",
+  ]);
+  for (const tool of toolSpecs()) assert.ok(routed.has(tool.name) || exempt.has(tool.name), `${tool.name} is undiscoverable and has no explicit exemption`);
+  for (const tool of ["triz_lifecycle","triz_bond_graph","triz_effect_chains"]) assert.ok(routed.has(tool));
+});
+
 test("router → tool mapping is pinned", () => {
   const mapped = Object.fromEntries(triz.toolCatalog().filter((t) => t.mcp_tools).map((t) => [t.source_code, t.mcp_tools]));
   assert.deepEqual(mapped, {
-    EDB: ["triz_effects"],
+    EDB: ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search", "triz_component_catalogue"],
     PRINCIPLES: ["triz_principle"],
     SEPARATION: ["triz_separate"],
     SO: ["triz_nine_windows"],
     TC: ["triz_parameter", "triz_matrix", "triz_matrix_multi", "triz_resolve"],
-    FA_PRODUCT: ["triz_function_model"],
+    FA_PRODUCT: ["triz_function_model", "triz_lifecycle", "triz_bond_graph"],
     TRIM_PRODUCT: ["triz_trim", "triz_transform"],
     PC: ["triz_separate"],
     TESE: ["triz_rule_apply"],
@@ -44,4 +57,6 @@ test("triz_route and triz_tool_catalog return mcp_tools", async () => {
   assert.deepEqual(routed.tools.find((t: triz.TrizTool) => t.source_code === "SEPARATION").mcp_tools, ["triz_separate"]);
   const catalog = JSON.parse((await specs.triz_tool_catalog.handler({ stage: "modeling" })).content[0].text);
   assert.deepEqual(catalog.find((t: triz.TrizTool) => t.source_code === "TRIM_PRODUCT").mcp_tools, ["triz_trim", "triz_transform"]);
+  const discovered=JSON.parse((await specs.triz_route.handler({stage:"synthesis",signals:["desired properties"]})).content[0].text);
+  assert.ok(discovered.tools.some((t:triz.TrizTool)=>t.mcp_tools?.includes("triz_component_search")));
 });

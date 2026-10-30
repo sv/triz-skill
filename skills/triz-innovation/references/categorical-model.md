@@ -142,6 +142,11 @@ Resource verification currently requires one feasibility row per inner box, carr
 behavior rows, and `resource_binding: "all-behavior-rows"`. That binding remains a declared
 empirical assertion (`coupling: "declared-unverified"`). Checks include level bands, extensive
 sums or intensive maxima, boundary amounts, costs, the contract budget and any inner budget.
+The same source-support closure used by flat feasibility must ground every selected inner row;
+declared boundary input amounts seed that closure. A closed positive-requirement cycle remains
+`undecided` with `resources.reason: "circular-resource-support"`. `resources.sourceSupport` reports
+grounded boxes and unmet requirements. `max_support_work` caps this check independently of
+`max_states` (default 100,000, maximum 1,000,000); exhaustion gives `source-support-cap`.
 Multiple modes, deeper nesting, missing evidence or search caps give `undecided`. Checking does
 not install or cache a summary on the shell; declared rows do not become verified by copying a
 status field. Dynamic contracts and local residual synthesis remain future work.
@@ -198,6 +203,15 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 
 | Field | On | Unlocks | Without it |
 |---|---|---|---|
+| `si`, `unit` | carrier | explicit dimension equality and `dimension-mismatch` lints; base-unit input such as kg·m·s^-2 | free-text dimensions only; no conversion or inference |
+| `effect_quantity` | carrier | typed effect resource and weakest-spec output hints | no inference from carrier labels |
+| `catalogue`, `resources`, `targets` | `triz_component_search` arguments | automatic component/wiring discovery, including multi-input/shared assemblies; optional finite property/resource contracts | no discovery outside the bounded catalogue |
+| `catalogues`, `bindings` | `triz_component_search` arguments | reusable cross-domain bundles, explicit type parameters and source metadata | legacy local entries remain supported; no domain-name matching |
+| `chain`, `from`, `to` | `triz_effect_insert` arguments | insert discovered chains, explicit replacement, SI checks, citations and replay | effects stay standalone hypotheses |
+| transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
+| `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
+| `holding_cost` | `lifecycle`; stateful box | explicit per-state lifecycle cost, charged once per source-state step in addition to action/outcome cost; rational costs supported | no occupancy penalty inferred from `acceptable` |
+| `energy`, `bond` | carrier; box | `triz_bond_graph` structural causality and equation structure | no inferred physical domain |
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
 | `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
 | `producible` | a box without `behavior` or `transition` | `weakest_spec` cut to what the box can make: `impossible` with reason `infeasible`; with `feasibility` and `levels` too, the `unbacked-producible-row` lint | the spec ranges over every row of the box's declared values |
@@ -490,6 +504,7 @@ The lints:
 
 | Lint | Means | What to do |
 |---|---|---|
+| `dimension-mismatch` | Explicit units or mapped SI dimensions conflict; review amount and level declarations |
 | `defect-on-loss-carrier` | an excessive or insufficient function on a carrier declared `loss: true`, or, with no declaration, on a loss-like flow by its words (a pressure drop, leakage, noise, wear) | Rating it excessive says some level of the flow is wanted from the performer; if no level of it is useful, rate it harmful. If some level is wanted, declare `loss: false` |
 | `trim-level-functions` | the trim removes excessive or insufficient functions, posed under `levelProblems` | Solve each as a level problem; no absorber takes the defect over |
 | `product-without-deliverable` | a product box no non-harmful function acts on | Add the function it should receive, or change its role |
@@ -556,7 +571,7 @@ Check the proof and its input binding with an explicit execution mode:
   `theory/` is not built, the script stops and names both options; it never falls back to the
   network.
 - **Remotely**, only with `--remote`: the certificate, which holds the model's ids and tables,
-  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.32.2`, no
+  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.35.0`, no
   key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own revision, which
   may differ from the pin. The MCP server and the Worker never call AXLE.
 
@@ -1056,6 +1071,19 @@ asks how much is needed, and solves a loop by iterating up to the least fixpoint
 [theory map](../../../docs/theory-map.md#co-design-feasibility) says why each is right for its
 question.
 
+The balance calculation is also reported under `steadyState`. A balanced resource loop does not
+by itself establish an input source. Before returning `feasible`, the solver checks a selected
+witness by growing grounded provision from rows with no positive requirements. Unsupported
+circular requirements return `undecided` with reason `circular-resource-support`; `sourceSupport`
+lists grounded boxes and unresolved requirements beside the unchanged minimal balance vectors.
+This is a conservative dependency check, not a timed startup simulation. It checks one selected
+witness per minimal vector; initialization or other modes may need separate substantiation.
+The shared candidate/work cap includes this check, and no decision uses a truncated display.
+
+`triz_component_search` cannot certify an ungrounded resource cycle as a complete implementation.
+Its candidates report unused resource outputs; `require_all_resources:true` requires every listed
+resource to feed a new wire. Connection alone does not establish physical consumption.
+
 The antichain (`max_antichain`, at most 1000, checked at every insertion), the Kleene steps
 (`max_iterations`, at most 1000), and the row selections tried (1,000,000 per solve) are capped.
 Past a cap the call fails closed. The ascent always ends, but the antichains can grow
@@ -1199,6 +1227,26 @@ flow is a box of the merged model, and a box outside the group that reached anot
 it along a flow still reaches it along the merged flow (`flow_merge_typed`, `flow_merge_reach`).
 
 ## Principle constructions
+
+For automatic component/chain discovery, use `triz_component_search`: available output ports,
+desired input ports and a finite catalogue of full typed boxes. It chooses instances and wiring,
+including shared/multi-input assemblies. With `contract` and `implementation`, it checks each
+complete candidate's finite behavior, acceptable values, harms and budget. Otherwise `candidates`
+claims typing only. Complete absence is `impossible-in-library`; caps or unknown properties are
+`undecided`. `remove` names parts to replace; their lost retained consumers become obligations.
+`certificate:true` returns supported typing/behavior certificates for the first result.
+
+`triz_component_catalogue` returns general identity/fan-out relations parameterized by carrier
+`T`. Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
+sourced entries. Bind parameters explicitly; conflicting or ambiguous aliases fail closed.
+Tags/domains only organize entries. Abstract relations declare no physical resource modes or
+costs. Imported carriers and entry origins are returned for replay; supplied source/license
+assertions remain unverified. See the discovery guide for schema and examples.
+
+`triz_effect_insert` consumes a found chain and explicit `from`/`to` ports. Existing suppliers
+require `replace_wire`. Bind intermediate carriers or declare new layers explicitly; values and
+behavior are never guessed. It returns a model, added carriers, replayable rewrite, citations and
+unmet conditions. See [component discovery](../../../docs/component-discovery.md) for full scope.
 
 A construction is listed here only when the principle's text, looked up in
 `data/principles.json` (`triz_principle`), describes a move the kernel can make and check: a
@@ -1382,3 +1430,26 @@ map.
   within a cap on table reads; not the encoder, not the evaluator, not physical truth.
 - **Trimming.** It is not framed as a Kan extension: a decided trim depends on the absorber
   chosen.
+
+
+## Typed effects, cycle costs, lifecycle and energy subsystems
+
+Use [typed-effects-lifecycle.md](../../../docs/typed-effects-lifecycle.md) for request shapes and
+complete claim limits. `triz_effect_chains` searches explicit resources and typed input/output
+quantities, ranks complete bounded results, and returns checked wiring hypotheses. Conditions
+remain hypotheses until declared met. Weakest-spec effect hints change no verdict.
+
+On transition `cost`, read each closed component's `meanCost` per dimension, including exact
+rational bounds and row-indexed cycle witnesses. `max_cost_work` caps this calculation; a capped
+prefix is undecided. This is a nondeterministic cycle range, with no controller/environment game.
+
+Declare action guards, outcomes and exact probabilities for `triz_lifecycle`. Its checked
+scalar gain/bias equations and unique stationary occupancy support a stationary optimal policy;
+unsupported multichain cases stay undecided. `derive_prior` needs explicit state-to-situation
+mappings. `triz_weakness.lifecycle_priors` optionally reads each concept's own occupancy and
+reports a separate probability ranking, preserving the inclusion verdict. Availability is
+stationary acceptable-state mass; no ergodic or sample-path claim is made.
+
+`triz_bond_graph` reads declared energy pairs and element types. Its causal assignment, derivative
+storage and algebraic-loop findings are structural. Read [the design](../../../docs/bond-graphs.md)
+before modelling thermal approximations. No numerical simulation or physical sufficiency is claimed.

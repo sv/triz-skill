@@ -26,13 +26,14 @@ theorem steady_rename (d : OpenDiagram V I O) {P B W : Type u}
     (ep : d.Port ≃ P) (eb : d.Box ≃ B) (ew : d.Wire ≃ W)
     (ei : I ≃ I') (eo : O ≃ O') (s : P → V) :
     s ∈ (renameDiagram d ep eb ew ei eo).steadyStates ↔ s ∘ ep ∈ d.steadyStates := by
-  simp only [OpenDiagram.steadyStates, renameDiagram, Set.mem_setOf_eq, Function.comp_apply]
+  simp only [OpenDiagram.steadyStates, renameDiagram, Set.mem_ofPred_eq, Function.comp_def]
   constructor
   · rintro ⟨hv, hb, hw⟩
     refine ⟨fun p => ?_, fun b => ?_, fun w => ?_⟩
     · simpa using hv (ep p)
     · have h := hb (eb b)
       change s ∘ ep ∈ d.behavior (eb.symm (eb b)) at h
+      dsimp only [Function.comp_def] at h ⊢
       simpa using h
     · simpa using hw (ew w)
   · rintro ⟨hv, hb, hw⟩
@@ -48,22 +49,27 @@ theorem external_rename (d : OpenDiagram V I O) {P B W : Type u}
     (renameDiagram d ep eb ew ei eo).external (x ∘ ei.symm) (y ∘ eo.symm) ↔ d.external x y := by
   constructor
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨s ∘ ep, (steady_rename d ep eb ew ei eo s).mp hs, ?_, ?_⟩
+    refine ⟨(fun p => s (ep p)), (steady_rename d ep eb ew ei eo s).mp hs, ?_, ?_⟩
     · funext i
       have h := congrFun hx (ei i)
-      simpa [renameDiagram, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagram, Function.comp_def] using h
     · funext o
       have h := congrFun hy (eo o)
-      simpa [renameDiagram, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagram, Function.comp_def] using h
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨s ∘ ep.symm, (steady_rename d ep eb ew ei eo _).mpr ?_, ?_, ?_⟩
-    · simpa [Function.comp_def] using hs
+    refine ⟨(fun p => s (ep.symm p)), (steady_rename d ep eb ew ei eo _).mpr ?_, ?_, ?_⟩
+    · change (fun p => s (ep.symm (ep p))) ∈ d.steadyStates
+      simpa only [Equiv.symm_apply_apply] using hs
     · funext i
       have h := congrFun hx (ei.symm i)
-      simpa [renameDiagram, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagram, Function.comp_def] using h
     · funext o
       have h := congrFun hy (eo.symm o)
-      simpa [renameDiagram, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagram, Function.comp_def] using h
 /-- Renaming a context with an open hole transports its declared relation and both boundary
 valuation witnesses. The `Option` equivalence preserves the distinguished hole. -/
 theorem hole_external_rename (d : OpenDiagram V I O) {P B W Qi Qo : Type u}
@@ -123,7 +129,7 @@ theorem residual_rename {A B C D A' B' C' D' : Type u}
     residual ctx' (transportSet f target) = transportSet e (residual ctx target) := by
   ext p
   rcases e.surjective p with ⟨q, rfl⟩
-  simp only [mem_transportSet, residual, Set.mem_setOf_eq]
+  simp only [mem_transportSet, residual, Set.mem_ofPred_eq]
   rw [← transportSet_singleton e q, h]
   constructor
   · intro hs x hx
@@ -208,13 +214,14 @@ theorem steady_values_rename {V' P B W : Type u} (d : OpenDiagram V I O)
     (ei : I ≃ I') (eo : O ≃ O') (s : P → V') :
     s ∈ (renameDiagramValues d ev ep eb ew ei eo).steadyStates ↔
       ev.symm ∘ s ∘ ep ∈ d.steadyStates := by
-  simp only [OpenDiagram.steadyStates, renameDiagramValues, Set.mem_setOf_eq, Function.comp_apply]
+  simp only [OpenDiagram.steadyStates, renameDiagramValues, Set.mem_ofPred_eq, Function.comp_def]
   constructor
   · rintro ⟨hv, hb, hw⟩
     refine ⟨fun p => ?_, fun b => ?_, fun w => ?_⟩
     · simpa using hv (ep p)
     · have h := hb (eb b)
       change ev.symm ∘ s ∘ ep ∈ d.behavior (eb.symm (eb b)) at h
+      dsimp only [Function.comp_def] at h ⊢
       simpa using h
     · have h := hw (ew w)
       simpa using congrArg ev.symm h
@@ -232,22 +239,27 @@ theorem external_values_rename {V' P B W : Type u} (d : OpenDiagram V I O)
     (renameDiagramValues d ev ep eb ew ei eo).external (ev ∘ x ∘ ei.symm) (ev ∘ y ∘ eo.symm) ↔ d.external x y := by
   constructor
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨ev.symm ∘ s ∘ ep, (steady_values_rename d ev ep eb ew ei eo s).mp hs, ?_, ?_⟩
+    refine ⟨(fun p => ev.symm (s (ep p))), (steady_values_rename d ev ep eb ew ei eo s).mp hs, ?_, ?_⟩
     · funext i
       have h := congrArg ev.symm (congrFun hx (ei i))
-      simpa [renameDiagramValues, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagramValues, Function.comp_def] using h
     · funext o
       have h := congrArg ev.symm (congrFun hy (eo o))
-      simpa [renameDiagramValues, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagramValues, Function.comp_def] using h
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨ev ∘ s ∘ ep.symm, (steady_values_rename d ev ep eb ew ei eo _).mpr ?_, ?_, ?_⟩
-    · simpa [Function.comp_def] using hs
+    refine ⟨(fun p => ev (s (ep.symm p))), (steady_values_rename d ev ep eb ew ei eo _).mpr ?_, ?_, ?_⟩
+    · change (fun p => ev.symm (ev (s (ep.symm (ep p))))) ∈ d.steadyStates
+      simpa only [Equiv.symm_apply_apply] using hs
     · funext i
       have h := congrArg ev (congrFun hx (ei.symm i))
-      simpa [renameDiagramValues, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagramValues, Function.comp_def] using h
     · funext o
       have h := congrArg ev (congrFun hy (eo.symm o))
-      simpa [renameDiagramValues, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [renameDiagramValues, Function.comp_def] using h
 
 
 /-- Renaming the hole and external coordinates, including values, commutes with the concrete
@@ -291,22 +303,27 @@ theorem hole_context_values_rename {V' P B W Qi Qo Qi' Qo' : Type u}
   change (D.withHole _ _ _).external (ex x) (ey y) ↔ (d.withHole pin pout r).external x y
   constructor
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨ev.symm ∘ s ∘ ep, (hsteady s).mp hs, ?_, ?_⟩
+    refine ⟨(fun p => ev.symm (s (ep p))), (hsteady s).mp hs, ?_, ?_⟩
     · funext i
       have h := congrArg ev.symm (congrFun hx (ei i))
-      simpa [D, ex, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [D, ex, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_def] using h
     · funext o
       have h := congrArg ev.symm (congrFun hy (eo o))
-      simpa [D, ey, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [D, ey, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_def] using h
   · rintro ⟨s, hs, hx, hy⟩
-    refine ⟨ev ∘ s ∘ ep.symm, (hsteady _).mpr ?_, ?_, ?_⟩
-    · simpa [Function.comp_def, withHole] using hs
+    refine ⟨(fun p => ev (s (ep.symm p))), (hsteady _).mpr ?_, ?_, ?_⟩
+    · change (fun p => ev.symm (ev (s (ep.symm (ep p))))) ∈ (d.withHole pin pout r).steadyStates
+      simpa only [Equiv.symm_apply_apply, withHole] using hs
     · funext i
       have h := congrArg ev (congrFun hx (ei.symm i))
-      simpa [D, ex, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [D, ex, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_def] using h
     · funext o
       have h := congrArg ev (congrFun hy (eo.symm o))
-      simpa [D, ey, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_apply] using h
+      dsimp only [Function.comp_def] at h ⊢
+      simpa [D, ey, Equiv.arrowCongr, renameDiagramValues, withHole, Function.comp_def] using h
 
 
 /-- Residual transport for the actual renamed diagram, including hole and value coordinates. -/
@@ -348,7 +365,7 @@ theorem admits_rename {A B A' B' : Type u} (e : A ≃ A') (f : B ≃ B')
       transportSet e (CategoricalTriz.admits R ok) := by
   ext x
   obtain ⟨x, rfl⟩ := e.surjective x
-  simp only [mem_transportSet, CategoricalTriz.admits, Set.mem_setOf_eq, Equiv.symm_apply_apply]
+  simp only [mem_transportSet, CategoricalTriz.admits, Set.mem_ofPred_eq, Equiv.symm_apply_apply]
   constructor
   · rintro ⟨⟨y, hy⟩, all⟩
     exact ⟨⟨f.symm y, hy⟩, fun y hy => by simpa using all (f y) (by simpa using hy)⟩

@@ -16,6 +16,29 @@ backlog in [FUTURE-PLANS.md](FUTURE-PLANS.md). Every issue and lint code is in
 
 ## How a verdict cites Lean
 
+The resource solver's Kleene/co-design theorems establish steady-state balance. Its additional
+source-support closure checks selected row witnesses from zero provision and conservatively
+returns undecided for unsupported circular requirements. That TypeScript guard is tested rather
+than extracted or separately Lean-certified; it now records activation order.
+`SourceSupport.lean` proves the corresponding generic least-Horn-closure and finite-derivation
+laws, including max/threshold compatibility, without claiming a verified runtime encoder.
+It does not prove timed startup or physical supply.
+Lifecycle holding costs enter the same finite cost matrix checked by `Lifecycle.Optimality`;
+`Certificates.LifecycleHolding` covers a rational per-state charge and tamper rejection.
+
+Automatic [component discovery](component-discovery.md) replays each bounded network through
+`typed_delete`/`typed_glue`. Generated networks reuse existing typing and whole-model behavior
+certificates. Those do not certify the enumerator, resource/adequacy verdicts or empirical
+properties. `ComponentSearch.chain_nil`, `chain_append` and `chain_preserves` use simp/grind to
+prove identity, serial composition and conditional predicate preservation, separately from
+arbitrary multi-input topology search.
+
+Reusable catalogues instantiate declared type bindings before search. General identity/fan-out
+entries are mathematical equality relations with rows derived only from declared finite values.
+`Certificates.GeneralIdentity` certifies one instantiated identity's whole-model behavior and
+nonemptiness, with tamper rejection. It does not verify the catalogue compiler, physical
+realizability, resource modes or supplied source/license assertions.
+
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the inventory below, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
@@ -372,9 +395,9 @@ It also shows that `recurrent_reach` needs each hypothesis.
 
 ### Co-design feasibility
 
-The ascent is Kleene's (Censi 2015, Def. 22, eq. 26). Feedback loops need no special case:
+The steady-state balance ascent is Kleene's (Censi 2015, Def. 22, eq. 26). Its feedback equations need no special case:
 demands only grow along the ascent, and where they stop growing, the minimal configurations are
-exactly the minimal feasible ones (`kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`). A
+exactly the minimal steady-state balance configurations (`kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`). A
 test checks the result against every row selection of 300 random models. Lean also proves that
 series, parallel, and feedback composition keep monotonicity (`feasibility_comp`,
 `feasibility_par`, `feasibility_trace`); no verdict cites these.
@@ -402,7 +425,10 @@ Feasibility and behaviour answer different questions about a loop. `triz_behavio
 values flow: a wire equates its ports' values, and values have no order. A loop is therefore
 solved by its steady states, the trace, and not by iterating up from a least value.
 `triz_feasibility` asks how much is needed: levels are ordered, and requirements are monotone.
-Iterating up from nothing demanded therefore reaches the least fixpoint, and that is the answer.
+Iterating up from nothing demanded therefore reaches the least balance fixpoint. A separate
+bounded source-support closure checks the selected witnesses from zero provision; unsupported
+positive cycles remain undecided even when this balance fits the budget. Grounded closure is a
+sufficient dependency justification, not a timed startup or physical-realizability theorem.
 
 ### Abstraction between models
 
@@ -650,7 +676,9 @@ The runtime hierarchy checker additionally checks explicit parent-flow routes an
 budget/weight or independent contradiction policies. `triz_subsystem_contract` checks exact,
 nonblocking inner steady-state behavior and the supported single resource mode against a declared
 interface contract. These TypeScript checks are tested; `Hierarchy.lean` proves neither their
-resource coupling nor their implementation correct. The coupling of one resource mode to all
+resource support nor their implementation correct. Flat and hierarchical checks share a bounded
+source-support closure; declared boundary input amounts seed it for subsystem contracts, and
+ungrounded circular modes remain undecided. The coupling of one resource mode to all
 behavior rows remains an empirical declaration. Import provenance and analyst review prevent
 accidental use of unconfirmed drafts; they do not authenticate source contents or analyst claims.
 
@@ -1009,3 +1037,48 @@ The implemented guarantees are separated from future work in
 - `triz_separate`'s `suggestions` are hints. A separation verdict says a piecewise assignment
   exists; it does not say that the suggested move builds one, that the move is the best one, or
   that the cited principle applies.
+
+
+## Typed effects and lifecycle extension
+
+The theory is now pinned jointly to Lean and Mathlib **v4.35.0**. Existing libraries retain
+non-module syntax through Lake's documented `allowNonModules` compatibility flag. Deprecated
+Mathlib imports/lemmas and affected proofs were migrated; warning failures remain enabled.
+
+| Library | Statement | Claim scope |
+|---|---|---|
+| `MeanCost` | `telescope` | Finite permutation-closed vertex potentials cancel exactly |
+| `MeanCost` | `cycle_lower`, `cycle_upper` | Edge potential inequalities bound every finite cycle's total, hence mean |
+| `MeanCost` | `attains_bound` | A nonempty cycle with total n·λ has mean λ |
+| `MeanCost` | `Bounds`, `CycleWitness` | Decidable finite potential and achieving-cycle certificate predicates |
+| `Lifecycle` | `stationary_invariant` | πP=π plus explicit measure/kernel encoding compatibility implies `Kernel.Invariant` |
+| `Lifecycle` | `stationary_cost_lower` | Stationary expected cost bounds from gain/bias inequalities |
+| `Lifecycle` | `policy_attains_gain` | A stationary policy satisfying gain/bias equality attains its gain |
+| `Lifecycle` | `optimality_stationary` | Bellman inequalities certify no enabled stationary competitor has lower stationary expected cost |
+| `Lifecycle` | `Stationary`, `Optimality` | Decidable stochastic-row, occupancy, selected-policy and gain/bias predicates |
+| `CategoricalTriz` | `residual_inter`, `residual_iInter`, `residual_comp` | Target safety decomposes over conjunction; weakest specifications compose backwards through a union-preserving outer context |
+| `SourceSupport` | `closure_closed`, `closure_le`, `derivation_subset_closure`, `derivation_eq_closure` | A finite justified activation derivation ending at a closed set equals the least grounded closure |
+| `SourceSupport` | `closure_empty_of_nonempty_needs`, `levels_max`, `levels_zero` | No unsupported positive cycle supplies facts; max-combined amounts correspond to unions of threshold facts |
+| `Propagation` | `satisfies_pair_iff_semijoin`, `exists_solution_of_runningIntersection` | Abstract semijoins preserve solutions; nonempty pairwise-consistent full tables with a supplied running-intersection order have a global assignment |
+| `Lifecycle` | `occupation_of_stationary_policy`, `occupation_bias_cancel`, `occupation_cost_lower`, `occupation_attains_gain` | Randomized stationary occupation flows cancel potentials, satisfy Bellman lower bounds and attain them on tight occupied actions |
+
+These research-derived laws are not additional runtime `basis` claims. Behavior evaluation
+uses tested semijoin pruning with the existing all-or-nothing preprocessing cap; it still
+enumerates assignments and does not infer a join tree. `SynthesisWitnesses` checks non-vacuity
+examples as a default build target. Occupation laws do not assert initial-state reachability,
+provide an LP solver, or replace the existing tied-policy ambiguity guard. See the
+[capability and research map](math-connections.md#integrated-theorem-search-results).
+
+These names are registered in `src/act-basis.ts`; its theorem-to-file map extends the original
+single-file basis test. Cycle results cite `MeanCost.Bounds.walk_mean` for closed edge-indexed walks (including parallel edges), plus `cycle_lower`, `cycle_upper` and `attains_bound`.
+Lifecycle results cite `stationary_invariant`, `optimality_stationary`, `policy_attains_gain`.
+The TypeScript algorithms are not extracted from Lean. Generated rational certificates use
+`decide +kernel` and have per-statement tamper rejection. Request binding uses a manifest and
+full regeneration. Source pins include the local dimension/schema and cost/lifecycle predicate libraries; the new rational tables do not have the separate correspondence encoder
+used by the older wiring/row-table certificate kinds. This limitation is explicit.
+
+SI equality, typed effect search, and bond causality are finite structural checks with no
+additional Lean theorem claim. See [API and scope](typed-effects-lifecycle.md) and
+[bond-graph design](bond-graphs.md). No unit conversion, dimensional inference, physical
+sufficiency, general multichain optimal control, ergodic/sample-path frequency theorem,
+continuous time, discounting, chemistry, or numeric simulation is claimed.

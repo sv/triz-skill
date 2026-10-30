@@ -31,6 +31,7 @@
  * it, so it is exempt from label-blindness. A declared `loss: true` raises it and `loss: false`
  * silences it whatever the words, and then it is label-blind. No lint changes a verdict.
  */
+import { dimensionConflict, parseUnit } from "./act-dimensions.js";
 import type { FunctionModel } from "./act.js";
 import { at, quoted, type Severity, type Warning, type IssueCode } from "./act-issues.js";
 import { unbackedProducible } from "./act-levels.js";
@@ -96,6 +97,16 @@ export function lintModel(model: FunctionModel, root = "$.model"): Warning[] {
       `producible row ${u.row} of '${b.id}' gives ${u.outputs.map((o) => `${o.port} = '${o.value}'`).join(", ")}, but no feasibility row of '${b.id}' reaches that level at its inputs, read through the carriers' levels (the most provided: ${u.most.map((m) => `${m.port} = ${m.amount}, read as '${m.value}'`).join("; ")})`,
       `Add a feasibility row of '${b.id}' that provides that level at those inputs, with its cost, or drop the row from producible if '${b.id}' cannot make it: triz_behavior weakest_spec takes producible as declared, and triz_feasibility takes the feasibility rows.`));
   }
+  model.carriers.forEach((c, i) => {
+    const units = [[c.unit, at(root, "carriers", i, "unit")], ...(c.levels ?? []).map((l, j) => [l.unit, at(root, "carriers", i, "levels", j, "unit")])] as const;
+    for (const [unit, path] of units) if (unit && dimensionConflict(c.si, parseUnit(unit))) out.push(lint("dimension-mismatch", "warning", path!, "Declared unit conflicts with carrier SI dimensions", "Use thresholds and amounts with the carrier's declared SI dimension."));
+  });
+  model.boxes.forEach((b, i) => b.feasibility?.forEach((r, j) => {
+    for (const [port, unit] of Object.entries(r.units ?? {})) {
+      const p = [...(b.inputs ?? []), ...(b.outputs ?? [])].find(p => p.id === port);
+      if (p && dimensionConflict(carriers.get(p.carrier)?.si, parseUnit(unit))) out.push(lint("dimension-mismatch", "warning", at(root, "boxes", i, "feasibility", j, "units", port), "Feasibility amount unit conflicts with its carrier", "Declare amounts and levels in the same dimension; conversions are not performed."));
+    }
+  }));
   return out;
 }
 

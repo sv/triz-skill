@@ -78,6 +78,9 @@ fixpoints as different questions.
 characterization over complete valuations is proved in `SteadyStateGfp.lean`; its full-valuation
 filter does not remove global search.
 Local domain consistency alone is not a complete solver [R25](../theory/REFERENCES.md#r25).
+PR #51 adds abstract semijoin soundness and global existence for nonempty pairwise-consistent
+tables under a supplied running-intersection order. Checking that order and connecting a
+constructive runtime solver to the theorem remain open.
 
 ## 5. Fine-grained implementation/evidence contracts
 
@@ -86,6 +89,8 @@ row identifiers instead of requiring a single resource mode per box. Represent m
 derived, estimated and hypothetical evidence with operating envelopes and versioned sources.
 Bind physical-contradiction parameters explicitly to ports, states or measured expressions.
 Support conservative uncertainty envelopes and explicit prior provenance/partial-prior bounds.
+Structured envelope applicability and versioning are detailed in E1/E6 below; the existing
+`operating_envelope` label is not an executable guard.
 
 **Acceptance:** capable-but-over-budget mode A and cheap-but-incapable mode B never combine into
 a passing implementation. Shared costs and new declared harms are checked together. Widening
@@ -100,18 +105,20 @@ about a uniform distribution over tasks [R7](../theory/REFERENCES.md#r7).
 
 **Next:**
 
-- Compute a merged-hole residual as an explicitly coordinated relaxation/diagnostic. Require
+- Merged-hole residuals landed in #49 as coordinated relaxations/diagnostics. Require
   factorization, an explicit coordination mechanism, or finite product-subrelation synthesis
   before calling it independently implementable.
 - Search for groups of ports that factor, rather than testing only a supplied partition:
   landed in [PR #38](https://github.com/sv/triz-skill/pull/38) (`behavior.finest`,
-  `factorisations`). The maximal relation pairs for two unknown boxes landed in #32; three or
-  more boxes remain.
+  `factorisations`). Maximal relation pairs for two unknown boxes landed in #32. General
+  n-ary concept lattices remain open; the merged-hole residual for three or more boxes landed
+  in #49.
 - Compose feasibility across several detailed preimages with compatible implementation modes.
 - Add dynamic simulation relations and validated refinement of coarse counterexamples.
 - Check supersystem summaries against transformations through a stated commuting/refinement
   condition; preserve hidden safety obligations.
-- Expand beyond fixed wiring only with an explicit component/topology bound.
+- Bounded component/topology discovery is implemented in #51 with explicit catalogue,
+  instance and component limits. Joint mode/policy/Pareto search remains E2 work below.
 
 **Acceptance:** two independent bit producers cannot realize diagonal outputs `{(0,0),(1,1)}`
 by independently implementing its projections. Same wiring with incompatible rows fails
@@ -171,6 +178,93 @@ Restricted critical-pair algorithms [R44](../theory/REFERENCES.md#r44),
 [R47](../theory/REFERENCES.md#r47), [R82](../theory/REFERENCES.md#r82) must be distinguished from
 the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
 [R46](../theory/REFERENCES.md#r46), [R83](../theory/REFERENCES.md#r83).
+
+## 9. System evolution, operating boundaries and joint objectives
+
+This open workstream connects E1–E6 in the [ranked roadmap](FUTURE-PLANS.md#system-evolution-and-operating-boundaries).
+Existing finite conditions, state transitions, typed rewrites and snapshot comparisons are
+foundations. They do not yet form an integrated operating-envelope/evolution planner.
+
+### E1 — Executable envelopes and system boundaries
+
+**Next:** bind operating assumptions to explicit finite inputs/states, resource/quantity bounds,
+initial conditions and evidence. Declare which choices are controlled, which context changes
+are external, what the policy observes and which interfaces cross the system boundary.
+Preserve coupled conditions instead of expanding them into independent marginals.
+
+**Acceptance:** test interior, boundary and outside-envelope cases. An envelope label alone
+must not constrain a solver. Declared conditions outside the supported envelope get an explicit
+applicability result; undeclared values still fail validation. Missing assumptions cannot
+silently become permissive guarantees. Continuous range abstractions require their own proof.
+
+### E2 — Joint properties and Pareto objectives
+
+**Next:** one specification contains hard predicates and an ordered property vector over the
+same architecture, resource/behavior mode and policy. Budgets are hard predicates, while the
+same cost axes can also be objectives. Declare units, directions and aggregation for each axis.
+Extend finite alternative comparison before joint topology/mode/policy optimization.
+
+**Acceptance:** preserve exact ties and incomparable witnesses. Retain the nondominated `(3,3)`
+beside `(0,4)` and `(4,0)` for two minimization axes. Do not splice different implementations'
+costs, capabilities or policies. Validate sum/max/path/probabilistic aggregation separately;
+state availability's initial-state/recurrent-class scope. Caps cannot certify a complete
+frontier or a globally optimal evolution path. Weights are explicit preferences, not defaults.
+
+### E3 — Dynamic safe operating regions
+
+**Next:** separate steady-state admissibility from safety/viability over trajectories. State
+whether the claim concerns some run, every run, or a causal policy against all admissible
+disturbance sequences. Define observation and action order before introducing a finite game
+solver; the existing stationary expected-cost MDP theorem is not that solver.
+
+**Acceptance:** a state with a safe steady assignment but unavoidable unsafe successor is
+excluded from a robust safe region. Check all declared starts, closure and nonblocking. A
+policy cannot observe future disturbances. Region maximality requires complete finite
+checking; wider modeled coverage is not an estimated probability of successful operation.
+
+### E4 — Context and requirement evolution
+
+**Next:** declare finite context transitions, schedules/clocks and versions for workloads,
+provider contracts, quotas, compatibility, requirements and objective orders. Reconcile time
+scales explicitly. Keep operational state changes, context changes and architecture edits
+distinct; future inputs are declarations, not forecasts inferred from TRIZ trends.
+
+**Acceptance:** preserve cross-time correlations, unavailable observations and timing limits.
+Removing a difficult context or relaxing a goal cannot silently count as an improvement.
+Unsupported future conditions remain unresolved, and changed goals identify a new problem.
+
+### E5 — Migration verification and bounded path planning
+
+**Next:** validate a supplied migration with explicit intermediate operational configurations,
+live-state/interface maps and rollback transitions. This precedes searching bounded architecture
+paths and policies under E1 envelopes and E4 context traces with E2 objective orders.
+Snapshot-to-runtime-transition inference remains deferred; state transfer must be supplied.
+
+**Acceptance:** adequate typed endpoints do not certify uninterrupted migration. Reject a path
+that temporarily disconnects service or violates peak resources. Account for old/new overlap,
+deployment charges, backlog/state transfer, temporary harms, downtime and rollback costs.
+Check one compatible joint witness at every stage. Compare cost/risk/downtime vectors across
+complete paths; bounded exhaustion concerns only the declared path and policy space.
+
+### E6 — Applicability, evidence and revalidation
+
+**Next:** bind proof-relevant context/envelope, requirements, objective algebra, policy and
+evidence versions to results, building on §1's encoder correspondence. Record dependency scopes
+for targeted rechecking. Monitoring adapters supply explicit observations; this plan does not
+deploy a monitoring or automatic corrective-action service.
+
+**Acceptance:** changing a bound, initial condition, correlation, composition law or evidence
+scope prevents reuse for the changed problem. A previously checked proof remains about its
+original request, not about the new operating conditions. Distinguish observed breaches,
+modeled violations, inapplicable evidence and uncertainty; no provenance count becomes a truth
+probability.
+
+**Build order:** E1 and initial E6 binding first; E2 finite joint comparison next; E4 explicit
+context evolution before E3 robust-region synthesis and E5 path optimization. Supplied-path
+checking may start once its envelope, transitions and state-transfer maps are explicit. C2
+aggregation, S3 contracts, C7/S1 acyclic/elimination methods and S5 compositional dynamics are
+shared prerequisites rather than duplicate implementations. Physlib/CSLib adapters retain
+their separate semantic bridge obligations in [math-connections.md](math-connections.md).
 
 ## Suggestions adopted and corrected
 

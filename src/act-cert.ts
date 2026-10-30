@@ -3,7 +3,9 @@
  * Structural typing, separation, reachable traces, inductive safety, behavior comparisons,
  * and every weakness pair are independently decided on the encoded tables. A manifest binds
  * the authoritative request, scope, schema, generator and theory pins. --request additionally
- * checks normalized correspondence with a separate direct encoder and detects stale output;
+ * checks normalized correspondence with a separate direct encoder for the row/wiring kinds;
+ * mean-cost/lifecycle binding currently uses manifest checks and regeneration only.
+ * Both paths detect stale output;
  * neither check establishes encoder correctness. State-only safety invariants include every
  * valuation of each selected state, since Sync.Step leaves successor valuations unrestricted.
  * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target), and
@@ -14,6 +16,10 @@
  * Time inputs and negative claims unsupported by an invariant fail closed. Ids remain escaped
  * string literals. This module is pure and works in the hosted Worker.
  */
+import { lifecycle, type LifecycleRequest } from "./act-lifecycle.js";
+import certificateSources from "./act-certificate-sources.json" with { type: "json" };
+import { z } from "zod";
+import { rational, show } from "./act-rational.js";
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
 import { at, fail, issue, quoted, type Failure } from "./act-issues.js";
 import { alignment, compareBehavior, deliverablePorts, plan as behaviorPlan, portVariables, weaknessRanking, type Acceptable, type BehaviorScope, type JointPriorRow, type Prior } from "./act-behavior.js";
@@ -27,16 +33,20 @@ export const MAX_CERT_WIRING = 250_000;
 export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
-/** Exact source pins; refresh deliberately when the theory or model schema changes. */
-export const CERTIFICATE_THEORY_SOURCE = "6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576";
-export const CERTIFICATE_SCHEMA_SOURCE = "3df9737aa256a9e05c5446dbd0a1be18161ffd8522b76d58a457f7a051b9e857";
+/** Exact source sets: include the local imports that define certificate predicates and schemas. */
+export const CERTIFICATE_THEORY_FILES = Object.freeze([...certificateSources.theory]);
+export const CERTIFICATE_SCHEMA_FILES = Object.freeze([...certificateSources.schema]);
+export const CERTIFICATE_THEORY_SOURCE = "60720b1d235ab8d9dbe8bd0e2f36ff075ecdbec496b63527d232f8b8e1312347";
+export const CERTIFICATE_SCHEMA_SOURCE = "f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
   source: string; schema: "function-model-v1"; generator: "triz-cert-2";
-  theory: "CategoricalTriz/v2"; theorySource: string; schemaSource: string; lean: "4.32.2"; mathlib: "v4.32.2";
-  scope: "structural" | BehaviorScope | "dynamics-upstream";
+  theory: "CategoricalTriz/v2"; theorySource: string; schemaSource: string; lean: "4.35.0"; mathlib: "v4.35.0";
+  scope: "structural" | BehaviorScope | "dynamics-upstream" | "finite-cost";
 }
 export type CertificateRequest =
+  | { kind: "mean-cost"; model: FunctionModel; spec: DynamicsSpec; component: number; dimension: string }
+  | { kind: "lifecycle"; args: z.input<typeof LifecycleRequest>; objective: number }
   | { kind: "model"; model: FunctionModel }
   | { kind: "separation"; contradiction: PhysicalContradiction }
   | { kind: "dynamics"; model: FunctionModel; spec: DynamicsSpec }
@@ -69,8 +79,8 @@ export function requestDigest(value: unknown): string {
   return h.map((x) => x.toString(16).padStart(8,"0")).join("");
 }
 function certified(request: CertificateRequest, namespace: string, content: string, certifies: Certified[], tableReads?: number): Certificate {
-  const scope = request.kind === "model" || request.kind === "separation" ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : request.scope ?? "upstream";
-  const manifest: CertificateManifest = { format: "triz-certificate-v2", kind: request.kind, namespace, source: requestDigest(request), schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: CERTIFICATE_THEORY_SOURCE, schemaSource: CERTIFICATE_SCHEMA_SOURCE, lean: "4.32.2", mathlib: "v4.32.2", scope };
+  const scope = request.kind === "mean-cost" || request.kind === "lifecycle" ? "finite-cost" : request.kind === "model" || request.kind === "separation" ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : request.scope ?? "upstream";
+  const manifest: CertificateManifest = { format: "triz-certificate-v2", kind: request.kind, namespace, source: requestDigest(request), schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: CERTIFICATE_THEORY_SOURCE, schemaSource: CERTIFICATE_SCHEMA_SOURCE, lean: "4.35.0", mathlib: "v4.35.0", scope };
   return { ok: true, namespace, content: content.replace("open CategoricalTriz\n", `open CategoricalTriz\n\ndef certificateManifest : String := ${leanString(JSON.stringify(manifest))}\n`), certifies, manifest, ...(tableReads !== undefined ? { tableReads } : {}) };
 }
 
@@ -949,4 +959,41 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
   }
   const request: CertificateRequest = { kind: "behavior", baseline, concept, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.boxMap !== undefined ? { boxMap: opts.boxMap } : {}) };
   return certified(request, ns, assemble("one behavior comparison", ns, [lines]), certifies, work);
+}
+
+
+/** Finite rational certificates share the existing local-only checker and manifest. */
+const ratLiteral = (value: string | number) => `(${show(rational(value))} : ℚ)`;
+const vector = (xs: Array<string | number>) => `![${xs.join(", ")}]`;
+const ratVector = (xs: Array<string | number>) => vector(xs.map(ratLiteral));
+const ratMatrix = (xs: string[][]) => vector(xs.map(ratVector));
+
+export function meanCostCertificate(model: FunctionModel, spec: DynamicsSpec, component: number, dimension: string, opts: {namespace?:string} = {}): Certificate {
+  const ns=namespaceOf(opts); if(typeof ns!=="string") return ns;
+  const result=boundedDynamics(model,spec);
+  if(!result.ok)return result;
+  const closed="loops" in result && result.loops && "closed" in result.loops ? result.loops.closed : undefined;
+  const data=closed?.[component]?.meanCost;
+  const item=data?.verdict==="decided" ? data.values?.find(v=>v.dimension===dimension) : undefined;
+  if(!item)return fail([issue("not-certifiable","$.component","No decided cycle-cost bound in this component and dimension","Select a decided meanCost component and dimension within the search caps.")]);
+  const d=item.certificateData,n=d.states,e=d.edges.length;
+  if(e*n>10_000)return fail([issue("cap-exceeded","$.model","Cycle-cost certificate exceeds its table cap","Certify a smaller recurrent component.")]);
+  const lines=[`def costFrom : Fin ${e} → Fin ${n} := ${vector(d.edges.map(x=>x.from))}`,`def costTo : Fin ${e} → Fin ${n} := ${vector(d.edges.map(x=>x.to))}`,`def costValue : Fin ${e} → ℚ := ${ratVector(d.edges.map(x=>Object.hasOwn(x.cost,dimension)?x.cost[dimension]:0))}`,`def costLower : Fin ${n} → ℚ := ${ratVector(item.potentials.min)}`,`def costUpper : Fin ${n} → ℚ := ${ratVector(item.potentials.max)}`,`def meanLower : ℚ := ${ratLiteral(item.exact.min)}`,`def meanUpper : ℚ := ${ratLiteral(item.exact.max)}`,`def minWitness : List (Fin ${e}) := [${d.minimum.join(", ")}]`,`def maxWitness : List (Fin ${e}) := [${d.maximum.join(", ")}]`,""];
+  const statements=[['meanBounds','MeanCost.Bounds costFrom costTo costValue costLower costUpper meanLower meanUpper'],['meanMinWitness','MeanCost.CycleWitness costFrom costTo costValue meanLower minWitness'],['meanMaxWitness','MeanCost.CycleWitness costFrom costTo costValue meanUpper maxWitness']];
+  for(const [name,statement] of statements)lines.push(...theorem('Finite rational potential bound or achieving closed cycle.',name,statement,'by decide +kernel'));
+  return certified({kind:'mean-cost',model,spec,component,dimension},ns,assemble('cycle mean costs',ns,[lines]),statements.map(([name])=>({theorem:`${ns}.${name}`,verdict:name})),e*n);
+}
+
+export function lifecycleCertificate(args: z.input<typeof LifecycleRequest>, objective=0, opts:{namespace?:string}={}):Certificate {
+  const ns=namespaceOf(opts);if(typeof ns!=="string")return ns;
+  const result=lifecycle(args);if(!result.ok)return result;
+  const data='solutions' in result ? result.solutions?.[objective]?.certificateData : undefined;
+  if(!data)return fail([issue('not-certifiable','$.objective','No decided lifecycle optimality witness','Select a solved objective within the lifecycle caps.')]);
+  const n=data.p.length,alternatives=data.alternatives.flat(),a=alternatives.length;
+  if(n*a*n>10_000)return fail([issue('cap-exceeded','$.model','Lifecycle certificate exceeds its table cap','Certify a smaller state/action space.')]);
+  const owners=data.alternatives.flatMap((rs,i)=>rs.map(()=>i));
+  const lines=[`def lifecycleP : Fin ${n} → Fin ${n} → ℚ := ${ratMatrix(data.p)}`,`def lifecyclePi : Fin ${n} → ℚ := ${ratVector(data.pi)}`,`def lifecycleCost : Fin ${n} → ℚ := ${ratVector(data.cost)}`,`def lifecycleBias : Fin ${n} → ℚ := ${ratVector(data.h)}`,`def lifecycleGain : ℚ := ${ratLiteral(data.g)}`,`def actionOwner : Fin ${a} → Fin ${n} := ${vector(owners)}`,`def actionP : Fin ${a} → Fin ${n} → ℚ := ${ratMatrix(alternatives.map(x=>x.p))}`,`def actionCost : Fin ${a} → ℚ := ${ratVector(alternatives.map(x=>x.cost))}`,`def lifecyclePolicy : Fin ${n} → Fin ${a} := ${vector(data.policy)}`,""];
+  const statements=[['lifecycleOccupancy','Lifecycle.Stationary lifecycleP lifecyclePi'],['lifecycleOptimality','Lifecycle.Optimality lifecycleP lifecycleCost lifecycleBias lifecycleGain actionOwner actionP actionCost lifecyclePolicy']];
+  for(const [name,statement] of statements)lines.push(...theorem('Finite stationary occupancy or average-cost optimality equations.',name,statement,'by decide +kernel'));
+  return certified({kind:'lifecycle',args,objective},ns,assemble('lifecycle stationary policy',ns,[lines]),statements.map(([name])=>({theorem:`${ns}.${name}`,verdict:name})),n*a*n);
 }

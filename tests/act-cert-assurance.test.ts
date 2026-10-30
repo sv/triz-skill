@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import type { FunctionModel } from "../src/act.js";
-import { behaviorCertificate, canonicalRequest, CERTIFICATE_SCHEMA_SOURCE, CERTIFICATE_THEORY_SOURCE, dynamicsCertificate, modelCertificate, requestDigest, weaknessCertificate, type Certificate } from "../src/act-cert.js";
+import { behaviorCertificate, canonicalRequest, CERTIFICATE_SCHEMA_SOURCE, CERTIFICATE_THEORY_SOURCE, CERTIFICATE_SCHEMA_FILES, CERTIFICATE_THEORY_FILES, dynamicsCertificate, modelCertificate, requestDigest, weaknessCertificate, type Certificate } from "../src/act-cert.js";
 import { bindRequest, checkCorrespondence, checkRequest, lint } from "../scripts/certify.mjs";
 
 const acceptable = [{ carrier: "bit", values: ["1"] }];
@@ -20,15 +20,19 @@ function dynamics(next = "safe"): FunctionModel {
   ] }], wires: [] };
 }
 
+const sourcePin=(files:readonly string[])=>createHash("sha256").update(files.map(file=>`${file}\0${fs.readFileSync(new URL(`../${file}`,import.meta.url),"utf8")}\0`).join("")).digest("hex");
+
 test("canonical source binding hashes the entire authoritative request with standard SHA-256", () => {
   for (const value of [{ b: "\u{1f600}", a: ["x", 2] }, { kind: "model", model: model() }]) assert.equal(requestDigest(value), createHash("sha256").update(canonicalRequest(value)).digest("hex"));
   const m = model(), request = { kind: "model" as const, model: m }, c = modelCertificate(m); assert.ok(c.ok);
   assert.deepEqual(checkCorrespondence(c.content, request), []);
   const other = structuredClone(m); other.boxes[0].name = "Different authoritative declaration";
   assert.match(checkCorrespondence(c.content, { kind: "model", model: other }).join(";"), /manifest source/);
-  assert.equal(c.manifest.schema, "function-model-v1"); assert.equal(c.manifest.lean, "4.32.2");
-  assert.equal(CERTIFICATE_SCHEMA_SOURCE,createHash("sha256").update(fs.readFileSync(new URL("../src/act.ts",import.meta.url))).digest("hex"));
-  assert.equal(CERTIFICATE_THEORY_SOURCE,createHash("sha256").update(fs.readFileSync(new URL("../theory/CategoricalTriz.lean",import.meta.url))).digest("hex"));
+  assert.equal(c.manifest.schema, "function-model-v1"); assert.equal(c.manifest.lean, "4.35.0");
+  assert.equal(CERTIFICATE_SCHEMA_SOURCE,sourcePin(CERTIFICATE_SCHEMA_FILES));
+  assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-provenance.ts"));
+  assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-rational.ts"));
+  assert.equal(CERTIFICATE_THEORY_SOURCE,sourcePin(CERTIFICATE_THEORY_FILES));
 });
 
 test("request binding checks normalized row data independently of generator regeneration", () => {

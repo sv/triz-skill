@@ -16,7 +16,7 @@ namespace BearingDamped
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingDamped\",\"source\":\"80a6757469d9fbea3eaaf605ea0bca091af2452db0c080971def4d7edaf3dcac\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"3df9737aa256a9e05c5446dbd0a1be18161ffd8522b76d58a457f7a051b9e857\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingDamped\",\"source\":\"80a6757469d9fbea3eaaf605ea0bca091af2452db0c080971def4d7edaf3dcac\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"60720b1d235ab8d9dbe8bd0e2f36ff075ecdbec496b63527d232f8b8e1312347\",\"schemaSource\":\"f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"dynamics-upstream\"}"
 
 /-! ## Independently derived state invariant -/
 

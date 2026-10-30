@@ -13,6 +13,23 @@ registers (`src/act-issues.ts`), each listed once.
 
 ## Model building, hierarchy, and row costs
 
+Component discovery/insertion reuse `invalid-argument` for invalid catalogue, endpoint,
+replacement, carrier-binding or contract/evidence requests; `hierarchy-substitution` for nested
+components; and the rewrite engine's typing, freshness and dangling-flow codes. Search exhaustion
+is an `undecided` result with `reason: "work-cap"`, not an input error.
+
+Reusable catalogue errors also use `invalid-argument`: unbound parameters, unknown local types,
+ambiguous/incompatible aliases, duplicate names, absent source/license fields and library limits.
+Bind types explicitly or correct the portable catalogue schema.
+
+Resource balances with no grounded selected witness are successful analyses with
+`verdict: "undecided"` and `reason: "circular-resource-support"`; see `sourceSupport` and
+`steadyState`. Flat source-support work exhaustion uses `cap-exceeded`. Subsystem contracts
+report `resources.reason: "circular-resource-support"` or `"source-support-cap"` with overall
+`status: "undecided"`; their independent `max_support_work` defaults to 100,000.
+Holding-cost keys naming
+unknown states use `undeclared-state`; negative/malformed amounts use schema validation codes.
+
 | Code | Raised by | Meaning |
 |---|---|---|
 | `draft-model` | imported models | Ratings or assumptions remain unconfirmed inside the model; review every pending item before analysis |
@@ -197,3 +214,21 @@ that type-checks, with a `severity`. A lint never changes a verdict. Only
 | `unwired-port` | lint (info) | A port has no wire |
 | `unbacked-producible-row` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A producible row's output level is reached by no feasibility row of its box, read through the carriers' levels |
 | `extensive-fan-out` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An output port of an extensive carrier feeds several functions: `triz_feasibility` makes it supply their sum, while behaviour and dynamics give each function the port's one value |
+
+
+## Dimensions, lifecycle and energy structure
+
+| Code | Raised by | Meaning |
+|---|---|---|
+| `dimension-mismatch` | builder; SI/level/map lints; bond typing | Explicit declarations disagree on SI dimensions; use matching dimensions or distinct carriers |
+| `invalid-probability` | lifecycle | An enabled action lacks outcomes, or per-state/action probabilities are missing or do not sum exactly to one |
+| `invalid-bond` | bond graph | Invalid energy pair, information bond, element arity, thermal approximation, or repeated/unconnected port |
+| `causality-conflict` | bond graph findings | Exhaustive bounded assignment found no source/junction-compatible causality; not a physical impossibility proof |
+| `derivative-causality` | bond graph findings | Storage is derivative in every assignment, or no jointly all-integral assignment exists; witness-specific choices stay in equationStructure |
+| `algebraic-loop` | bond graph findings | Direct constitutive dependencies form a cycle requiring a simultaneous solve |
+
+`invalid-weight` also covers lifecycle objectives. `prior-malformed` covers lifecycle situation
+maps and derived-prior coverage. `not-certifiable` covers unsupported mean-cost/lifecycle
+witnesses. Semantic isomorphism uses `hierarchy-substitution` when model-level lifecycle state
+mappings are unavailable. Lifecycle uncertainty also includes `tied-optimal-policies` and
+`probabilities-undeclared`; these are analysis reasons, not input-error codes.

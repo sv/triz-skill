@@ -24,6 +24,10 @@
  * Pure functions (data in, verdict out) so the stdio and hosted entries share them.
  */
 import { z } from "zod";
+import { EnergyDomain, BondElement } from "./act-bond-schema.js";
+import { MaintenanceAction, LifecycleStates, RecurringCost } from "./act-lifecycle-schema.js";
+import { SI, dimensionKey } from "./act-dimensions.js";
+export { sameDimension, parseUnit } from "./act-dimensions.js";
 import { ModelProvenance, provenanceProblems, hierarchyProblems } from "./act-provenance.js";
 import { at, fail, issue, keysHint, quoted, rebase, second, where, zodHint, type Issue } from "./act-issues.js";
 
@@ -49,14 +53,19 @@ export type Polarity = z.infer<typeof Polarity>;
 export type Axis = z.infer<typeof Axis>;
 
 export const CarrierLevel = z.strictObject({
+  unit: z.string().optional().describe("Explicit base-unit expression for these thresholds; checked against carrier si"),
   value: Id.describe("A declared value of the carrier"),
   from: z.number().nonnegative().describe("Least amount that reads as this value, in the units of the feasibility rows on this carrier"),
 }).meta({ id: "CarrierLevel" });
 
 export const Carrier = z.strictObject({
+  energy: EnergyDomain.optional().describe("Explicit energy effort/flow pair; no domain presets or information bonds"),
   id: Id,
   layer: Layer,
   dimension: z.string().min(1).describe("Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"),
+  effect_quantity: z.string().min(1).optional().describe("Explicit effect quantity type; never inferred from free-text dimension"),
+  si: SI.optional().describe("Explicit SI exponent vector, or base-unit expression such as kg·m·s^-2; omitted exponents are zero"),
+  unit: z.string().optional().describe("Display unit; parsed base-unit expressions are linted against si; no conversion"),
   values: z.array(Id).min(1).optional()
     .describe("Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior"),
   levels: z.array(CarrierLevel).min(1).optional()
@@ -65,7 +74,7 @@ export const Carrier = z.strictObject({
     .describe("How amounts on this carrier combine where one output port feeds several functions. 'intensive' (the default) is one shared level, such as a voltage, a temperature, or a copied message: the port meets the largest demand. 'extensive' is an amount that divides, such as a flow of water or a current: triz_feasibility makes the port supply the sum of the demands, and refuses an extensive input fed by several functions (model a merge box). Declare it explicitly; it is never inferred from the layer"),
   loss: z.boolean().optional()
     .describe("Whether the flow is a loss: true when no level of it is wanted from any performer, such as a pressure drop, leakage, noise, or wear; false when some level is. Read only by the defect-on-loss-carrier lint, which then ignores its word list, so the lint gives the same warnings after any renaming. Omitted, the lint guesses from the words of the carrier id, its dimension, and the function verbs. No verdict reads it"),
-}, { error: keysHint({ unit: "the unit goes in dimension", units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
+}, { error: keysHint({ units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
 
 /**
  * One canonical key per carrier declaration, so every place that asks whether two declarations
@@ -77,7 +86,7 @@ export const Carrier = z.strictObject({
 export function carrierDeclarationKey(c: z.infer<typeof Carrier>): string {
   const values = c.values === undefined ? null : [...new Set(c.values)].sort();
   const levels = c.levels === undefined ? null : c.levels.map((l) => [l.value, l.from]);
-  return JSON.stringify([c.id, c.layer, c.dimension, values, levels, c.quantity ?? "intensive", c.loss ?? null]);
+  return JSON.stringify([c.id, c.layer, c.dimension, values, levels, c.quantity ?? "intensive", c.loss ?? null, dimensionKey(c.si), c.effect_quantity ?? null, c.energy ? [c.energy.kind, c.energy.effort.quantity, dimensionKey(c.energy.effort.si), c.energy.flow.quantity, dimensionKey(c.energy.flow.si), dimensionKey(c.energy.power_si)] : null]);
 }
 /** Whether two carrier declarations agree, by `carrierDeclarationKey`. */
 export const sameCarrier = (a: z.infer<typeof Carrier>, b: z.infer<typeof Carrier>) => carrierDeclarationKey(a) === carrierDeclarationKey(b);
@@ -94,6 +103,7 @@ export const BehaviorRow = z.strictObject({
 }).meta({ id: "BehaviorRow", description: "One admissible (inputs, outputs) pair of the box's relation" });
 
 export const TransitionRow = z.strictObject({
+  cost: RecurringCost.optional().describe("Nonnegative cost incurred by this step; missing dimensions are zero; dimensions are never combined implicitly"),
   state: Id.describe("Current state; one of the box's declared state values"),
   in: z.record(z.string(), Id).describe("Input port id → value; names every input port of the box"),
   next: Id.describe("Next state; one of the box's declared state values"),
@@ -101,6 +111,7 @@ export const TransitionRow = z.strictObject({
 }).meta({ id: "TransitionRow", description: "One admissible step of a stateful box: in this state, on these inputs, it may move to next and emit these outputs" });
 const Level = z.number().nonnegative();
 export const FeasibilityRow = z.strictObject({
+  units: z.record(z.string(), z.string()).optional().describe("Optional explicit base-unit expression per named input/output amount; checked against its carrier si"),
   provides: z.record(z.string(), Level).optional()
     .describe("Output port id → level the box can provide there, in the carrier's dimension; an omitted port provides nothing (level 0)"),
   requires: z.record(z.string(), Level).optional()
@@ -130,6 +141,9 @@ function safeHierarchy(value: unknown): boolean {
 }
 
 export const Box = z.strictObject({
+  bond: BondElement.optional().describe("Bond-graph element; triz_bond_graph checks causality separately from function ratings"),
+  actions: z.array(MaintenanceAction).optional().describe("Declared maintenance actions on this box state space; solved by triz_lifecycle"),
+  holding_cost: z.record(Id, RecurringCost).optional().describe("Lifecycle cost per decision step in each declared source state; used with this box's actions"),
   id: Id,
   name: z.string().min(1),
   role: Role,
@@ -215,6 +229,8 @@ export const FunctionModel = z.strictObject({
   domain: z.enum(["physical", "software", "business", "cyber-physical"]),
   system: z.string().optional(),
   provenance: ModelProvenance.optional().describe("Embedded import source locations and explicit analyst review. Draft models cannot drive analysis; review is an assertion, not a proof of source truth"),
+  actions: z.array(MaintenanceAction).optional(),
+  lifecycle: LifecycleStates.optional().describe("Explicit global finite state space for model-level maintenance actions"),
   carriers: z.array(Carrier),
   boxes: z.array(Box),
   wires: z.array(Wire),
@@ -294,6 +310,7 @@ function rowIssues(b: Box, bi: number, carriers: FunctionModel["carriers"], root
   if (b.producible && (b.behavior || b.transition)) issues.push(issue("producible-with-rows", here("producible"), `box '${b.id}' declares producible with ${b.behavior ? "behavior" : "transition"}: producible bounds a box whose behaviour is unknown`, `Keep one: drop producible if the rows of '${b.id}' are known, or drop its ${b.behavior ? "behavior" : "transition"} to have weakest_spec specify it within producible.`));
   for (const s of duplicates(b.state ?? [])) issues.push(issue("duplicate-id", here("state", second(b.state!, s)), `box '${b.id}': duplicate state '${s}'`, `List state '${s}' once.`));
   const states = new Set(b.state ?? []);
+  for(const s of Object.keys(b.holding_cost??{}))if(!states.has(s))issues.push(issue("undeclared-state",here("holding_cost",s),`box '${b.id}': holding cost state '${s}' is not declared`,"Use a declared box state for every holding cost."));
   if (b.state) (b.initial ?? []).forEach((s, k) => {
     if (!states.has(s)) issues.push(issue("undeclared-state", here("initial", k), `box '${b.id}': initial state '${s}' is not declared in state`, `Use one of ${quoted(states)}, or add '${s}' to state.`));
   });
@@ -445,6 +462,7 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
     for (const v of duplicates(c.values ?? [])) issues.push(issue("duplicate-id", at(root, "carriers", ci, "values", second(c.values!, v)), `carrier '${c.id}': duplicate value '${v}'`, `List value '${v}' once.`));
   });
   model.carriers.forEach((c, ci) => issues.push(...levelIssues(c, ci, root)));
+  for(const s of Object.keys(model.lifecycle?.holding_cost??{}))if(!model.lifecycle!.states.includes(s))issues.push(issue("undeclared-state",at(root,"lifecycle","holding_cost",s),`holding cost state '${s}' is not declared in lifecycle.states`,"Use a declared lifecycle state for every holding cost."));
   model.boxes.forEach((b, bi) => {
     const ports = [...inputs(b).map((p, j) => ["inputs", j, p] as const), ...outputs(b).map((p, j) => ["outputs", j, p] as const)];
     const portIds = ports.map(([, , p]) => p.id);
@@ -476,7 +494,7 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
       }
       const inner = b.inner.model as FunctionModel;
       issues.push(...checkModel(inner, at(path, "model"), depth + 1, nextAncestors).issues);
-      if (b.behavior || b.producible || b.state || b.initial || b.transition || b.feasibility || b.cost) {
+      if (b.behavior || b.producible || b.state || b.initial || b.transition || b.feasibility || b.cost || b.actions || b.holding_cost || b.bond) {
         issues.push(issue("hierarchy-summary", path, `box '${b.id}': inner model cannot be combined with an unchecked outer summary`, "Remove outer behavior, producible, state, initial, transition, feasibility, and cost; analyze the inner model explicitly."));
       }
       for (const side of ["inputs", "outputs"] as const) {

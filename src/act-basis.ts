@@ -16,7 +16,11 @@ import type { analyseModel, compareIdeality, dynamize, separationCheck, trimCand
 export const THEORY_FILE = "theory/CategoricalTriz.lean";
 
 /** Every theorem a verdict may cite; tests check each name against the Lean file. */
+export const THEOREM_FILES = { "MeanCost.Bounds.walk_mean": "theory/MeanCost.lean", "Lifecycle.optimality_stationary": "theory/Lifecycle.lean", "Lifecycle.stationary_invariant": "theory/Lifecycle.lean", "Lifecycle.stationary_cost_lower": "theory/Lifecycle.lean", "Lifecycle.policy_attains_gain": "theory/Lifecycle.lean", "MeanCost.cycle_lower": "theory/MeanCost.lean", "MeanCost.cycle_upper": "theory/MeanCost.lean", "MeanCost.attains_bound": "theory/MeanCost.lean" } as const;
+
 export const THEOREMS = [
+  "Lifecycle.optimality_stationary", "Lifecycle.stationary_invariant", "Lifecycle.stationary_cost_lower", "Lifecycle.policy_attains_gain",
+  "MeanCost.Bounds.walk_mean", "MeanCost.cycle_lower", "MeanCost.cycle_upper", "MeanCost.attains_bound",
   "exists_section_iff", "glue_of_disjoint_regions", "no_section_of_overlap", "separated_iff_axis",
   "edge_on_cycle", "transGen_equiv", "pareto_incomparable", "pareto_not_total",
   "typed_rename", "typed_delete", "typed_glue", "typed_reroute", "typed_restrict",

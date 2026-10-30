@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { FunctionModel, analyseModel, checkModel, trimCandidates } from "../src/act.js";
 import { weakestSpec } from "../src/act-behavior.js";
+import { lifecycleModel, bondModel } from "./support/lifecycle.js";
 import { ISSUE_CODES, type Issue, type IssueCode } from "../src/act-issues.js";
 import { analysisBasis, trimBasis } from "../src/act-basis.js";
 import { matchRule, TREND_RULES, type Rule } from "../src/act-rule.js";
@@ -412,8 +413,16 @@ cases.push(
   { code: "invalid-import-provenance", tool: "triz_function_model", args: { model: incompleteReview }, path: "$.model.provenance" },
 );
 
+const badProbability=lifecycleModel();badProbability.actions![0].transitions[0].probability="1/3";
+const badBond=bondModel();badBond.carriers[0].layer="information";
+const builderCarrier={id:"c",layer:"energy",dimension:"declared",si:{L:1}};
+cases.push(
+ {code:"invalid-probability",tool:"triz_lifecycle",args:{model:badProbability},path:"$.model.actions[0].transitions"},
+ {code:"invalid-bond",tool:"triz_bond_graph",args:{model:badBond},path:"$.model.carriers[0].energy"},
+ {code:"dimension-mismatch",tool:"triz_build_model",args:{domain:"physical",components:[{id:"a",name:"A",role:"tool"},{id:"b",name:"B",role:"product"}],interactions:[{subject:"a",action:"x",object:"b",carrier:builderCarrier,polarity:"useful"},{subject:"a",action:"y",object:"b",carrier:{...builderCarrier,si:{T:1}},polarity:"useful"}]},path:"$.interactions[1].carrier"},
+);
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
-const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row", "extensive-fan-out"];
+const LINTS: IssueCode[] = ["causality-conflict", "derivative-causality", "algebraic-loop","defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row", "extensive-fan-out"];
 
 test("every failure carries issues: one per error, a registered code, a path into the input, and a hint", async () => {
   const covered = new Set<IssueCode>();
@@ -494,7 +503,7 @@ test("zod errors at the tool boundary carry hints at their paths", () => {
   hinted(parse("triz_function_model", { model: edit("bearing-heat", (m) => { (m.boxes[0] as Record<string, unknown>).ports = []; }) }), "model.boxes.0", /inputs and output ports under outputs/);
   hinted(parse("triz_function_model", { model: edit("bearing-heat", (m) => { (m.wires[0] as Record<string, unknown>).source = "motor"; }) }), "model.wires.0", /use from and to/);
   hinted(parse("triz_function_model", { model: { ...model, functions: [] } }), "model", /functions are wires/);
-  hinted(parse("triz_function_model", { model: edit("bearing-heat", (m) => { (m.carriers[0] as Record<string, unknown>).unit = "Nm"; }) }), "model.carriers.0", /dimension/);
+  hinted(parse("triz_function_model", { model: edit("bearing-heat", (m) => { (m.carriers[0] as Record<string, unknown>).units = "Nm"; }) }), "model.carriers.0", /dimension/);
   hinted(parse("triz_trim", { model, trim: "bearing" }), "trim", /\["bearing"\]/);
   hinted(parse("triz_behavior", { model, trim: "bearing" }), "trim", /\["bearing"\]/);
   hinted(parse("triz_transform", { model, transformation: { op: "trim", trim: "bearing" } }), "transformation.trim", /\["bearing"\]/);

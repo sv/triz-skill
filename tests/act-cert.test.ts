@@ -24,7 +24,10 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
-import { behaviorCertificate, dynamicsCertificate, modelCertificate, separationCertificate, trimCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
+import { costModel, lifecycleModel } from "./support/lifecycle.js";
+import { componentRequest, interfaceModel, contract as componentContract, metadata as componentMetadata } from "./support/component-search.js";
+import { searchComponents } from "../src/act-component-search.js";
+import { meanCostCertificate, lifecycleCertificate, behaviorCertificate, dynamicsCertificate, modelCertificate, separationCertificate, trimCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { boundedDynamics, reachedStates } from "../src/act-dynamics.js";
 import { compareBehavior, trimPreservesBehavior, weaknessRanking } from "../src/act-behavior.js";
 import { interpose, segment } from "../src/act-rewrite.js";
@@ -50,6 +53,12 @@ function damped(): FunctionModel {
 const BEARING_TRIM = { trim: ["bearing"] };
 /** Every checked-in certificate, by namespace, and how to generate it again. */
 const GENERATED: Record<string, (ns: string) => Certificate> = {
+  GeneralIdentity: n=>{const {baseline,model}=generalIdentity();return behaviorCertificate(baseline,model,{scope:"whole",namespace:n});},
+  ComponentNetwork: n=>modelCertificate(componentNetwork(),{namespace:n}),
+  ComponentBehavior: n=>behaviorCertificate(componentContract().target,componentNetwork(),{scope:"whole",namespace:n}),
+  MeanCostFixture: n=>meanCostCertificate(costModel(),{},0,"resource",{namespace:n}),
+  LifecycleFixture: n=>lifecycleCertificate({model:lifecycleModel()},0,{namespace:n}),
+  LifecycleHolding: n=>{const m=lifecycleModel();m.lifecycle!.holding_cost={a:{resource:"1/3"},b:{resource:8}};return lifecycleCertificate({model:m},0,{namespace:n});},
   ...Object.fromEntries(Object.entries(FIXTURES).map(([ns, name]) => [ns, (n: string) => modelCertificate(example(name), { namespace: n })])),
   BearingEscalation: (n) => dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT }, { namespace: n }),
   SupportWeakness: (n) => weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE, { namespace: n }),
@@ -58,6 +67,19 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
   // A port target whose runs block once the shaft is hot, outside the unsafe set's state conditions.
   BearingBlocked: (n) => dynamicsCertificate(stuck(), { unsafe: COLD_FRICTION }, { namespace: n }),
 };
+function componentNetwork():FunctionModel {
+  const r=searchComponents({...componentRequest(),contract:componentContract(),implementation:componentMetadata,max_work:1000000});
+  assert.ok(r.ok&&"candidates" in r&&r.candidates.length);
+  return r.candidates[0].model;
+}
+function generalIdentity() {
+  const m=interfaceModel();m.boxes[1].inputs![0].carrier="a";
+  const r=searchComponents({model:m,resources:[{box:"source",port:"out"}],targets:[{box:"product",port:"in"}],catalogues:[{catalogue:"general",bindings:{T:"a"}}],max_components:1,max_work:1000000});
+  assert.ok(r.ok&&"candidates" in r);
+  const selected=r.candidates.find(c=>c.components[0]?.catalogueOrigin?.entry==="identity"&&c.model.wires.some(w=>w.from.box==="source"&&w.to.box===c.components[0].box));assert.ok(selected);
+  const baseline:FunctionModel={...m,wires:[{id:"reference",from:{box:"source",port:"out"},to:{box:"product",port:"in"},carrier:"a",polarity:"useful"}]};
+  return {baseline,model:selected.model};
+}
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
 const tables = (c: Certificate) => content(c).replace(/^def certificateManifest : String := .*\n/m, "");

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dimensionConflict } from "./act-dimensions.js";
 import { Carrier, Flow, FunctionModel, Polarity, Role, checkModel, sameCarrier } from "./act.js";
 import { at, fail, issue, type Issue } from "./act-issues.js";
 import { lintModel } from "./act-lint.js";
@@ -37,8 +38,12 @@ const identity = (i: Interaction) => JSON.stringify([i.subject, i.action, i.obje
 // intensive both mean the default shared quantity, so emit one canonical representation.
 const normalizeCarrier = (c: z.infer<typeof Carrier>): z.infer<typeof Carrier> => ({
   id: c.id, layer: c.layer, dimension: c.dimension,
+  ...(c.energy === undefined ? {} : { energy:c.energy }),
+  ...(c.effect_quantity === undefined ? {} : { effect_quantity: c.effect_quantity }),
+  ...(c.si === undefined ? {} : { si: c.si }),
+  ...(c.unit === undefined ? {} : { unit: c.unit }),
   ...(c.values === undefined ? {} : { values: [...c.values].sort(cmp) }),
-  ...(c.levels === undefined ? {} : { levels: c.levels.map(({ value, from }) => ({ value, from })) }),
+  ...(c.levels === undefined ? {} : { levels: c.levels.map(l => ({ ...l })) }),
   ...(c.quantity === "extensive" ? { quantity: "extensive" as const } : {}),
   ...(c.loss === undefined ? {} : { loss: c.loss }),
 });
@@ -79,7 +84,7 @@ export function buildModel(input: BuildModelRequest) {
     }
     const existing = carriers.get(i.carrier.id);
     if (existing && !sameCarrier(existing.carrier, i.carrier)) {
-      issues.push(issue("carrier-mismatch", at("$", "interactions", index, "carrier"), `conflicting declarations of carrier '${i.carrier.id}'`, `Use the same carrier descriptor as interactions[${existing.index}].carrier, or give the different carrier a distinct id.`));
+      issues.push(issue(dimensionConflict(existing.carrier.si, i.carrier.si) ? "dimension-mismatch" : "carrier-mismatch", at("$", "interactions", index, "carrier"), `conflicting declarations of carrier '${i.carrier.id}'`, `Use the same carrier descriptor as interactions[${existing.index}].carrier, or give the different carrier a distinct id.`));
     } else if (!existing) carriers.set(i.carrier.id, { carrier: normalizeCarrier(i.carrier), index });
     const key = identity(i), prior = interactions.get(key);
     if (prior !== undefined) issues.push(issue("duplicate-id", at("$", "interactions", index), `duplicate interaction (also interactions[${prior}])`, "List a subject, action, object and carrier combination once; resolve any conflicting polarity explicitly."));

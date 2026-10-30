@@ -324,3 +324,34 @@ and the existing ordinary DPO deletion/gluing basis. Related context-control for
 AGREE ([R15](../../../theory/REFERENCES.md#r15)) and PBPO+
 ([R16](../../../theory/REFERENCES.md#r16)); those references motivate the distinction, but the
 repository does not implement their general categorical constructions or a Kan universal property.
+
+## Typed dimensions and effects (T1–T5 batch)
+
+- The seven base-unit symbol mappings in `src/act-dimensions.ts` come from NIST,
+  [SP 811, chapter 4, table 1](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes),
+  checked 2026-10-30. [NIST's redistribution terms](https://www.nist.gov/copyrights-disclaimers)
+  permit copying public information unless marked copyrighted. Only unit facts are encoded;
+  no derived-unit or physical-domain catalogue is imported. Dimension letters follow the
+  schema explicitly requested for this kernel.
+- Existing effects 3, 7, 8, 12, 15 and 34 are typed from their existing `statement` or `function`
+  fields in `data/effects.json`, under this repository's MIT license. Local entry citations name
+  the fields or clause used. Effect 3 covers the changing-field clause only; effects 3/34 share
+  `changing magnetic field`, and 8/15/34 share `current`. These are explicit vocabulary
+  normalizations; effect 12's output comes from its function field. No SI dimensions, constants, material
+  assumptions, performance magnitudes or new effects are supplied from memory.
+- A search for Koller/Roth-style input/output catalogues found publications discussing such
+  catalogues, including [ICED11](https://www.designsociety.org/download-publication/30605/selection_of_physical_effects_based_on_disturbances_and_robustness_ratios_in_the_early_phases_of_robust_design),
+  but no catalogue with verified redistribution terms. No entries were imported. This is a
+  documented data gap, not a claim that no openly licensed catalogue exists.
+- Bond causality uses independently implemented finite constraints for the user-requested
+  element names, without physical domain presets. The conceptual source is Ghazani et al.,
+  [A review of the diverse applications of bond graphs in biology and physiology](https://doi.org/10.1098/rspa.2023.0807),
+  §2. No figures, domain tables, article text or material data are redistributed. The finite
+  power-preserving composition direction is discussed in the source-linked
+  [math connections](../../../docs/math-connections.md).
+- All added test costs, transition probabilities and effect chains are explicitly synthetic
+  mathematical fixtures, not engineering or TRIZ case-study data.
+- The general catalogue defines identity (`out = in`) and fan-out (`left = right = in`) as new
+  repository mathematical relations in `src/act-component-catalogue.ts`, under the repository MIT
+  license. They import no physical-effect/parts data and assert no empirical realization or cost.
+  Caller-provided source/license metadata is retained as declared evidence.

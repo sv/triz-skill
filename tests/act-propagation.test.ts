@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { propagateRows, type PropagationSet } from "../src/act-propagation.js";
+import { propagateRows, semijoinRows, type PropagationSet } from "../src/act-propagation.js";
 import { bindRow, deliverablePorts, externalBehavior, joinRows, plan, portVariables } from "../src/act-behavior.js";
 import type { FunctionModel } from "../src/act.js";
 
@@ -13,6 +13,79 @@ function solutions(sets: PropagationSet[], domains: string[][]): string[][] {
   };
   visit([]); return all;
 }
+
+test("semijoins retain correlations across a multi-variable overlap", () => {
+  const sets: PropagationSet[] = [
+    { vars: [0, 1], rows: [[[0, "0"], [1, "0"]], [[0, "1"], [1, "1"]]] },
+    { vars: [0, 1], rows: [[[0, "0"], [1, "1"]], [[0, "1"], [1, "0"]]] },
+  ];
+  const unary = propagateRows(sets, [["0", "1"], ["0", "1"]]);
+  assert.deepEqual(unary.sets, sets);
+  const overlap = semijoinRows(unary.sets);
+  assert.equal(overlap.status, "complete");
+  assert.ok(overlap.sets.some(s => s.rows.length === 0));
+});
+
+test("semijoins preserve exact solutions with wildcards and repeated variables, and discard capped work", () => {
+  let seed = 1927;
+  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed >>> 8; };
+  const domains = Array.from({ length: 3 }, () => ["0", "1"]);
+  for (let k = 0; k < 150; k++) {
+    const sets: PropagationSet[] = Array.from({ length: 1 + rand() % 4 }, () => {
+      const cols = Array.from({ length: rand() % 5 }, () => rand() % 3);
+      return { vars: [...new Set(cols)], rows: Array.from({ length: rand() % 5 }, () =>
+        cols.filter(() => rand() % 4 !== 0).map(v => [v, String(rand() % 2)] as [number, string])) };
+    });
+    const snapshot = structuredClone(sets), exact = solutions(sets, domains), full = semijoinRows(sets);
+    assert.equal(full.status, "complete");
+    assert.deepEqual(solutions(full.sets, domains), exact);
+    assert.deepEqual(semijoinRows(full.sets).sets, full.sets);
+    for (const cap of [0, Math.floor(full.work / 2), full.work - 1, full.work]) {
+      const result = semijoinRows(sets, cap);
+      if (result.status === "fallback") assert.equal(result.sets, sets);
+      else assert.deepEqual(solutions(result.sets, domains), exact);
+    }
+    assert.deepEqual(sets, snapshot);
+  }
+});
+
+test("nonempty semijoin-consistent full tables on a join tree have a global solution", () => {
+  const domains = Array.from({ length: 5 }, () => ["0", "1"]);
+  for (let mask = 0; mask < 256; mask++) {
+    // Running-intersection order: {0,1,2} -- {1,2,3} -- {2,3,4}.
+    const sets: PropagationSet[] = [[0, 1, 2], [1, 2, 3], [2, 3, 4]].map((vars, t) => ({
+      vars, rows: Array.from({ length: 8 }, (_, n) => vars.map((v, bit) => [v, String((n >> bit) & 1)] as [number, string]))
+        .filter((_, n) => ((mask * (2 * t + 1) + t) >> n) & 1),
+    }));
+    const result = semijoinRows(sets), exact = solutions(sets, domains);
+    assert.equal(result.status, "complete");
+    assert.deepEqual(solutions(result.sets, domains), exact);
+    assert.equal(result.sets.every(s => s.rows.length > 0), exact.length > 0);
+    if (exact.length) for (const set of result.sets) for (const row of set.rows) {
+      assert.ok(exact.some(a => row.every(([v, x]) => a[v] === x)));
+    }
+  }
+  const eq = (x: number, y: number): PropagationSet => ({ vars: [x, y], rows: [[[x, "0"], [y, "0"]], [[x, "1"], [y, "1"]]] });
+  const cyclic = [eq(0, 1), eq(1, 2), { vars: [2, 0], rows: [[[2, "0"], [0, "1"]], [[2, "1"], [0, "0"]]] } satisfies PropagationSet];
+  assert.ok(semijoinRows(cyclic).sets.every(s => s.rows.length));
+  assert.deepEqual(solutions(cyclic, domains), []);
+});
+
+test("behaviour semijoins decide a correlated contradiction before consuming the state budget", () => {
+  const p = (id: string) => ({ id, carrier: "c" });
+  const model: FunctionModel = { domain: "software", carriers: [{ id: "c", layer: "information", dimension: "bit", values: ["0", "1"] }], boxes: [
+    { id: "a", name: "A", role: "tool", outputs: [p("x"), p("y")], behavior: ["0", "1"].map(x => ({ in: {}, out: { x, y: x } })) },
+    { id: "b", name: "B", role: "tool", inputs: [p("x"), p("y")], outputs: [p("z")], behavior: ["0", "1"].map(x => ({ in: { x, y: x === "0" ? "1" : "0" }, out: { z: "1" } })) },
+    { id: "p", name: "P", role: "product", inputs: [p("z")] },
+  ], wires: [
+    ...["x", "y"].map(port => ({ id: port, from: { box: "a", port }, to: { box: "b", port }, carrier: "c", polarity: "useful" as const })),
+    { id: "z", from: { box: "b", port: "z" }, to: { box: "p", port: "z" }, carrier: "c", polarity: "useful" },
+  ] };
+  const result = externalBehavior(model, { fullRelation: true, maxStates: 1 });
+  assert.ok(result.ok && result.decided);
+  assert.equal(result.statesExplored, 1);
+  assert.deepEqual(result.noSteadyState, [[]]);
+});
 
 test("GAC preserves exactly all satisfying assignments across finite random tables", () => {
   let seed = 143;

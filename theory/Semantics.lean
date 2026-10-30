@@ -1,6 +1,6 @@
 import CategoricalTriz
 import Mathlib.CategoryTheory.Category.RelCat
-import Mathlib.Data.Setoid.Basic
+import Mathlib.Order.Setoid.Basic
 import Mathlib.Logic.Equiv.Prod
 
 /-!

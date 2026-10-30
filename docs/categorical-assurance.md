@@ -74,6 +74,21 @@ exponential. None of these theorems extracts or certifies the TypeScript impleme
 local propagation globally complete, proves a general AGREE/PBPO+ formalism, or proves physical
 realizability. Independent exhaustive feedback tests cross-check the joint finite solver.
 
+Behavior evaluation also applies overlap-aware semijoins after unary-domain propagation,
+sharing the same bounded preprocessing allowance and discarding all pruning on exhaustion.
+`Propagation.lean` proves abstract semijoin soundness and a conditional gluing theorem for
+nonempty pairwise-consistent full tables with an explicit running-intersection order. The
+runtime reducer is cross-checked against exhaustive assignments; it does not issue an
+acyclicity certificate or claim global consistency on arbitrary cyclic or wildcard tables.
+
+Resource support now reports a finite `activationOrder`. `SourceSupport.lean` proves that a
+justified activation derivation ending at a closed set equals the least Horn closure and
+relates max-combined levels to threshold facts. Per-request grounding certificates and an
+independent rule encoder remain open. `Lifecycle` also proves Bellman bounds and attainment
+for randomized stationary occupation flows, without adding initial-state reachability or an
+LP solver. The [integration map](math-connections.md#integrated-theorem-search-results)
+distinguishes these checked foundations from the research extensions they enable.
+
 ## Behavioral scope and adequacy
 
 The default `triz_behavior` scope remains `upstream` for compatibility. It assumes omitted boxes
@@ -114,15 +129,21 @@ and its model data to AXLE, whose execution and Mathlib revision are then truste
 The request is a certificate request record: `kind: "model"` with `model`;
 `kind: "separation"` with `contradiction`; `kind: "dynamics"` with `model` and `spec`;
 `kind: "weakness"` with `concepts`, `acceptable` and optional `scope`/`maxStates`/`priors`/`jointPrior`;
-or `kind: "behavior"` with `baseline`, `concept` and optional `scope`/`maxStates`/`boxMap`.
+`kind: "behavior"` with `baseline`, `concept` and optional `scope`/`maxStates`/`boxMap`;
+`kind: "mean-cost"` with `model`, `spec`, `component`, `dimension`; or
+`kind: "lifecycle"` with `args` and `objective`.
 Use the exact request used for generation. Internal `spec` options use camelCase, as the
 library does, rather than MCP's snake_case wrapper.
 
-The checker compares source data and finite tables using an independent correspondence pass,
+For model, separation, dynamics, weakness and behavior requests, the checker compares source data
+and finite tables using an independent correspondence pass,
 regenerates to check freshness, and then checks the pinned theorem statements. Repeating the same
 generator alone would not detect a common encoding bug. This is correspondence checking and
 translation validation, not a general correctness proof of the TypeScript encoder or evaluator.
-The grammar/axiom checks and tampered-certificate rejection still apply.
+For mean-cost and lifecycle requests, binding currently checks the manifest and regenerates the
+certificate without an independent table encoder. A shared solver/encoding bug can survive that
+binding check; an independent correspondence encoder remains open. The grammar/axiom checks and
+tampered-certificate rejection still apply to every kind.
 
 Behavior certificates use the declared `boxMap` to align interfaces, include inputs read by only
 one model, and compare the baseline deliverables; gained deliverables stay outside that comparison.

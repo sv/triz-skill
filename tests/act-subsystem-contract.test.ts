@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkSubsystemContract, SubsystemContractRequest } from "../src/act-subsystem-contract.js";
+import { feasibility } from "../src/act-feasibility.js";
+import type { FunctionModel } from "../src/act.js";
 
 function request(): SubsystemContractRequest {
   const c = { id: "bit", layer: "information" as const, dimension: "level", values: ["lo", "hi"], levels: [{ value: "lo", from: 0 }, { value: "hi", from: 1 }] };
@@ -10,6 +12,122 @@ function request(): SubsystemContractRequest {
   } }] }, contract: { behavior: [{ in: { x: "lo" }, out: { y: "lo" } }, { in: { x: "hi" }, out: { y: "hi" } }], assumptions: [{ x: "lo" }, { x: "hi" }], resources: { inputs: { x: 0 }, outputs: { y: 0 }, budget: { usd: 2 } }, operating_envelope: "nominal", resource_binding: "all-behavior-rows" } };
 }
 const inner = (x: SubsystemContractRequest) => x.model.boxes[0].inner.model;
+
+/** A consistent feedback relation is deliberately insufficient to justify its
+ * positive resource requirements, even with an unrelated boundary supply. */
+function feedbackRequest(loopDemand = 1, externalSupply?: number): SubsystemContractRequest {
+  const carrier = { id: "level", layer: "information" as const, dimension: "level", values: ["off", "on"], levels: [{ value: "off", from: 0 }, { value: "on", from: 1 }] };
+  const external = externalSupply !== undefined;
+  const nested: FunctionModel = {
+    domain: "software", carriers: [carrier],
+    boxes: [{ id: "f", name: "F", role: "tool",
+      inputs: [{ id: "i", carrier: "level" }, ...(external ? [{ id: "seed", carrier: "level" }] : [])],
+      outputs: [{ id: "loop", carrier: "level" }, { id: "o", carrier: "level" }],
+      behavior: [{ in: { i: "on", ...(external ? { seed: "on" } : {}) }, out: { loop: "on", o: "on" } }],
+      feasibility: [{ requires: { i: loopDemand, ...(external ? { seed: 1 } : {}) }, provides: { loop: 1, o: 1 } }],
+    }],
+    wires: [{ id: "self", from: { box: "f", port: "loop" }, to: { box: "f", port: "i" }, carrier: "level", polarity: "useful" }],
+  };
+  return { mode: "verify", box: "h", model: { domain: "software", carriers: [carrier], wires: [], boxes: [{
+    id: "h", name: "H", role: "tool", inputs: external ? [{ id: "x", carrier: "level" }] : [], outputs: [{ id: "y", carrier: "level" }],
+    inner: { model: nested, inputs: external ? [{ outer: "x", inner: { box: "f", port: "seed" } }] : [], outputs: [{ outer: "y", inner: { box: "f", port: "o" } }] },
+  }] }, contract: {
+    assumptions: [external ? { x: "on" } : {}], behavior: [{ in: external ? { x: "on" } : {}, out: { y: "on" } }],
+    resources: { inputs: external ? { x: externalSupply! } : {}, outputs: { y: 1 }, budget: {} },
+    operating_envelope: "synthetic feedback", resource_binding: "all-behavior-rows",
+  } };
+}
+
+function flatFeedback(x: SubsystemContractRequest): FunctionModel {
+  const flat = structuredClone(inner(x)) as FunctionModel;
+  flat.budget = x.contract.resources.budget;
+  if (Object.hasOwn(x.contract.resources.inputs, "x")) {
+    flat.boxes.push({ id: "source", name: "Source", role: "environment", outputs: [{ id: "o", carrier: "level" }], feasibility: [{ provides: { o: x.contract.resources.inputs.x } }] });
+    flat.wires.push({ id: "seed", from: { box: "source", port: "o" }, to: { box: "f", port: "seed" }, carrier: "level", polarity: "useful" });
+  }
+  flat.boxes.push({ id: "product", name: "Product", role: "product", inputs: [{ id: "i", carrier: "level" }], feasibility: [{ requires: { i: 1 } }] });
+  flat.wires.push({ id: "deliver", from: { box: "f", port: "o" }, to: { box: "product", port: "i" }, carrier: "level", polarity: "useful" });
+  return flat;
+}
+
+test("flat and hierarchical resource checks agree on closed, externally fed and grounded feedback", () => {
+  for (const [x, grounded] of [[feedbackRequest(), false], [feedbackRequest(1, 1), false], [feedbackRequest(0, 1), true]] as const) {
+    const hierarchical = checkSubsystemContract(x), flat = feasibility(flatFeedback(x));
+    assert.ok(hierarchical.ok && "resources" in hierarchical, JSON.stringify(hierarchical));
+    assert.ok("sourceSupport" in hierarchical.resources);
+    assert.equal(hierarchical.resources.sourceSupport.grounded, grounded);
+    assert.equal(hierarchical.status, grounded ? "checked" : "undecided");
+    assert.ok(flat.ok);
+    assert.equal(flat.verdict, grounded ? "feasible" : "undecided");
+    if (!grounded) {
+      assert.ok("reason" in hierarchical.resources);
+      assert.equal(hierarchical.resources.reason, "circular-resource-support");
+      assert.equal(flat.reason, "circular-resource-support");
+    }
+  }
+  const missing = checkSubsystemContract(feedbackRequest(0, 0));
+  assert.ok(missing.ok && missing.status === "rejected" && "resources" in missing && "reason" in missing.resources);
+  assert.equal(missing.resources.reason, "insufficient-input-assumption");
+});
+
+test("subsystem source support has an independent fail-closed work cap", () => {
+  const x = feedbackRequest(0, 1), baseline = checkSubsystemContract(x);
+  assert.ok(baseline.ok && "resources" in baseline && "sourceSupport" in baseline.resources);
+  const work = baseline.resources.sourceSupport.work;
+  const exact = checkSubsystemContract({ ...x, max_support_work: work });
+  assert.ok(exact.ok && exact.status === "checked");
+  const capped = checkSubsystemContract({ ...x, max_support_work: work - 1 });
+  assert.ok(capped.ok && capped.status === "undecided" && "resources" in capped && "reason" in capped.resources);
+  assert.equal(capped.resources.reason, "source-support-cap");
+});
+
+test("flat and hierarchical support match a dependency-cycle oracle on 64 small networks", () => {
+  const carrier = { id: "level", layer: "information" as const, dimension: "level", values: ["off", "on"], levels: [{ value: "off", from: 0 }, { value: "on", from: 1 }] };
+  for (let code = 0; code < 64; code++) {
+    // Each row is either a source (-1) or needs one of the three boxes.
+    const dependency = [0, 1, 2].map(i => Math.floor(code / 4 ** i) % 4 - 1);
+    // Independent oracle: following any dependency must terminate at a source.
+    // A repeated vertex is a cycle and cannot establish its own positive supply.
+    const grounded = dependency.every((_, start) => {
+      const path = new Set<number>();
+      for (let v = start; v >= 0; v = dependency[v]) {
+        if (path.has(v)) return false;
+        path.add(v);
+      }
+      return true;
+    });
+    const boxes = dependency.map((d, i): FunctionModel["boxes"][number] => ({
+      id: `b${i}`, name: `Box ${i}`, role: "tool",
+      inputs: d < 0 ? [] : [{ id: "i", carrier: "level" }],
+      outputs: [{ id: "feed", carrier: "level" }, { id: "o", carrier: "level" }],
+      behavior: [{ in: d < 0 ? {} : { i: "on" }, out: { feed: "on", o: "on" } }],
+      feasibility: [{ requires: d < 0 ? {} : { i: 1 }, provides: { feed: 1, o: 1 } }],
+    }));
+    const nested: FunctionModel = { domain: "software", carriers: [carrier], boxes, wires: dependency.flatMap((d, i) => d < 0 ? [] : [{
+      id: `w${i}`, from: { box: `b${d}`, port: "feed" }, to: { box: `b${i}`, port: "i" }, carrier: "level", polarity: "useful" as const,
+    }]) };
+    const exposed = boxes.flatMap(b => b.outputs!.filter(p => !nested.wires.some(w => w.from.box === b.id && w.from.port === p.id)).map(p => ({ box: b.id, port: p.id })));
+    const outputs = exposed.map((_, i) => ({ id: `y${i}`, carrier: "level" }));
+    const x: SubsystemContractRequest = {
+      mode: "verify", box: "h", model: { domain: "software", carriers: [carrier], wires: [], boxes: [{
+        id: "h", name: "H", role: "tool", outputs,
+        inner: { model: nested, inputs: [], outputs: exposed.map((end, i) => ({ outer: `y${i}`, inner: end })) },
+      }] },
+      contract: { assumptions: [{}], behavior: [{ in: {}, out: Object.fromEntries(outputs.map(p => [p.id, "on"])) }],
+        resources: { inputs: {}, outputs: Object.fromEntries(outputs.map(p => [p.id, 1])), budget: {} },
+        operating_envelope: "synthetic dependency graph", resource_binding: "all-behavior-rows",
+      },
+    };
+    const flat: FunctionModel = structuredClone(nested);
+    flat.budget = {};
+    flat.boxes.push({ id: "product", name: "Product", role: "product", inputs: outputs, feasibility: [{ requires: x.contract.resources.outputs }] });
+    flat.wires.push(...exposed.map((end, i) => ({ id: `observe${i}`, from: end, to: { box: "product", port: `y${i}` }, carrier: "level", polarity: "useful" as const })));
+    const h = checkSubsystemContract(x), f = feasibility(flat);
+    assert.ok(h.ok && f.ok, `graph ${code}: ${JSON.stringify({ h, f })}`);
+    assert.equal(h.status, grounded ? "checked" : "undecided", `hierarchical graph ${code}`);
+    assert.equal(f.verdict, grounded ? "feasible" : "undecided", `flat graph ${code}`);
+  }
+});
 
 test("checks whole inner relation and same declared resource mode", () => {
   const r = checkSubsystemContract(request()); assert.ok(r.ok && r.status === "checked");
