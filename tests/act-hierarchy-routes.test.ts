@@ -90,6 +90,16 @@ test("policies explicitly hoist budgets, reconcile weights and append independen
   assert.equal(substitute(bad, "h", { ...opts, policies: { budget: "global-intersection", weights: "global-merge", contradictions: "append-renamed" } }).ok, false);
 });
 
+test("an empty inner contradiction list needs no policy and reports no policy effect", () => {
+  const m = fixture(); m.boxes[1].inner.model.contradictions = [];
+  const r = substitute(m, "h", opts);
+  assert.ok(r.ok, JSON.stringify(!r.ok && r.errors)); if (!r.ok) return;
+  assert.equal(r.model.contradictions, undefined);
+  assert.equal(r.policyEffects.contradictions, undefined);
+  m.contradictions = [{ id: "outer", parameter: "q", demands: [{ id: "a", values: ["0"] }, { id: "b", values: ["1"] }] }];
+  const kept = substitute(m, "h", opts); assert.ok(kept.ok); if (kept.ok) assert.deepEqual(kept.model.contradictions, m.contradictions);
+});
+
 test("routes at the start or end of a flow may omit the open-side port", () => {
   const first = fixture(); first.flows![0].path = ["h", "m", "h", "p"];
   const a = substitute(first, "h", { routes: [{ ...routes[0], entry: undefined }, routes[1]], media: opts.media });

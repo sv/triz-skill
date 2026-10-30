@@ -120,8 +120,11 @@ export function checkSubsystemContract(input: unknown) {
   const resource = checkResources(inner, outer.inner, contract.resources, contract.resource_binding, contract.assumptions, contract.behavior);
   const behaviorPass = behavior.classification === "exact" && behavior.inputEnabled;
   const status = !behaviorPass || resource.status === "rejected" ? "rejected" as const : resource.status === "undecided" ? "undecided" as const : "checked" as const;
-  return { ok: true as const, ...base, status, behavior, resources: resource, scope: "whole-inner-model" as const,
-    note: "Checks concern the complete declared steady-state relation and the single declared numeric mode within the stated assumptions. Behavior/resource coupling and the operating envelope remain empirical assertions, not verified evidence." };
+  // The interface hides internal functions; a checked contract still names the harmful or
+  // excessive ones behind it, as triz_subsystem_summary does.
+  const hiddenHarms = "hiddenHarms" in summary && Array.isArray(summary.hiddenHarms) ? summary.hiddenHarms : [];
+  return { ok: true as const, ...base, status, behavior, resources: resource, hiddenHarms, scope: "whole-inner-model" as const,
+    note: "Checks concern the complete declared steady-state relation and the single declared numeric mode within the stated assumptions. Behavior/resource coupling and the operating envelope remain empirical assertions, not verified evidence. hiddenHarms lists the harmful or excessive inner functions behind the interface." };
 }
 
 /** Check the one numeric mode directly, including disconnected boxes and extensive fan-out. */

@@ -135,7 +135,8 @@ Declare `behavior` rows over the outer port ids, explicit nonempty input `assump
 `declared-unverified` without an executable summary. Verify mode checks the complete inner
 stateless relation over those assumptions, including disconnected constraints and nonblocking;
 it reports exact, over-, under-, or incomparable behavior. Only exact behavior and checked
-resources yield `status: "checked"`.
+resources yield `status: "checked"`. `hiddenHarms` lists the harmful or excessive inner functions
+the interface hides; a checked contract does not clear them.
 
 Resource verification currently requires one feasibility row per inner box, carrier levels,
 behavior rows, and `resource_binding: "all-behavior-rows"`. That binding remains a declared

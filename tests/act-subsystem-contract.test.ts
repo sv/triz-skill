@@ -110,3 +110,15 @@ test("contract schema rejects prototype keys before record parsing, including ev
   assert.equal(SubsystemContractRequest.safeParse(allowed).success, true);
   const result = checkSubsystemContract(allowed); assert.ok(result.ok && result.status === "checked");
 });
+
+test("a checked contract still names the harmful inner functions its interface hides", () => {
+  const clean = checkSubsystemContract(request()); assert.ok(clean.ok && clean.status === "checked");
+  assert.deepEqual("hiddenHarms" in clean && clean.hiddenHarms, []);
+  const x = request();
+  inner(x).boxes.push(
+    { id: "leak", name: "Leak", role: "tool", outputs: [{ id: "u", carrier: "bit" }], behavior: [{ in: {}, out: { u: "lo" } }], feasibility: [{ provides: { u: 0 } }] },
+    { id: "victim", name: "Victim", role: "tool", inputs: [{ id: "v", carrier: "bit" }], behavior: [{ in: { v: "lo" }, out: {} }], feasibility: [{ requires: { v: 0 } }] });
+  inner(x).wires.push({ id: "harm", from: { box: "leak", port: "u" }, to: { box: "victim", port: "v" }, carrier: "bit", polarity: "harmful" });
+  const r = checkSubsystemContract(x); assert.ok(r.ok && r.status === "checked", JSON.stringify(r));
+  assert.deepEqual("hiddenHarms" in r && r.hiddenHarms, ["harm"]);
+});

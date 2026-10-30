@@ -46,7 +46,7 @@ export function substitute(model: FunctionModel, box: string, options: Substitut
     return problem("inner budget requires an explicit composition policy", "Pass policies.budget: 'global-intersection' to apply the inner budget as a global bound, or remove the inner budget.");
   if (inner.weights !== undefined && policy.weights !== "global-merge")
     return problem("inner weights require an explicit composition policy", "Pass policies.weights: 'global-merge' to apply compatible inner weights globally, or remove the inner weights.");
-  if (inner.contradictions !== undefined && policy.contradictions !== "append-renamed")
+  if (inner.contradictions?.length && policy.contradictions !== "append-renamed")
     return problem("inner contradictions require an explicit composition policy", "Pass policies.contradictions: 'append-renamed' to append them independently to the outer model, or remove them.");
   const weights = new Map(Object.entries(model.weights ?? {}));
   for (const [dimension, value] of Object.entries(inner.weights ?? {})) {
@@ -188,7 +188,7 @@ export function substitute(model: FunctionModel, box: string, options: Substitut
     ...(provenance !== undefined ? { provenance } : {}),
     ...(inner.budget !== undefined ? { budget: Object.fromEntries(budget) } : {}),
     ...(inner.weights !== undefined ? { weights: Object.fromEntries(weights) } : {}),
-    ...(inner.contradictions !== undefined ? { contradictions: [...(model.contradictions ?? []),
+    ...(inner.contradictions?.length ? { contradictions: [...(model.contradictions ?? []),
       ...inner.contradictions.map(c => ({ ...c, id: contradictionNames.get(c.id)! }))] } : {}),
     wires: [...model.wires.map(w => ({ ...w, from: rewire(w.from, "outputs"), to: rewire(w.to, "inputs") })),
       ...inner.wires.map(w => ({ ...w, id: wireNames.get(w.id)!, from: endpoint(w.from), to: endpoint(w.to) }))],
@@ -204,6 +204,6 @@ export function substitute(model: FunctionModel, box: string, options: Substitut
     policyEffects: {
       ...(inner.budget !== undefined ? { budget: { policy: "global-intersection" as const, scope: "global" as const, note: "The inner bound now constrains the whole model and may be stronger than a local bound.", result: Object.fromEntries(budget) } } : {}),
       ...(inner.weights !== undefined ? { weights: { policy: "global-merge" as const, scope: "global" as const, result: Object.fromEntries(weights) } } : {}),
-      ...(inner.contradictions !== undefined ? { contradictions: { policy: "append-renamed" as const, scope: "independent" as const, appended: [...contradictionNames.values()] } } : {}),
+      ...(inner.contradictions?.length ? { contradictions: { policy: "append-renamed" as const, scope: "independent" as const, appended: [...contradictionNames.values()] } } : {}),
     } };
 }
