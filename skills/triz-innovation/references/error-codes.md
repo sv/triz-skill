@@ -13,6 +13,11 @@ registers (`src/act-issues.ts`), each listed once.
 
 ## Model building, hierarchy, and row costs
 
+Component discovery/insertion reuse `invalid-argument` for invalid catalogue, endpoint,
+replacement, carrier-binding or contract/evidence requests; `hierarchy-substitution` for nested
+components; and the rewrite engine's typing, freshness and dangling-flow codes. Search exhaustion
+is an `undecided` result with `reason: "work-cap"`, not an input error.
+
 | Code | Raised by | Meaning |
 |---|---|---|
 | `draft-model` | imported models | Ratings or assumptions remain unconfirmed inside the model; review every pending item before analysis |

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add automatic bounded component/topology discovery, finite property contracts, effect-chain insertion and replay, generated-network certificates, and Lean chain laws proved with simp/grind.
 - Add explicit SI carrier dimensions and base-unit parsing, shared declaration equality, and dimension mismatch lints.
 - Add exact per-dimension recurrent cycle-cost ranges, rational potentials, checked cycle witnesses and local Lean certificates.
 - Add typed effect filters, bounded effect-chain wiring diagrams, weakest-spec hints, and six statement-derived catalogue typings.

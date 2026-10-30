@@ -200,6 +200,8 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 |---|---|---|---|
 | `si`, `unit` | carrier | explicit dimension equality and `dimension-mismatch` lints; base-unit input such as kg·m·s^-2 | free-text dimensions only; no conversion or inference |
 | `effect_quantity` | carrier | typed effect resource and weakest-spec output hints | no inference from carrier labels |
+| `catalogue`, `resources`, `targets` | `triz_component_search` arguments | automatic component/wiring discovery, including multi-input/shared assemblies; optional finite property/resource contracts | no discovery outside the bounded catalogue |
+| `chain`, `from`, `to` | `triz_effect_insert` arguments | insert discovered chains, explicit replacement, SI checks, citations and replay | effects stay standalone hypotheses |
 | transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
 | `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
 | `energy`, `bond` | carrier; box | `triz_bond_graph` structural causality and equation structure | no inferred physical domain |
@@ -1205,6 +1207,19 @@ flow is a box of the merged model, and a box outside the group that reached anot
 it along a flow still reaches it along the merged flow (`flow_merge_typed`, `flow_merge_reach`).
 
 ## Principle constructions
+
+For automatic component/chain discovery, use `triz_component_search`: available output ports,
+desired input ports and a finite catalogue of full typed boxes. It chooses instances and wiring,
+including shared/multi-input assemblies. With `contract` and `implementation`, it checks each
+complete candidate's finite behavior, acceptable values, harms and budget. Otherwise `candidates`
+claims typing only. Complete absence is `impossible-in-library`; caps or unknown properties are
+`undecided`. `remove` names parts to replace; their lost retained consumers become obligations.
+`certificate:true` returns supported typing/behavior certificates for the first result.
+
+`triz_effect_insert` consumes a found chain and explicit `from`/`to` ports. Existing suppliers
+require `replace_wire`. Bind intermediate carriers or declare new layers explicitly; values and
+behavior are never guessed. It returns a model, added carriers, replayable rewrite, citations and
+unmet conditions. See [component discovery](../../../docs/component-discovery.md) for full scope.
 
 A construction is listed here only when the principle's text, looked up in
 `data/principles.json` (`triz_principle`), describes a move the kernel can make and check: a

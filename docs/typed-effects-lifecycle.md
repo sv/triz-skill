@@ -44,6 +44,9 @@ or physical costs. Local checking is `node scripts/certify.mjs --local --tamper 
 
 ## Typed effects (T1)
 
+[Component discovery](component-discovery.md) searches component instances and wiring beyond
+fixed-wiring synthesis. `triz_effect_insert` inserts discovered chains into an existing model.
+
 Typed entries add `input`, `output` (each quantity and optional SI), `field`, `conditions`,
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,

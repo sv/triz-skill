@@ -23,6 +23,8 @@ run `npx -y -p triz-mcp triz …`. Do not read `src/` to learn a tool's argument
 | `triz_matrix_multi(improving[], worsening[])` | All cells for multi-parameter conflicts, frequency-aggregated |
 | `triz_resolve(improving, worsening)` | Expand a matrix cell into principle records |
 | `triz_tool_catalog(stage?)` | List the broader toolset, optionally by stage |
+| `triz_component_search(model, resources, targets, catalogue, contract?, implementation?)` | Discover component instances and wiring with desired typed ports and optional finite property/resource contracts |
+| `triz_effect_insert(model, from, to, chain, replace_wire?)` | Insert a discovered chain, retain sources/conditions and return a checked replayable rewrite |
 | `triz_effects(query?, category?)` | Search the curated effects database by required function |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |

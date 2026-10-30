@@ -540,6 +540,8 @@ test("ill-typed behaviour fails closed in every tool that takes a model", async 
     triz_bond_graph: { model: bad },
     triz_lifecycle: { model: bad },
     triz_effect_chains: { model: bad, output:{quantity:"synthetic"} },
+    triz_effect_insert: { model: bad, from:{box:"x",port:"o"},to:{box:"y",port:"i"},chain:[] },
+    triz_component_search: { model: bad, resources:[],targets:[{box:"y",port:"i"}],catalogue:[] },
     triz_function_model: { model: bad },
     triz_trim: { model: bad, trim: ["bearing"] },
     triz_export: { model: bad, format: "hypergraph" },

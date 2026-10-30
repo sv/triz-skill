@@ -13,6 +13,8 @@ import { LifecyclePrior, lifecyclePriorRanking } from "./act-lifecycle-prior.js"
 import { BondGraphRequest, bondGraph } from "./act-bond.js";
 import { SI } from "./act-dimensions.js";
 import { EffectField, EffectPort, EffectChainsRequest, effectChains } from "./act-effects.js";
+import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
+import { ComponentSearchRequest, searchComponents } from "./act-component-search.js";
 import * as triz from "./core.js";
 import * as act from "./act.js";
 import { BuildModelRequest, buildModel, reviewImportedModel } from "./act-builder.js";
@@ -21,7 +23,7 @@ import { Decision } from "./act-provenance.js";
 import { SubsystemContractRequest, checkSubsystemContract } from "./act-subsystem-contract.js";
 import { substitute, SubstitutionOptions } from "./act-hierarchy.js";
 import { exportModel, exportSvg, CERTIFICATE_NOTE, type LayoutLoader } from "./act-export.js";
-import { meanCostCertificate, lifecycleCertificate, behaviorCertificate, dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
+import { meanCostCertificate, lifecycleCertificate, modelCertificate, behaviorCertificate, dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
 import { withSuggestions } from "./act-suggest.js";
 import { findIsomorphism } from "./act-iso.js";
 import { analysisBasis, comparisonBasis, dynamizeBasis, separationBasis, trimBasis } from "./act-basis.js";
@@ -371,6 +373,8 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
     { name: "triz_bond_graph", description:"Assign effort/flow causality on declared energy subsystems by bounded propagation and search; report derivative causality and direct algebraic dependency cycles, and export constitutive equation structure. No numeric simulation.",shape:BondGraphRequest.shape,handler:async(args:z.input<typeof BondGraphRequest>)=>text(bondGraph(args)) },
     { name: "triz_lifecycle", description: "Solve finite declared maintenance actions by exact rational average-cost equations under explicit per-dimension or weighted objectives. Return stationary policy, gain, bias, occupancy and availability. Undeclared probabilities return T3 ranges; unsupported multichain cases and caps are undecided.", shape:LifecycleRequest.shape,handler:async(args:z.input<typeof LifecycleRequest>)=>{const r=lifecycle(args);return text({...r,...(args.certificate&&r.ok&&r.verdict==="optimal"?{certificates:r.solutions!.map((_,i)=>certificateField(lifecycleCertificate(args,i)))}:{})});} },
     { name: "triz_effect_chains", description: "Search bounded typed effect chains from declared resources to a required quantity; every wiring diagram passes checkModel. Ranking: length, conditions met, field changes, declaration order. Capped search is undecided. Physical sufficiency is not claimed.", shape: EffectChainsRequest.shape, handler: async (args: z.input<typeof EffectChainsRequest>) => { if(args.model){const checked=act.checkModel(args.model,"$.model");if(!checked.ok)return text(fail(checked.issues));}return text(effectChains(args,args.effects?[]:triz.typedEffects())); } },
+    { name: "triz_effect_insert", description:"Insert a selected typed effect chain between existing output/input ports, with explicit replacement of an existing supplier. Return the checked model, added carriers, replayable rewrite and effect citations/conditions. With certificate:true, return a finite Lean typing certificate. Behavior and resource rows are only caller declarations; physical sufficiency is not inferred.",shape:EffectInsertRequest.shape,handler:async(args:z.input<typeof EffectInsertRequest>)=>{const r=insertEffectChain(args);return text({...r,...(args.certificate&&r.ok&&"model" in r?{certificate:certificateField(modelCertificate(r.model))}:{})});} },
+    { name: "triz_component_search", description:"Automatically construct components, chains and multi-input networks from a finite typed catalogue to supply desired input ports from available resources. Search component choices and wiring up to explicit instance/component/work bounds; optional whole-model contracts check finite behavior, acceptable values, harms and resources. With certificate:true, certify the first network's typing and supported whole-model behavior comparison. Complete absence applies only to the declared bounded catalogue; capped search is undecided.",shape:ComponentSearchRequest.shape,handler:async(args:z.input<typeof ComponentSearchRequest>)=>{const r=searchComponents(args);const first=r.ok&&"candidates" in r?r.candidates[0]:undefined;return text({...r,...(args.certificate&&first?{certificates:{typing:certificateField(modelCertificate(first.model)),...(args.contract?{behavior:certificateField(behaviorCertificate(args.contract.target,first.model,{scope:"whole",maxStates:args.max_states}))}:{})}}:{})});} },
     {
       name: "triz_route",
       description: "Route a problem stage and optional observable signals to candidate TRIZ tools. Routing is deterministic and returns only tools registered for that stage.",

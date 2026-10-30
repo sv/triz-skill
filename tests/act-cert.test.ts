@@ -25,6 +25,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
 import { costModel, lifecycleModel } from "./support/lifecycle.js";
+import { componentRequest, contract as componentContract, metadata as componentMetadata } from "./support/component-search.js";
+import { searchComponents } from "../src/act-component-search.js";
 import { meanCostCertificate, lifecycleCertificate, behaviorCertificate, dynamicsCertificate, modelCertificate, separationCertificate, trimCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { boundedDynamics, reachedStates } from "../src/act-dynamics.js";
 import { compareBehavior, trimPreservesBehavior, weaknessRanking } from "../src/act-behavior.js";
@@ -51,6 +53,8 @@ function damped(): FunctionModel {
 const BEARING_TRIM = { trim: ["bearing"] };
 /** Every checked-in certificate, by namespace, and how to generate it again. */
 const GENERATED: Record<string, (ns: string) => Certificate> = {
+  ComponentNetwork: n=>modelCertificate(componentNetwork(),{namespace:n}),
+  ComponentBehavior: n=>behaviorCertificate(componentContract().target,componentNetwork(),{scope:"whole",namespace:n}),
   MeanCostFixture: n=>meanCostCertificate(costModel(),{},0,"resource",{namespace:n}),
   LifecycleFixture: n=>lifecycleCertificate({model:lifecycleModel()},0,{namespace:n}),
   ...Object.fromEntries(Object.entries(FIXTURES).map(([ns, name]) => [ns, (n: string) => modelCertificate(example(name), { namespace: n })])),
@@ -61,6 +65,11 @@ const GENERATED: Record<string, (ns: string) => Certificate> = {
   // A port target whose runs block once the shaft is hot, outside the unsafe set's state conditions.
   BearingBlocked: (n) => dynamicsCertificate(stuck(), { unsafe: COLD_FRICTION }, { namespace: n }),
 };
+function componentNetwork():FunctionModel {
+  const r=searchComponents({...componentRequest(),contract:componentContract(),implementation:componentMetadata,max_work:1000000});
+  assert.ok(r.ok&&"candidates" in r&&r.candidates.length);
+  return r.candidates[0].model;
+}
 const fixturePath = (ns: string) => path.resolve(here, `../theory/Certificates/${ns}.lean`);
 const content = (c: Certificate) => { assert.ok(c.ok, JSON.stringify(c)); return c.content; };
 const tables = (c: Certificate) => content(c).replace(/^def certificateManifest : String := .*\n/m, "");

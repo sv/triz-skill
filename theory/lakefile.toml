@@ -1,5 +1,9 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle", "ComponentSearch"]
+
+[[lean_lib]]
+name = "ComponentSearch"
+allowNonModules = true
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.

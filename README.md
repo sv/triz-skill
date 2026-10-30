@@ -142,6 +142,8 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
 | `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
 | `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
+| `triz_effect_insert` | Insert a discovered effect chain into an existing model with explicit bindings and a replayable rewrite |
 | `triz_global_separation` | Find one assignment satisfying every allowed overlapping local relation |
 | `triz_queue` | Compile and check an explicitly scheduled finite queue for overflow |
 | `triz_conservation` | Check declared extensive consumption or shared intensive minimum levels |

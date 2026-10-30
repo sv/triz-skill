@@ -70,6 +70,10 @@ proofs need Mathlib only, and adapters deserve explicit scope and compatibility 
 
 ## Improvements to prioritize
 
+Bounded component/topology discovery and chain insertion are also implemented in this PR;
+[component discovery](component-discovery.md) describes their scope. Generic serial laws use
+simp/grind locally; generated networks reuse finite certificates. The enumerator is not verified.
+
 First broaden lifecycle certificates to state-dependent gains and initial-condition-dependent
 occupancy in multichain models. Next make the rational request-binding encoder independent of
 the solver, and prove a concrete rational-matrix-to-kernel encoding rather than requiring its

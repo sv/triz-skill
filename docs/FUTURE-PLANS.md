@@ -77,6 +77,11 @@ The requested build order was T2 → T3 → T1 → T4 → T5, consolidated into 
 request. Lean/Mathlib were upgraded to 4.35.0 at the user's subsequent request. Follow-up
 mathematical connections and compatible library tags are in [math-connections.md](math-connections.md).
 
+[#51](https://github.com/sv/triz-skill/pull/51) also adds direct effect-chain insertion and automatic
+component/wiring discovery from a finite catalogue, including multi-input/shared assemblies,
+explicit replacement and optional whole-model finite contracts. See
+[component discovery](component-discovery.md) for catalogue, component and work bounds.
+
 ## Current implementation batch
 
 Implemented in this checkout, with the remaining scope kept explicit:

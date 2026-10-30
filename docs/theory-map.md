@@ -16,6 +16,13 @@ backlog in [FUTURE-PLANS.md](FUTURE-PLANS.md). Every issue and lint code is in
 
 ## How a verdict cites Lean
 
+Automatic [component discovery](component-discovery.md) replays each bounded network through
+`typed_delete`/`typed_glue`. Generated networks reuse existing typing and whole-model behavior
+certificates. Those do not certify the enumerator, resource/adequacy verdicts or empirical
+properties. `ComponentSearch.chain_nil`, `chain_append` and `chain_preserves` use simp/grind to
+prove identity, serial composition and conditional predicate preservation, separately from
+arbitrary multi-input topology search.
+
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the inventory below, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.

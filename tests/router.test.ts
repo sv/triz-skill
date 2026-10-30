@@ -21,7 +21,7 @@ test("every mcp_tools name is a registered tool", () => {
 test("router → tool mapping is pinned", () => {
   const mapped = Object.fromEntries(triz.toolCatalog().filter((t) => t.mcp_tools).map((t) => [t.source_code, t.mcp_tools]));
   assert.deepEqual(mapped, {
-    EDB: ["triz_effects"],
+    EDB: ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search"],
     PRINCIPLES: ["triz_principle"],
     SEPARATION: ["triz_separate"],
     SO: ["triz_nine_windows"],
@@ -44,4 +44,6 @@ test("triz_route and triz_tool_catalog return mcp_tools", async () => {
   assert.deepEqual(routed.tools.find((t: triz.TrizTool) => t.source_code === "SEPARATION").mcp_tools, ["triz_separate"]);
   const catalog = JSON.parse((await specs.triz_tool_catalog.handler({ stage: "modeling" })).content[0].text);
   assert.deepEqual(catalog.find((t: triz.TrizTool) => t.source_code === "TRIM_PRODUCT").mcp_tools, ["triz_trim", "triz_transform"]);
+  const discovered=JSON.parse((await specs.triz_route.handler({stage:"synthesis",signals:["desired properties"]})).content[0].text);
+  assert.ok(discovered.tools.some((t:triz.TrizTool)=>t.mcp_tools?.includes("triz_component_search")));
 });
