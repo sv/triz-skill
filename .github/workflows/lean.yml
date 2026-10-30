@@ -5,9 +5,12 @@ on:
   push:
     branches: [main]
     paths: ["theory/**", "scripts/certify.*", "scripts/lean-setup.mjs", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+  # Every pull request runs the workflow, because "Build theory (no sorry)" is a required check and a
+  # workflow skipped by a path filter leaves a required check pending. The `changes` job applies the
+  # same paths instead: when none changed, the build job is skipped by its condition, which reports
+  # success.
   pull_request:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.*", "scripts/lean-setup.mjs", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
   workflow_dispatch:
 
@@ -16,8 +19,37 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Lean-relevant changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      lean: ${{ steps.diff.outputs.lean }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The push paths above, as one pattern. Pushes and manual runs always build.
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "lean=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          echo "$files"
+          if echo "$files" | grep -qE '^(theory/|scripts/certify\.|scripts/lean-setup\.mjs$|src/|tests/|examples/function-models/|examples/assurance/|skills/triz-innovation/data/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/lean\.yml$)'; then
+            echo "lean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Lean-relevant changes; the build is skipped."
+            echo "lean=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build theory (no sorry)
+    needs: changes
+    if: needs.changes.outputs.lean == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
