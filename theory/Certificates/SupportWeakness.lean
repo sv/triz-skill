@@ -16,7 +16,7 @@ namespace SupportWeakness
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"weakness\",\"namespace\":\"SupportWeakness\",\"source\":\"3ab3080fec2fafcaffebd1aa64d6227050a6d732962b191955e20e2658b274e8\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"weakness\",\"namespace\":\"SupportWeakness\",\"source\":\"3ab3080fec2fafcaffebd1aa64d6227050a6d732962b191955e20e2658b274e8\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"83c19029ccea80086236697f6361cf498ec300f60b93b5737dcbdb6d84e482fd\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
 
 /-! ## The situations and the deliverables -/
 
@@ -41,6 +41,7 @@ abbrev Box := Fin 2
 abbrev Port := Fin 6
 abbrev Fn := Fin 2
 abbrev Row := Fin 5
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "support"]
 /-- Each port's box and id. -/
@@ -55,6 +56,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0], ![0, 1, 1, 0, 0, 0], ![0, 1, 0, 0, 0, 0], ![0, 0, 1, 1, 0, 0], ![0, 0, 0, 1, 0, 0]]
 def fnSource : Fn → Port := ![0, 3]
 def fnTarget : Fn → Port := ![4, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 1, 2, 3, 0, 3]
+def classRoot : Class → Port := ![0, 1, 2, 3]
+def portLink : Port → Option Fn := ![none, none, none, none, some 0, some 1]
+def portRank : Port → ℕ := ![0, 0, 0, 0, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 /-- The port each situation input is, where the concept reads it. -/
 def reads : Input → Option Port := ![some 1, some 2]
 def delivers : Deliverable → Port := ![4, 5]
@@ -72,6 +79,7 @@ abbrev Box := Fin 2
 abbrev Port := Fin 6
 abbrev Fn := Fin 2
 abbrev Row := Fin 5
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "support"]
 /-- Each port's box and id. -/
@@ -86,6 +94,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0], ![0, 1, 1, 0, 0, 0], ![0, 1, 0, 1, 0, 0], ![0, 0, 1, 0, 0, 0], ![0, 0, 0, 1, 0, 0]]
 def fnSource : Fn → Port := ![0, 3]
 def fnTarget : Fn → Port := ![4, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 1, 2, 3, 0, 3]
+def classRoot : Class → Port := ![0, 1, 2, 3]
+def portLink : Port → Option Fn := ![none, none, none, none, some 0, some 1]
+def portRank : Port → ℕ := ![0, 0, 0, 0, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 /-- The port each situation input is, where the concept reads it. -/
 def reads : Input → Option Port := ![some 1, some 2]
 def delivers : Deliverable → Port := ![4, 5]
@@ -103,6 +117,7 @@ abbrev Box := Fin 2
 abbrev Port := Fin 6
 abbrev Fn := Fin 2
 abbrev Row := Fin 5
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "support"]
 /-- Each port's box and id. -/
@@ -117,6 +132,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0], ![0, 1, 1, 0, 0, 0], ![0, 1, 0, 1, 0, 0], ![0, 0, 1, 1, 0, 0], ![0, 0, 0, 1, 0, 0]]
 def fnSource : Fn → Port := ![0, 3]
 def fnTarget : Fn → Port := ![4, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 1, 2, 3, 0, 3]
+def classRoot : Class → Port := ![0, 1, 2, 3]
+def portLink : Port → Option Fn := ![none, none, none, none, some 0, some 1]
+def portRank : Port → ℕ := ![0, 0, 0, 0, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 /-- The port each situation input is, where the concept reads it. -/
 def reads : Input → Option Port := ![some 1, some 2]
 def delivers : Deliverable → Port := ![4, 5]
@@ -132,11 +153,11 @@ def secondOnly0X1 : Input → Value := ![0, 1]
 
 /-- A situation admitted only by the first concept. -/
 theorem firstOnly_0_1 : firstOnly0X1 ∈ admits (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) (accepts acceptable) ∧ firstOnly0X1 ∉ admits (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) (accepts acceptable) :=
-  by decide +kernel
+  by rw [Concept0.rows.relation_eq_classes Concept0.classes (by decide +kernel), Concept1.rows.relation_eq_classes Concept1.classes (by decide +kernel)]; decide +kernel
 
 /-- A situation admitted only by the second concept. -/
 theorem secondOnly_0_1 : secondOnly0X1 ∈ admits (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) (accepts acceptable) ∧ secondOnly0X1 ∉ admits (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) (accepts acceptable) :=
-  by decide +kernel
+  by rw [Concept0.rows.relation_eq_classes Concept0.classes (by decide +kernel), Concept1.rows.relation_eq_classes Concept1.classes (by decide +kernel)]; decide +kernel
 
 /-- Neither concept admits every situation the other admits. -/
 theorem incomparable_0_1 : ¬ AtLeastAsWeak (accepts acceptable) (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) ∧ ¬ AtLeastAsWeak (accepts acceptable) (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) :=
@@ -144,18 +165,18 @@ theorem incomparable_0_1 : ¬ AtLeastAsWeak (accepts acceptable) (Concept0.rows.
 
 /-- `weaknessRanking`: concept 0 admits every situation concept 2 admits, and one it does not. -/
 theorem weaker_0_2 : AtLeastAsWeak (accepts acceptable) (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers) ∧ ¬ AtLeastAsWeak (accepts acceptable) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers) (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers) :=
-  by decide +kernel
+  by rw [Concept0.rows.relation_eq_classes Concept0.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel
 
-/-- `weaknessRanking`: so concept 0 admits strictly more situations (`card_lt_of_strictly_weaker`). -/
+/-- `weaknessRanking`: so concept 0 admits strictly more situations, its admitted set a strict superset (`admitted_ssubset`, `card_lt_of_strictly_weaker`). -/
 theorem count_0_2 : (admitted (accepts acceptable) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers)).card < (admitted (accepts acceptable) (Concept0.rows.relation inputDomain Concept0.reads Concept0.delivers)).card :=
-  card_lt_of_strictly_weaker (by decide +kernel)
+  card_lt_of_strictly_weaker (admitted_ssubset (by rw [Concept0.rows.relation_eq_classes Concept0.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel) (by rw [Concept0.rows.relation_eq_classes Concept0.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel))
 
 /-- `weaknessRanking`: concept 1 admits every situation concept 2 admits, and one it does not. -/
 theorem weaker_1_2 : AtLeastAsWeak (accepts acceptable) (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers) ∧ ¬ AtLeastAsWeak (accepts acceptable) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers) (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers) :=
-  by decide +kernel
+  by rw [Concept1.rows.relation_eq_classes Concept1.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel
 
-/-- `weaknessRanking`: so concept 1 admits strictly more situations (`card_lt_of_strictly_weaker`). -/
+/-- `weaknessRanking`: so concept 1 admits strictly more situations, its admitted set a strict superset (`admitted_ssubset`, `card_lt_of_strictly_weaker`). -/
 theorem count_1_2 : (admitted (accepts acceptable) (Concept2.rows.relation inputDomain Concept2.reads Concept2.delivers)).card < (admitted (accepts acceptable) (Concept1.rows.relation inputDomain Concept1.reads Concept1.delivers)).card :=
-  card_lt_of_strictly_weaker (by decide +kernel)
+  card_lt_of_strictly_weaker (admitted_ssubset (by rw [Concept1.rows.relation_eq_classes Concept1.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel) (by rw [Concept1.rows.relation_eq_classes Concept1.classes (by decide +kernel), Concept2.rows.relation_eq_classes Concept2.classes (by decide +kernel)]; decide +kernel))
 
 end SupportWeakness

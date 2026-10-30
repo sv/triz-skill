@@ -30,7 +30,7 @@ ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
 | 5 | Naturality of the verdicts in Lean | Open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35 | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
-| C1 | Quotient the row-table certificates by wires | Open; next batch | Adds: certificates for larger models within the same table-read cap | S–M |
+| C1 | Quotient the row-table certificates by wires | **Landed** (`claude/constraints-batch-1`) | Adds: certificates for larger models within the same table-read cap | — |
 | C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Open; next batch | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
 | C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
@@ -140,7 +140,15 @@ implementation batch. Evidence names symbols rather than line numbers.
 
 ### C1. Quotient the row-table certificates by wires
 
-- **Status.** Open; next batch. **Effort:** S–M.
+- **Status.** Landed on `claude/constraints-batch-1`. The classes come from the encoded functions
+  (a breadth-first forest per class), not from `portVariables`, so they are exactly the wires Lean
+  sees. Measured: the bearing's trim certificate reads 4,550 table entries instead of 69,376 (the
+  scan's 2,240 assumed the row reads also drop to classes; they stay over raw ports). A chain of
+  binary mediators certifies up to 9 mediators (11 boxes) instead of 4; 8 mediators read
+  368,050,176 entries over ports. Lean: `WireClasses.Ok`, `Rows.exists_steady_iff_classes`,
+  `Rows.relation_eq_classes`, `Sync.unreachable_of_holding_classes`, `Sync.closed_of_classes`,
+  `admitted_ssubset`. `scripts/certify.mjs` gained the new data lines and a "port classes merged"
+  tamper; the pinned statements are unchanged. **Effort:** S–M.
 - **Constraint.** A wire is an equality, so the ports it joins form one variable. Encode and
   decide over the classes of that quotient.
 - **Today.** It holds by construction, and the certificates ignore it. The evaluator merges wired

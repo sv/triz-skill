@@ -8,6 +8,9 @@
  * valuation of each selected state, since Sync.Step leaves successor valuations unrestricted.
  * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target), and
  * runs that block in the unsafe set's state conditions, as the kernel's blocked check does.
+ * A proof that enumerates valuations enumerates one value per class of ports the functions join,
+ * through a class map and spanning forest the file carries and Lean checks (WireClasses.Ok); the
+ * statements stay over raw ports, and the work cap counts classes, not ports.
  * Time inputs and negative claims unsupported by an invariant fail closed. Ids remain escaped
  * string literals. This module is pure and works in the hosted Worker.
  */
@@ -25,7 +28,7 @@ export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
 /** Exact source pins; refresh deliberately when the theory or model schema changes. */
-export const CERTIFICATE_THEORY_SOURCE = "8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be";
+export const CERTIFICATE_THEORY_SOURCE = "83c19029ccea80086236697f6361cf498ec300f60b93b5737dcbdb6d84e482fd";
 export const CERTIFICATE_SCHEMA_SOURCE = "c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
@@ -39,7 +42,8 @@ export type CertificateRequest =
   | { kind: "dynamics"; model: FunctionModel; spec: DynamicsSpec }
   | { kind: "weakness"; concepts: Array<{ id: string; model: FunctionModel }>; acceptable: Acceptable[]; scope?: BehaviorScope; maxStates?: number; priors?: Prior[]; jointPrior?: JointPriorRow[] }
   | { kind: "behavior"; baseline: FunctionModel; concept: FunctionModel; scope?: BehaviorScope; maxStates?: number; boxMap?: Record<string, string> };
-export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[]; manifest: CertificateManifest } | Failure;
+/** `tableReads`: the estimate of the table entries Lean reads to decide a row-table certificate, against MAX_CERT_ROWS. */
+export type Certificate = { ok: true; namespace: string; content: string; certifies: Certified[]; manifest: CertificateManifest; tableReads?: number } | Failure;
 
 /** Canonical JSON binds the supplied request, including its array order and all declared metadata. */
 export function canonicalRequest(value: unknown): string {
@@ -64,10 +68,10 @@ export function requestDigest(value: unknown): string {
   }
   return h.map((x) => x.toString(16).padStart(8,"0")).join("");
 }
-function certified(request: CertificateRequest, namespace: string, content: string, certifies: Certified[]): Certificate {
+function certified(request: CertificateRequest, namespace: string, content: string, certifies: Certified[], tableReads?: number): Certificate {
   const scope = request.kind === "model" || request.kind === "separation" ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : request.scope ?? "upstream";
   const manifest: CertificateManifest = { format: "triz-certificate-v2", kind: request.kind, namespace, source: requestDigest(request), schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: CERTIFICATE_THEORY_SOURCE, schemaSource: CERTIFICATE_SCHEMA_SOURCE, lean: "4.32.2", mathlib: "v4.32.2", scope };
-  return { ok: true, namespace, content: content.replace("open CategoricalTriz\n", `open CategoricalTriz\n\ndef certificateManifest : String := ${leanString(JSON.stringify(manifest))}\n`), certifies, manifest };
+  return { ok: true, namespace, content: content.replace("open CategoricalTriz\n", `open CategoricalTriz\n\ndef certificateManifest : String := ${leanString(JSON.stringify(manifest))}\n`), certifies, manifest, ...(tableReads !== undefined ? { tableReads } : {}) };
 }
 
 
@@ -417,13 +421,48 @@ const nested = <T>(rows: T[][], cell: (x: T) => string) => `![${rows.map((r) => 
 /** Lean string literals, padded with empty ones to `n`. */
 const padded = (xs: string[], n: number) => [...xs, ...Array<string>(n - xs.length).fill(leanString(""))];
 
-/** The declarations every row-table certificate shares: ids, then the rows and functions as tables. */
-function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[] }, rows: ReturnType<typeof rowTables>, wires: Array<{ src?: number; tgt: number }>, valueNames: (p: number) => string[], values: number) {
+/**
+ * The classes of the encoded ports under the encoded functions: a function says its ends carry one
+ * value, so a class is one variable. Each class is explored breadth first from its first port, its
+ * root; every other port links to the function it was reached by, one rank above the port it came
+ * from. That spanning forest is the witness `WireClasses.Ok` checks, so a wrong class fails the proof.
+ */
+interface Classes { count: number; cls: number[]; root: number[]; link: Array<number | undefined>; rank: number[] }
+function wireClasses(ports: number, wires: Array<{ src?: number; tgt: number }>): Classes {
+  const next = Array.from({ length: ports }, () => [] as Array<[number, number]>);
+  wires.forEach((w, i) => { next[w.src!].push([i, w.tgt]); next[w.tgt].push([i, w.src!]); });
+  const cls = Array<number>(ports).fill(-1), rank = Array<number>(ports).fill(0), root: number[] = [];
+  const link = Array<number | undefined>(ports).fill(undefined);
+  for (let p = 0; p < ports; p++) {
+    if (cls[p] >= 0) continue;
+    cls[p] = root.length;
+    root.push(p);
+    for (const queue = [p], i = { at: 0 }; i.at < queue.length; i.at++) {
+      const x = queue[i.at];
+      for (const [w, y] of next[x]) if (cls[y] < 0) { cls[y] = cls[p]; link[y] = w; rank[y] = rank[x] + 1; queue.push(y); }
+    }
+  }
+  return { count: root.length, cls, root, link, rank };
+}
+
+/** The class witness as tables, and `classes`, which the proofs pass to the `_classes` lemmas. */
+const classLines = (c: Classes) => [
+  "/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/",
+  `def portClass : Port → Class := ${vec(c.cls)}`,
+  `def classRoot : Class → Port := ${vec(c.root)}`,
+  `def portLink : Port → Option Fn := ${vec(c.link.map((w) => (w === undefined ? "none" : `some ${w}`)))}`,
+  `def portRank : Port → ℕ := ${vec(c.rank)}`,
+  "def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩",
+];
+
+/** The declarations every row-table certificate shares: ids, then the rows and functions as tables, and the class witness where a proof enumerates valuations. */
+function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[] }, rows: ReturnType<typeof rowTables>, wires: Array<{ src?: number; tgt: number }>, valueNames: (p: number) => string[], values: number, classes?: Classes) {
   return [
     `abbrev Box := ${fin(ids.boxes.length)}`,
     `abbrev Port := ${fin(ids.ports.length)}`,
     `abbrev Fn := ${fin(wires.length)}`,
     `abbrev Row := ${fin(rows.length)}`,
+    ...(classes ? [`abbrev Class := ${fin(classes.count)}`] : []),
     "",
     `def boxId : Box → String := ${vec(ids.boxes.map(leanString))}`,
     "/-- Each port's box and id. -/",
@@ -438,14 +477,18 @@ function rowSection(ids: { boxes: string[]; ports: EncodedPort[]; wires: string[
     `def rowValue : Row → Port → Value := ${nested(rows.map((r) => r.values), String)}`,
     `def fnSource : Fn → Port := ${vec(wires.map((w) => w.src!))}`,
     `def fnTarget : Fn → Port := ${vec(wires.map((w) => w.tgt))}`,
+    ...(classes ? classLines(classes) : []),
   ];
 }
 
 /**
  * Work of deciding over row tables: configurations or valuations checked, times the rows and ports
- * each check reads. Above MAX_CERT_ROWS generation fails closed.
+ * each check reads. A valuation is one value per class of ports (`wireClasses`), so `checks` counts
+ * the values to the power of the classes, not of the ports; checking the class witness reads each
+ * port's link once against every function. Above MAX_CERT_ROWS generation fails closed.
  */
 const rowWork = (checks: number, rows: number, ports: number, wires: number) => checks * (rows * (ports + 1) + wires);
+const classWork = (ports: number, wires: number) => ports * (wires + 2) + wires;
 
 /**
  * A reachable dynamics verdict is checked by its row-derived trace. A saturated unreachable
@@ -495,18 +538,20 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
   const wires = encodedWires(model, at);
   // The witness: the trace, or the reached global states. Deciding the invariant enumerates every
-  // valuation of the ports at each listed state, and every global state once per admitted one.
+  // valuation of the port classes at each listed state, and every global state once per admitted one.
   const reached = esc.verdict === "unreachable" ? reachedStates(model, spec) : undefined;
   if (esc.verdict === "unreachable" && !reached) {
     return fail([issue("cap-exceeded", "$.max_states", "reconstructing the invariant exceeds the reached-state exploration cap", "Raise max_states within its limit, or certify a smaller model; invariant reconstruction also counts blocked global states.")]);
   }
+  const classes = reached ? wireClasses(ports.length, wires) : undefined;
   const globals = states ** machines.length;
-  // The invariant's scans: each listed state at every valuation, against every global state (closure), the target, and admission.
-  const work = rowWork(esc.verdict === "reachable" ? esc.trace.length + 2 : reached!.length * values ** ports.length * (globals + 3) + globals, rows.length, ports.length, wires.length);
+  // The invariant's scans: each listed state at every class valuation, against every global state (closure), the target, and admission.
+  const work = esc.verdict === "reachable" ? rowWork(esc.trace.length + 2, rows.length, ports.length, wires.length)
+    : rowWork(reached!.length * values ** classes!.count * (globals + 3) + globals, rows.length, ports.length, wires.length) + classWork(ports.length, wires.length);
   if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
     return fail([issue("cap-exceeded", "$.model", `deciding the ${reached ? "invariant" : "trace"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
       reached
-        ? "Declare fewer ports, values, or states on the composed boxes, or certify a smaller part of the model: the invariant is decided over every valuation of their ports."
+        ? "Declare fewer ports, values, or states on the composed boxes, or certify a smaller part of the model: the invariant is decided over every valuation of their port classes (ports a function joins count once)."
         : "Remove repeated rows, declare fewer ports or rows on the composed boxes, or certify a smaller part of the model.")]);
   }
 
@@ -530,7 +575,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
     `abbrev Machine := ${fin(machines.length)}`,
     `abbrev State := ${fin(states)}`,
     `abbrev Value := ${fin(values)}`,
-    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values),
+    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values, classes),
     `def machineId : Machine → String := ${vec(machines.map((m) => leanString(m.box)))}`,
     `def stateId : Machine → State → String := ${nested(machines.map((m) => padded(m.states.map(leanString), states)), (x) => x)}`,
     `def rowMachine : Row → Option Machine := ${vec(rows.map((row) => (row.mach === undefined ? "none" : `some ${row.mach}`)))}`,
@@ -553,12 +598,12 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
       "",
       "/-! ## Verdicts -/",
       "",
-      ...theorem("`boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon, and none blocks in a state that meets the unsafe set's state conditions. The reached states hold every start, every step from them names one of them, none meets the unsafe set, and each admits a valuation or fails its state conditions (`unreachable_of_holding`).",
+      ...theorem("`boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon, and none blocks in a state that meets the unsafe set's state conditions. The reached states hold every start, every step from them names one of them, none meets the unsafe set, and each admits a valuation or fails its state conditions, each decided over the valuations of the port classes (`unreachable_of_holding_classes`).",
         "unreachable", UNREACHABLE_PORTS,
-        "system.unreachable_of_holding (inv := invariant) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)"),
+        "system.unreachable_of_holding_classes (q := classes) (inv := invariant) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)"),
     );
     const certifies = [{ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, and none blocks in the unsafe set's state conditions, at any horizon" }];
-    return certified({ kind: "dynamics", model, spec }, ns, assemble("one unreachable escalation", ns, [lines]), certifies);
+    return certified({ kind: "dynamics", model, spec }, ns, assemble("one unreachable escalation", ns, [lines]), certifies, work);
   }
   const config = (step: { state: string[]; values?: string[] }) =>
     `(${stateIndices(step.state)}, ${vec(ports.map((q, p) => names(p).indexOf(step.values![vars.at(q.box, q.side, q.port)])))})`;
@@ -578,7 +623,7 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
       "⟨traceOf trace 0, by decide +kernel, reach_of_trace (τ := traceOf trace) (by decide +kernel) le_rfl (by decide +kernel)⟩"),
   );
   const certifies = [{ theorem: `${ns}.escalation`, verdict: `boundedDynamics: a run reaches the unsafe set at time ${k}` }];
-  return certified({ kind: "dynamics", model, spec }, ns, assemble("one escalation trace", ns, [lines]), certifies);
+  return certified({ kind: "dynamics", model, spec }, ns, assemble("one escalation trace", ns, [lines]), certifies, work);
 }
 
 /**
@@ -618,7 +663,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     const rows = rowTables(composed, ports, at, (p, v) => names[p].indexOf(v));
     const reads = situations.map((q) => ports.findIndex((p, i) => p.side === "in" && !fed.has(i) && same(q)(p)));
     const delivers = deliverables.map((d) => at.get(portKeyOf(d.box, "in", d.port))!);
-    return { id: c.id, composed, ports, wires, names, rows, reads, delivers };
+    return { id: c.id, composed, ports, wires, names, rows, reads, delivers, classes: wireClasses(ports.length, wires) };
   });
   const values = Math.max(1, ...encoded.flatMap((e) => e.names.map((n) => n.length)), ...inputValues.map((n) => n.length), ...deliverableValues.map((n) => n.length));
   // A situation input ranges over the values its carrier declares in a concept that reads it as a boundary input (the readers agree).
@@ -626,19 +671,23 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     const k = encoded.findIndex((e) => e.reads[j] >= 0);
     return concepts[k].model.carriers.find((x) => x.id === q.carrier)!.values ?? [];
   });
+  let tableReads = 0;
   for (const p of pairs) {
     const pair = p.concepts.map((id) => encoded.find((e) => e.id === id)!);
-    const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.ports.length), e.rows.length, e.ports.length, e.wires.length), 0);
+    const work = pair.reduce((n, e) => n + rowWork(values ** (situations.length + deliverables.length + e.classes.count), e.rows.length, e.ports.length, e.wires.length) + classWork(e.ports.length, e.wires.length), 0);
     if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
       return fail([issue("cap-exceeded", "$.concepts", `concepts '${p.concepts[0]}' and '${p.concepts[1]}': deciding their inclusion reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
-        "Certify smaller concepts: fewer ports or values on the composed boxes. The decision enumerates every valuation of each concept's ports.")]);
+        "Certify smaller concepts: fewer ports or values on the composed boxes. The decision enumerates every valuation of each concept's port classes (ports a function joins count once).")]);
     }
+    tableReads = Math.max(tableReads, work);
   }
 
   // The acceptable values the ranking used: derived from a threshold (listed in the result), else given for the port, else for its carrier.
   const accepted = (d: { box: string; port: string; carrier: string }) => (r.acceptable?.find(same(d))?.values
     ?? (acceptable.find((a) => a.box === d.box && a.port === d.port) ?? acceptable.find((a) => a.carrier === d.carrier))?.values ?? []);
   const relation = (i: number) => `(Concept${i}.rows.relation inputDomain Concept${i}.reads Concept${i}.delivers)`;
+  /** Each decision reads the two relations through their port classes, once each class witness checks. */
+  const through = (...ks: number[]) => `rw [${ks.map((k) => `Concept${k}.rows.relation_eq_classes Concept${k}.classes (by decide +kernel)`).join(", ")}]`;
   const lines = [
     "/-! ## The situations and the deliverables -/",
     "",
@@ -662,7 +711,7 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
       `namespace Concept${i}`,
       "",
       `def conceptId : String := ${leanString(e.id)}`,
-      ...rowSection({ boxes: e.composed.map((b) => b.id), ports: e.ports, wires: e.wires.map((w) => w.id) }, e.rows, e.wires, (p) => e.names[p], values),
+      ...rowSection({ boxes: e.composed.map((b) => b.id), ports: e.ports, wires: e.wires.map((w) => w.id) }, e.rows, e.wires, (p) => e.names[p], values, e.classes),
       "/-- The port each situation input is, where the concept reads it. -/",
       `def reads : Input → Option Port := ${vec(e.reads.map((p) => (p < 0 ? "none" : `some ${p}`)))}`,
       `def delivers : Deliverable → Port := ${vec(e.delivers)}`,
@@ -679,15 +728,15 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     const [a, b] = p.concepts.map((id) => concepts.findIndex((c) => c.id === id));
     if (p.order === "equal") {
       lines.push(...theorem("The two concepts admit exactly the same situations (existence and all outputs acceptable).",
-        `equal_${a}_${b}`, `admits ${relation(a)} (accepts acceptable) = admits ${relation(b)} (accepts acceptable)`, "by ext u; revert u; decide +kernel"));
+        `equal_${a}_${b}`, `admits ${relation(a)} (accepts acceptable) = admits ${relation(b)} (accepts acceptable)`, `by ${through(a, b)}; ext u; revert u; decide +kernel`));
       certifies.push({ theorem: `${ns}.equal_${a}_${b}`, verdict: `weaknessRanking: '${concepts[a].id}' and '${concepts[b].id}' admit equal situations` });
       continue;
     }
     if (p.order === "incomparable") {
       const witness = (input: Array<{ box: string; port: string; value: string }>) => vec(situations.map((q, j) => inputValues[j].indexOf(input.find(same(q))!.value)));
       lines.push(`def firstOnly${a}X${b} : Input → Value := ${witness(p.onlyFirst!)}`, `def secondOnly${a}X${b} : Input → Value := ${witness(p.onlySecond!)}`, "",
-        ...theorem("A situation admitted only by the first concept.", `firstOnly_${a}_${b}`, `firstOnly${a}X${b} ∈ admits ${relation(a)} (accepts acceptable) ∧ firstOnly${a}X${b} ∉ admits ${relation(b)} (accepts acceptable)`, "by decide +kernel"),
-        ...theorem("A situation admitted only by the second concept.", `secondOnly_${a}_${b}`, `secondOnly${a}X${b} ∈ admits ${relation(b)} (accepts acceptable) ∧ secondOnly${a}X${b} ∉ admits ${relation(a)} (accepts acceptable)`, "by decide +kernel"),
+        ...theorem("A situation admitted only by the first concept.", `firstOnly_${a}_${b}`, `firstOnly${a}X${b} ∈ admits ${relation(a)} (accepts acceptable) ∧ firstOnly${a}X${b} ∉ admits ${relation(b)} (accepts acceptable)`, `by ${through(a, b)}; decide +kernel`),
+        ...theorem("A situation admitted only by the second concept.", `secondOnly_${a}_${b}`, `secondOnly${a}X${b} ∈ admits ${relation(b)} (accepts acceptable) ∧ secondOnly${a}X${b} ∉ admits ${relation(a)} (accepts acceptable)`, `by ${through(a, b)}; decide +kernel`),
         ...theorem("Neither concept admits every situation the other admits.", `incomparable_${a}_${b}`, `¬ AtLeastAsWeak (accepts acceptable) ${relation(a)} ${relation(b)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(b)} ${relation(a)}`, `incomparable_of_witnesses firstOnly_${a}_${b}.1 firstOnly_${a}_${b}.2 secondOnly_${a}_${b}.1 secondOnly_${a}_${b}.2`));
       certifies.push({ theorem: `${ns}.incomparable_${a}_${b}`, verdict: `weaknessRanking: '${concepts[a].id}' and '${concepts[b].id}' are incomparable` });
       continue;
@@ -696,17 +745,17 @@ export function weaknessCertificate(concepts: Array<{ id: string; model: Functio
     lines.push(
       ...theorem(`\`weaknessRanking\`: concept ${w} admits every situation concept ${s} admits, and one it does not.`,
         `weaker_${w}_${s}`, `AtLeastAsWeak (accepts acceptable) ${relation(w)} ${relation(s)} ∧ ¬ AtLeastAsWeak (accepts acceptable) ${relation(s)} ${relation(w)}`,
-        "by decide +kernel"),
-      ...theorem(`\`weaknessRanking\`: so concept ${w} admits strictly more situations (\`card_lt_of_strictly_weaker\`).`,
+        `by ${through(w, s)}; decide +kernel`),
+      ...theorem(`\`weaknessRanking\`: so concept ${w} admits strictly more situations, its admitted set a strict superset (\`admitted_ssubset\`, \`card_lt_of_strictly_weaker\`).`,
         `count_${w}_${s}`, `(admitted (accepts acceptable) ${relation(s)}).card < (admitted (accepts acceptable) ${relation(w)}).card`,
-        "card_lt_of_strictly_weaker (by decide +kernel)"),
+        `card_lt_of_strictly_weaker (admitted_ssubset (by ${through(w, s)}; decide +kernel) (by ${through(w, s)}; decide +kernel))`),
     );
     certifies.push(
       { theorem: `${ns}.weaker_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' is strictly weaker than '${concepts[s].id}'` },
       { theorem: `${ns}.count_${w}_${s}`, verdict: `weaknessRanking: '${concepts[w].id}' admits strictly more situations than '${concepts[s].id}'` },
     );
   }
-  return certified({ kind: "weakness", concepts, acceptable, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.priors !== undefined ? { priors: opts.priors } : {}), ...(opts.jointPrior !== undefined ? { jointPrior: opts.jointPrior } : {}) }, ns, assemble("all pairs of a weakness ranking", ns, [lines]), certifies);
+  return certified({ kind: "weakness", concepts, acceptable, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.priors !== undefined ? { priors: opts.priors } : {}), ...(opts.jointPrior !== undefined ? { jointPrior: opts.jointPrior } : {}) }, ns, assemble("all pairs of a weakness ranking", ns, [lines]), certifies, tableReads);
 }
 
 type DecidedDynamics = Extract<ReturnType<typeof boundedDynamics>, { decided: true }>;
@@ -725,11 +774,15 @@ function dynamicsInvariantCertificate(model: FunctionModel, spec: DynamicsSpec, 
   const rows = rowTables(composed, ports, at, (p, v) => names(p).indexOf(v));
   for (const row of rows) if (row.mach !== undefined) row.mach = machines.findIndex((m) => m.box === composed[row.box].id);
   const wires = encodedWires(model, at);
-  const stateCount = states ** machines.length, valueCount = values ** ports.length;
-  const work = rowWork(stateCount ** 2 * valueCount, rows.length, ports.length, wires.length);
-  if (!Number.isFinite(work) || work > MAX_CERT_ROWS) return fail([issue("cap-exceeded", "$.model", `deciding inductive closure reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`, "Use fewer stateful boxes, ports, values, or rows.")]);
+  const classes = wireClasses(ports.length, wires);
+  // Closure is decided over every (state, class valuation, next state); initial coverage, the
+  // unsafe or safe check read the global states alone.
+  const stateCount = states ** machines.length, valueCount = values ** classes.count;
+  const work = rowWork(stateCount ** 2 * valueCount, rows.length, ports.length, wires.length) + 3 * stateCount * (machines.length + 1) + classWork(ports.length, wires.length);
+  if (!Number.isFinite(work) || work > MAX_CERT_ROWS) return fail([issue("cap-exceeded", "$.model", `deciding inductive closure reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`, "Use fewer stateful boxes, port classes (ports a function joins count once), values, or rows.")]);
   const tuples = (width: number, count: number) => Array.from({ length: width ** count }, (_, n) => { let k = n; return Array.from({ length: count }, () => { const x = k % width; k = Math.floor(k / width); return x; }); });
-  const ss = tuples(states, machines.length), vv = tuples(values, ports.length);
+  // A valuation every function admits is a value per class, read through the class of each port.
+  const ss = tuples(states, machines.length), vv = tuples(values, classes.count).map((cv) => classes.cls.map((k) => cv[k]));
   const fits = (row: typeof rows[number], st: number[], vl: number[], next: number[]) => row.fixes.every((fixed, p) => !fixed || vl[p] === row.values[p]) && (row.mach === undefined || (st[row.mach] === row.state && next[row.mach] === row.next));
   const step = (st: number[], next: number[]) => vv.some((vl) => wires.every((w) => vl[w.src!] === vl[w.tgt]) && composed.every((_, b) => rows.some((row) => row.box === b && fits(row, st, vl, next))));
   const initial = machines.map((m) => Array.from({ length: states }, (_, s) => s < m.states.length && m.initial.includes(m.states[s])));
@@ -739,7 +792,7 @@ function dynamicsInvariantCertificate(model: FunctionModel, spec: DynamicsSpec, 
   const unsafe = spec.unsafe && table(spec.unsafe), safe = spec.safe && table(spec.safe);
   if ((unsafe && [...reached].some((i) => ss[i].every((s, m) => unsafe[m][s]))) || (safe && [...reached].some((i) => ss[i].some((s, m) => !safe[m][s])))) return fail([issue("not-certifiable", "$.horizon", "the independently closed state set does not establish an invariant; only the bounded horizon verdict holds", "Bounded-layer certificates are not implemented; increase the horizon to find the later counterexample, or read the bounded verdict without a certificate.")]);
   const lines = ["/-! ## Independently derived state invariant -/", "", `abbrev Machine := ${fin(machines.length)}`, `abbrev State := ${fin(states)}`, `abbrev Value := ${fin(values)}`,
-    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values),
+    ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values, classes),
     `def machineId : Machine → String := ${vec(machines.map((m) => leanString(m.box)))}`,
     `def stateId : Machine → State → String := ${nested(machines.map((m) => padded(m.states.map(leanString), states)), (x) => x)}`,
     `def rowMachine : Row → Option Machine := ${vec(rows.map((row) => row.mach === undefined ? "none" : `some ${row.mach}`))}`,
@@ -748,22 +801,22 @@ function dynamicsInvariantCertificate(model: FunctionModel, spec: DynamicsSpec, 
     `def initial : Machine → State → Bool := ${nested(initial, String)}`,
     `def invariantStates : List (Machine → State) := [${[...reached].sort((a,b) => a-b).map((i) => vec(ss[i])).join(", ")}]`,
     "abbrev invariant : Set ((Machine → State) × (Port → Value)) := {c | c.1 ∈ invariantStates}", "",
-    ...theorem("Every initial configuration is in the invariant.", "invariantInitial", "system.starts initial ⊆ invariant", "by intro a ha; revert a; decide +kernel"),
-    ...theorem("The actual row-derived step relation preserves the invariant, including every successor valuation.", "invariantClosed", "Closed system.Step invariant", "by rintro ⟨s, v⟩ hs ⟨t, w⟩ h; exact (show ∀ s v t, s ∈ invariantStates → system.Step (s, v) (t, v) → t ∈ invariantStates from by decide +kernel) s v t hs h")];
+    ...theorem("Every initial configuration is in the invariant: decided over the global states, since neither side reads the valuation.", "invariantInitial", "system.starts initial ⊆ invariant", "by rintro ⟨s, _⟩ hs; exact (show ∀ s : Machine → State, (∀ m, initial m (s m) = true) → s ∈ invariantStates from by decide +kernel) s hs"),
+    ...theorem("The actual row-derived step relation preserves the invariant, including every successor valuation: decided over the valuations of the port classes (`closed_of_classes`).", "invariantClosed", "Closed system.Step invariant", "system.closed_of_classes (q := classes) (S := (· ∈ invariantStates)) (by decide +kernel) (by decide +kernel)")];
   const certifies: Certified[] = [];
   if (unsafe) {
     lines.push(`def unsafeState : Machine → State → Bool := ${nested(unsafe, String)}`, "",
-      ...theorem("The invariant misses every unsafe state.", "invariantDisjoint", "Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true}", "Set.disjoint_left.mpr (by decide +kernel)"),
+      ...theorem("The invariant misses every unsafe state.", "invariantDisjoint", "Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true}", "Set.disjoint_left.mpr (by rintro ⟨s, _⟩ h hu; exact (show ∀ s : Machine → State, s ∈ invariantStates → ¬ ∀ m, unsafeState m (s m) = true from by decide +kernel) s h hu)"),
       ...theorem("No initial run reaches an unsafe state at any finite time.", "unreachable", "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true)", "by intro a ha n b h hb; exact unreachable_of_invariant invariantInitial invariantClosed invariantDisjoint n a ha b hb h"));
     certifies.push({ theorem: `${ns}.unreachable`, verdict: "boundedDynamics: the state-only unsafe target is unreachable at every horizon" });
   }
   if (safe) {
     lines.push(`def safeState : Machine → State → Bool := ${nested(safe, String)}`, "",
-      ...theorem("Every invariant state meets the safe state conditions.", "invariantSafe", "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true", "by decide +kernel"),
+      ...theorem("Every invariant state meets the safe state conditions.", "invariantSafe", "∀ b ∈ invariant, ∀ m, safeState m (b.1 m) = true", "by rintro ⟨s, _⟩ h; exact (show ∀ s : Machine → State, s ∈ invariantStates → ∀ m, safeState m (s m) = true from by decide +kernel) s h"),
       ...theorem("Every initial run meets the safe state conditions at every finite time.", "safetyInvariant", "∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ∀ m, safeState m (b.1 m) = true", "by intro a ha n b h; exact invariantSafe b (closed_reachIn invariantClosed (invariantInitial ha) n h)"));
     certifies.push({ theorem: `${ns}.safetyInvariant`, verdict: "boundedDynamics: the state-only safe conditions are invariant at every horizon" });
   }
-  return certified({ kind: "dynamics", model, spec }, ns, assemble("state-only inductive safety", ns, [lines]), certifies);
+  return certified({ kind: "dynamics", model, spec }, ns, assemble("state-only inductive safety", ns, [lines]), certifies, work);
 }
 
 type Comparison = Extract<ReturnType<typeof compareBehavior>, { ok: true }>;
@@ -818,7 +871,7 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
     const rows = rowTables(composed, ports, at, (p, v) => names[p].indexOf(v));
     const reads = situations.map((q) => ports.findIndex((p, i) => p.side === "in" && !fed.has(i) && side.toBaseline(p.box) === q.box && p.port === q.port));
     const delivers = side.observe.map((d) => at.get(portKeyOf(d.box, "in", d.port))!);
-    return { ...side, composed, ports, wires, names, rows, reads, delivers };
+    return { ...side, composed, ports, wires, names, rows, reads, delivers, classes: wireClasses(ports.length, wires) };
   });
   if (situations.some((_, j) => sides.every((s) => s.reads[j] < 0))) {
     return fail([issue("internal-error", "$.model", "a compared input is read by neither model", "Report this with the models; the kernel's inputs and the certificate's disagree.")]);
@@ -828,13 +881,15 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
   const values = Math.max(1, ...sides.flatMap((s) => s.names.map((n) => n.length)), ...inputValues.map((n) => n.length), ...deliverableValues.map((n) => n.length));
   // An input ranges over the values its carrier declares in the baseline when the baseline reads it, else in the concept.
   const declaredInput = situations.map((q, j) => sides.find((s) => s.reads[j] >= 0)!.model.carriers.find((x) => x.id === q.carrier)!.values ?? []);
-  const work = sides.reduce((n, s) => n + rowWork(values ** (situations.length + deliverables.length + s.ports.length), s.rows.length, s.ports.length, s.wires.length), 0);
+  const work = sides.reduce((n, s) => n + rowWork(values ** (situations.length + deliverables.length + s.classes.count), s.rows.length, s.ports.length, s.wires.length) + classWork(s.ports.length, s.wires.length), 0);
   if (!Number.isFinite(work) || work > MAX_CERT_ROWS) {
     return fail([issue("cap-exceeded", "$.model", `deciding the ${r.verdict === "preserved" ? "equality" : "relation comparison"} reads ${work} table entries, past the certificate limit of ${MAX_CERT_ROWS}`,
-      "Certify smaller models: fewer ports or values on the composed boxes. The decision enumerates every valuation of each model's ports.")]);
+      "Certify smaller models: fewer ports or values on the composed boxes. The decision enumerates every valuation of each model's port classes (ports a function joins count once).")]);
   }
 
   const relation = (side: string) => `${side}.rows.relation inputDomain ${side}.reads ${side}.delivers`;
+  /** Each decision reads the relations through their port classes, once each class witness checks. */
+  const through = (...names: string[]) => `rw [${names.map((n) => `${n}.rows.relation_eq_classes ${n}.classes (by decide +kernel)`).join(", ")}]`;
   const lines = [
     "/-! ## The situations and the deliverables -/",
     "",
@@ -856,7 +911,7 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
       "",
       `namespace ${s.name}`,
       "",
-      ...rowSection({ boxes: s.composed.map((b) => b.id), ports: s.ports, wires: s.wires.map((w) => w.id) }, s.rows, s.wires, (p) => s.names[p], values),
+      ...rowSection({ boxes: s.composed.map((b) => b.id), ports: s.ports, wires: s.wires.map((w) => w.id) }, s.rows, s.wires, (p) => s.names[p], values, s.classes),
       "/-- The port each situation input is, where this model reads it. -/",
       `def reads : Input → Option Port := ${vec(s.reads.map((p) => (p < 0 ? "none" : `some ${p}`)))}`,
       `def delivers : Deliverable → Port := ${vec(s.delivers)}`,
@@ -872,9 +927,9 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
   if (r.verdict === "preserved") {
     lines.push(
       ...theorem("`compareBehavior`: the concept relates every situation to exactly the deliverable values the baseline does, decided over every situation and valuation.",
-        "preserved", `${relation("Baseline")} = ${relation("Concept")}`, "by funext u y; apply propext; revert u y; decide +kernel"),
+        "preserved", `${relation("Baseline")} = ${relation("Concept")}`, `by ${through("Baseline", "Concept")}; funext u y; apply propext; revert u y; decide +kernel`),
       ...theorem("`compareBehavior`: the relations are not empty: some situation has a steady state, so the equality is not vacuous.",
-        "nonempty", `∃ u y, ${relation("Baseline")} u y`, "by decide +kernel"),
+        "nonempty", `∃ u y, ${relation("Baseline")} u y`, `by ${through("Baseline")}; decide +kernel`),
     );
     certifies.push(
       { theorem: `${ns}.preserved`, verdict: "compareBehavior: preserved, the input→deliverable relations are equal" },
@@ -882,9 +937,9 @@ function comparisonCertificate(baseline: FunctionModel, concept: FunctionModel, 
     );
   } else {
     const [a, b] = r.counterexample.onlyBaseline.length ? ["Baseline", "Concept"] : ["Concept", "Baseline"];
-    lines.push(...theorem("A pair belongs to one relation and does not belong to the other.", "behaviorChanged", `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`, "by decide +kernel"));
+    lines.push(...theorem("A pair belongs to one relation and does not belong to the other.", "behaviorChanged", `∃ u y, ${relation(a)} u y ∧ ¬ ${relation(b)} u y`, `by ${through(a, b)}; decide +kernel`));
     certifies.push({ theorem: `${ns}.behaviorChanged`, verdict: "compareBehavior: a pair belongs to only one declared input-output relation" });
   }
   const request: CertificateRequest = { kind: "behavior", baseline, concept, scope: opts.scope ?? "upstream", ...(opts.maxStates !== undefined ? { maxStates: opts.maxStates } : {}), ...(opts.boxMap !== undefined ? { boxMap: opts.boxMap } : {}) };
-  return certified(request, ns, assemble("one behavior comparison", ns, [lines]), certifies);
+  return certified(request, ns, assemble("one behavior comparison", ns, [lines]), certifies, work);
 }

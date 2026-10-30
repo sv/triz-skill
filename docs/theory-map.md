@@ -80,7 +80,7 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 | Ideality comparison | `triz_function_model`, `triz_trim` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` | — | — |
 | Physical contradiction, separation | `triz_separate` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` | `separation_on_condition` | — |
 | Same model in another domain | `comparison.isomorphism` | `typed_rename`, `transGen_equiv` | — | — |
-| Certificate of one run | `scripts/certify.mjs` | none: a certificate proves its own statements; see [Certificates](#certificates) | — | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation` |
+| Certificate of one run | `scripts/certify.mjs` | none: a certificate proves its own statements; see [Certificates](#certificates) | used by the proofs, never cited: `WireClasses.eq_root`, `WireClasses.exists_eq_comp`, `WireClasses.comp_respects`, `Rows.exists_steady_iff_classes`, `Rows.relation_eq_classes`, `Sync.unreachable_of_holding_classes`, `Sync.closed_of_classes`, `admitted_ssubset` | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation`, `Rows.classRelation`; port classes `WireClasses`, `WireClasses.Ok` |
 | Model transformation | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend`; per construction, `reach_quotient`, `flow_merge_typed`, `flow_merge_reach`, `edge_on_cycle`, `typed_rename`, `cheaper_part_lowers_cost` | — | — |
 | Reusable move, evolution-line step | `triz_rule_apply` | `typed_dpo` | `typed_overlay` (listed as citable, emitted by no verdict) | — |
 | A subsystem that lags | `uneven-development` | `edge_on_cycle`; the feasibility verdict's basis | — | — |
@@ -91,9 +91,10 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 
 The certificate statements use `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`,
 `no_section_of_overlap`, and `separated_iff_axis` over `Wiring.Typed` and `Wiring.Acts`, and
-`reach_of_trace`, `unreachable_of_invariant`, `unreachable_of_holding`, `AtLeastAsWeak`,
-`card_lt_of_strictly_weaker`, and `incomparable_of_witnesses` over the row tables `Sync.Step` and
-`Rows.relation` (`theory/Certificates/`).
+`reach_of_trace`, `unreachable_of_invariant`, `unreachable_of_holding_classes`, `closed_of_classes`,
+`AtLeastAsWeak`, `admitted_ssubset`, `card_lt_of_strictly_weaker`, and `incomparable_of_witnesses`
+over the row tables `Sync.Step` and `Rows.relation`, read through the port classes
+(`relation_eq_classes`) where a proof enumerates valuations (`theory/Certificates/`).
 
 ## Which verdict cites what
 
@@ -430,6 +431,32 @@ output alone proves nothing universal. Behavior inequality includes membership a
 at one pair; it does not certify every separately reported containment direction. Negative dynamics
 invariants contain all port valuations of each selected machine state, because `Sync.Step` constrains
 successor machine states but not successor consistency. A BFS node list is not automatically closed.
+
+**Port classes.** A function says its two ports carry one value, so the ports a chain of functions
+joins are one variable. A certificate that enumerates valuations (behaviour, weakness, a state-only
+invariant's closure, a saturated port target) carries the classes as proof data: `portClass`, a
+`classRoot` per class, and a spanning forest, `portLink` (the function each port was reached by) and
+`portRank`. `WireClasses.Ok` checks it: every function joins two ports of one class, and from every
+port the links lead to its class's root, the rank falling at each step. A class map that joins two
+ports no path of functions joins fails that check, and so does every verdict whose proof reads it
+(`--tamper`'s "port classes merged"). Given the check, a valuation every function respects is a
+valuation of the classes read through `portClass` (`WireClasses.eq_root`, `exists_eq_comp`). So:
+
+- `Rows.exists_steady_iff_classes`: a steady state exists exactly when one exists through the
+  classes, and `Rows.relation_eq_classes` rewrites `rows.relation` to `rows.classRelation`, which
+  `decide` evaluates over a value per class;
+- `Sync.unreachable_of_holding_classes` is `unreachable_of_holding` with its three valuation checks
+  over the classes, and `Sync.closed_of_classes` decides a state set's closure the same way;
+- `admitted_ssubset` gives a strict count from the two inclusions, each decided on its own.
+
+The certified statements stay over raw ports, and the checker pins them as before; only the
+proofs, and the tables they read, change. Initial coverage, unsafe exclusion, and safe containment
+of a state-only invariant read no valuation at all, so their proofs quantify over the global states
+only. The work estimate (`tableReads` on a generated certificate, capped at `MAX_CERT_ROWS`) raises
+the value count to the number of classes, not of ports: for `bearing-heat-behavior`'s trim, 4,550
+table reads instead of 69,376, and a chain of eight binary mediators (18 ports, 9 classes), which
+read 368,050,176 over its ports, now fits. A trace certificate checks one valuation per step and
+carries no classes.
 
 The request records `kind` (`model`, `separation`, `behavior`, `weakness`, or `dynamics`) and all of
 that generator's source options. The checker independently compares normalized source data with

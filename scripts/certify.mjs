@@ -31,7 +31,8 @@
  * conditions filled, so that every state blocks in them, a port target's `unreachable` must fail
  * on its blocked-state conjunct; with no deliverable value acceptable, strict-inclusion and opposed
  * membership witnesses must fail; with no situation allowed, `nonempty` must fail; with the
- * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
+ * invariant emptied, initial containment must fail; with every port put in one class, each verdict
+ * whose proof reads the port classes must fail. A data tamper is tried only where a verdict
  * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
  * Locally, all the files and their tampered copies share one Lean process, so the theory's imports
@@ -143,7 +144,7 @@ const DECLARATIONS = [
   re(`def (?:firstOnly|secondOnly)\\d+X\\d+ : Input → Value := ${NUMS}`),
   re(`def invariantStates : List \\(Machine → State\\) := \\[(?:${NUMS}(?:, ${NUMS})*)?\\]`),
   re("abbrev invariant : Set \\(\\(Machine → State\\) × \\(Port → Value\\)\\) := \\{c \\| c\\.1 ∈ invariantStates\\}"),
-  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable) := Fin \\d+"),
+  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable|Class) := Fin \\d+"),
   re("abbrev Cell := (?:Unit|Fin \\d+(?: × Fin \\d+)*)"),
   re(`def (?:boxId|portId|fnId|carrierId|demandId|valueId) : (?:Box|Port|Fn|Carrier|Demand|Val) → String := ${STRS}`),
   re(`def ${AX}Cell : Fin \\d+ → String := ${STRS}`),
@@ -159,6 +160,12 @@ const DECLARATIONS = [
   re(`def rowMachine : Row → Option Machine := ${OPTS}`),
   re(`def (?:rowState|rowNext) : Row → State := ${NUMS}`),
   re(`def (?:fnSource|fnTarget) : Fn → Port := ${NUMS}`),
+  // The port classes the functions join, and the spanning forest the proofs check (WireClasses.Ok).
+  re(`def portClass : Port → Class := ${NUMS}`),
+  re(`def classRoot : Class → Port := ${NUMS}`),
+  re(`def portLink : Port → Option Fn := ${OPTS}`),
+  re(`def portRank : Port → ℕ := ${NUMS}`),
+  re("def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩"),
   re("def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩"),
   re("def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩"),
   re(`def (?:initial|unsafeState|safeState) : Machine → State → Bool := ${rows(BOOLS)}`),
@@ -533,7 +540,8 @@ export async function checkAll({ certificates = [], tampered = [] }, { mode } = 
 
 /**
  * Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied
- * or filled; every state blocked in the unsafe states; nothing acceptable; no situation allowed. A
+ * or filled; every state blocked in the unsafe states; nothing acceptable; no situation allowed;
+ * the invariant emptied; the port classes merged. A
  * data tamper is kept only where some verdict must fail under it: emptying the unsafe set leaves
  * an unreachable verdict true. Filling it puts every listed state in the unsafe set's state
  * conditions, so a port target's unreachable verdict fails at a listed state that admits a
@@ -576,6 +584,27 @@ export function tamperVariants(content) {
   data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/));
   data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
   data("invariant emptied", content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m, "def invariantStates : List (Machine → State) := []"), verdicts(/^invariantInitial$/));
+  // The class witness: in each namespace with two classes or more, every port put in class 0. That
+  // joins ports no function joins, so the forest check fails, and so must every verdict whose proof
+  // reads those classes.
+  const merged = new Set(), stack = [];
+  for (const line of content.split("\n")) {
+    let m;
+    if ((m = /^namespace (\S+)$/.exec(line))) stack.push(m[1]);
+    else if ((m = /^end (\S+)$/.exec(line)) && stack.at(-1) === m[1]) stack.pop();
+    else if ((m = /^abbrev Class := Fin (\d+)$/.exec(line)) && Number(m[1]) >= 2) merged.add(stack.slice(1).join("."));
+  }
+  stack.length = 0;
+  const zeroed = content.split("\n").map((line) => {
+    let m;
+    if ((m = /^namespace (\S+)$/.exec(line))) stack.push(m[1]);
+    else if ((m = /^end (\S+)$/.exec(line)) && stack.at(-1) === m[1]) stack.pop();
+    else if (/^def portClass : Port → Class := /.test(line) && merged.has(stack.slice(1).join("."))) return line.replace(/\d+(?=[,\]])/g, "0");
+    return line;
+  }).join("\n");
+  const lines = content.split("\n");
+  const reads = (proof) => [...merged].some((ns) => (ns ? proof.includes(`${ns}.classes`) : /\(q := classes\)/.test(proof)));
+  data("port classes merged", zeroed, spans(content).filter((t) => t.depth === 1 && reads(lines.slice(t.line, t.to).join("\n"))).map((t) => t.name));
   return variants;
 }
 

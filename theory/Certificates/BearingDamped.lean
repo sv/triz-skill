@@ -16,7 +16,7 @@ namespace BearingDamped
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingDamped\",\"source\":\"80a6757469d9fbea3eaaf605ea0bca091af2452db0c080971def4d7edaf3dcac\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingDamped\",\"source\":\"80a6757469d9fbea3eaaf605ea0bca091af2452db0c080971def4d7edaf3dcac\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"83c19029ccea80086236697f6361cf498ec300f60b93b5737dcbdb6d84e482fd\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
 
 /-! ## Independently derived state invariant -/
 
@@ -27,6 +27,7 @@ abbrev Box := Fin 3
 abbrev Port := Fin 8
 abbrev Fn := Fin 4
 abbrev Row := Fin 9
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "shaft", "bearing"]
 /-- Each port's box and id. -/
@@ -41,6 +42,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 1, 0, 0, 0, 0], ![0, 0, 0, 0, 1, 0, 0, 0], ![0, 0, 0, 1, 1, 0, 0, 0], ![0, 0, 0, 0, 1, 0, 0, 0], ![0, 0, 0, 1, 1, 0, 0, 0], ![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 0, 0, 1, 0, 1]]
 def fnSource : Fn → Port := ![0, 6, 7, 4]
 def fnTarget : Fn → Port := ![1, 2, 3, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 0, 1, 2, 3, 3, 1, 2]
+def classRoot : Class → Port := ![0, 2, 3, 4]
+def portLink : Port → Option Fn := ![none, some 0, none, none, none, some 3, some 1, some 2]
+def portRank : Port → ℕ := ![0, 1, 0, 0, 0, 1, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 def machineId : Machine → String := !["shaft"]
 def stateId : Machine → State → String := ![!["cold", "warm", "hot"]]
 def rowMachine : Row → Option Machine := ![none, some 0, some 0, some 0, some 0, some 0, some 0, none, none]
@@ -51,19 +58,19 @@ def initial : Machine → State → Bool := ![![true, false, false]]
 def invariantStates : List (Machine → State) := [![0], ![1]]
 abbrev invariant : Set ((Machine → State) × (Port → Value)) := {c | c.1 ∈ invariantStates}
 
-/-- Every initial configuration is in the invariant. -/
+/-- Every initial configuration is in the invariant: decided over the global states, since neither side reads the valuation. -/
 theorem invariantInitial : system.starts initial ⊆ invariant :=
-  by intro a ha; revert a; decide +kernel
+  by rintro ⟨s, _⟩ hs; exact (show ∀ s : Machine → State, (∀ m, initial m (s m) = true) → s ∈ invariantStates from by decide +kernel) s hs
 
-/-- The actual row-derived step relation preserves the invariant, including every successor valuation. -/
+/-- The actual row-derived step relation preserves the invariant, including every successor valuation: decided over the valuations of the port classes (`closed_of_classes`). -/
 theorem invariantClosed : Closed system.Step invariant :=
-  by rintro ⟨s, v⟩ hs ⟨t, w⟩ h; exact (show ∀ s v t, s ∈ invariantStates → system.Step (s, v) (t, v) → t ∈ invariantStates from by decide +kernel) s v t hs h
+  system.closed_of_classes (q := classes) (S := (· ∈ invariantStates)) (by decide +kernel) (by decide +kernel)
 
 def unsafeState : Machine → State → Bool := ![![false, false, true]]
 
 /-- The invariant misses every unsafe state. -/
 theorem invariantDisjoint : Disjoint invariant {c | ∀ m, unsafeState m (c.1 m) = true} :=
-  Set.disjoint_left.mpr (by decide +kernel)
+  Set.disjoint_left.mpr (by rintro ⟨s, _⟩ h hu; exact (show ∀ s : Machine → State, s ∈ invariantStates → ¬ ∀ m, unsafeState m (s m) = true from by decide +kernel) s h hu)
 
 /-- No initial run reaches an unsafe state at any finite time. -/
 theorem unreachable : ∀ a ∈ system.starts initial, ∀ n b, reachIn system.Step n a b → ¬ (∀ m, unsafeState m (b.1 m) = true) :=

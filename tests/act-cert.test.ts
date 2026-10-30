@@ -435,18 +435,18 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   const stuckHot = example("bearing-heat-dynamics");
   stuckHot.boxes.find((b) => b.id === "shaft")!.transition = stuckHot.boxes.find((b) => b.id === "shaft")!.transition!.filter((r) => r.state !== "hot");
   assert.match(fails(dynamicsCertificate(stuckHot, { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] })), /the escalation is undecided/);
-  // An invariant is decided over every valuation of the composed ports: three more two-valued
-  // ports, which the unsafe set only names, take it past the cap.
+  // An invariant is decided over every valuation of the composed port classes: six more unwired
+  // two-valued ports, six more classes, which the unsafe set only names, take it past the cap.
   const ambient = damped();
   ambient.carriers.push({ id: "bit", layer: "information", dimension: "bit", values: ["a", "b"] });
-  const named = [0, 1, 2].map((i) => {
+  const named = [0, 1, 2, 3, 4, 5].map((i) => {
     ambient.boxes.push({ id: `amb${i}`, name: "Ambient", role: "environment", outputs: [{ id: "o", carrier: "bit" }], behavior: [{ in: {}, out: { o: "a" } }, { in: {}, out: { o: "b" } }] });
     return { box: `amb${i}`, port: "o", values: ["a", "b"] };
   });
   const r = boundedDynamics(ambient, { unsafe: [...HOT, ...named] });
   assert.ok(r.ok && r.decided && r.escalation?.verdict === "unreachable");
   assert.match(fails(dynamicsCertificate(ambient, { unsafe: [...HOT, ...named] })), new RegExp(`deciding the invariant reads \\d+ table entries, past the certificate limit of ${MAX_CERT_ROWS}`));
-  assert.ok(dynamicsCertificate(ambient, { unsafe: [...HOT, ...named.slice(0, 2)] }).ok, "two more ports stay within it");
+  assert.ok(dynamicsCertificate(ambient, { unsafe: [...HOT, ...named.slice(0, 5)] }).ok, "five more ports stay within it");
   // A run that blocks in the unsafe state has no valuation there.
   const stuck = example("bearing-heat-dynamics");
   const shaft = stuck.boxes.find((b) => b.id === "shaft")!;
@@ -672,7 +672,7 @@ test("an unreachable certificate states a closed invariant and distinguishes sta
   assert.ok(admitted.ok);
   // Both conjuncts: no admitted unsafe configuration is reached, and no run blocks in the unsafe set's state conditions.
   assert.match(admitted.content, /^theorem unreachable : \(∀ n, ∀ a ∈ system\.starts initial, ∀ b ∈ system\.target unsafeState unsafeValue, ¬ reachIn system\.Step n a b\) ∧ ∀ n, ∀ a ∈ system\.starts initial, ∀ b, reachIn system\.Step n a b → \(∃ v, system\.Consistent \(b\.1, v\)\) ∨ ¬ ∀ m, unsafeState m \(b\.1 m\) = true :=$/m);
-  assert.match(admitted.content, /^ {2}system\.unreachable_of_holding \(inv := invariant\)/m);
+  assert.match(admitted.content, /^ {2}system\.unreachable_of_holding_classes \(q := classes\) \(inv := invariant\)/m);
   assert.deepEqual(admitted.certifies, [{ theorem: "TrizCertificate.unreachable", verdict: "boundedDynamics: no run reaches an admitted unsafe configuration, and none blocks in the unsafe set's state conditions, at any horizon" }]);
   assert.match(admitted.content, /^def invariant : Fin 2 → Machine → State := !\[!\[0\], !\[1\]\]$/m);
   assert.deepEqual(lint(admitted.content), []);
@@ -808,7 +808,7 @@ test("triz_dynamics and triz_behavior return unreachable and preserved certifica
 
 test("the tamper variants of an unreachable certificate fill the unsafe set instead of emptying it", () => {
   const d = content(dynamicsCertificate(damped(), { unsafe: [...HOT, { box: "bearing", port: "friction", values: ["high"] }] }, { namespace: "BearingDamped" }));
-  assert.deepEqual(tamperVariants(d).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["BearingDamped.unreachable"]], ["the unsafe set filled", ["BearingDamped.unreachable"]], ["every state blocked in the unsafe states", ["BearingDamped.unreachable"]]]);
+  assert.deepEqual(tamperVariants(d).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["BearingDamped.unreachable"]], ["the unsafe set filled", ["BearingDamped.unreachable"]], ["every state blocked in the unsafe states", ["BearingDamped.unreachable"]], ["port classes merged", ["BearingDamped.unreachable"]]]);
   // Every row on the first box, so every other box has none, and the unsafe states filled; the port conditions stay.
   const blocked = tamperVariants(d)[2].content;
   assert.match(blocked, /^def rowBox : Row → Box := !\[0(?:, 0)*\]$/m);
@@ -818,9 +818,10 @@ test("the tamper variants of an unreachable certificate fill the unsafe set inst
   const e = fs.readFileSync(fixturePath("BearingEscalation"), "utf8");
   assert.deepEqual(tamperVariants(e).map((v) => v.name), ["every verdict negated", "the unsafe set emptied"]);
   const t = fs.readFileSync(fixturePath("BearingTrim"), "utf8");
-  assert.deepEqual(tamperVariants(t).map((v) => v.name), ["every verdict negated"], "no input: no situation to disallow");
+  assert.deepEqual(tamperVariants(t).map((v) => v.name), ["every verdict negated", "port classes merged"], "no input: no situation to disallow");
+  assert.match(tamperVariants(t)[1].content, /^def portClass : Port → Class := !\[0(?:, 0)*\]$/m);
   const w = content(behaviorCertificate(copier(), splitCopier().model, { boxMap: splitCopier().boxMap, namespace: "Mapped" }));
-  assert.deepEqual(tamperVariants(w).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["Mapped.preserved", "Mapped.nonempty"]], ["no situation allowed", ["Mapped.nonempty"]]]);
+  assert.deepEqual(tamperVariants(w).map((v) => [v.name, v.mustFail]), [["every verdict negated", ["Mapped.preserved", "Mapped.nonempty"]], ["no situation allowed", ["Mapped.nonempty"]], ["port classes merged", ["Mapped.preserved", "Mapped.nonempty"]]]);
 });
 
 test("the checker's grammar pins the unreachable and preserved verdicts", () => {
@@ -892,7 +893,7 @@ leanTest("the blocked-state conjunct rejects runs that block in the unsafe state
   // The same tampered tables with only the first conjunct: every state blocks, so the target is empty and it still holds.
   const firstOnly = v.content
     .replace(/^(theorem unreachable : )\((.*)\) ∧ .* :=$/m, "$1$2 :=")
-    .replace(/^ {2}system\.unreachable_of_holding .*$/m, "  unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))");
+    .replace(/^ {2}system\.unreachable_of_holding_classes .*$/m, "  unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))");
   assert.notEqual(firstOnly, v.content);
   const [both, first] = runLocalBatch([{ content: v.content, audit: false }, { content: firstOnly, audit: false }]);
   const errors = (r: typeof both) => r.messages.filter((m) => m.severity === "error");
@@ -930,4 +931,79 @@ leanTest("Lean accepts whole-scope behaviour, equal and incomparable weakness, a
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
   // The changed comparison Lean accepted above is the one bound to its request.
   assert.deepEqual(bindRequest(texts[1], { kind: "behavior", baseline: a, concept: b, scope: "whole" }), []);
+});
+
+/** A source, `n` binary identity mediators in series, and a product: 2n + 2 ports joined by n + 1 functions. */
+function mediatorChain(n: number): FunctionModel {
+  const pass = [{ in: { i: "a" }, out: { o: "a" } }, { in: { i: "b" }, out: { o: "b" } }];
+  const boxes: FunctionModel["boxes"] = [{ id: "src", name: "Source", role: "tool", outputs: [{ id: "o", carrier: "bit" }], behavior: [{ in: {}, out: { o: "a" } }, { in: {}, out: { o: "b" } }] }];
+  const wires: FunctionModel["wires"] = [];
+  for (let i = 1; i <= n + 1; i++) {
+    const to = i <= n ? `m${i}` : "out";
+    if (i <= n) boxes.push({ id: to, name: `Mediator ${i}`, role: "mediator", inputs: [{ id: "i", carrier: "bit" }], outputs: [{ id: "o", carrier: "bit" }], behavior: pass });
+    wires.push({ id: `w${i}`, from: { box: i === 1 ? "src" : `m${i - 1}`, port: "o" }, to: { box: to, port: "i" }, carrier: "bit", polarity: "useful" });
+  }
+  boxes.push({ id: "out", name: "Output", role: "product", inputs: [{ id: "i", carrier: "bit" }] });
+  return { domain: "software", carriers: [{ id: "bit", layer: "information", dimension: "bit", values: ["a", "b"] }], boxes, wires };
+}
+
+/** What a behaviour decision read before the port classes: values to the power of the situations, deliverables, and ports, per model. */
+function portExponentWork(lean: string): number {
+  const top = (name: string) => Number(new RegExp(`^abbrev ${name} := Fin (\\d+)$`, "m").exec(lean)![1]);
+  const [values, inputs, deliverables] = ["Value", "Input", "Deliverable"].map(top);
+  return ["Baseline", "Concept"].reduce((n, side) => {
+    const block = lean.split(`namespace ${side}\n`)[1].split(`end ${side}\n`)[0];
+    const [ports, rows, fns] = ["Port", "Row", "Fn"].map((name) => Number(new RegExp(`^abbrev ${name} := Fin (\\d+)$`, "m").exec(block)![1]));
+    return n + values ** (inputs + deliverables + ports) * (rows * (ports + 1) + fns);
+  }, 0);
+}
+
+test("row-table certificates decide over the port classes the functions join, so the work estimate falls", () => {
+  const trim = trimCertificate(example("bearing-heat-behavior"), BEARING_TRIM);
+  assert.ok(trim.ok);
+  // Baseline: 8 ports in 4 classes; concept: 4 ports in 2. Before, the exponent counted ports.
+  assert.equal(portExponentWork(trim.content), 68_608 + 768);
+  assert.equal(trim.tableReads, 4_550);
+  assert.match(trim.content, /^def portClass : Port → Class := !\[0, 0, 1, 2, 3, 3, 1, 2\]$/m);
+  assert.match(trim.content, /^def portLink : Port → Option Fn := !\[none, some 0, none, none, none, some 3, some 1, some 2\]$/m);
+  assert.match(trim.content, /relation_eq_classes Baseline\.classes \(by decide \+kernel\)/);
+  // Eight binary mediators in series: 18 ports, 9 classes. Over the ports the decision read
+  // 368,050,176 entries, past the cap; over the classes it is within it.
+  const chain = behaviorCertificate(mediatorChain(8), mediatorChain(8));
+  assert.ok(chain.ok, JSON.stringify(chain));
+  assert.equal(portExponentWork(chain.content), 368_050_176);
+  assert.ok(portExponentWork(chain.content) > MAX_CERT_ROWS);
+  assert.ok(chain.tableReads! <= MAX_CERT_ROWS);
+  assert.match(chain.content, /^abbrev Class := Fin 9$/m);
+  assert.deepEqual(chain.certifies.map((c) => c.theorem), ["TrizCertificate.preserved", "TrizCertificate.nonempty"]);
+  assert.deepEqual(lint(chain.content), []);
+  // A trace certificate enumerates no valuation, so it carries no class witness.
+  assert.doesNotMatch(content(dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT })), /portClass|classes/);
+  // The statements stay over raw ports: only the proofs and the witness tables change.
+  for (const ns of ["BearingTrim", "SupportWeakness", "BearingDamped", "BearingBlocked"]) {
+    const text = fs.readFileSync(fixturePath(ns), "utf8");
+    assert.match(text, /^def classes : WireClasses Port Fn Class := /m, ns);
+    assert.doesNotMatch(text.split("\n").filter((l) => l.startsWith("theorem ")).join("\n"), /classes|Class/, ns);
+  }
+});
+
+leanTest("Lean accepts the mediator chain over its classes, and rejects a class map that joins ports no function joins", async () => {
+  const chain = content(behaviorCertificate(mediatorChain(8), mediatorChain(8), { namespace: "MediatorChain" }));
+  const trim = fs.readFileSync(fixturePath("BearingTrim"), "utf8");
+  const verdicts = ["BearingTrim.preserved", "BearingTrim.nonempty"];
+  // Baseline port 2 (shaft.support) moved into class 0, with motor.shaft-out: no function joins them.
+  const joined = trim.replace("def portClass : Port → Class := ![0, 0, 1, 2, 3, 3, 1, 2]", "def portClass : Port → Class := ![0, 0, 0, 2, 3, 3, 1, 2]");
+  // The forest's rank raised at a root, so one link no longer descends towards it.
+  const cyclic = trim.replace("def portRank : Port → ℕ := ![0, 1, 0, 0, 0, 1, 1, 1]", "def portRank : Port → ℕ := ![2, 1, 0, 0, 0, 1, 1, 1]");
+  assert.notEqual(joined, trim);
+  assert.notEqual(cyclic, trim);
+  const variants = [
+    ...tamperVariants(chain),
+    { name: "a class map joining two unwired ports", content: joined, mustFail: verdicts },
+    { name: "a forest whose ranks do not descend", content: cyclic, mustFail: verdicts },
+  ];
+  const { certificates: [r], tampered } = await checkAll({ certificates: [chain], tampered: variants }, { mode: "local" });
+  assert.ok(r.ok, r.problems.join("\n"));
+  assert.deepEqual(r.certified, ["MediatorChain.preserved", "MediatorChain.nonempty"]);
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
 });

@@ -398,6 +398,12 @@ lists exactly which claims were proved.
 | Weakness strict order, equality or incomparability | The actual composed row relations have the stated admission inclusions or distinguishing admitted/rejected situations |
 | `triz_behavior` comparison | The aligned finite relations are equal and nonempty, or an input/output pair belongs to just one of them |
 
+A row-table certificate is decided over every valuation of the composed ports, but ports that a
+chain of functions joins count once: the certificate carries these port classes with a witness
+that Lean checks, and states its verdict over the raw ports. So a series of boxes adds one
+variable per function, not two ports. Past the cap on table reads (2,000,000), generation fails
+closed with `cap-exceeded`; the hint names what to shrink.
+
 Behavior certificates support declared `box_map`, inputs read by only one model, and
 concept-only gained deliverables outside the baseline interface. Residual specifications and
 lost deliverables are not certified. Weakness prior masses are not certified. Negative dynamics

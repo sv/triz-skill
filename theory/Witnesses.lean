@@ -1791,6 +1791,35 @@ example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
   have := (h 0 3).mpr bot_le
   exact absurd this (by decide)
 
+/-! ## Port classes: `WireClasses.Ok`, `eq_root`, `admitted_ssubset`
+
+Three ports and one function, from port 0 to port 1; port 2 is unwired. The witness with classes
+`{0, 1}` and `{2}` checks, and `eq_root` then reads port 1 at port 0. One that also puts port 2 in
+the first class fails the check, and it must: a valuation every function respects takes two values
+in that class, so no valuation of the classes gives it. `admitted_ssubset` holds on a relation that
+admits everything against one that admits nothing, and without `h'` (one relation against itself)
+the strict inclusion fails. -/
+
+def goodClasses : WireClasses (Fin 3) (Fin 1) (Fin 2) := ⟨![0, 0, 1], ![0, 2], ![none, some 0, none], ![0, 1, 0]⟩
+def joinedClasses : WireClasses (Fin 3) (Fin 1) (Fin 1) := ⟨![0, 0, 0], ![0], ![none, some 0, none], ![0, 1, 0]⟩
+
+example : goodClasses.Ok ![0] ![1] ∧ ¬ joinedClasses.Ok ![0] ![1] := by decide
+
+example (v : Fin 3 → Bool) (hv : ∀ w, v (![0] w) = v (![1] w)) : v 1 = v 0 :=
+  WireClasses.eq_root (q := goodClasses) (by decide) hv 1
+
+example : (∀ w, (![true, true, false] : Fin 3 → Bool) (![0] w) = ![true, true, false] (![1] w)) ∧
+    ¬ ∃ c : Fin 1 → Bool, ∀ x, (![true, true, false] : Fin 3 → Bool) x = c (joinedClasses.cls x) := by
+  decide
+
+example : admitted (fun _ : Bool => True) (fun _ _ : Bool => False) ⊂
+    admitted (fun _ : Bool => True) (fun u y : Bool => y = u) :=
+  admitted_ssubset (by decide) (by decide)
+
+example : ¬ admitted (fun _ : Bool => True) (fun u y : Bool => y = u) ⊂
+    admitted (fun _ : Bool => True) (fun u y : Bool => y = u) :=
+  lt_irrefl _
+
 /-! ## Generic opposed witnesses -/
 example :
     ¬ AtLeastAsWeak (· = true) (fun u y : Bool => y = u) (fun u y => y = !u) ∧
