@@ -24,6 +24,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   carries a code, path and hint. CSV import skips a byte order mark and blank lines; Quint `x'`
   writes reference `x`; Lean binder groups, lambda and match binders no longer yield edges to
   same-named globals.
+- Opt-in `joint_boxes` weakest specifications over one coupled multi-box relation, with exact
+  coverage, producibility, projection-safety witnesses, bounded display and search caps.
+- Lean proofs for joint residual coverage and a three-hole nonfactorization witness, controlled
+  absorber reattachment and its behavioral counterexample, and whole-model greatest fixed points
+  over complete valuations. These do not verify the TypeScript search or local propagation.
 
 ## [0.5.0] - 2026-10-30
 

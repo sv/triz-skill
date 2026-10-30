@@ -674,7 +674,7 @@ const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
 /** Cap on the formal concepts enumerated for two boxes to specify. */
 export const MAX_CONCEPTS = 10_000;
 
-export type SpecOptions = BehaviorOptions & { boxMap?: Record<string, string>; maxConcepts?: number; rowCosts?: Array<{ row: SpecRow; cost: number }>; maxCostSearch?: number };
+export type SpecOptions = BehaviorOptions & { boxMap?: Record<string, string>; maxConcepts?: number; rowCosts?: Array<{ row: SpecRow; cost: number }>; maxCostSearch?: number; jointBoxes?: string[] };
 type SpecRow = { in: Record<string, string>; out: Record<string, string> };
 
 /** A box's ports, inputs first, each with its side. */
@@ -699,6 +699,26 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
   ({ ...m, boxes: m.boxes.map((b) => (Object.hasOwn(behavior, b.id) ? { ...b, behavior: behavior[b.id] } : b)) });
 
 /**
+ * The part of a joint_boxes selection that needs no scope: at least one id, each once, each a box
+ * of `concept` that declares no behaviour. Checked before any verdict, so a lost deliverable or
+ * missing baseline behaviour never hides a malformed selection.
+ */
+function jointShape(concept: FunctionModel, selected: string[], what: string): Issue[] {
+  const open = concept.boxes.filter((b) => !b.behavior).map((b) => b.id);
+  const use = `Name each box of the ${what} without behaviour that the scope composes, once: candidates ${quoted(open)}.`;
+  if (!selected.length) return [issue("invalid-joint-boxes", "$.joint_boxes", "joint_boxes is empty: it must name every composed box without behaviour", `${use} Or omit joint_boxes.`)];
+  const seen = new Set<string>();
+  return selected.flatMap((id, i) => {
+    const path = jp("$.joint_boxes", i), box = concept.boxes.find((b) => b.id === id);
+    if (seen.has(id)) return [issue("invalid-joint-boxes", path, `box '${id}' is selected twice`, "Name each box once.")];
+    seen.add(id);
+    if (!box) return [issue("invalid-joint-boxes", path, `'${id}' is not a box of the ${what}`, use)];
+    if (box.behavior) return [issue("invalid-joint-boxes", path, `box '${id}' declares behaviour, so it is not a box to specify`, `Drop its behaviour to specify it jointly, or remove it from joint_boxes. ${use}`)];
+    return [];
+  });
+}
+
+/**
  * The weakest box specification (residual in Rel) for the one box of `concept` that can reach a
  * deliverable and declares no behaviour, against the target relation of `baseline`. With two such
  * boxes, pairSpec gives the maximal pairs of relations instead.
@@ -714,11 +734,19 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
  *
  * Fails closed: a concept that loses a deliverable is `impossible` before any search (deliverables
  * only the concept has are listed and not compared, as in compareBehavior); three or more
- * boxes without behaviour are `undecided` (several-holes); a target with no steady state anywhere
- * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap).
+ * boxes without behaviour need explicit jointBoxes or are `undecided` (several-holes); a target with no steady state anywhere
+ * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap). A jointBoxes selection
+ * is refused (invalid-joint-boxes) before any of these: its shape first, then, once the concept's
+ * scope is known, unless a deliverable is lost, whether it is exactly the composed boxes without behaviour.
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
+  if (opts.jointBoxes !== undefined && opts.rowCosts !== undefined) return fail([issue("invalid-row-costs", "$.row_costs", "row costs do not support joint boxes", "Remove row_costs for a joint residual.")]);
   if (opts.maxCostSearch !== undefined && opts.rowCosts === undefined) return fail([issue("invalid-row-costs", "$.max_cost_search", "a cost search cap requires row costs", "Supply row_costs with the cap.")]);
+  const what = of === "compare_to" ? "model" : "trimmed model";
+  if (opts.jointBoxes !== undefined) {
+    const shape = jointShape(concept, opts.jointBoxes, what);
+    if (shape.length) return fail(shape);
+  }
   // row_costs price the residual of one unknown box. Where none is computed, refuse them, as the
   // two-box path does, rather than return a result that silently drops them.
   const unpriced = (outcome: string) => fail([issue("invalid-row-costs", "$.row_costs", `row costs price the residual of one unknown box, and none is computed here: ${outcome}`,
@@ -746,6 +774,17 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const observe = target.map((d) => byKey.get(deliverableKey(d))!);
   const before = plan(baseline, target, opts);
   if (before.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.compare_to", "weakest specification cannot evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
+  const p = plan(concept, observe, opts);
+  // The selection must be exactly the composed boxes without behaviour, decided before missing
+  // baseline behaviour returns undecided, so an omitted or out-of-scope box is never accepted.
+  if (opts.jointBoxes !== undefined) {
+    const selected = opts.jointBoxes, use = `Select exactly the composed boxes without behaviour in ${p.scope} scope: ${quoted(p.missing)}.`;
+    const outside = selected.flatMap((id, i) => (p.missing.includes(id) ? [] : [issue("invalid-joint-boxes", jp("$.joint_boxes", i),
+      `box '${id}' is not composed in ${p.scope} scope, so it is not a box to specify`, `${use}${p.scope === "upstream" ? " Use scope whole to include boxes that cannot reach a deliverable." : ""}`)]));
+    const omitted = p.missing.filter((id) => !selected.includes(id));
+    if (outside.length || omitted.length) return fail([...outside, ...(omitted.length ? [issue("invalid-joint-boxes", "$.joint_boxes",
+      `joint_boxes omits ${quoted(omitted)}: composed boxes without behaviour that the joint relation must include`, use)] : [])]);
+  }
   if (before.missing.length) {
     if (opts.rowCosts !== undefined) return unpriced(`the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"} declares no behaviour for ${quoted(before.missing)} (undecided, missing-behavior)`);
     return {
@@ -753,9 +792,8 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
       note: `Declare behavior for ${before.missing.map((id) => `'${id}'`).join(", ")} in the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"}: the target relation depends on them.`,
     };
   }
-  const p = plan(concept, observe, opts);
   if (p.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "weakest specification cannot specify or evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
-  if (p.missing.length > 2) {
+  if (p.missing.length > 2 && opts.jointBoxes === undefined) {
     if (opts.rowCosts !== undefined) return unpriced(`${p.missing.length} composed boxes declare no behaviour (undecided, several-holes)`);
     return {
       ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
@@ -788,6 +826,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
       note: "The target relation is empty: the baseline has no steady state at any input. Every relation for the box stays inside it and the empty relation equals it, so nothing is decided. Check the baseline's loops.",
     };
   }
+  if (opts.jointBoxes !== undefined) return jointSpec(concept, baseline, boxes, { t, target, observe, rename, gainedDeliverables, max, scope: opts.scope, fullRelation: opts.fullRelation });
   if (boxes.length === 2) {
     if (opts.rowCosts !== undefined) return fail([issue("invalid-row-costs", "$.row_costs", "row costs apply only to a single unknown box", "Specify one box at a time.")]);
     return pairSpec(concept, baseline, boxes, { t, target, observe, rename, gainedDeliverables, composed: p.composed.map((b) => b.id), max, maxConcepts: opts.maxConcepts ?? MAX_CONCEPTS, scope: opts.scope });
@@ -1152,18 +1191,92 @@ function pairSpec(concept: FunctionModel, baseline: FunctionModel, [a, b]: OpenB
   };
 }
 
-/** The weakest specification for the concept's one or two boxes without behaviour, against the baseline (compare_to). */
+/** A single relation over the disjoint union of all selected boxes' ports. */
+function jointSpec(concept: FunctionModel, baseline: FunctionModel, boxes: OpenBox[], ctx: {
+  t: ReturnType<typeof evaluate> & { ok: true }; target: ReturnType<typeof deliverablePorts>;
+  observe: ReturnType<typeof deliverablePorts>; rename: (q: Typed) => Typed;
+  gainedDeliverables: ReturnType<typeof deliverablePorts>; max: number; scope?: BehaviorScope; fullRelation?: boolean;
+}) {
+  const { t, target, observe, rename, max } = ctx;
+  const count = product(boxes.map((b) => b.rows.length));
+  if (count > max) return capped(capFail(`The joint boxes have ${count} candidate rows; the cap is ${max}.`));
+  const full = declare(concept, Object.fromEntries(boxes.map((b) => [b.hole.id, b.rows.map(b.asRow)])));
+  const e = evaluate(full, plan(full, observe, { scope: ctx.scope }), [...observe, ...boxes.flatMap((b) => b.probe)], max);
+  if (!e.ok) return capped(e);
+  const conceptInputs = e.inputs.map(rename);
+  const space = situations([
+    { name: "the baseline", inputs: t.inputs, carriers: baseline.carriers, root: "$.compare_to" },
+    { name: "the concept", inputs: conceptInputs, carriers: concept.carriers, root: "$.model" },
+  ]);
+  if (!space.ok) return space;
+  if (product(space.typed.map((q) => space.domain.get(q.carrier)!.length)) > max) return capped(capFail("The joint boundary inputs exceed the state cap."));
+  const points = [...valuationsOf(space.typed, space.domain)].map((u) => ({
+    u, goal: outputsAt(t, t.inputs, space.at, u), states: [...outputsAt(e, conceptInputs, space.at, u).values()],
+  }));
+  const k = observe.length;
+  const unsafe = new Map<string, { input: string[]; outputs: string[]; target: string[][] }>();
+  for (const { u, goal, states } of points) for (const z of states) {
+    const key = tupleKey(z.slice(k));
+    if (!goal.has(tupleKey(z.slice(0, k))) && !unsafe.has(key)) unsafe.set(key, { input: u, outputs: z.slice(0, k), target: sorted(goal) });
+  }
+  const split = (values: string[]) => {
+    let offset = 0;
+    return boxes.map((b) => { const row = values.slice(offset, offset + b.ports.length); offset += b.ports.length; return row; });
+  };
+  const format = (values: string[]) => Object.fromEntries(split(values).map((r, i) => [boxes[i].hole.id, boxes[i].asRow(r)]));
+  const domains = boxes.flatMap((b) => b.probe);
+  const all = [...valuationsOf(domains, new Map(concept.carriers.map((c) => [c.id, c.values!])) )];
+  const residual = all.filter((r) => !unsafe.has(tupleKey(r)));
+  const feasible = residual.filter((r) => split(r).every((v, i) => !boxes[i].producible || boxes[i].producible!.has(tupleKey(v))));
+  const projections = boxes.map(() => new Set<string>());
+  for (const row of feasible) split(row).forEach((v, i) => projections[i].add(tupleKey(v)));
+  const counter = all.find((row) => unsafe.has(tupleKey(row)) && split(row).every((v, i) => projections[i].has(tupleKey(v))));
+  const situation = (u: string[]) => space.inputs.map((q, i) => ({ box: q.box, port: q.port, value: u[i] }));
+  const coverage = (rows: string[][]) => {
+    const keep = new Set(rows.map(tupleKey));
+    const missing = points.flatMap(({ u, goal, states }) => {
+      const delivered = new Map(states.filter((z) => keep.has(tupleKey(z.slice(k)))).map((z) => [tupleKey(z.slice(0, k)), z.slice(0, k)]));
+      const absent = [...goal].filter(([key]) => !delivered.has(key));
+      return absent.length ? [{ input: situation(u), target: sorted(goal), delivered: sorted(delivered), missing: sorted(new Map(absent)) }] : [];
+    });
+    return { uncoveredInputs: missing.length, ...(missing.length ? { uncovered: missing[0] } : {}) };
+  };
+  const wholeCoverage = coverage(residual), feasibleCoverage = coverage(feasible);
+  const witness = counter && unsafe.get(tupleKey(counter))!;
+  const listed = <T>(items: T[]) => ctx.fullRelation ? items : items.slice(0, LISTED_ROWS);
+  const projectionRows = boxes.map((b, i) => b.rows.filter((r) => projections[i].has(tupleKey(r))));
+  return {
+    ok: true as const, verdict: feasibleCoverage.uncovered ? "impossible" as const : "spec" as const,
+    ...(feasibleCoverage.uncovered ? { reason: wholeCoverage.uncovered ? "not-covered" as const : "infeasible" as const } : {}),
+    preserves: !feasibleCoverage.uncovered, deliverables: target, gainedDeliverables: ctx.gainedDeliverables,
+    basis: ["le_residual_iff", feasibleCoverage.uncovered
+      ? (wholeCoverage.uncovered ? "not_covers_iff" : "not_covers_feasible_iff")
+      : (boxes.some(b => b.producible !== undefined) ? "covers_feasible_iff" : "covers_iff_exists_eq")] as Theorem[],
+    joint: { boxes: boxes.map((b) => b.hole.id), endpoints: domains, residual: listed(residual).map(format), rows: listed(feasible).map(format),
+      residualCount: residual.length, residualTruncated: !ctx.fullRelation && residual.length > LISTED_ROWS,
+      rowCount: feasible.length, rowsTruncated: !ctx.fullRelation && feasible.length > LISTED_ROWS, coverage: feasibleCoverage, residualCoverage: wholeCoverage,
+      projections: Object.fromEntries(boxes.map((b, i) => [b.hole.id, listed(projectionRows[i]).map(b.asRow)])),
+      projectionCounts: Object.fromEntries(boxes.map((b, i) => [b.hole.id, projectionRows[i].length])),
+      projectionsTruncated: Object.fromEntries(boxes.map((b, i) => [b.hole.id, !ctx.fullRelation && projectionRows[i].length > LISTED_ROWS])),
+      independentSafe: !counter, factorizes: product(projections.map((p) => p.size)) === feasible.length,
+      ...(counter && witness ? { couplingWarning: "Independent projections admit an unsafe combination; retain the joint relation.", counterexample: { rows: format(counter), input: situation(witness.input), outputs: witness.outputs, target: witness.target } } : {}),
+    },
+    note: "Rows specify one coupled relation over all listed endpoints. The residual contains exactly the joint rows whose composite stays inside the target; coverage decides whether a feasible joint relation can equal it.",
+  };
+}
+
+/** Specify one/two boxes independently, or an explicit set as one joint relation, against the baseline. */
 export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions = {}) {
   const checked = checkModel(concept, "$.model");
   if (!checked.ok) return fail(checked.issues);
   return scoped(residualSpec(concept, baseline, opts, "compare_to"), opts.scope ?? "upstream");
 }
 
-/** Perform a trim and give the weakest specification for the one or two boxes without behaviour, against the untrimmed model. */
+/** Perform a trim and specify the unknown boxes, optionally jointly, against the untrimmed model. */
 export function weakestTrimSpec(model: FunctionModel, spec: SpecOptions & { trim: string[]; absorb?: Record<string, Endpoint> }) {
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
   if (!applied.ok) return applied;
-  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, maxConcepts: spec.maxConcepts, scope: spec.scope, fullRelation: spec.fullRelation, rowCosts: spec.rowCosts, maxCostSearch: spec.maxCostSearch }, "baseline"), spec.scope ?? "upstream");
+  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, maxConcepts: spec.maxConcepts, scope: spec.scope, fullRelation: spec.fullRelation, rowCosts: spec.rowCosts, maxCostSearch: spec.maxCostSearch, jointBoxes: spec.jointBoxes }, "baseline"), spec.scope ?? "upstream");
   return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : rebase(r, TRIMMED);
 }
 

@@ -128,7 +128,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
 | `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, an open hypergraph, or a Lean certificate of its verdicts |
-| `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand; one-hole `weakest_spec` can price missing producible rows using explicit `row_costs` |
+| `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand; `joint_boxes` computes a coupled multi-box residual with projection-safety checks; one-hole `weakest_spec` can price missing producible rows using explicit `row_costs` |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
 | `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources; with carrier `levels`, the rows that disagree with declared behaviour |
@@ -153,6 +153,10 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 For local source import, including exports from instantiated ModelingToolkit and Agents.jl models,
 see [Importing models](docs/importing-models.md). Imported models remain drafts through the builder
 and are refused by analysis until explicitly reviewed.
+
+`triz_behavior` can specify several unknown boxes jointly: use `weakest_spec` with `joint_boxes`
+and a target. The result keeps coupling explicit and checks whether its per-box projections are
+safe. See [Joint weakest specification](skills/triz-innovation/references/categorical-model.md#joint-weakest-specification).
 
 ## Command line
 

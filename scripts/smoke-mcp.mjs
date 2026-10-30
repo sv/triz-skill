@@ -48,6 +48,21 @@ if (!reviewed.ok || reviewed.model.provenance.status !== "reviewed" || reviewed.
 const confirmed = await json("triz_function_model", { model: reviewed.model });
 if (!confirmed.ok) fail("reviewed synthetic import cannot be analysed");
 console.log("local import -> embedded draft guard -> reviewed source containment passed");
+// Exercise joint_boxes through the published stdio schema and handler.
+const jointIds = ["a", "b", "c"];
+const jointBaseline = {
+  domain: "software", carriers: [{ id: "bit", layer: "information", dimension: "bit", values: ["0", "1"] }],
+  boxes: [...jointIds.map(id => ({ id, name: id, role: "tool", outputs: [{ id: "o", carrier: "bit" }],
+    behavior: [{ in: {}, out: { o: "0" } }] })),
+    { id: "p", name: "Product", role: "product", inputs: jointIds.map(id => ({ id, carrier: "bit" })) }],
+  wires: jointIds.map(id => ({ id: `w-${id}`, from: { box: id, port: "o" }, to: { box: "p", port: id }, carrier: "bit", polarity: "useful" })),
+};
+const jointConcept = structuredClone(jointBaseline);
+for (const b of jointConcept.boxes) if (jointIds.includes(b.id)) delete b.behavior;
+const jointSpec = await json("triz_behavior", { model: jointConcept, compare_to: jointBaseline,
+  weakest_spec: true, joint_boxes: jointIds, full_relation: true });
+if (!jointSpec.ok || jointSpec.verdict !== "spec" || jointSpec.joint?.rowCount !== 1 || jointSpec.joint.boxes.length !== 3) fail("joint residual did not cross MCP correctly");
+console.log("triz_behavior joint_boxes -> 3-hole coupled residual passed");
 
 const cell = await json("triz_matrix", { improving: 9, worsening: 14 });
 console.log(`triz_matrix 9-14 -> [${cell.principles}]`);

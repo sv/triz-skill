@@ -56,6 +56,7 @@ export const ISSUE_CODES = {
   "box-map-without-compare-to": "box_map was passed without compare_to",
   "absorb-without-trim": "absorb was passed without trim",
   "trim-with-compare-to": "trim and compare_to were passed together",
+  "invalid-joint-boxes": "A merged-hole residual selection is missing, repeated, invalid, or used outside weakest_spec",
   "invalid-row-costs": "Row extension costs are missing, repeated, malformed, or unsupported for this residual",
   "row-costs-without-weakest-spec": "Row costs or their search cap were passed outside a costed weakest specification",
   "weakest-spec-without-target": "weakest_spec was passed without compare_to or trim",

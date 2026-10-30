@@ -34,7 +34,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Partly landed: witnesses of the wiring checks now break ties in declaration order, as dynamics traces do, and renamed-twin tests cover them; canonical witnesses under permutation and symmetry stay open | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
 | 5 | Naturality of the verdicts in Lean | Partly implemented: indices, values, hole coordinates, weakness and operational adequacy transport; remaining verdicts open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
-| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly implemented: two boxes, whole-model search, grid lifting and conditional residual descent; other closures open | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
+| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Merged-hole residual, controlled trim, whole-model gfp, grid lifting and conditional descent implemented; general categorical completion open | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
 | C1 | Quotient the row-table certificates by wires | **Landed** in #42 | Adds: certificates for larger models within the same table-read cap | — |
 | C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** in #42; cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
@@ -99,7 +99,16 @@ Implemented in this checkout, with the remaining scope kept explicit:
   needs a context projection square uniform in the hole relation **and target saturation**.
   `external_sub_project_of_extends` supplies each instance of the square under extension.
   A counterexample proves extension without target saturation insufficient. Concept lattices
-  and the other larger closures remain open.
+  and unrestricted descent remain open.
+- **Item 7, closure slice:** `joint_boxes` opts into a single residual over all selected unknown
+  boxes, with exact target coverage, per-box producibility cuts and a warning/counterexample when
+  independent projections are unsafe. `JointResidual.lean` proves the sigma-port context preserves
+  unions and inherits the residual coverage theorem, with a concrete three-hole nonfactorization
+  witness. `ControlledTrim.lean` records absorber reattachment as typed rule data and proves
+  retained-interface preservation, plus a two-absorber semantic counterexample. `SteadyStateGfp.lean`
+  characterizes whole-diagram steady states as the greatest fixed point of complete-valuation
+  constraint filtering. From the full valuation set this takes one filter pass; it is not a
+  local propagation algorithm or a proof of the TypeScript evaluator.
 - **Item 5:** `theory/Naturality.lean` now transports value labels and hole input/output
   coordinates as well as diagram indices. Concrete hole-context and residual transport are
   proved from steady valuations; weakness inclusion, equality, strict inclusion, incomparability,
@@ -119,22 +128,28 @@ The initial Q1, B1, Q5 and restriction/descent scopes are implemented above, as 
 the value/hole-coordinate portion of item 5, B2's local input foundation and S3's first contract
 checker. The next useful slices are:
 
-1. **Item 7: the remaining categorical closures.** Joint residuals for more than two holes,
-   controlled trim embeddings, and the whole-model greatest-fixpoint characterization remain.
-   The restriction-grid lifting and target-saturated conditional descent are proved; concept
-   lattices and unrestricted descent remain outside that result.
+1. **Item 7: the remaining categorical closures.** Joint residuals for three or more holes,
+   controlled trim embeddings and the whole-model greatest-fixpoint characterization landed in
+   #49; the restriction-grid lifting and target-saturated conditional descent are proved. Concept
+   lattices and unrestricted descent remain outside these results.
 2. **Item 5: remaining verdict naturality.** Extend the current concrete diagram, residual,
    weakness and operational-adequacy transport to finite counts, resource dimensions and the
    remaining dynamic verdict families. Capped TypeScript search and identity of selected tied
    witnesses are separate obligations; symmetric ties do not supply a canonical single witness.
 3. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates, then S1 variable
    elimination, S3 local residual synthesis and S5 compositional dynamics as their prerequisites
-   are met. S2 unary-domain propagation does not replace global consistency. S3's current checker
-   supports stateless single-mode contracts; multiple resource modes need an explicit coupling.
+   are met. S2 unary-domain propagation is implemented and does not replace global consistency.
+   S3's current contract checker (#46) supports stateless single-mode contracts; multiple resource
+   modes need an explicit coupling.
 4. **B2 breadth and hierarchy follow-through.** Add requested source formats beyond the current
    adapters (SysML/free text), richer compiler-backed Quint/Lean extraction, and explicitly
    reviewed mappings from source containment to typed nested interfaces. Julia export metadata
    is preferred to source parsing; Agents snapshots do not export imperative step behavior.
+
+Explicit flow routes, subsystem contracts and local importers with draft provenance landed in
+#46. Item 7's merged-hole, controlled-trim and whole-model gfp slice landed in #49; general concept
+lattices, unrestricted descent and a universal Kan characterization of supersystem collapse remain
+outside it.
 
 Q4 remains documentation-only. Dynamic simulation relations are tracked separately in
 [categorical-future-plan.md](categorical-future-plan.md) §6. Q1 stage 2 remains conditional on
@@ -223,29 +238,35 @@ feasibility solver is.
 
 ## 7. The larger categorical closures
 
-- **Multi-box joint weakest specification.** The two-box case landed in #32 (via #36, through
-  Mathlib's `Concept`); #35's `triz_synthesize` searches complete tuples of a declared finite
-  library instead, which is not a residual. For the general case the joint residual over the disjoint union of the
-  unknown boxes' ports always exists (Rel is a residuated quantale; Mathlib ships
-  `Quantale.rightMulResiduation` but no Rel instance — prove it from the existing
-  `relation_comp_iSup_left` lemmas). It does not factor per-box in general; that
-  non-factorization is itself a witness for theory/Witnesses.lean. Kernel: `weakest_spec` over a
-  set of boxes as one merged hole, with a coupling warning when the per-box projection is unsafe
-  alone.
-- **9 windows as a discrete fibration.** Mathlib’s `CategoryTheory.Functor.Elements` now supplies the
-  category used by the proved unique-lifting results. Covariant `Wiring.restrictionGrid` gives
-  an opfibration; reversing total and base categories gives the fibration orientation. The supersystem collapse enters as a left Kan extension along the
-  collapse map of posets, following the pattern of `Mathlib/Topology/Sheaves/Alexandrov.lean`.
-- **Trim as controlled embedding.** The removed Kan-extension trimming (AGREE, PBPO⁺:
-  Corradini et al., TCS 2021) reframed as it should be: a trim is a rewrite whose re-attachment
-  interface is declared rule data — a mild instance of the existing `typed_dpo` — plus the
-  two-absorber test promoted from tests/act-behavior.test.ts to a counterexample in
-  theory/Witnesses.lean. Sources.md gains the reference.
-- **Whole-model steady states.** `partialDownstream` exists because behaviour has no least
-  fixpoint over unordered values. For finite relations the steady states are the *greatest*
-  fixpoint of the consistency operator, computed by descent from the full valuation set: a
-  `compose: "whole"` option with a `steadyStates_gfp` characterization in theory/. The option
-  landed in #35 as `scope: "whole"`, by exact finite search; the characterization remains.
+- **Multi-box joint weakest specification — implemented.** `triz_behavior` with
+  `weakest_spec`, a target and `joint_boxes` computes one coupled relation over the selected
+  unknown boxes' combined ports. It preserves internal wires, handles declared producibility,
+  and checks both safety and exact target coverage. Independent per-box projections can be unsafe;
+  the result reports that and gives a mixed-row counterexample. Existing one/two-box modes stay
+  the default. `JointResidual.lean` proves joint-context union preservation and residual coverage,
+  including feasible cuts, and a three-hole residual that does not factor. This uses the existing
+  residual theorem without claiming a new Mathlib Rel quantale instance or n-adic concept lattice.
+- **9 windows as a discrete fibration — lifting implemented.** Mathlib's
+  `CategoryTheory.Functor.Elements` supplies the category used by the unique-lifting results.
+  Covariant `restrictionGrid` gives an opfibration; taking the appropriate opposites gives the
+  fibration orientation. Residual descent requires the proved context square and saturated target.
+  A left Kan universal property for supersystem collapse and unrestricted descent remain open.
+- **Trim as controlled embedding — structural slice implemented.** Absorber reattachment is
+  explicit deletion/gluing rule data, following ordinary DPO's structural basis
+  ([R14](../theory/REFERENCES.md#r14)). `ControlledTrim.lean` states the outgoing cut boundary,
+  retained absorber/interface and retained wiring conditions, and proves typing and preservation
+  of that retained structure. Its concrete two-absorber counterexample shows different behavior
+  despite carrier compatibility. AGREE and PBPO+ provide related context-control ideas
+  ([R15](../theory/REFERENCES.md#r15), [R16](../theory/REFERENCES.md#r16)); neither formalism nor a
+  Kan universal property is implemented by this result.
+- **Whole-model steady states — characterization implemented.** `scope: "whole"` already
+  computes exact finite steady states. `Semantics.OpenDiagram.steadyStates_gfp` identifies those
+  states with Mathlib's greatest fixed point of a filter built
+  from all port-domain, box-relation and wire-equality constraints. Filtering complete valuations
+  from the full set reaches it in one pass, including for infinite diagrams. Materializing that
+  set may be exponential; this is not a local propagation algorithm, an optimization, or a proof
+  of the TypeScript search. Identity/negation feedback and strict downstream witnesses make the
+  scope explicit.
 
 ## From natural constraints
 
