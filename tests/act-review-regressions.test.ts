@@ -218,6 +218,7 @@ test("an explicit holding cost makes servicing worthwhile instead of remaining b
 });
 test("holding costs are charged once at the source state, not once per stochastic outcome", () => {
   const m = lifecycleModel();
+  m.actions = [m.actions![0]];
   m.actions!.forEach((a) => {
     a.cost = { resource: 0 };
   });
@@ -236,6 +237,7 @@ test("holding costs are charged once at the source state, not once per stochasti
 });
 test("holding costs alone define dimensions and also enter the nondeterministic fallback", () => {
   const m = holdingModel();
+  m.actions = m.actions!.filter(a => a.id !== "service");
   m.actions!.forEach((a) => {
     delete a.cost;
   });

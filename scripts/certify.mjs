@@ -43,11 +43,13 @@
  * Without --request, this checks the statements about the file's tables. --request binds the
  * manifest to authoritative request JSON, independently compares normalized row/wiring/interface
  * data, then regenerates to detect staleness, before any file reaches Lean; a file that is not
- * bound is not checked. Regeneration is not an encoder-correctness proof.
+ * bound is not checked. Mean-cost/lifecycle kinds currently omit the independent table pass;
+ * their binding uses manifest checks and regeneration. Regeneration is not an encoder-correctness proof.
  * State-only negative claims use invariants over all port valuations. Saturated port-target
  * negatives use finite state invariants against consistent target configurations. Time-varying
  * inputs and negatives supported only to a horizon remain unsupported.
  */
+import certificateSources from "../src/act-certificate-sources.json" with { type: "json" };
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
@@ -750,7 +752,7 @@ export function checkCorrespondence(content, request) {
   const normalized = { ...request, ...(["behavior","weakness"].includes(request.kind) ? { scope: request.scope ?? "upstream" } : {}) };
   const source = createHash("sha256").update(canonical(normalized)).digest("hex");
   const scope = ["mean-cost","lifecycle"].includes(request.kind) ? "finite-cost" : ["model","separation"].includes(request.kind) ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : normalized.scope;
-  for (const [key,value] of Object.entries({ format: "triz-certificate-v2", kind: request.kind, source, schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: sourcePin(["theory/CategoricalTriz.lean","theory/MeanCost.lean","theory/Lifecycle.lean"]), schemaSource: sourcePin(["src/act.ts","src/act-dimensions.ts","src/act-lifecycle-schema.ts","src/act-bond-schema.ts"]), lean: "4.35.0", mathlib: "v4.35.0", scope })) if (manifest[key] !== value) problems.push(`manifest ${key} does not match the authoritative request or supported pin`);
+  for (const [key,value] of Object.entries({ format: "triz-certificate-v2", kind: request.kind, source, schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: sourcePin(certificateSources.theory), schemaSource: sourcePin(certificateSources.schema), lean: "4.35.0", mathlib: "v4.35.0", scope })) if (manifest[key] !== value) problems.push(`manifest ${key} does not match the authoritative request or supported pin`);
   const outer = /^namespace ([A-Z][A-Za-z0-9]*)$/m.exec(content)?.[1]; if (manifest.namespace !== outer) problems.push("manifest namespace differs from the certificate namespace");
   if (["mean-cost","lifecycle"].includes(request.kind)) return problems; // full rational tables are checked by exact request regeneration below
   const normalizedIds = (v) => typeof v === "string" ? [...v].map((ch)=>{const n=ch.codePointAt(0);return /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/u.test(ch)&&(n>0xffff||(n>=0xd800&&n<=0xdfff))?"\ufffd":ch;}).join("") : Array.isArray(v) ? v.map(normalizedIds) : v;

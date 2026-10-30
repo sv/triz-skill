@@ -27,6 +27,13 @@ be relaxed only after the integral search is completely exhausted; a cap returns
 A causality conflict can motivate a TRIZ contradiction or a separation hypothesis, but does not
 itself prove conflicting physical requirements or select an inventive principle.
 
+Per-storage derivative findings mean derivative causality holds in **every** admissible assignment,
+checked with the other storage preferences relaxed. If only joint all-integral feasibility fails,
+the finding identifies that joint constraint without naming one storage as individually forced.
+`equationStructure.states` still describes one checked assignment, with `forcedDerivative`
+separating necessity from that witness's choice. Search branches follow endpoint declaration
+order, so reversing a wire's power-reference direction preserves the assignment and findings.
+
 The export contains storage state candidates, effort/flow causal directions, and constitutive
 constraint templates, with declared parameters. It is an equation structure, not solved
 state equations or numerical simulation. Nonlinear R laws, parameter units, physical accuracy,

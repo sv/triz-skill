@@ -144,6 +144,7 @@ export function meanCosts(
           maximum: max.edgeIndices,
         },
         basis: [
+          "MeanCost.Bounds.walk_mean",
           "MeanCost.cycle_lower",
           "MeanCost.cycle_upper",
           "MeanCost.attains_bound",

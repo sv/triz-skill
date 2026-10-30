@@ -224,5 +224,11 @@ that type-checks, with a `severity`. A lint never changes a verdict. Only
 | `invalid-probability` | lifecycle | An enabled action lacks outcomes, or per-state/action probabilities are missing or do not sum exactly to one |
 | `invalid-bond` | bond graph | Invalid energy pair, information bond, element arity, thermal approximation, or repeated/unconnected port |
 | `causality-conflict` | bond graph findings | Exhaustive bounded assignment found no source/junction-compatible causality; not a physical impossibility proof |
-| `derivative-causality` | bond graph findings | Storage needs derivative causality in the returned structural assignment |
+| `derivative-causality` | bond graph findings | Storage is derivative in every assignment, or no jointly all-integral assignment exists; witness-specific choices stay in equationStructure |
 | `algebraic-loop` | bond graph findings | Direct constitutive dependencies form a cycle requiring a simultaneous solve |
+
+`invalid-weight` also covers lifecycle objectives. `prior-malformed` covers lifecycle situation
+maps and derived-prior coverage. `not-certifiable` covers unsupported mean-cost/lifecycle
+witnesses. Semantic isomorphism uses `hierarchy-substitution` when model-level lifecycle state
+mappings are unavailable. Lifecycle uncertainty also includes `tied-optimal-policies` and
+`probabilities-undeclared`; these are analysis reasons, not input-error codes.

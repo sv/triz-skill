@@ -39,8 +39,8 @@ test("every citable theorem is proved in the Lean file", () => {
   for (const name of THEOREMS) {
     const file = (THEOREM_FILES as Record<string,string>)[name];
     const source = file ? fs.readFileSync(path.resolve(here, "..", file), "utf8") : lean;
-    const local = file ? name.split('.').at(-1)! : name;
-    assert.match(source, new RegExp(`^theorem ${local}\\b`, "m"), name);
+    const local = file ? name.split('.').slice(1).join('.') : name;
+    assert.match(source, new RegExp(`^theorem ${local.replace(/\./g,"\\.")}\\b`, "m"), name);
   }
   // A cited Mathlib lemma must close a proof in the Lean file, so lake build checks it exists.
   for (const name of MATHLIB_THEOREMS) assert.match(lean, new RegExp(`:= ${name.replace(".", "\\.")}$`, "m"), name);

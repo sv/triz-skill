@@ -3,7 +3,9 @@
  * Structural typing, separation, reachable traces, inductive safety, behavior comparisons,
  * and every weakness pair are independently decided on the encoded tables. A manifest binds
  * the authoritative request, scope, schema, generator and theory pins. --request additionally
- * checks normalized correspondence with a separate direct encoder and detects stale output;
+ * checks normalized correspondence with a separate direct encoder for the row/wiring kinds;
+ * mean-cost/lifecycle binding currently uses manifest checks and regeneration only.
+ * Both paths detect stale output;
  * neither check establishes encoder correctness. State-only safety invariants include every
  * valuation of each selected state, since Sync.Step leaves successor valuations unrestricted.
  * Saturated unreachable certificates exclude admitted unsafe configurations (Sync.target), and
@@ -15,6 +17,7 @@
  * string literals. This module is pure and works in the hosted Worker.
  */
 import { lifecycle, type LifecycleRequest } from "./act-lifecycle.js";
+import certificateSources from "./act-certificate-sources.json" with { type: "json" };
 import { z } from "zod";
 import { rational, show } from "./act-rational.js";
 import { Axis, baseOf, checkModel, harmLoops, separationCheck, type FunctionModel, type PhysicalContradiction } from "./act.js";
@@ -31,10 +34,10 @@ export const DEFAULT_NAMESPACE = "TrizCertificate";
 
 export interface Certified { theorem: string; verdict: string; }
 /** Exact source sets: include the local imports that define certificate predicates and schemas. */
-export const CERTIFICATE_THEORY_FILES = ["theory/CategoricalTriz.lean", "theory/MeanCost.lean", "theory/Lifecycle.lean"] as const;
-export const CERTIFICATE_SCHEMA_FILES = ["src/act.ts", "src/act-dimensions.ts", "src/act-lifecycle-schema.ts", "src/act-bond-schema.ts"] as const;
-export const CERTIFICATE_THEORY_SOURCE = "71dd87e0ab1cefc24d5c9531e4e79e94c01df12b59d700419fd87e7bcee5a159";
-export const CERTIFICATE_SCHEMA_SOURCE = "d0b3ca80c2e505f7bab03c058c5b95324bcfe7583e94defb624dcaf9cef08770";
+export const CERTIFICATE_THEORY_FILES = Object.freeze([...certificateSources.theory]);
+export const CERTIFICATE_SCHEMA_FILES = Object.freeze([...certificateSources.schema]);
+export const CERTIFICATE_THEORY_SOURCE = "6c1769ad0ff711b1272849f57253dc6371b927ab6ce05cdba8249e9fa9034ffb";
+export const CERTIFICATE_SCHEMA_SOURCE = "f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
   source: string; schema: "function-model-v1"; generator: "triz-cert-2";

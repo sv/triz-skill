@@ -28,10 +28,11 @@ export interface Twin {
   value(id: string): string;
   action(id: string): string;
   dim(id: string): string;
+  token(id: string): string;
   back<T>(x: T): T;
 }
 
-export function renamedTwin(m: Model): Twin {
+export function renamedTwin(m: Model, extraTokens: Iterable<string> = []): Twin {
   const inverse = new Map<string, string>();
   /** Tokens `tag` + a zero-padded rank that falls along declaration order. */
   const family = (xs: Iterable<string>, tag: string) => {
@@ -47,6 +48,7 @@ export function renamedTwin(m: Model): Twin {
   const boxes = family(m.boxes.map((b) => b.id), "b"), wires = family(m.wires.map((w) => w.id), "w");
   const carriers = family(m.carriers.map((c) => c.id), "c"), flows = family((m.flows ?? []).map((f) => f.id), "f");
   const actions = family([...(m.actions ?? []), ...m.boxes.flatMap(b=>b.actions??[])].map(a=>a.id), "a");
+  const tokens = family([...m.carriers.flatMap(c => [...(c.effect_quantity ? [c.effect_quantity] : []), ...(c.energy ? [c.energy.effort.quantity,c.energy.flow.quantity] : [])]), ...extraTokens], "q");
   const dims = family([
     ...Object.values(m.lifecycle?.holding_cost??{}).flatMap(c=>Object.keys(c)),...m.boxes.flatMap(b=>Object.values(b.holding_cost??{}).flatMap(c=>Object.keys(c))),
     ...[...(m.actions??[]), ...m.boxes.flatMap(b=>b.actions??[])].flatMap(a=>[...Object.keys(a.cost??{}),...a.transitions.flatMap(r=>Object.keys(r.cost??{}))]),
@@ -86,6 +88,8 @@ export function renamedTwin(m: Model): Twin {
     ...opt(m.system, () => ({ system: "the system" })),
     carriers: m.carriers.map((c, i) => ({
       ...c, id: C(c.id), dimension: `unit ${i + 1}`,
+      ...opt(c.effect_quantity, quantity => ({effect_quantity:get(tokens,quantity)})),
+      ...opt(c.energy, energy => ({energy:{...energy,effort:{...energy.effort,quantity:get(tokens,energy.effort.quantity)},flow:{...energy.flow,quantity:get(tokens,energy.flow.quantity)}}})),
       ...opt(c.values, (vs) => ({ values: vs.map(V) })),
       ...opt(c.levels, (ls) => ({ levels: ls.map((l) => ({ ...l, value: V(l.value) })) })),
     })),
@@ -138,5 +142,5 @@ export function renamedTwin(m: Model): Twin {
     if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [inverse.get(k) ?? k, back(v)]));
     return x;
   };
-  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, value: V, action: x=>get(actions,x), dim: D, back: <T>(x: T) => back(x) as T };
+  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, value: V, action: x=>get(actions,x), dim: D, token: x=>get(tokens,x), back: <T>(x: T) => back(x) as T };
 }

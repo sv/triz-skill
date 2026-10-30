@@ -168,13 +168,13 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
     value === (wires[edge].from.box === box ? 0 : 1);
   // A rule checks a partial assignment and drives propagation by eliminating
   // unsupported endpoint choices. Source rules and integral preferences go first.
-  const compatible = (assign: number[], integral: boolean) =>
+  const compatible = (assign: number[], integral: boolean | Set<string>) =>
     boxes.every((b, k) => {
       const e = b.bond!.element,
         es = incident[k],
         known = es.filter((i) => assign[i] >= 0),
         n = known.filter((i) => supplies(b.id, i, assign[i])).length;
-      if (e === "Se" || e === "Sf" || (integral && (e === "C" || e === "I"))) {
+      if (e === "Se" || e === "Sf" || ((integral === true || integral instanceof Set && integral.has(b.id)) && (e === "C" || e === "I"))) {
         const want = e === "Se" || e === "C";
         return !known.length || (n === 1) === want;
       }
@@ -200,7 +200,8 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
     .sort((a, b) => a.rank - b.rank || a.i - b.i)
     .flatMap((x) => incident[x.i]);
   const order = [...new Set(priority)];
-  const search = (integral: boolean) => {
+  const boxOrder = new Map(boxes.map((b,i) => [b.id,i]));
+  const search = (integral: boolean | Set<string>) => {
     let answer: number[] | undefined;
     const visit = (incoming: number[]) => {
       charge();
@@ -230,7 +231,8 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
         answer = assign;
         return;
       }
-      for (const v of [0, 1]) {
+      const first = boxOrder.get(wires[i].from.box)! < boxOrder.get(wires[i].to.box)! ? 0 : 1;
+      for (const v of [first, 1-first]) {
         const next = [...assign];
         next[i] = v;
         visit(next);
@@ -242,6 +244,7 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
   };
   try {
     let assignment = search(true);
+    const integralPossible = !!assignment;
     if (!assignment) assignment = search(false);
     if (!assignment)
       return {
@@ -266,6 +269,10 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
         supplies(b.id, incident[k][0], assignment![incident[k][0]]) !==
           (b.bond!.element === "C"),
     );
+    // A derivative choice in one witness does not establish necessity. Check
+    // each storage element independently with every other preference relaxed.
+    const forcedDerivative = integralPossible ? [] : boxes.filter(b =>
+      ["C","I"].includes(b.bond!.element) && !search(new Set([b.id])));
     // Direct-feedthrough dependencies are between individual effort/flow variables,
     // so a bidirectional bond alone is not an algebraic loop.
     const dependencies: Array<[string, string]> = [];
@@ -317,20 +324,23 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
       ok: true as const,
       verdict: "assigned",
       work,
+      integralPossible,
+      forcedDerivativeBoxes: forcedDerivative.map(b => b.id),
       causality: wires.map((w, i) => ({
         wire: w.id,
         effortFrom: assignment![i] === 0 ? w.from : w.to,
         flowFrom: assignment![i] === 0 ? w.to : w.from,
       })),
       findings: [
-        ...derivative.map((b) =>
+        ...forcedDerivative.map((b) =>
           issue(
             "derivative-causality",
             at("$.model", "boxes", m.boxes.indexOf(b), "bond"),
-            "Storage element requires derivative causality in this assignment",
+            "Storage element has derivative causality in every admissible assignment",
             "Review storage independence or accept a differential/algebraic structure.",
           ),
         ),
+        ...(!integralPossible && !forcedDerivative.length ? [issue("derivative-causality", "$.model", "No assignment gives every storage element integral causality; the affected element depends on the assignment", "Review storage dependencies; individual storage necessity is reported only when independently established.")] : []),
         ...(algebraic
           ? [
               issue(
@@ -349,6 +359,7 @@ export function bondGraph(raw: z.input<typeof BondGraphRequest>) {
             box: b.id,
             element: b.bond!.element,
             causality: derivative.includes(b) ? "derivative" : "integral",
+            forcedDerivative: forcedDerivative.includes(b),
           })),
         constraints: boxes.map((b, k) => ({
           box: b.id,

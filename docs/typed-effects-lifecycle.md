@@ -51,7 +51,9 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-Six existing entries have typings derived solely from their own statement. Other entries stay
+Six existing entries have typings derived from their recorded statement or function fields,
+identified in `source`. Field-change and current tokens use an explicit shared vocabulary;
+the induction typing covers the changing-field clause only. Other entries stay
 untyped. No redistributable external input/output catalogue was verified; this remains a data gap.
 See the checked source and rights notes in the agent reference's `sources.md`.
 
@@ -59,7 +61,10 @@ See the checked source and rights notes in the agent reference's `sources.md`.
 optional explicit typed `effects`, `conditions` met, `k` (default 4, maximum 12), `max_steps`, and
 `limit`. A zero-length identity chain is returned when an available resource already has the required type, including with `k:0`. A model resource needs the explicit `carrier.effect_quantity` type; free `dimension`
 labels are never used as quantities. Effects match the quantity type and every requested SI
-constraint. Returned chains are wiring diagrams rechecked through `checkModel`, with each
+constraint. Empty resource declarations fail closed. A chain cannot reuse an effect id.
+Inferred weakest-spec hints apply only to unknown tools/mediators, use their declared input
+quantities, exclude the output being explained and share one 20,000-step budget.
+Returned chains are wiring diagrams rechecked through `checkModel`, with each
 connection using the matched carrier. Ranking is length, conditions met (descending), field
 changes, declaration order. The full bounded search decides and ranks before display truncation;
 a cap returns no ranked prefix. Conditions not declared met remain visible as unmet hypotheses.
@@ -98,7 +103,11 @@ policy enumeration as a fallback for singular starting policies. It returns one 
 cost dimension unless explicit `weights` name every cost dimension. Each solution reports the
 policy, gain per dimension, objective gain, bias, stationary occupancy, and availability.
 Availability is the stationary mass of acceptable states. A gain/bias certificate must satisfy
-all enabled actions' Bellman inequalities, with equality on the selected policy. Occupancy must
+all enabled actions' Bellman inequalities. Distinct transition choices tied at the optimum
+return `undecided` (`tied-optimal-policies`): their optimal cost is reported, but occupancy,
+availability and derived priors are not claimed unique. This test is conservative; transient
+action ties can also require a separate occupancy analysis.
+The selected policy satisfies equality. Occupancy must
 be nonnegative, sum to one, and satisfy πP=π. A unique stationary distribution and a scalar
 gain/bias witness are required. General multichain, state-dependent-gain cases are undecided.
 At most 64 states and `max_steps` work are admitted. Missing probabilities return T3's
@@ -112,6 +121,10 @@ There is no ergodic theorem, sample-path frequency theorem, probability estimati
 or continuous-time model. Probabilities and action consequences are declared data to substantiate.
 
 `derive_prior:true` aggregates occupancy through `lifecycle.situations[state]` into `joint_prior`.
+Undeclared probabilities with this option return `undecided` (`probabilities-undeclared`);
+cost dimensions and weights are validated before the nondeterministic fallback. Lifecycle-prior
+ranking sums the rational occupancy over complete admitted situations and compares exact
+fractions (`admittedProbabilityExact`); floating-point prior weights are display/compatibility data.
 Every state must map to a complete operating situation, including zero-occupancy states. Pass
 this table to `triz_weakness`, which checks full situation coverage. Alternatively opt into
 `triz_weakness.lifecycle_priors`: one `{concept,objective,box?,weights?,max_steps?}` per concept.

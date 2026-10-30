@@ -129,11 +129,11 @@ export function effectChains(
         quantity: c.effect_quantity!,
         ...(c.si === undefined ? {} : { si: c.si }),
       }));
-  if (!resources)
+  if (!resources?.length)
     return fail([
       issue(
         "invalid-argument",
-        "$.resources",
+        a.resources !== undefined || !a.model ? "$.resources" : "$.model.carriers",
         "No resources declared",
         "Supply resources, or a model whose carriers name the available quantities.",
       ),
@@ -153,6 +153,7 @@ export function effectChains(
     if (chain.length >= a.k) return;
     for (const effect of library) {
       if (++steps > a.max_steps) throw new Error("cap");
+      if (chain.some(e => e.id === effect.id)) continue;
       if (!matches(current, effect.input)) continue;
       const next = [...chain, effect];
       if (matches(effect.output, a.output)) {
@@ -219,4 +220,40 @@ export function effectChains(
     basis: [],
     note: "Typed wiring hypotheses only. Magnitudes, efficiency, scale, missing resources, and physical sufficiency require substantiation.",
   };
+}
+
+/** Optional suggestions share one budget and draw resources only from each
+ * unknown tool's declared inputs, never from the output being explained. */
+export function inferredEffectHints(model: Model, catalogue: TypedEffect[] | (() => TypedEffect[]), maxSteps = 20_000) {
+  const carriers = new Map<string, Model["carriers"][number]>();
+  const hints: Array<{box:string;port:string;search:ReturnType<typeof effectChains>}> = [];
+  let work = 0;
+  let library: TypedEffect[] | undefined;
+  for (const c of model.carriers) {
+    if (++work > maxSteps) return {hints,complete:false,work};
+    carriers.set(c.id,c);
+  }
+  for (const b of model.boxes) {
+    if (++work > maxSteps) return {hints,complete:false,work};
+    if (!["tool","mediator"].includes(b.role) || b.behavior || b.transition) continue;
+    for (const p of b.outputs ?? []) {
+      if (++work > maxSteps) return {hints,complete:false,work};
+      const c = carriers.get(p.carrier)!;
+      if (!c.effect_quantity) continue;
+      const resources: Port[] = [];
+      for (const p of b.inputs ?? []) {
+        if (++work > maxSteps) return {hints,complete:false,work};
+        const input = carriers.get(p.carrier)!;
+        if (input.effect_quantity && input.effect_quantity !== c.effect_quantity)
+          resources.push({quantity:input.effect_quantity,...(input.si ? {si:input.si}: {})});
+      }
+      if (!resources.length) continue;
+      library ??= typeof catalogue === "function" ? catalogue() : catalogue;
+      const search = effectChains({resources,output:{quantity:c.effect_quantity,si:c.si},max_steps:Math.max(1,maxSteps-work)},library);
+      if (search.ok) work += search.steps;
+      hints.push({box:b.id,port:p.id,search});
+      if (work >= maxSteps || (search.ok && search.verdict === "undecided")) return {hints,complete:false,work};
+    }
+  }
+  return {hints,complete:true,work};
 }

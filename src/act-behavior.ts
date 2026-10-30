@@ -1461,7 +1461,11 @@ export function weaknessRanking(concepts: Array<{ id: string; model: FunctionMod
   return scoped(weaknessRankingScoped(concepts, acceptable, opts), opts.scope ?? "upstream");
 }
 /** weaknessRanking's options: the scope and cap, and at most one of the two priors. */
-export type WeaknessOptions = BehaviorOptions & { priors?: Prior[]; jointPrior?: JointPriorRow[] };
+export type WeaknessOptions = BehaviorOptions & {
+  priors?: Prior[]; jointPrior?: JointPriorRow[];
+  /** Internal streaming view of complete admissions, independent of display truncation. */
+  admissionObserver?: (concept: string, input: JointPriorRow["input"]) => void;
+};
 function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionModel }>, acceptable: Acceptable[], opts: WeaknessOptions) {
   const issues: Issue[] = [];
   if (opts.priors !== undefined && opts.jointPrior !== undefined) {
@@ -1540,6 +1544,7 @@ function weaknessRankingScoped(concepts: Array<{ id: string; model: FunctionMode
   const readByOne = space.inputs.filter((q) => reads.filter((r) => r.includes(label(q))).length === 1).map((q) => ({ input: label(q), concept: concepts[reads.findIndex((r) => r.includes(label(q)))].id }));
   const perConcept = concepts.map((c, i) => {
     const a = admits[i];
+    if (opts.admissionObserver) all.forEach((u, n) => { if (a[n] === "admitted") opts.admissionObserver!(c.id, situation(u)); });
     const firstRejected = a.findIndex((x) => x !== "admitted");
     return {
       id: c.id, reads: reads[i], admitted: a.filter((x) => x === "admitted").length,

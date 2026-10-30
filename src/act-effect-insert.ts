@@ -91,7 +91,7 @@ export function allocated(prefix: string, ids: Iterable<string>) {
   };
 }
 
-export function insertEffectChain(input: unknown) {
+export function insertEffectChain(input: unknown, catalogue: z.infer<typeof TypedEffect>[] | (() => z.infer<typeof TypedEffect>[]) = []) {
   const parsed = EffectInsertRequest.safeParse(input);
   if (!parsed.success) return engineeringInvalid(parsed.error.issues);
   const a = parsed.data,
@@ -108,6 +108,18 @@ export function insertEffectChain(input: unknown) {
     ]);
   const reject = (path: string, message: string, hint: string) =>
     fail([issue("invalid-argument", path, message, hint)]);
+  const provenance: Array<"catalogue-verified" | "caller-declared"> = [];
+  let library: z.infer<typeof TypedEffect>[] | undefined;
+  for (const [i,e] of a.chain.entries()) {
+    library ??= typeof catalogue === "function" ? catalogue() : catalogue;
+    const curated = library.find(c => c.id === e.id);
+    if (curated && !(matches(e.input,curated.input) && matches(curated.input,e.input) &&
+      matches(e.output,curated.output) && matches(curated.output,e.output) && e.field === curated.field &&
+      JSON.stringify([...e.conditions].sort()) === JSON.stringify([...curated.conditions].sort()) &&
+      e.source === curated.source && e.typed_from === curated.typed_from))
+      return reject(`$.chain[${i}]`,"Curated effect id does not match its verified catalogue declaration","Use the curated typing and provenance unchanged, or give a caller-declared entry a distinct id.");
+    provenance.push(curated ? "catalogue-verified" as const : "caller-declared" as const);
+  }
   const source = a.model.boxes
     .find((b) => b.id === a.from.box)
     ?.outputs?.find((p) => p.id === a.from.port);
@@ -189,7 +201,7 @@ export function insertEffectChain(input: unknown) {
   }
   if (
     original &&
-    a.chain.length &&
+    (a.chain.length || original.from.box !== a.from.box) &&
     a.flows === undefined &&
     a.model.flows?.some((f) =>
       f.path.some(
@@ -320,7 +332,8 @@ export function insertEffectChain(input: unknown) {
       box: boxes[i].id,
       effect: e.id,
       source: e.source,
-      typed_from: e.typed_from,
+      typed_from: provenance[i] === "catalogue-verified" ? e.typed_from : "caller-declared",
+      provenance: provenance[i],
     })),
     unmetConditions: [...new Set(a.chain.flatMap((e) => e.conditions))].filter(
       (c) => !a.conditions.includes(c),

@@ -251,4 +251,4 @@ export function effects(query?: string, category?: TrizEffect["category"], typed
 }
 
 /** Only explicit complete typings enter chain search. */
-export function typedEffects(): TypedEffect[] { return effectsAll().filter((e): e is TrizEffect & TypedEffect => !!(e.input && e.output && e.field && e.conditions && e.source && e.typed_from)); }
+export function typedEffects(): TypedEffect[] { return effectsAll().filter((e): e is TrizEffect & TypedEffect => !!(e.input && e.output && e.field && e.conditions && e.source && e.typed_from)).map(({id,name,input,output,field,conditions,source,typed_from}) => ({id,name,input,output,field,conditions,source,typed_from})); }

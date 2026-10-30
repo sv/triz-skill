@@ -1055,7 +1055,7 @@ Mathlib imports/lemmas and affected proofs were migrated; warning failures remai
 | `Lifecycle` | `Stationary`, `Optimality` | Decidable stochastic-row, occupancy, selected-policy and gain/bias predicates |
 
 These names are registered in `src/act-basis.ts`; its theorem-to-file map extends the original
-single-file basis test. Cycle results cite `MeanCost.cycle_lower`, `cycle_upper`, `attains_bound`.
+single-file basis test. Cycle results cite `MeanCost.Bounds.walk_mean` for closed edge-indexed walks (including parallel edges), plus `cycle_lower`, `cycle_upper` and `attains_bound`.
 Lifecycle results cite `stationary_invariant`, `optimality_stationary`, `policy_attains_gain`.
 The TypeScript algorithms are not extracted from Lean. Generated rational certificates use
 `decide +kernel` and have per-statement tamper rejection. Request binding uses a manifest and

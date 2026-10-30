@@ -30,6 +30,8 @@ test("canonical source binding hashes the entire authoritative request with stan
   assert.match(checkCorrespondence(c.content, { kind: "model", model: other }).join(";"), /manifest source/);
   assert.equal(c.manifest.schema, "function-model-v1"); assert.equal(c.manifest.lean, "4.35.0");
   assert.equal(CERTIFICATE_SCHEMA_SOURCE,sourcePin(CERTIFICATE_SCHEMA_FILES));
+  assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-provenance.ts"));
+  assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-rational.ts"));
   assert.equal(CERTIFICATE_THEORY_SOURCE,sourcePin(CERTIFICATE_THEORY_FILES));
 });
 

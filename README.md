@@ -144,6 +144,9 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
 | `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
 | `triz_component_catalogue` | Get the shared general catalogue; reusable libraries combine across domains through explicit type bindings |
+| `triz_effect_chains` | Search bounded typed effect chains from explicit resources; hypotheses require substantiation |
+| `triz_lifecycle` | Solve declared maintenance policies and holding costs; ambiguous optimal-policy occupancy remains undecided |
+| `triz_bond_graph` | Check structural effort/flow causality, forced derivative storage and equation dependencies |
 | `triz_effect_insert` | Insert a discovered effect chain into an existing model with explicit bindings and a replayable rewrite |
 | `triz_global_separation` | Find one assignment satisfying every allowed overlapping local relation |
 | `triz_queue` | Compile and check an explicitly scheduled finite queue for overflow |

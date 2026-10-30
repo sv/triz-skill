@@ -198,11 +198,44 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       ),
     );
   if (errors.length) return fail(errors);
+  const dims = [
+    ...new Set([
+      ...actions.flatMap((x) => [
+        ...Object.keys(x.cost ?? {}),
+        ...x.transitions.flatMap((r) => Object.keys(r.cost ?? {})),
+      ]),
+      ...Object.values(holding).flatMap((c) => Object.keys(c)),
+    ]),
+  ];
+  if (!dims.length)
+    return fail([
+      issue(
+        "invalid-argument",
+        root,
+        "No lifecycle cost dimension declared",
+        "Declare action cost, including explicit zero when appropriate.",
+      ),
+    ]);
+  if (
+    a.weights &&
+    (dims.some((d) => !Object.hasOwn(a.weights!, d)) ||
+      Object.keys(a.weights).some((d) => !dims.includes(d)) ||
+      !Object.values(a.weights).some((x) => x > 0))
+  )
+    return fail([
+      issue(
+        "invalid-weight",
+        "$.weights",
+        "Combined lifecycle objective needs explicit weights on every cost dimension",
+        "Supply exactly the declared dimensions with nonnegative weights and at least one positive weight.",
+      ),
+    ]);
   if (
     actions.some((action) =>
       action.transitions.some((r) => r.probability === undefined),
     )
   ) {
+    if (a.derive_prior) return { ok: true as const, verdict: "undecided" as const, reason: "probabilities-undeclared" as const };
     const fallback: FunctionModel = {
       domain: m.domain,
       carriers: [],
@@ -278,38 +311,6 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       verdict: "undecided",
       reason: "lifecycle-state-cap",
     };
-  const dims = [
-    ...new Set([
-      ...actions.flatMap((x) => [
-        ...Object.keys(x.cost ?? {}),
-        ...x.transitions.flatMap((r) => Object.keys(r.cost ?? {})),
-      ]),
-      ...Object.values(holding).flatMap((c) => Object.keys(c)),
-    ]),
-  ];
-  if (!dims.length)
-    return fail([
-      issue(
-        "invalid-argument",
-        root,
-        "No lifecycle cost dimension declared",
-        "Declare action cost, including explicit zero when appropriate.",
-      ),
-    ]);
-  if (
-    a.weights &&
-    (dims.some((d) => !Object.hasOwn(a.weights!, d)) ||
-      Object.keys(a.weights).some((d) => !dims.includes(d)) ||
-      !Object.values(a.weights).some((x) => x > 0))
-  )
-    return fail([
-      issue(
-        "invalid-weight",
-        "$.weights",
-        "Combined lifecycle objective needs explicit weights on every cost dimension",
-        "Supply exactly the declared dimensions with nonnegative weights and at least one positive weight.",
-      ),
-    ]);
   const objectives = a.weights
     ? [{ name: "weighted", weights: a.weights }]
     : dims.map((d) => ({ name: d, weights: { [d]: 1 } }));
@@ -410,6 +411,11 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       improvement = improved;
       return undefined;
     }
+    const tiedOptimalActions = states.flatMap((state, i) => choices[i].filter(j => {
+      charge();
+      return P[i][j].some((x, k) => cmp(x, p[i][k]) !== 0) &&
+      cmp(add(sum(Object.entries(weights).map(([d,w]) => mul(rational(w), C[i][j][d] ?? Z))), sum(P[i][j].map((v,k) => mul(v,h[k])))), add(g,h[i])) === 0;
+    }).map(j => ({state, action: actions[j].id})));
     const station = states.map((_, j) => [
       ...states.map((_, i) => sub(p[i][j], i === j ? ONE : Z)),
       Z,
@@ -424,6 +430,7 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       ]),
     );
     return {
+      tiedOptimalActions,
       policy: Object.fromEntries(
         states.map((s, i) => [s, actions[policy[i]].id]),
       ),
@@ -500,6 +507,11 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
           reason: "no-scalar-gain-or-unique-occupancy",
           work,
         };
+      if (result.tiedOptimalActions.length) return {
+        ok: true as const, verdict: "undecided" as const, reason: "tied-optimal-policies" as const,
+        objective: objective.name, objectiveGain: result.objectiveGain, tiedActions: result.tiedOptimalActions, work,
+        note: "Distinct transition choices satisfy the optimal Bellman equations. Cost optimality is established, but occupancy, availability and derived priors are not claimed unique across optimal policies.",
+      };
       let joint_prior:
         | Array<{
             input: Array<{ box: string; port: string; value: string }>;

@@ -287,15 +287,15 @@ test("effect dimensions must match; model resources use explicit quantity types"
     ],
   };
   const r = effectChains({ model: m, output: { quantity: "z" }, effects: [e] });
-  const t = renamedTwin(m);
+  const t = renamedTwin(m,["z"]);
   const s = effectChains({
     model: t.model,
-    output: { quantity: "z" },
-    effects: [e],
+    output: { quantity: t.token("z") },
+    effects: [{...e,input:{...e.input,quantity:t.token("a")},output:{quantity:t.token("z")}}],
   });
-  assert.deepEqual(s, r);
+  assert.deepEqual(t.back(s), r);
 });
-test("typed catalogue entries are strictly derived from existing statements", async () => {
+test("typed catalogue entries identify their existing source fields", async () => {
   const result = await call("triz_effects", {
     input: "temperature difference",
     output: "voltage",
@@ -305,7 +305,7 @@ test("typed catalogue entries are strictly derived from existing statements", as
   for (const e of JSON.parse(
     fs.readFileSync("skills/triz-innovation/data/effects.json", "utf8"),
   ).effects.filter((e: any) => e.input)) {
-    assert.equal(e.typed_from, "statement");
+    assert.ok(["source","statement"].includes(e.typed_from));
     assert.ok(e.source);
     assert.ok(e.output);
     assert.ok(e.field);

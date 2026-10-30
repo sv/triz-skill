@@ -1,3 +1,4 @@
+import "../src/data.js";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { checkModel, type FunctionModel } from "../src/act.js";
@@ -330,7 +331,7 @@ test("search and insertion verdicts are invariant under systematic id and label 
       ...a.model,
       boxes: [...a.model.boxes, ...a.catalogue.map((t) => t.component)],
     },
-    twin = renamedTwin(combined);
+    twin = renamedTwin(combined,effects.flatMap(e=>[e.input.quantity,e.output.quantity,...e.conditions]));
   const model = { ...twin.model, boxes: twin.model.boxes.slice(0, 2) };
   const r = searchComponents(a),
     t = searchComponents({
@@ -362,7 +363,7 @@ test("search and insertion verdicts are invariant under systematic id and label 
     model,
     from: { box: twin.box("source"), port: twin.port("source", "out") },
     to: { box: twin.box("product"), port: twin.port("product", "in") },
-    chain: effects,
+    chain: effects.map(e=>({...e,input:{...e.input,quantity:twin.token(e.input.quantity)},output:{...e.output,quantity:twin.token(e.output.quantity)},conditions:e.conditions.map(twin.token)})),
   });
   assert.ok(inserted.ok && "model" in inserted);
   assert.equal(inserted.verdict, "inserted");

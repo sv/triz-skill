@@ -16,7 +16,7 @@ namespace ComponentNetwork
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"ComponentNetwork\",\"source\":\"1dd71ad2ca2260b103642c44ada7355f0d6b26c323f97e8adea6b35b4b491cd0\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"71dd87e0ab1cefc24d5c9531e4e79e94c01df12b59d700419fd87e7bcee5a159\",\"schemaSource\":\"d0b3ca80c2e505f7bab03c058c5b95324bcfe7583e94defb624dcaf9cef08770\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"structural\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"ComponentNetwork\",\"source\":\"1dd71ad2ca2260b103642c44ada7355f0d6b26c323f97e8adea6b35b4b491cd0\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6c1769ad0ff711b1272849f57253dc6371b927ab6ce05cdba8249e9fa9034ffb\",\"schemaSource\":\"f2cc2abfd94d2e3078cf1bafccfa0f93bee7a4d64be2a328f5f70dab90f60d5f\",\"lean\":\"4.35.0\",\"mathlib\":\"v4.35.0\",\"scope\":\"structural\"}"
 
 /-! ## The model as finite data -/
 

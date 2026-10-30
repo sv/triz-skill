@@ -5,6 +5,11 @@ catalogue. It finds single components, chains, multi-input assemblies and shared
 The caller supplies the desired interface and properties, without supplying component order or
 internal connections. This is discovery within a declared catalogue.
 
+Effect insertion verifies known curated effect ids against the installed catalogue's typing,
+conditions and provenance before citing them. Other entries are marked `caller-declared`;
+their supplied source text is an assertion. A replacement that changes a declared flow path
+requires explicitly restated flows, including zero-effect replacements from another source box.
+
 | Requirement | Declaration | Checked claim |
 |---|---|---|
 | Quantity/dimensions | Carriers with `effect_quantity`, optional `si`; catalogue ports reference carrier ids | Every connection uses one declared carrier type, including its SI |

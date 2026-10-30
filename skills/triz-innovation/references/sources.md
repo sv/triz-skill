@@ -333,9 +333,11 @@ repository does not implement their general categorical constructions or a Kan u
   permit copying public information unless marked copyrighted. Only unit facts are encoded;
   no derived-unit or physical-domain catalogue is imported. Dimension letters follow the
   schema explicitly requested for this kernel.
-- Existing effects 3, 7, 8, 12, 15 and 34 are typed only from their own existing `statement` in
-  `data/effects.json`, under this repository's MIT license. `typed_from: statement` and a local
-  entry citation identify this limited derivation. No SI dimensions, constants, material
+- Existing effects 3, 7, 8, 12, 15 and 34 are typed from their existing `statement` or `function`
+  fields in `data/effects.json`, under this repository's MIT license. Local entry citations name
+  the fields or clause used. Effect 3 covers the changing-field clause only; effects 3/34 share
+  `changing magnetic field`, and 8/15/34 share `current`. These are explicit vocabulary
+  normalizations; effect 12's output comes from its function field. No SI dimensions, constants, material
   assumptions, performance magnitudes or new effects are supplied from memory.
 - A search for Koller/Roth-style input/output catalogues found publications discussing such
   catalogues, including [ICED11](https://www.designsociety.org/download-publication/30605/selection_of_physical_effects_based_on_disturbances_and_robustness_ratios_in_the_early_phases_of_robust_design),

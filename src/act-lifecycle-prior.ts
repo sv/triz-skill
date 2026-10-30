@@ -7,6 +7,7 @@ import {
 import { lifecycle } from "./act-lifecycle.js";
 import type { FunctionModel } from "./act.js";
 import { fail, issue, rebase } from "./act-issues.js";
+import { Z, add, cmp, rational, show, approx } from "./act-rational.js";
 export const LifecyclePrior = z.strictObject({
   concept: z.string().min(1),
   box: z.string().optional(),
@@ -34,7 +35,9 @@ export function lifecyclePriorRanking(
         "Supply one lifecycle_priors selection per concept.",
       ),
     ]);
-  const base = weaknessRanking(concepts, acceptable, opts);
+  const situationKey = (input: Array<{box:string;port:string;value:string}>) => JSON.stringify(input.map(x => [x.box,x.port,x.value]).sort((a,b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
+  const admitted = new Map(concepts.map(c => [c.id, new Set<string>()]));
+  const base = weaknessRanking(concepts, acceptable, {...opts, admissionObserver: (id,input) => admitted.get(id)!.add(situationKey(input))});
   if (!base.ok || base.verdict !== "ranked") return base;
   const scores = [];
   for (const [index, concept] of concepts.entries()) {
@@ -83,10 +86,15 @@ export function lifecyclePriorRanking(
         ...base,
         lifecyclePriors: { verdict: "undecided", concept: concept.id },
       };
-    const own = scored.concepts.find((c) => c.id === concept.id)!;
+    // Classifications come from the complete admission stream; display lists can
+    // be truncated. Sum the exact rational occupancy, never rounded prior weights.
+    const mass = Object.entries(solution.occupancy).reduce((total,[state,weight]) =>
+      admitted.get(concept.id)!.has(situationKey(concept.model.lifecycle!.situations![state]))
+        ? add(total,rational(weight)) : total, Z);
     scores.push({
       id: concept.id,
-      admittedProbability: own.jointAdmittedProbability,
+      admittedProbability: approx(mass),
+      admittedProbabilityExact: show(mass),
       joint_prior: solution.joint_prior,
       policy: solution.policy,
       occupancy: solution.occupancy,
@@ -98,8 +106,8 @@ export function lifecyclePriorRanking(
       verdict: "derived",
       concepts: scores,
       byProbability: [...scores]
-        .sort((a, b) => b.admittedProbability! - a.admittedProbability!)
-        .map((s) => ({ id: s.id, admittedProbability: s.admittedProbability })),
+        .sort((a, b) => cmp(rational(b.admittedProbabilityExact), rational(a.admittedProbabilityExact)))
+        .map((s) => ({ id: s.id, admittedProbability: s.admittedProbability, admittedProbabilityExact: s.admittedProbabilityExact })),
       note: "Each concept uses its own declared dynamics and optimal policy. Inclusion and count orders are unchanged; probabilities describe different concept-specific operating distributions.",
     },
   };

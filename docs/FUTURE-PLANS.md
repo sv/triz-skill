@@ -69,7 +69,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 |---|---|---|
 | T2 Dimensions | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit SI vectors/base-unit parsing, shared equality and dimension lints; no conversions/inference |
 | T3 Costed dynamics | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact Karp cycle ranges, potentials and achieving-cycle certificates; no probabilities/continuous time |
-| T1 Typed effects | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Typed filters, capped checked chains and weakest-spec hints; six statement-derived entries; external catalogue rights gap remains |
+| T1 Typed effects | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Typed filters, capped checked chains and weakest-spec hints; six entry-derived typings; external catalogue rights gap remains |
 | T4 Lifecycle MDP | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact scalar-gain policy iteration, stationary occupancy/availability, certificates and concept-specific priors; general multichain/product-MDP/game scope remains open |
 | T5 Bond graphs | Design and first structural implementation in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit effort/flow typing, capped causality and equation structure; no numerical simulation/chemistry |
 
