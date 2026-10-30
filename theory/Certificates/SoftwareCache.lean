@@ -16,7 +16,7 @@ namespace SoftwareCache
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"SoftwareCache\",\"source\":\"e0f60e8c5b213e053021a19ff595c47badeaae4146ccf4f36ceceda7a08f04ed\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"cdb2b46b5924e18c57000ebfcf93d99d8425dc4fa2c9d45ab927d7d26eef8090\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"structural\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"model\",\"namespace\":\"SoftwareCache\",\"source\":\"e0f60e8c5b213e053021a19ff595c47badeaae4146ccf4f36ceceda7a08f04ed\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"3df9737aa256a9e05c5446dbd0a1be18161ffd8522b76d58a457f7a051b9e857\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"structural\"}"
 
 /-! ## The model as finite data -/
 
