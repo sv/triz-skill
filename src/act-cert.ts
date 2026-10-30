@@ -29,7 +29,7 @@ export const DEFAULT_NAMESPACE = "TrizCertificate";
 export interface Certified { theorem: string; verdict: string; }
 /** Exact source pins; refresh deliberately when the theory or model schema changes. */
 export const CERTIFICATE_THEORY_SOURCE = "6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576";
-export const CERTIFICATE_SCHEMA_SOURCE = "cb5380f0074bacbc87d42a4925a5d242c55a32a23593a56e2ce76043d43560c8";
+export const CERTIFICATE_SCHEMA_SOURCE = "091300d559ca4a19b7707142e62330b83761010e9e2969a87156aa60d6a30802";
 export interface CertificateManifest {
   format: "triz-certificate-v2"; kind: CertificateRequest["kind"]; namespace: string;
   source: string; schema: "function-model-v1"; generator: "triz-cert-2";

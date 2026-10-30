@@ -965,13 +965,20 @@ export function analyseModel(model: FunctionModel, compareTo?: FunctionModel, op
     else separationIssues.push(...rebase(r, [], `contradiction '${pc.id}': `).issues);
   }
   if (separationIssues.length) return fail(separationIssues);
+  // Harm loops and separation read the outer wiring and the model's own contradictions only. With
+  // nested boxes an empty list is not a clean verdict, so the boxes left unread are always listed.
+  const nested = model.boxes.filter((b) => b.inner).map((b) => b.id);
+  const loopNote = "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.";
   return {
     ok: true as const,
     domain: model.domain,
+    ...(nested.length ? { incompleteHierarchy: nested } : {}),
     harmLoops: harmLoops(model),
     ideality: idealityProfile(model),
     separation,
     comparison: compareTo ? compareIdeality(compareTo, model, opts) : undefined,
-    note: "Loops and absorbers are hypotheses about mechanism, not findings: name the causal evidence for each before acting on it.",
+    note: nested.length
+      ? `Incomplete hierarchy: harm loops and separation cover the outer wiring and the model's own contradictions only. The inner models of ${quoted(nested)} are not analysed, so a harm loop or a contradiction inside them is not reported. Run triz_expand_hierarchy on each nested box first, then analyse the expanded model. ${loopNote}`
+      : loopNote,
   };
 }

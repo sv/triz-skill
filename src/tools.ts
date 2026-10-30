@@ -167,7 +167,12 @@ function functionModel(model: act.FunctionModel, compareTo?: act.FunctionModel, 
   if (mapped && !mapped.ok) return mapped;
   const comparison = mapped ? { ...comparisonBasis(act.compareIdeality(compareTo, mapped.model, opts)), boxMap } : r.comparison;
   if (comparison.mpv && !comparison.mpv.ok) return fail(comparison.mpv.issues);
-  return { ...r, comparison: { ...comparison, isomorphism: findIsomorphism(compareTo, model) } };
+  // The isomorphism search compares the outer wiring; inner models are not compared.
+  const nested = [model, compareTo].some((m) => m.boxes.some((b) => b.inner));
+  const isomorphism = findIsomorphism(compareTo, model);
+  return { ...r, comparison: { ...comparison, isomorphism: nested && isomorphism.ok
+    ? { ...isomorphism, incompleteHierarchy: true, note: "Outer wiring only: inner models are not compared. Expand nested boxes with triz_expand_hierarchy in both models first." }
+    : isomorphism } };
 }
 
 /** An acceptability entry: a deliverable port or a carrier, with values or a threshold read through the carrier's levels. */
@@ -376,7 +381,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
     },
     {
       name: "triz_function_model",
-      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison plus an isomorphism check: whether the two models share a wiring shape ignoring every id and label (a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs; decided:false if the bounded search runs out). With mpv_weights (and compare_to), comparison.mpv compares the two models over the main parameters of value only: the named cost dimensions or 'harmful', componentwise and by the explicit weighted sum, listing the other axes on which they differ; a lost deliverable still decides, and no weight is ever filled in. Each verdict cites the theorem in theory/CategoricalTriz.lean it relies on (basis). Any dangling, mis-directed, or mistyped wire, or an invalid embedded contradiction, fails closed with ok:false. Loops are hypotheses about mechanism to substantiate, not findings.",
+      description: "Check a TRIZ function model written as a typed wiring diagram (boxes with typed ports, wires carrying one carrier and a polarity) and analyse it: harm loops (closed loops containing a harmful or excessive function, with witness cycles), an ideality profile per resource dimension (never summed; a scalar ratio only with explicit weights), separation checks for embedded physical contradictions, and, given compare_to, a componentwise baseline-vs-concept comparison plus an isomorphism check: whether the two models share a wiring shape ignoring every id and label (a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs; decided:false if the bounded search runs out). With mpv_weights (and compare_to), comparison.mpv compares the two models over the main parameters of value only: the named cost dimensions or 'harmful', componentwise and by the explicit weighted sum, listing the other axes on which they differ; a lost deliverable still decides, and no weight is ever filled in. Each verdict cites the theorem in theory/CategoricalTriz.lean it relies on (basis). Any dangling, mis-directed, or mistyped wire, or an invalid embedded contradiction, fails closed with ok:false. Harm loops and separation read the outer wiring and the model's own contradictions only: when boxes declare an `inner` model, incompleteHierarchy lists them, the note says their inner loops and contradictions are not analysed, and the isomorphism check carries incompleteHierarchy: true; run triz_expand_hierarchy on each first. Loops are hypotheses about mechanism to substantiate, not findings.",
       shape: {
         model: act.FunctionModel.describe("The model to analyse (the concept, when compare_to is given)"),
         compare_to: act.FunctionModel.optional().describe("Baseline model of the same system with stable box ids"),

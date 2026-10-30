@@ -104,7 +104,11 @@ fresh box/wire maps. It supports stateless wiring and rejects changes of product
 identity, flows, costs, feasibility, dynamics and other unsupported inner metadata. Expand further
 nested boxes one at a time. Until expanded, semantic tools do not infer inner rows; residual
 synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
-and costs incomplete. Generic explicit deletes may remove a whole nested box; they are structural
+and costs incomplete. `triz_function_model` reads harm loops and separation over the outer wiring
+and the model's own contradictions only: with nested boxes it returns `incompleteHierarchy` (their
+ids) beside them, and its isomorphism check carries `incompleteHierarchy: true`. An empty
+`harmLoops` there is not a clean verdict, since a loop inside an inner model is not reported:
+expand first. Generic explicit deletes may remove a whole nested box; they are structural
 edits, not behavior-preservation claims.
 
 For a one-hole `weakest_spec` with an infeasible producible bound, `extensionCandidates.rows`

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { FunctionModel, checkModel } from "../src/act.js";
+import { FunctionModel, analyseModel, checkModel } from "../src/act.js";
+import { toolSpecs } from "../src/tools.js";
 import { substitute, zoomIn } from "../src/act-hierarchy.js";
 import { externalBehavior } from "../src/act-behavior.js";
 import { nineWindows } from "../src/act-windows.js";
@@ -54,6 +55,39 @@ test("nine windows shows the nested subsystem and its boundary", () => {
   const present = result.windows.find(w => w.time === "present");
   assert.ok(present && present.status === "ok");
   if (present && present.status === "ok") assert.equal("parentBox" in present.subsystem && present.subsystem.parentBox, "h");
+});
+
+test("a harm loop inside an inner model is flagged as unanalysed, never reported as a clean verdict", async () => {
+  const m = model();
+  const inner = m.boxes[0].inner.model as FunctionModel;
+  // Inside h: a feeds b, and b harms a back. The outer wiring has no loop.
+  inner.boxes = [
+    { id: "a", name: "A", role: "tool", inputs: [port("i"), port("back")], outputs: [port("o"), port("fwd")] },
+    { id: "b", name: "B", role: "mediator", inputs: [port("i")], outputs: [port("o")] },
+  ];
+  inner.wires = [
+    { id: "ab", from: { box: "a", port: "fwd" }, to: { box: "b", port: "i" }, carrier: "c", polarity: "useful" },
+    { id: "ba", from: { box: "b", port: "o" }, to: { box: "a", port: "back" }, carrier: "c", polarity: "harmful" },
+  ];
+  assert.equal(checkModel(m).ok, true);
+  const r = analyseModel(m);
+  assert.ok(r.ok);
+  assert.deepEqual(r.harmLoops, [], "the outer wiring has no loop");
+  assert.deepEqual(r.incompleteHierarchy, ["h"]);
+  assert.match(r.note, /inner models of 'h' are not analysed/);
+  assert.match(r.note, /triz_expand_hierarchy/);
+  // Expanded, the loop is found and nothing is left unanalysed.
+  const expanded = substitute(m, "h");
+  assert.ok(expanded.ok);
+  const flat = analyseModel(expanded.model);
+  assert.ok(flat.ok);
+  assert.equal(flat.incompleteHierarchy, undefined);
+  assert.deepEqual(flat.harmLoops.map((l) => l.negative), [["h/ba"]]);
+  // The tool carries the flag, and its isomorphism check says it compared the outer wiring only.
+  const spec = toolSpecs().find((s) => s.name === "triz_function_model")!;
+  const out = JSON.parse((await spec.handler({ model: m, compare_to: m })).content[0].text);
+  assert.deepEqual(out.incompleteHierarchy, ["h"]);
+  assert.equal(out.comparison.isomorphism.incompleteHierarchy, true);
 });
 
 test("cycles and excessive nesting fail closed in the model checker", () => {
