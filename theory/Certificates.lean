@@ -4,5 +4,6 @@ import Certificates.BearingEscalation
 import Certificates.SupportWeakness
 import Certificates.BearingDamped
 import Certificates.BearingTrim
+import Certificates.BearingBlocked
 
-/-! Per-instance certificates of six examples: two models (`triz_export` format `lean`), one escalation trace and one unreachable escalation (`triz_dynamics`), one weakness ranking (`triz_weakness`), and one preserved trim (`triz_behavior`); see `scripts/certify.mjs`. -/
+/-! Per-instance certificates of seven examples: two models (`triz_export` format `lean`), one escalation trace and two unreachable escalations, one of a state-only target and one of a port target whose runs block (`triz_dynamics`), one weakness ranking (`triz_weakness`), and one preserved trim (`triz_behavior`); see `scripts/certify.mjs`. -/

@@ -156,3 +156,62 @@ test("thresholds fail closed: inside a band, without levels, read differently ac
   assert.match(errors(weaknessRanking(two, [drive, { carrier: "lube", values: ["oiled"] }, { carrier: "radial-load", at_least: 2500 }])), /carrier 'lube' is the carrier of no deliverable/);
   assert.match(errors(weaknessRanking(two, [drive, { carrier: "radial-load", at_least: 2500 }, { carrier: "radial-load", at_least: 0 }])), /carrier 'radial-load' is listed twice/);
 });
+
+/** The bearing with levels and feasibility rows, its housing bounded by producible rows instead of behaviour. */
+function producibleHousing(producible: string[], feasibility?: number[]): FunctionModel {
+  const m = bearingWithRows();
+  const housing = box(m, "housing");
+  delete housing.behavior;
+  housing.producible = producible.map((bore) => ({ in: {}, out: { bore } }));
+  if (feasibility) housing.feasibility = feasibility.map((n) => ({ provides: { bore: n } }));
+  return m;
+}
+type Lint = { code: string; path: string; severity: string; message: string; hint: string };
+const unbacked = (r: { warnings: Lint[] }) => r.warnings.filter((w) => w.code === "unbacked-producible-row");
+
+test("unbacked-producible-row: a producible row no feasibility row reaches through the levels, never changing a verdict", async () => {
+  // The housing's rows provide 400 N (unsupported) and 3000 N (supported): both producible rows are reached.
+  const both = producibleHousing(["supported", "unsupported"]);
+  assert.deepEqual(checkModel(both).errors, []);
+  assert.deepEqual(unbacked(await call("triz_function_model", { model: both })), []);
+  // Only the 400 N row: nothing reaches supported's threshold (2500 N).
+  const weak = producibleHousing(["supported", "unsupported"], [400]);
+  const [lint, ...rest] = unbacked(await call("triz_function_model", { model: weak }));
+  assert.deepEqual(rest, []);
+  const at = weak.boxes.findIndex((b) => b.id === "housing");
+  assert.deepEqual([lint.path, lint.severity], [`$.model.boxes[${at}].producible[0]`, "warning"]);
+  assert.match(lint.message, /^producible row 0 of 'housing' gives bore = 'supported', but no feasibility row of 'housing' reaches that level at its inputs, read through the carriers' levels \(the most provided: bore = 400, read as 'unsupported'\)$/);
+  assert.match(lint.hint, /^Add a feasibility row of 'housing' that provides that level/);
+  // Read monotonically, as triz_feasibility reads the rows: 3000 N also provides unsupported, so it backs both.
+  assert.deepEqual(unbacked(await call("triz_function_model", { model: producibleHousing(["supported", "unsupported"], [3000]) })), []);
+  // Silent without levels on the carrier, and where no feasibility row provides at the port.
+  const plain = structuredClone(weak);
+  delete carrier(plain, "radial-load").levels;
+  assert.deepEqual(unbacked(await call("triz_function_model", { model: plain })), []);
+  const silent = structuredClone(weak);
+  box(silent, "housing").feasibility = [{ cost: { usd_unit: 1 } }];
+  // Lints are of models that type-check, so each of these must.
+  for (const m of [weak, plain, silent]) assert.deepEqual(checkModel(m).errors, []);
+  assert.deepEqual(unbacked(await call("triz_function_model", { model: silent })), []);
+
+  // The required amounts too: the bearing provides 3000 N only from a high preload.
+  const preloaded = bearingWithRows();
+  carrier(preloaded, "preload").levels = [{ value: "nominal", from: 0 }, { value: "high", from: 100 }];
+  const bearing = box(preloaded, "bearing");
+  bearing.producible = bearing.behavior;
+  delete bearing.behavior;
+  bearing.feasibility = [{ provides: { race: 3000 }, requires: { "preload-in": 150 } }];
+  assert.deepEqual(checkModel(preloaded).errors, []);
+  const needs = unbacked(await call("triz_function_model", { model: preloaded }));
+  assert.deepEqual(needs.map((w) => w.path), [`$.model.boxes[${preloaded.boxes.indexOf(bearing)}].producible[0]`], "the nominal-preload row, not the high one");
+
+  // Never a verdict: triz_behavior gives the same weakest spec with the lint and without it (feasibility is not its input).
+  const spec = async (m: FunctionModel) => {
+    const { warnings, ...r } = await call("triz_behavior", { model: m, trim: ["bearing"], weakest_spec: true });
+    return { r, lints: unbacked({ warnings }).length };
+  };
+  const [linted, clean] = [await spec(weak), await spec(producibleHousing(["supported", "unsupported"]))];
+  assert.deepEqual([linted.lints, clean.lints], [1, 0]);
+  assert.deepEqual(linted.r, clean.r);
+  assert.equal(linted.r.verdict, "spec");
+});

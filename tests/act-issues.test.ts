@@ -363,7 +363,7 @@ const cases: Case[] = [
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
-const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port"];
+const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row"];
 
 test("every failure carries issues: one per error, a registered code, a path into the input, and a hint", async () => {
   const covered = new Set<IssueCode>();
@@ -522,13 +522,28 @@ test("triz_nine_windows returns the models its transitions produce, and aggregat
   assert.equal(failed.derived, undefined);
 });
 
-test("the code table in categorical-model.md lists exactly the registered codes", () => {
+test("the code tables in error-codes.md list exactly the registered codes, each once", () => {
+  const table = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/error-codes.md"), "utf8");
+  const listedCodes = [...table.matchAll(/^\| `([a-z-]+)` \|/gm)].map((m) => m[1]);
+  assert.deepEqual([...listedCodes].sort(), Object.keys(ISSUE_CODES).sort());
+  assert.equal(new Set(listedCodes).size, listedCodes.length, "each code once");
+});
+
+test("categorical-model.md's short code list names registered codes only, every lint among them, and links the full table", () => {
+  const table = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/error-codes.md"), "utf8");
+  const lintsAt = table.indexOf("## Lints");
+  assert.ok(lintsAt >= 0, "error-codes.md has a Lints section");
+  const lintsEnd = table.indexOf("\n## ", lintsAt + 1);
+  const lints = [...table.slice(lintsAt, lintsEnd < 0 ? undefined : lintsEnd).matchAll(/^\| `([a-z-]+)` \|/gm)].map((m) => m[1]);
+  assert.ok(lints.length >= 1, "the Lints section lists codes");
   const doc = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/categorical-model.md"), "utf8");
   const start = doc.indexOf("## Issue and lint codes");
   assert.ok(start >= 0, "the section exists");
   const end = doc.indexOf("\n## ", start + 1);
   const section = doc.slice(start, end < 0 ? undefined : end);
-  const listedCodes = [...section.matchAll(/^\| `([a-z-]+)` \|/gm)].map((m) => m[1]);
-  assert.deepEqual([...listedCodes].sort(), Object.keys(ISSUE_CODES).sort());
-  assert.equal(new Set(listedCodes).size, listedCodes.length, "each code once");
+  const shortList = [...section.matchAll(/^\| `([a-z-]+)`(?: \(info\))? \|/gm)].map((m) => m[1]);
+  for (const code of shortList) assert.ok(Object.hasOwn(ISSUE_CODES, code), `'${code}' is not a registered code`);
+  for (const lint of lints) assert.ok(shortList.includes(lint), `lint '${lint}' is missing from the short list`);
+  assert.equal(new Set(shortList).size, shortList.length, "each code once");
+  assert.match(section, /\]\(error-codes\.md\)/, "the section links the full table");
 });

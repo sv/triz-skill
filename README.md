@@ -87,9 +87,10 @@ the local stdio server.
 
 ### Tool map
 
-One line per workflow stage; the table below has one row per tool. The theory behind the model
-tools, and exactly what is and is not claimed, is in
-[categorical-model.md](skills/triz-innovation/references/categorical-model.md).
+One line per workflow stage; the table below has one row per tool. What each model tool's
+verdict means, and how to chain the tools, is in
+[categorical-model.md](skills/triz-innovation/references/categorical-model.md); the theory behind
+them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/theory-map.md).
 
 | Stage | Tools | What they do |
 |---|---|---|
@@ -175,13 +176,13 @@ Every `ok: false` result keeps its `errors` and adds `issues`: per error a stabl
 slips get a pointed hint, such as a whole `triz_rule_apply` listing entry passed as `match`.
 `triz_function_model`, `triz_trim`, and `triz_behavior` also return `warnings`: lints such as an
 excessive rating on a loss like a pressure drop, which never change a verdict.
-categorical-model.md tabulates every code.
+[error-codes.md](skills/triz-innovation/references/error-codes.md) tabulates every code.
 
 Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
 typed moves. Each returns a model that type-checks, or fails closed:
 
 - constructions for the 13 principles whose looked-up text describes a structural move, such
-  as Segmentation, Merging, Inversion, Feedback, and Intermediary; categorical-model.md
+  as Segmentation, Merging, Inversion, Feedback, and Intermediary; the theory map
   classifies all 40 and says why the others are parametric or analogies;
 - an applied trim;
 - a raw rewrite.
@@ -281,9 +282,9 @@ correspondence and the listed proofs. Unsupported cases and caps return an expli
 Nothing is extracted from Lean. The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
-in categorical-model.md. That shows the kernel reads only the wiring shape, not that solutions
+in the theory map. That shows the kernel reads only the wiring shape, not that solutions
 transfer between domains.
-[categorical-model.md](skills/triz-innovation/references/categorical-model.md) states exactly
+[docs/theory-map.md](docs/theory-map.md#what-is-not-claimed) states exactly
 what is and is not claimed. `examples/function-models/` holds a physical, a business, and two
 software models. One software model has the physical model's wiring shape. Three copies of
 the physical model declare box behaviour, box feasibility, and a shaft temperature, so their
@@ -330,18 +331,19 @@ with no `sorry`:
   the least fixpoint of a finite lattice, and the co-design fixpoint is the upward closure of the
   feasible configurations.
 
-Verdicts cite only the statements they use exactly; categorical-model.md marks the others as
-never cited, and why.
+Verdicts cite only the statements they use exactly; the
+[theory map](docs/theory-map.md#theorem-inventory) marks the others as never cited, and why.
 
 `theory/Witnesses.lean` checks that none of the typing, restriction, rewrite,
 behaviour-monotonicity, residual, weakness, co-design, or dynamics lemmas is vacuous. For each, a
 concrete diagram, relation, or step relation meets all its hypotheses, and a counterexample shows
 each hypothesis is needed. `theory/SemanticsWitnesses.lean` does the same for the compositional
-semantics.
+semantics, except for the part of a diagram (`sub`): there only the extension hypothesis has a
+counterexample, and the interface and locality hypotheses (`hI`, `hO`, `hloc`) have none.
 
 Trimming is decided only for models that declare behaviour, by `triz_behavior`'s finite
 relational check, and its verdict depends on the absorber chosen. `theory/` does not state
-trimming as a Kan extension; categorical-model.md says why.
+trimming as a Kan extension; the theory map says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
@@ -441,8 +443,8 @@ construction.
 
 The ranked backlog of the categorical-model work — certificates for the verdicts that have
 none, properties to promote from tested to proved, and the larger categorical closures — lives
-in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in
-categorical-model.md's "What is not claimed". The acceptance criteria of the assurance
+in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in the theory map's
+"What is not claimed". The acceptance criteria of the assurance
 workstreams are in [docs/categorical-future-plan.md](docs/categorical-future-plan.md).
 
 ## Publishing and distribution

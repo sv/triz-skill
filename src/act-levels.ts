@@ -129,6 +129,72 @@ export function rowsConsistency(spec: { box: string; feasibility: FeasibilityRow
   return { box: spec.box, behaviorBox: spec.behaviorBox, rows: spec.feasibility.length, checked, silent, inconsistencies };
 }
 
+export interface UnbackedRow {
+  box: number;
+  row: number;
+  /** The producible row's values at the outputs its box's feasibility rows provide, on carriers with levels. */
+  outputs: Array<{ port: string; value: string }>;
+  /** Per such output, the largest amount a feasibility row provides there, and the value it reads as. */
+  most: Array<{ port: string; amount: number; value: string }>;
+}
+
+/**
+ * Producible rows no feasibility row of the same box reaches (the unbacked-producible-row lint).
+ * For every box that declares both `producible` and `feasibility`, each feasibility row is read
+ * through the levels of its ports' carriers as levelsConsistency reads it: only the ports it names
+ * are read, each amount as the value it reads as. As triz_feasibility reads the rows, monotonically,
+ * a feasibility row reaches a producible row when it provides at one of the producible row's
+ * outputs, each amount it provides there reads as the producible row's value or above (level_gc:
+ * the amount reaches that value's threshold), and each amount it requires reads as the producible
+ * row's input value or below. Only values that have a level are compared. A producible row is
+ * checked when some feasibility row of its box provides at one of its outputs whose value has a
+ * level; the others are silent. A finding never changes a verdict.
+ */
+export function unbackedProducible(model: FunctionModel): UnbackedRow[] {
+  const levels = new Map(model.carriers.flatMap((c) => (c.levels ? [[c.id, c.levels] as const] : [])));
+  if (!levels.size) return [];
+  const out: UnbackedRow[] = [];
+  model.boxes.forEach((b, bi) => {
+    if (!b.producible || !b.feasibility) return;
+    const feasibility = b.feasibility;
+    /** A port's levels, and the rank of `value` in them (-1 when the value has no level). */
+    const rankAt = (side: "in" | "out", port: string, value: string) => {
+      const carrier = (side === "in" ? b.inputs : b.outputs)?.find((q) => q.id === port)?.carrier;
+      const l = carrier === undefined ? undefined : levels.get(carrier);
+      return l ? { levels: l, rank: l.findIndex((x) => x.value === value) } : undefined;
+    };
+    const read = (l: Levels, amount: number) => l.findIndex((x) => x.value === levelOf(l, amount));
+    const provided = new Set(feasibility.flatMap((f) => Object.keys(f.provides ?? {})));
+    b.producible.forEach((row, ri) => {
+      // The row's outputs some feasibility row provides at, whose values have a level.
+      const outputs = Object.entries(row.out).flatMap(([port, value]) => {
+        const r = provided.has(port) ? rankAt("out", port, value) : undefined;
+        return r && r.rank >= 0 ? [{ port, value, ...r }] : [];
+      });
+      if (!outputs.length) return;
+      const reaches = (f: FeasibilityRow) => {
+        const named = outputs.filter((o) => f.provides && Object.hasOwn(f.provides, o.port));
+        return named.length > 0
+          && named.every((o) => read(o.levels, f.provides![o.port]) >= o.rank)
+          && Object.entries(f.requires ?? {}).every(([port, amount]) => {
+            const r = Object.hasOwn(row.in, port) ? rankAt("in", port, row.in[port]) : undefined;
+            return !r || r.rank < 0 || read(r.levels, amount) <= r.rank;
+          });
+      };
+      if (feasibility.some(reaches)) return;
+      out.push({
+        box: bi, row: ri,
+        outputs: outputs.map(({ port, value }) => ({ port, value })),
+        most: outputs.map(({ port, levels: l }) => {
+          const amount = Math.max(...feasibility.flatMap((f) => (f.provides && Object.hasOwn(f.provides, port) ? [f.provides[port]] : [])));
+          return { port, amount, value: levelOf(l, amount) };
+        }),
+      });
+    });
+  });
+  return out;
+}
+
 /**
  * Within one model: for every box that declares both feasibility and behavior, read each
  * feasibility row through the levels of its ports' carriers and check it against the box's own

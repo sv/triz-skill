@@ -24,6 +24,9 @@ proves that it is compositional:
 - with one box left open as a hole, the external relation preserves unions in the hole's relation
   (`holeContext_preservesUnions`), the hypothesis of the residual lemmas behind the weakest
   specification; with two holes it does so in each (`holeContext₂_preservesUnions₂`);
+- a part of a diagram, on some of its boxes and ports, relates at least what the whole relates on
+  the part's interface (`external_sub_of_external`), and exactly that when every steady state of
+  the part extends to one of the whole (`external_sub_iff_of_extends`);
 - series composition and the identity make open diagrams, identified when their external relations
   agree, a category, with a faithful functor to Mathlib's `RelCat` (`semantics`). The functor laws
   are `external_seq` and `external_id`. Diagrams side by side are sent to the product of relations
@@ -44,9 +47,11 @@ equates its two ports, so a port on several wires needs them all to agree (fan-i
 no special case); `values` are the carriers' declared values. The inputs are the unwired input
 ports and the outputs the deliverables. The evaluator composes only the boxes that can reach a
 deliverable, with their ports, the deliverables, and the wires into those ports: it computes
-`external` of that upstream part, not of the whole model. That the whole model relates no more on
-the upstream inputs is tested, not stated here; it can relate less, through a partial downstream
-box, a downstream loop, or a downstream port fed by several wires. Nothing here needs the diagram
+`external` of that upstream part, not of the whole model. The upstream part is a part of the
+diagram (`sub`), and the whole model relates no more on the upstream inputs
+(`external_sub_of_external`); it can relate less, through a partial downstream box, a downstream
+loop, or a downstream port fed by several wires. The two are equal when every box is upstream
+(`external_sub_univ`), or when the rest accepts whatever the part does (`extends_of_accepts`). Nothing here needs the diagram
 to be finite; the kernel's diagrams are.
 -/
 
@@ -442,6 +447,124 @@ theorem holeContext₂_preservesUnions₂ {Qi Qo Qi' Qo' : Type*} (d : OpenDiagr
     obtain ⟨hs, h₁⟩ := mem_steadyStates_withHole.mp hs
     exact ⟨s, mem_steadyStates_withHole.mpr ⟨mem_steadyStates_withHole.mpr
       ⟨hs, Set.mem_singleton_iff.mp h₁ ▸ hp⟩, Set.mem_singleton_iff.mp h₂ ▸ hq⟩, hx, hy⟩
+
+/-! ## A part of a diagram
+
+The kernel's default scope composes only the boxes that can reach a deliverable. Here such a part
+is a sub-diagram (`sub`): the boxes `B` kept, over the ports `P` kept, with every wire whose two
+ends are kept. A wire with one end outside `P` is dropped, so a kept port it fed becomes an open
+input of the part, free to take any declared value. A kept box admits a valuation of the kept ports
+iff some valuation of all ports it admits reads it there. The part has its own interface among the
+kept ports.
+
+Every steady state of the whole diagram restricts to one of the part
+(`restrict_mem_steadyStates_sub`). So the whole relates no more on the part's interface: when the
+part's inputs and outputs are inputs and outputs of the whole, each pair of the whole, read at them,
+is a pair of the part (`external_sub_of_external`). It can relate strictly less, through a box or a
+wire outside the part that rules a steady state out (`SemanticsWitnesses`). The two are equal when
+every steady state of the part extends to one of the whole (`external_sub_iff_of_extends`). That
+holds for the whole diagram taken as its own part (`extends_sub_univ`, `external_sub_univ`), and
+when each kept box reads only kept ports and the rest of the diagram accepts whatever the part does
+(`extends_of_accepts`): every steady state of the part extends to all ports so that every box
+outside it, every wire not inside it, and every port's declared values are met. That is the
+assumption the kernel states for its upstream scope. -/
+
+/-- The part of `d` on the ports `P` and the boxes `B`, with its interface `inp` and `out` among
+the kept ports. A wire is kept iff both its ends are; a kept box admits the valuations of the kept
+ports that some valuation it admits reads there. -/
+def sub {I' O' : Type u} (d : OpenDiagram V I O) (P : Set d.Port) (B : Set d.Box) (inp : I' → P)
+    (out : O' → P) : OpenDiagram V I' O' where
+  Port := P
+  Box := B
+  Wire := {w : d.Wire // d.src w ∈ P ∧ d.tgt w ∈ P}
+  values p := d.values p
+  behavior b := (· ∘ Subtype.val) '' d.behavior b
+  src w := ⟨d.src w, w.2.1⟩
+  tgt w := ⟨d.tgt w, w.2.2⟩
+  input := inp
+  output := out
+
+variable {I' O' : Type u} {d : OpenDiagram V I O} {P : Set d.Port} {B : Set d.Box} {inp : I' → P}
+  {out : O' → P}
+
+/-- Every steady state of the whole diagram restricts to a steady state of the part. -/
+theorem restrict_mem_steadyStates_sub {s : d.Port → V} (hs : s ∈ d.steadyStates) :
+    s ∘ Subtype.val ∈ (d.sub P B inp out).steadyStates :=
+  ⟨fun p => hs.1 p.1, fun b => ⟨s, hs.2.1 b.1, rfl⟩, fun w => hs.2.2 w.1⟩
+
+/-- The whole relates no more on the part's interface: when the part's inputs and outputs are the
+whole's inputs `fI` and outputs `fO` (`hI`, `hO`), every pair the whole relates, read there, is a
+pair the part relates. -/
+theorem external_sub_of_external {fI : I' → I} {fO : O' → O}
+    (hI : ∀ i, (inp i : d.Port) = d.input (fI i)) (hO : ∀ o, (out o : d.Port) = d.output (fO o))
+    {x : I → V} {y : O → V} (h : d.external x y) : (d.sub P B inp out).external (x ∘ fI) (y ∘ fO) := by
+  obtain ⟨s, hs, rfl, rfl⟩ := h
+  refine ⟨s ∘ Subtype.val, restrict_mem_steadyStates_sub hs, ?_, ?_⟩
+  · funext i
+    exact congrArg s (hI i)
+  · funext o
+    exact congrArg s (hO o)
+
+/-- When every steady state of the part extends to one of the whole, the part relates exactly the
+whole's pairs read at the part's interface. -/
+theorem external_sub_iff_of_extends {fI : I' → I} {fO : O' → O}
+    (hI : ∀ i, (inp i : d.Port) = d.input (fI i)) (hO : ∀ o, (out o : d.Port) = d.output (fO o))
+    (hext : ∀ t ∈ (d.sub P B inp out).steadyStates, ∃ s ∈ d.steadyStates, s ∘ Subtype.val = t)
+    {x' : I' → V} {y' : O' → V} :
+    (d.sub P B inp out).external x' y' ↔ ∃ x y, d.external x y ∧ x ∘ fI = x' ∧ y ∘ fO = y' := by
+  constructor
+  · rintro ⟨t, ht, rfl, rfl⟩
+    obtain ⟨s, hs, rfl⟩ := hext t ht
+    refine ⟨s ∘ d.input, s ∘ d.output, ⟨s, hs, rfl, rfl⟩, ?_, ?_⟩
+    · funext i
+      exact congrArg s (hI i).symm
+    · funext o
+      exact congrArg s (hO o).symm
+  · rintro ⟨x, y, h, rfl, rfl⟩
+    exact external_sub_of_external hI hO h
+
+/-- The whole diagram taken as its own part: every steady state of the part extends. -/
+theorem extends_sub_univ {inp : I' → (Set.univ : Set d.Port)} {out : O' → (Set.univ : Set d.Port)} :
+    ∀ t ∈ (d.sub Set.univ Set.univ inp out).steadyStates, ∃ s ∈ d.steadyStates,
+      s ∘ Subtype.val = t := by
+  rintro t ⟨hv, hb, hw⟩
+  refine ⟨fun p => t ⟨p, trivial⟩, ⟨fun p => hv ⟨p, trivial⟩, fun b => ?_,
+    fun w => hw ⟨w, trivial, trivial⟩⟩, rfl⟩
+  obtain ⟨s', hs', he⟩ := hb ⟨b, trivial⟩
+  have : s' = fun p => t ⟨p, trivial⟩ := funext fun p => congrFun he ⟨p, trivial⟩
+  exact this ▸ hs'
+
+/-- The whole diagram taken as its own part has the whole's relation. -/
+theorem external_sub_univ :
+    (d.sub Set.univ Set.univ (fun i => ⟨d.input i, trivial⟩) (fun o => ⟨d.output o, trivial⟩)).external =
+      d.external := by
+  funext x y
+  apply propext
+  rw [external_sub_iff_of_extends (fI := _root_.id) (fO := _root_.id) (fun _ => rfl) (fun _ => rfl)
+    extends_sub_univ]
+  exact ⟨fun ⟨_, _, h, hx, hy⟩ => hx ▸ hy ▸ h, fun h => ⟨x, y, h, rfl, rfl⟩⟩
+
+/-- When each kept box reads only kept ports (`hloc`), and every steady state of the part extends
+to all ports so that each box outside it, each wire not inside it, and each port's declared values
+are met (`hrest`: the rest accepts whatever the part does), every steady state of the part extends
+to one of the whole. -/
+theorem extends_of_accepts
+    (hloc : ∀ b ∈ B, ∀ s s' : d.Port → V, s ∘ Subtype.val = s' ∘ (Subtype.val : P → d.Port) →
+      s ∈ d.behavior b → s' ∈ d.behavior b)
+    (hrest : ∀ t ∈ (d.sub P B inp out).steadyStates, ∃ s : d.Port → V, s ∘ Subtype.val = t ∧
+      (∀ p, s p ∈ d.values p) ∧ (∀ b ∉ B, s ∈ d.behavior b) ∧
+        ∀ w, ¬ (d.src w ∈ P ∧ d.tgt w ∈ P) → s (d.src w) = s (d.tgt w)) :
+    ∀ t ∈ (d.sub P B inp out).steadyStates, ∃ s ∈ d.steadyStates, s ∘ Subtype.val = t := by
+  intro t ht
+  obtain ⟨s, rfl, hv, hout, hw⟩ := hrest t ht
+  refine ⟨s, ⟨hv, fun b => ?_, fun w => ?_⟩, rfl⟩
+  · by_cases hb : b ∈ B
+    · obtain ⟨s', hs', he⟩ := ht.2.1 ⟨b, hb⟩
+      exact hloc b hb s' s he hs'
+    · exact hout b hb
+  · by_cases hP : d.src w ∈ P ∧ d.tgt w ∈ P
+    · exact ht.2.2 ⟨w, hP⟩
+    · exact hw w hP
 
 end OpenDiagram
 

@@ -4,7 +4,8 @@ This change implements bounded capabilities across the eight workstreams in the 
 It does not remove a limitation merely because a related theorem exists. The remaining work and
 acceptance criteria are in [the separate future plan](categorical-future-plan.md); the ranked
 backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); the bibliography
-is in [theory/REFERENCES.md](../theory/REFERENCES.md).
+is in [theory/REFERENCES.md](../theory/REFERENCES.md). The Lean statement behind each verdict,
+and everything the kernel does not claim, are in the [theory map](theory-map.md).
 The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 
 ## Delivered scope
@@ -116,8 +117,9 @@ State-only negative dynamics certificates require a genuinely closed invariant a
 states regardless of whether a valuation is admitted. They contain every valuation for each
 selected state, matching the successor-valuation semantics of `Sync.Step`; a visited list of
 consistent configurations would not automatically be closed. Saturated unreachable port-target
-certificates instead exclude admitted unsafe configurations (`Sync.target`); they do not certify
-the absence of unsafe blocked states, whose port values are unknown. Input schedules, bounded-only
+certificates instead exclude admitted unsafe configurations (`Sync.target`), and, as the kernel's
+blocked check does, runs that block in a state meeting the unsafe set's state conditions, whose port
+values are unknown (`unreachable_of_holding`). Input schedules, bounded-only
 negatives, safe port-invariance claims and loop-class certificates remain unsupported. A combined
 request can return only the supported escalation proof. A generated proof certifies only the
 statements listed in `certifies` under its scope.

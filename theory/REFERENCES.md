@@ -25,9 +25,9 @@ valid. Mutable API pages should be read against the project's pinned dependencie
 | Topic | References |
 |---|---|
 | Certificates, trust and translation validation | [R1](#r1)–[R3](#r3), [R19](#r19)–[R20](#r20), [R48](#r48), [R84](#r84)–[R86](#r86) |
-| Semantics, constraints and abstraction | [R4](#r4), [R9](#r9), [R21](#r21)–[R26](#r26), [R42](#r42)–[R43](#r43), [R75](#r75)–[R76](#r76) |
-| Co-design, weakness, synthesis and engineering | [R5](#r5)–[R8](#r8), [R10](#r10)–[R11](#r11), [R30](#r30) |
-| Categorical foundations and alternatives | [R12](#r12)–[R13](#r13), [R17](#r17)–[R18](#r18), [R27](#r27)–[R29](#r29), [R31](#r31)–[R33](#r33), [R35](#r35)–[R39](#r39), [R49](#r49)–[R50](#r50) |
+| Semantics, constraints and abstraction | [R4](#r4), [R9](#r9), [R21](#r21)–[R26](#r26), [R42](#r42)–[R43](#r43), [R75](#r75)–[R76](#r76), [R94](#r94) |
+| Co-design, weakness, synthesis and engineering | [R5](#r5)–[R8](#r8), [R10](#r10)–[R11](#r11), [R30](#r30), [R91](#r91)–[R93](#r93) |
+| Categorical foundations and alternatives | [R12](#r12)–[R13](#r13), [R17](#r17)–[R18](#r18), [R27](#r27)–[R29](#r29), [R31](#r31)–[R33](#r33), [R35](#r35)–[R39](#r39), [R49](#r49)–[R50](#r50), [R95](#r95)–[R96](#r96) |
 | Rewriting, critical pairs and undecidability | [R14](#r14)–[R16](#r16), [R34](#r34), [R40](#r40)–[R41](#r41), [R44](#r44)–[R47](#r47), [R82](#r82)–[R83](#r83) |
 | Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90) |
 | AI-TRIZ, published cases and supplied material | [R70](#r70)–[R74](#r74), [R77](#r77)–[R81](#r81), [R88](#r88) |
@@ -571,3 +571,39 @@ D. L. Mann, *Hands-On Systematic Innovation*, CREAX Press (2002), ISBN 90-77071-
 D. Mann, *Hands on Systematic Innovation for Business & Management*, first published 2004; publisher lists second-edition dates 2007 and 2014, ISBN 1-898546-73-8. [Author/publisher's listing](https://si-shop.org.uk/hands-on-systematic-innovation-for-business-management/).
 
 **TRIZ context / further reference.** Edition clarification found during the bibliography review. Kept separate from the technical book and from *Business Matrix 3.0*; no additional matrix table is shipped.
+
+## R91
+
+H. Riess, Y. Huang, M. Klawonn, G. Zardini and M. Hale, *Quantale-Enriched Co-Design: Toward a Framework for Quantitative Heterogeneous System Design* (2026). [arXiv:2603.29921](https://arxiv.org/abs/2603.29921).
+
+**Future work.** As its abstract states, monotone co-design ([R5](#r5)) generalised to quantales, covering cost, confidence and implementation sets as well as Boolean feasibility, with heterogeneous composition by change of base. Only the abstract has been read. It motivates the staged graded relations of [FUTURE-PLANS.md](../docs/FUTURE-PLANS.md) Q1; nothing in the kernel implements it.
+
+## R92
+
+C. Briat, *codesign-mcdp: A Python Library for Monotone Co-Design Problems*, reference manual v0.2.1 (2026), MIT licence. [arXiv:2607.18415](https://arxiv.org/abs/2607.18415); [source](https://github.com/cbriat/codesign-mcdp).
+
+**Future work / considered tool.** The antichain calculus, series, parallel and feedback composition, a Kleene solver, and declarative and modular builders: a candidate independent oracle for differential tests of `triz_feasibility` (FUTURE-PLANS Q3). An automated review notes that the library does not verify user-supplied monotonicity and that its newer sections rest on unproven theorems; only its core would be used, as an optional development dependency.
+
+## R93
+
+G. Zardini, D. Milojevic, A. Censi and E. Frazzoli, *Co-Design of Embodied Intelligence: A Structured Approach*, IROS 2021. [arXiv:2011.10756](https://arxiv.org/abs/2011.10756).
+
+**Method reference.** Monotone co-design ([R5](#r5)) applied to the full hardware and software stack of a self-driving vehicle; later talks by the authors extend it to mobility systems, from city policy down to vehicle autonomy. It motivates workflow guidance on modelling supersystem constraints as design problems (FUTURE-PLANS Q4). It does not validate any kernel resource model.
+
+## R94
+
+D. Vagner, D. I. Spivak and E. Lerman, *Algebras of Open Dynamical Systems on the Operad of Wiring Diagrams*, Theory and Applications of Categories 30(51), 1793–1822 (2015). [arXiv:1408.1598](https://arxiv.org/abs/1408.1598).
+
+**Future work.** Algebras on the operad of wiring diagrams of [R27](#r27): the substitution structure behind hierarchical boxes (FUTURE-PLANS Q5). Citing it does not establish that the kernel's steady-state semantics is such an algebra; that would be a substitution lemma proved in `theory/Semantics.lean`. The lens and optics view of dynamics is not planned.
+
+## R95
+
+P. Le Masson, A. Hatchuel and B. Weil, *Sheafification as a design technique for creative preservation: principles, illustrations, and first applications*, Proceedings of the Design Society (ICED23), 2023. [DOI:10.1017/pds.2023.317](https://doi.org/10.1017/pds.2023.317).
+
+**Considered alternative / analogy only.** A C-K/topos design model: the knowledge base is a topos, and sheafification preserves existing knowledge while expanding it. It motivates minimal base refinement after an irreducible separation (FUTURE-PLANS Q6) as an analogy only, and is not a basis for any kernel theorem.
+
+## R96
+
+R. Bělohlávek, *Concept lattices and order in fuzzy logic*, Annals of Pure and Applied Logic 128 (2004), 277–298.
+
+**Future work.** Concept lattices over complete residuated lattices: the graded form of the formal concepts behind the two-box weakest specification (FUTURE-PLANS Q1, stage 2). It needs a commutative, integral quantale with residuation, not an arbitrary quantale.

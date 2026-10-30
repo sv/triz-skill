@@ -20,7 +20,7 @@
  * Every view passes checkModel or the call fails closed. In theory/, the level axis is a presheaf,
  * and the subsystem and system rows with transitions are a functor from time × (box subsets)ᵒᵖ to
  * sets. The supersystem collapse is outside that functor and is not checked against transitions;
- * nothing here is a fibration (references/categorical-model.md).
+ * nothing here is a fibration (docs/theory-map.md, What is not claimed).
  */
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";

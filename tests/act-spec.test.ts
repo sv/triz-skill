@@ -521,6 +521,7 @@ test("two boxes: producible rows cut each box first; the uncut rows tell infeasi
   const r = weakestSpec(loose, bearing());
   assert.ok(r.ok && r.verdict === "spec" && "boxes" in r);
   assert.deepEqual([r.maximalPairs, r.specCount, r.weakest, r.producible], [2, 1, true, { housing: { declared: 1 } }]);
+  assert.deepEqual(r.basis, ["safe_feasible_iff", "safe_feasible_iff_le_concept", "concept_feasible_maximal", "exists_eq₂_feasible_iff"]);
   assert.deepEqual(r.specs[0].spec, { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "supported"), SLEEVE("supported", "unsupported")] });
   assert.match(r.note, /within the producible rows/);
   bruteForcePairs(r, loose, bearing(), { ...ALL, housing: [BORE("unsupported")] });
@@ -532,7 +533,7 @@ test("two boxes: producible rows cut each box first; the uncut rows tell infeasi
   });
   const i = weakestSpec(passing, bearing());
   assert.ok(i.ok && i.verdict === "impossible" && i.reason === "infeasible" && "boxes" in i);
-  assert.deepEqual([i.maximalPairs, i.wouldGiveCount, i.basis], [2, 3, ["exists_eq₂_iff"]]);
+  assert.deepEqual([i.maximalPairs, i.wouldGiveCount, i.basis], [2, 3, ["exists_eq₂_feasible_iff", "exists_eq₂_iff"]]);
   assert.deepEqual(i.pairs.map((x) => x.spec), [
     { housing: [], sleeve: [SLEEVE("supported", "supported"), SLEEVE("unsupported", "unsupported")] },
     { housing: [BORE("unsupported")], sleeve: [SLEEVE("supported", "supported")] },

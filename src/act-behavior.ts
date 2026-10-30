@@ -912,9 +912,12 @@ type RelationPair = { extent: number[]; intent: number[] };
  * composite covers it (exists_eq₂_iff); those concepts are the specs. Distinct concepts are
  * incomparable (a larger extent has a smaller intent), so with several specs no pair is weakest.
  *
- * With producible rows, each box's rows are cut to them first: the cut context still preserves
- * unions in each box, so the same statements hold within them. When no concept of the cut context
- * covers the target, the uncut one decides between `infeasible` and `not-covered`, as for one box.
+ * With producible rows, each box's rows are cut to them first, and the formal concepts are those of
+ * the safe pairs of producible rows: the safe-row relation intersected with F₁ ×ˢ F₂, read on the
+ * producible rows (Concept F₁ F₂). The cut context preserves unions in each box, so the same
+ * statements hold within them (safe_feasible_iff, safe_feasible_iff_le_concept,
+ * concept_feasible_maximal, exists_eq₂_feasible_iff). When no concept of the cut context covers the
+ * target, the uncut one decides between `infeasible` and `not-covered`, as for one box.
  * Each returned pair is re-checked by declaring both relations. Past `maxConcepts`, `undecided`
  * (concept-cap); past the state cap, `undecided` (state-cap).
  */
@@ -1054,7 +1057,7 @@ function pairSpec(concept: FunctionModel, baseline: FunctionModel, [a, b]: OpenB
     return {
       ok: true as const, verdict: "spec" as const, preserves: true as const, ...common, maximalPairs: within.length, weakest,
       specs: covering.slice(0, LISTED).map(listed), specCount: covering.length,
-      basis: ["safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"] as Theorem[],
+      basis: (bounded ? ["safe_feasible_iff", "safe_feasible_iff_le_concept", "concept_feasible_maximal", "exists_eq₂_feasible_iff"] : ["safe_iff_le_concept", "concept_maximal", "exists_eq₂_iff"]) as Theorem[],
       note: (weakest
         ? `The weakest specification for ${both} together: ${scope}the one maximal pair of relations whose composite covers the target (a formal concept of the safe row pairs). Declaring both gives exactly the target, and every pair of relations for them${bounded ? " within the producible rows" : ""} that gives the target is contained in it.`
         : `${covering.length} maximal pairs of relations for ${both} give the target (specs; ${scope}formal concepts of the safe row pairs). Declaring any of them gives exactly the target, and every pair of relations${bounded ? " within the producible rows" : ""} that gives it is contained in at least one of them. They are incomparable: of any two, each allows a row the other forbids, since allowing more rows of '${ida}' leaves fewer safe rows of '${idb}'. So there is no single weakest pair, and what one box must do depends on what the other does. Choose one by what each box can do.`)
@@ -1071,7 +1074,7 @@ function pairSpec(concept: FunctionModel, baseline: FunctionModel, [a, b]: OpenB
     return {
       ok: true as const, verdict: "impossible" as const, reason: "infeasible" as const, preserves: false as const, ...common, maximalPairs: within.length,
       pairs: witnessed(scored), wouldGive: wouldGive.slice(0, LISTED).map(listed), wouldGiveCount: wouldGive.length,
-      basis: ["exists_eq₂_iff"] as Theorem[],
+      basis: ["exists_eq₂_feasible_iff", "exists_eq₂_iff"] as Theorem[],
       note: `No pair of relations ${both} can produce gives the target relation. Some pair would: ${wouldGive.length} maximal pair(s) over all their rows give it (wouldGive), and each holds a row that is not producible. Within the producible rows, each of the ${within.length} maximal pairs (pairs) misses the target outputs under its uncovered. Make more rows producible, or change another box or the wiring.`,
     };
   }

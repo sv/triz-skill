@@ -98,6 +98,11 @@ Read only what the task needs:
   modelled concepts, bounded dynamics, separation checks, typed transformations, 9-windows views
   and transitions, and exports:
   [categorical-model.md](references/categorical-model.md);
+- every issue and lint code a model tool returns, when an issue's own hint is not enough:
+  [error-codes.md](references/error-codes.md);
+- auditing a verdict only, never during a session: the Lean statement behind it, what is not
+  claimed, and how certificates work inside, in the
+  [theory map](../../docs/theory-map.md);
 - ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
 - S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);
 - design-around moves and their cautions: [patent-circumvention.md](references/patent-circumvention.md);

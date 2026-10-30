@@ -49,8 +49,8 @@ Incomplete capped evidence must remain sound without a promise of identical sele
 3. Time-indexed negative dynamics certificates, initial-state coverage and bounded input
    schedules. Preserve blocked-state uncertainty for port predicates.
 4. Safe port-predicate invariants, separation-in-time and loop properties. Merged PR #39 supplies
-   admitted-configuration unreachability for saturated unsafe port targets, which does not certify
-   the kernel's extra blocked-state conservatism.
+   admitted-configuration unreachability for saturated unsafe port targets; the certificate also
+   states the kernel's blocked-state check (`unreachable_of_holding`).
 5. Further state/value transport, lost-interface comparison cases, and richer resource certificates.
    Declared behavior box maps and one-sided inputs are supported by the shared PR #39 encoder.
 

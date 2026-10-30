@@ -23,7 +23,7 @@ recalling principle numbers or matrix cells.
 | `triz_function_model(model, compare_to?, box_map?, mpv_weights?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape; with `mpv_weights`, the comparison over the main parameters of value only, by explicit weights |
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it; excessive and insufficient functions come back as level problems |
 | `triz_separate(contradiction, along?, certificate?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis; each separated pair gets `suggestions` (hints: the operations that could build it on each separating axis); with `certificate`, also return a Lean certificate |
-| `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks, and which principles have none |
+| `triz_transform(model, transformation)` | Apply one typed move: a principle construction (segment, take_out, merge, standby, reverse, rerate, retarget, feedback, interpose, cheap_copy), an applied trim, or a raw rewrite; the result type-checks or fails closed. categorical-model.md lists which principle each one checks; the theory map (docs/theory-map.md) classifies all 40 and says why the others have none |
 | `triz_rule_apply(model, rule_id \| rule, at?, match?, carriers?)` | List the matches of a rewrite rule, or apply one by double pushout; built-in rules for evolution lines (mono → bi, self-adjusting feedback, changing the working field); `rule_id: "uneven-development"` is a detector that names the lagging subsystem |
 | `triz_nine_windows(present, past?, future?, subsystem[], transitions?, acceptable?)` | Subsystem, system, and supersystem views per time, with harm loops per window; transitions as `triz_transform` sequences, checked against the snapshots and restricted to the subsystem; with declared rows, each time's behaviour and feasibility verdicts and how they (and, with `acceptable`, weakness) change between times |
 | `triz_export(model, format)` | Graphviz DOT (boxes with typed ports, a legend), a Mermaid flowchart (`mermaid`: renders in GitHub markdown and many chat clients; ports named on the edges), a self-contained SVG picture (`svg`: laid out by elkjs, no Graphviz needed; stdio server only), an open hypergraph, or a Lean certificate (`lean`) of a model that type-checks |
@@ -42,8 +42,8 @@ When a model tool returns `ok: false`, read `issues`, not just `errors`: each na
 path and call again; do not reason over a result that failed. `triz_function_model`,
 `triz_trim`, and `triz_behavior` also return `warnings` (lints that never change a verdict);
 `triz_trim` poses excessive and insufficient functions as `levelProblems`; `triz_nine_windows`
-returns the models its transitions produce under `derived`. categorical-model.md tabulates the
-codes.
+returns the models its transitions produce under `derived`. [error-codes.md](error-codes.md)
+tabulates the codes.
 
 ## Route by stage
 

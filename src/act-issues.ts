@@ -13,7 +13,7 @@
  * points at the nearest input element that produced it.
  */
 
-/** Every issue and lint code, with what it means. references/categorical-model.md tabulates them; a test keeps the two in sync. */
+/** Every issue and lint code, with what it means. references/error-codes.md tabulates them; a test keeps the two in sync. */
 export const ISSUE_CODES = {
   // Typing of a model
   "duplicate-id": "Two elements of one kind share an id (carrier, box, wire, port, state, value, demand, concept)",
@@ -144,6 +144,7 @@ export const ISSUE_CODES = {
   "product-without-deliverable": "Lint: a product box receives no non-harmful function",
   "unused-carrier": "Lint (info): a carrier types no port and no wire",
   "unwired-port": "Lint (info): a port has no wire",
+  "unbacked-producible-row": "Lint: a producible row's output level is reached by no feasibility row of its box, read through the carriers' levels",
 } as const;
 
 export type IssueCode = keyof typeof ISSUE_CODES;

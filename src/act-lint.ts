@@ -15,12 +15,17 @@
  *                                 (an operating condition) for triz_behavior and triz_dynamics.
  *  - trim-level-functions         (warning, triz_trim) the trim removes excessive or insufficient
  *                                 functions, which it poses under levelProblems.
+ *  - unbacked-producible-row      (warning) a box declares producible and feasibility rows, and a
+ *                                 producible row's output level, read through the carriers'
+ *                                 levels, is reached by no feasibility row of the box at its
+ *                                 inputs (src/act-levels.ts, unbackedProducible).
  *
  * The loss lexicon is a heuristic over carrier ids, dimensions, and function verbs; a match is a
  * prompt to check the rating, not a finding.
  */
 import type { FunctionModel } from "./act.js";
 import { at, quoted, type Severity, type Warning, type IssueCode } from "./act-issues.js";
+import { unbackedProducible } from "./act-levels.js";
 
 /** Words naming a flow that is a loss whatever its level. Kept generic: no domain is privileged. */
 const LOSS = new Set(["drop", "drops", "loss", "losses", "resistance", "leak", "leaks", "leakage", "noise", "wear", "backpressure", "waste", "contamination", "clogging"]);
@@ -65,6 +70,12 @@ export function lintModel(model: FunctionModel, root = "$.model"): Warning[] {
       });
     }
   });
+  for (const u of unbackedProducible(model)) {
+    const b = model.boxes[u.box];
+    out.push(lint("unbacked-producible-row", "warning", at(root, "boxes", u.box, "producible", u.row),
+      `producible row ${u.row} of '${b.id}' gives ${u.outputs.map((o) => `${o.port} = '${o.value}'`).join(", ")}, but no feasibility row of '${b.id}' reaches that level at its inputs, read through the carriers' levels (the most provided: ${u.most.map((m) => `${m.port} = ${m.amount}, read as '${m.value}'`).join("; ")})`,
+      `Add a feasibility row of '${b.id}' that provides that level at those inputs, with its cost, or drop the row from producible if '${b.id}' cannot make it: triz_behavior weakest_spec takes producible as declared, and triz_feasibility takes the feasibility rows.`));
+  }
   return out;
 }
 

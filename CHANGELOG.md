@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discrete queue and conserved-quantity adapters, restricted rule termination and rewrite replay.
 - Extended annotation-renaming/permutation tests and a separate cited future-work plan.
 - README: a tool map by workflow stage, and why the hosted Worker is unauthenticated with open CORS (and what an operator can change).
+- `theory/CategoricalTriz.lean` states the two-box weakest specification within producible rows: a pair of producible relations keeps the composite inside the target iff its product lies inside the safe row pairs intersected with the producible ones (`safe_feasible_iff`), and the formal concepts of the safe pairs of producible rows, which `triz_behavior` `weakest_spec` enumerates, are the maximal such pairs and decide the target (`safe_feasible_iff_le_concept`, `concept_feasible_maximal`, `exists_eq₂_feasible_iff`, cited for the producible two-box verdicts).
+- `theory/Semantics.lean`: the part of an open diagram on some of its boxes and ports (`sub`). The whole relates no more on the part's interface (`external_sub_of_external`), and exactly that when every steady state of the part extends (`external_sub_iff_of_extends`): for the whole diagram (`external_sub_univ`), and when the rest accepts whatever the part does (`extends_of_accepts`). This relates `triz_behavior`'s upstream scope to `scope: "whole"`.
+- Lint `unbacked-producible-row`: a producible row whose output level no feasibility row of its box reaches, read through the carriers' `levels`; reported by `triz_function_model`, `triz_trim`, and `triz_behavior`, and never a verdict.
+- `docs/FUTURE-PLANS.md`: open items from a scan for natural constraints on the kernel's objects (C1–C8; C1, C2 and C5 next) and from applied category theory (Q1–Q6), each with what it closes or adds, effort, risks and evidence. `theory/REFERENCES.md` adds their sources as R91–R96.
 
 ### Changed
 
@@ -30,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `scripts/certify.mjs` sends a certificate to the AXLE service only with `--remote`. Without it and without a built `theory/`, it stops and names both options instead of falling back to AXLE; the notice for `--remote` says what leaves the machine. Generated certificates and the `triz_export` note say the same.
 - `categorical-model.md` states that a box declaring `feasibility` joins the `triz_feasibility` solve wherever it sits, and what follows from that.
 - The Lean workflow also runs `TRIZ_REQUIRE_LEAN=1 pnpm test` after the build, and runs on changes to the kernel, tests, examples, and data those tests use.
+- A port-target unreachable certificate (`triz_dynamics` `certificate: true`) also states the kernel's blocked check: no run blocks in a state that meets the unsafe set's state conditions (`Sync.unreachable_of_holding`). A tamper variant that only this conjunct catches, and a fixture whose runs block (`BearingBlocked`), exercise it.
+- `categorical-model.md` is now the agent's operating reference only: what each verdict means, how to read and act on it, and its limits. It gains a map of which model fields unlock which verdicts, with the chaining rules (`box_map`, `levels`, an impossible `weakest_spec`, `scope`, `priors` versus `joint_prior`, the finite assurance tools), and a short list of each verdict's limits. The theorem inventory, which verdict cites which Lean statement, the compositional semantics and certificate internals, the classification of all 40 principles, and the complete "What is not claimed" moved to `docs/theory-map.md`; the full issue and lint code table moved to `references/error-codes.md`.
 
 ## [0.4.0] - 2026-10-29
 

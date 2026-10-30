@@ -2,7 +2,7 @@
  * Separation suggestions (src/act-suggest.ts): every pair separated on an axis gets the
  * operations that could build the piecewise system on that axis, as hints with no basis. Each
  * names a tool, argument, and triz_transform op that exist; each principle text equals
- * data/principles.json, and its classification the table in categorical-model.md. Pairs that are
+ * data/principles.json, and its classification the table in docs/theory-map.md. Pairs that are
  * compatible or irreducible get none, and a principle missing from the data fails closed.
  */
 import { test } from "node:test";
@@ -20,7 +20,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
 const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
 const ops = new Set((specs.triz_transform.shape.transformation as { options: Array<{ shape: { op: { value: string } } }> }).options.map((o) => o.shape.op.value));
-const doc = fs.readFileSync(path.resolve(here, "../skills/triz-innovation/references/categorical-model.md"), "utf8");
+const doc = fs.readFileSync(path.resolve(here, "../docs/theory-map.md"), "utf8");
 const classified = new Map([...doc.matchAll(/^\| (\d+) \| [^|]+ \| "[^"]+" \| (structural|parametric|analogy only) \| .+ \|$/gm)].map(([, id, kind]) => [Number(id), kind]));
 
 /** Two demands with opposite values, disjoint on `axis` and on every axis in `also`. */
@@ -73,7 +73,7 @@ test("every suggestion names a tool, argument, and op that exist", async () => {
   }
 });
 
-test("principle texts are looked up, never recalled, and keep categorical-model.md's classification", async () => {
+test("principle texts are looked up, never recalled, and keep the theory map's classification", async () => {
   const data = lookUpPrinciples();
   for (const axis of Axis.options) {
     for (const x of separationSuggestions(separatedOn(axis), getPrinciple).values().next().value!) {
