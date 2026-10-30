@@ -22,6 +22,7 @@
  * structural part of a principle checkable. It does not show that the principle solves anything.
  */
 import { checkModel, trimCandidates, type Flow, type FunctionModel, type Polarity } from "./act.js";
+import { deriveProvenance } from "./act-provenance.js";
 import { REWRITE, type Theorem } from "./act-basis.js";
 import { flowsThrough, mapFlows } from "./act-flow.js";
 import { at, fail, issue, quoted, rebase, second, unknownBox, unknownWire, type Failure, type Issue, type Reroot } from "./act-issues.js";
@@ -139,7 +140,8 @@ export function rewrite(model: FunctionModel, step: RewriteStep): { ok: true; mo
   if (issues.length) return fail(issues);
   const { flows: _flows, ...rest } = model;
   const flows = model.flows !== undefined || addFlows.length ? [...keptFlows, ...addFlows] : undefined;
-  const result: FunctionModel = { ...rest, boxes: [...keptBoxes, ...addBoxes], wires: [...keptWires, ...addWires], ...(flows ? { flows } : {}) };
+  // Reviewed import provenance keeps the sources of the surviving elements only.
+  const result: FunctionModel = deriveProvenance({ ...rest, boxes: [...keptBoxes, ...addBoxes], wires: [...keptWires, ...addWires], ...(flows ? { flows } : {}) });
   const after = checkModel(result, "#");
   if (after.ok) return { ok: true, model: result, basis: REWRITE };
   // The result is not input: point each issue at the kept model element or the added one it came from.

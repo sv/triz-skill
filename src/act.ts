@@ -420,9 +420,14 @@ export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestor
       const knownBoxes = new Set(model.boxes.map(b => b.id)), knownWires = new Set(model.wires.map(w => w.id));
       const hierarchyErrors = hierarchyProblems(provenance.hierarchy ?? [], knownBoxes);
       if (hierarchyErrors.length) issues.push(issue("invalid-import-provenance", at(root, "provenance", "hierarchy"), hierarchyErrors.join("; "), "Use acyclic single-parent containment among current boxes."));
-      if (provenance.components.some(p => !knownBoxes.has(p.id)) || provenance.interactions.some(p => !knownWires.has(p.wireId)) ||
-          model.boxes.some(b => !provenance.components.some(p => p.id === b.id)) || model.wires.some(w => !provenance.interactions.some(p => p.wireId === w.id)))
-        issues.push(issue("invalid-import-provenance", at(root, "provenance"), "Imported source mappings must cover every current box and wire and name only current ids", "Retain or explicitly remap source locations for every imported element."));
+      const sourcedBoxes = new Set(provenance.components.map(p => p.id)), sourcedWires = new Set(provenance.interactions.map(p => p.wireId));
+      const stale = [...sourcedBoxes].some(id => !knownBoxes.has(id)) || [...sourcedWires].some(id => !knownWires.has(id));
+      // A draft must source every element, so all of it is under review. A reviewed model may
+      // also hold elements a later construction added: those have no source, and none is invented.
+      const uncovered = provenance.status === "draft" && (model.boxes.some(b => !sourcedBoxes.has(b.id)) || model.wires.some(w => !sourcedWires.has(w.id)));
+      if (stale || uncovered)
+        issues.push(issue("invalid-import-provenance", at(root, "provenance"), provenance.status === "draft" ? "Imported source mappings must cover every current box and wire and name only current ids" : "Reviewed source mappings must name only current box and wire ids",
+          provenance.status === "draft" ? "Retain or explicitly remap source locations for every imported element." : "Remove the source entries of deleted or renamed elements; the kernel's transformations do this themselves."));
       if (provenance.status === "draft") issues.push(issue("draft-model", at(root, "provenance"), "Imported model has unconfirmed ratings or assumptions", "Review every pending item with triz_review_import before using this model for analysis. Source review does not prove behavior or physical truth."));
     }
   }

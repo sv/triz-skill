@@ -24,6 +24,7 @@
  */
 import { zoomIn } from "./act-hierarchy.js";
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
+import { deriveProvenance } from "./act-provenance.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { flowAnalysis, flowsThrough, mapFlows, restrictFlows } from "./act-flow.js";
 import { compareBehavior, externalBehavior, weaknessRanking, type Acceptable } from "./act-behavior.js";
@@ -67,10 +68,10 @@ export function restrict(model: FunctionModel, boxes: string[]) {
   const inside = (w: Wire) => keep.has(w.from.box) && keep.has(w.to.box);
   const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
   const cut = restrictFlows(model.flows, keep);
-  const sub: FunctionModel = {
+  const sub: FunctionModel = deriveProvenance({
     ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter(inside),
     ...(model.flows ? { flows: cut.flows } : {}),
-  };
+  });
   return {
     ok: true as const,
     model: sub,
@@ -192,7 +193,7 @@ function sameStructure(a: FunctionModel, b: FunctionModel) {
  */
 function within(model: FunctionModel, keep: Set<string>): FunctionModel {
   const { budget: _budget, contradictions: _contradictions, flows: _flows, ...rest } = model;
-  return { ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter((w) => keep.has(w.from.box) && keep.has(w.to.box)) };
+  return deriveProvenance({ ...rest, boxes: model.boxes.filter((b) => keep.has(b.id)), wires: model.wires.filter((w) => keep.has(w.from.box) && keep.has(w.to.box)) });
 }
 
 /**

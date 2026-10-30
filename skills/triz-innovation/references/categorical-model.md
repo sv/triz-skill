@@ -150,7 +150,9 @@ imported model embeds `provenance` with component, interaction and containment l
 pending role/carrier/polarity/assumption decisions. B1 preserves it. Analysis refuses `draft-model`
 even if the caller extracts only the model from the response. Edit proposed meanings, then confirm
 each pending id exactly once using `{id, decision: "confirm", note?}`. Review retains sources and
-asserts analyst judgment; it is not proof of the source or physical truth. These tools do not fetch
+asserts analyst judgment; it is not proof of the source or physical truth. Transformations, rule
+applications and window views of a reviewed model keep the sources of surviving elements only;
+added elements stay unsourced, and a reviewed model's provenance may not name a removed id. These tools do not fetch
 references or execute supplied code. The hosted endpoint does not register them. See
 [the import guide](../../../docs/importing-models.md) for formats and the Julia export workflow.
 

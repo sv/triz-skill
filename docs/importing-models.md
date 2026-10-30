@@ -60,6 +60,12 @@ returned model is `reviewed` and retains locations. This records an analyst asse
 of the imported source, physical truth, executable behavior, or causal meaning. Provenance is
 ordinary model data, not a cryptographic attestation against intentional deletion or fabrication.
 
+A reviewed model works with every analysis and transformation tool. A transformation, rule
+application or nine-windows view keeps the sources and containment links of the boxes and wires
+that survive and drops those of removed ones; elements it adds stay unsourced, since no source is
+invented. A reviewed model's provenance may therefore cover only part of the model, but it must
+not name a box or wire the model no longer has. A draft must source every element.
+
 An additional importer implements `Importer = {format, parse(source)}` from `src/act-import.ts`.
 It returns a bounded `DraftTable` and diagnostics. Register it in `src/act-import-registry.ts` to
 make it available to the local tool and CLI. Keep ambiguous meanings pending rather than silently

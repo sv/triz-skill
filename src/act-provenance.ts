@@ -70,3 +70,23 @@ export function provenanceProblems(value: unknown): string[] {
   const result = ModelProvenance.safeParse(value);
   return result.success ? [] : result.error.issues.map(i => i.message);
 }
+
+type Sourced = { provenance?: unknown; boxes: ReadonlyArray<{ id: string }>; wires: ReadonlyArray<{ id: string }> };
+/**
+ * The provenance of a model a construction derived from a reviewed one: the source entries and
+ * containment links of the boxes and wires that survive. Elements the construction adds stay
+ * unsourced (sources are never invented); removed elements lose theirs, so no entry can later
+ * describe a different element that reuses the id. Pending items and decisions are kept. A draft,
+ * an invalid envelope or a model without provenance is returned unchanged, to fail as before.
+ */
+export function deriveProvenance<T extends Sourced>(model: T): T {
+  if (model.provenance === undefined) return model;
+  const parsed = ModelProvenance.safeParse(model.provenance);
+  if (!parsed.success || parsed.data.status !== "reviewed") return model;
+  const p = parsed.data, boxes = new Set(model.boxes.map(b => b.id)), wires = new Set(model.wires.map(w => w.id));
+  return { ...model, provenance: { ...p,
+    components: p.components.filter(c => boxes.has(c.id)),
+    interactions: p.interactions.filter(i => wires.has(i.wireId)),
+    ...(p.hierarchy !== undefined ? { hierarchy: p.hierarchy.filter(l => boxes.has(l.parent) && boxes.has(l.child)) } : {}),
+  } };
+}
