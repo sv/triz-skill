@@ -6,9 +6,9 @@
  *   node scripts/certify.mjs [--local | --remote] [--tamper] [--request request.json] <file.lean>...
  *
  * Local (the default; --local says so explicitly): `lake env lean` against theory/, so the
- * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Build it once
- * with `cd theory && lake exe cache get && lake build`. Without a built theory/, the script stops
- * and says so; it never falls back to the network.
+ * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Set it up once
+ * with `pnpm lean:setup` (scripts/lean-setup.mjs), then `cd theory && lake build`. Without a built
+ * theory/, the script stops and says so; it never falls back to the network.
  *
  * Remote (--remote only, an explicit opt-in): the certificate, which holds the model's ids and
  * tables, leaves this machine. It is POSTed with theory/CategoricalTriz.lean inlined ahead of it
@@ -31,7 +31,8 @@
  * conditions filled, so that every state blocks in them, a port target's `unreachable` must fail
  * on its blocked-state conjunct; with no deliverable value acceptable, strict-inclusion and opposed
  * membership witnesses must fail; with no situation allowed, `nonempty` must fail; with the
- * invariant emptied, initial containment must fail. A data tamper is tried only where a verdict
+ * invariant emptied, initial containment must fail; with every port put in one class, each verdict
+ * whose proof reads the port classes must fail. A data tamper is tried only where a verdict
  * must fail under it. Errors outside a theorem (a parse error, say) do not count.
  *
  * Locally, all the files and their tampered copies share one Lean process, so the theory's imports
@@ -47,7 +48,7 @@
  * negatives use finite state invariants against consistent target configurations. Time-varying
  * inputs and negatives supported only to a horizon remain unsupported.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import os from "node:os";
@@ -143,7 +144,7 @@ const DECLARATIONS = [
   re(`def (?:firstOnly|secondOnly)\\d+X\\d+ : Input → Value := ${NUMS}`),
   re(`def invariantStates : List \\(Machine → State\\) := \\[(?:${NUMS}(?:, ${NUMS})*)?\\]`),
   re("abbrev invariant : Set \\(\\(Machine → State\\) × \\(Port → Value\\)\\) := \\{c \\| c\\.1 ∈ invariantStates\\}"),
-  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable) := Fin \\d+"),
+  re("abbrev (?:Box|Port|Fn|Carrier|Demand|Val|Row|Machine|State|Value|Input|Deliverable|Class) := Fin \\d+"),
   re("abbrev Cell := (?:Unit|Fin \\d+(?: × Fin \\d+)*)"),
   re(`def (?:boxId|portId|fnId|carrierId|demandId|valueId) : (?:Box|Port|Fn|Carrier|Demand|Val) → String := ${STRS}`),
   re(`def ${AX}Cell : Fin \\d+ → String := ${STRS}`),
@@ -159,6 +160,12 @@ const DECLARATIONS = [
   re(`def rowMachine : Row → Option Machine := ${OPTS}`),
   re(`def (?:rowState|rowNext) : Row → State := ${NUMS}`),
   re(`def (?:fnSource|fnTarget) : Fn → Port := ${NUMS}`),
+  // The port classes the functions join, and the spanning forest the proofs check (WireClasses.Ok).
+  re(`def portClass : Port → Class := ${NUMS}`),
+  re(`def classRoot : Class → Port := ${NUMS}`),
+  re(`def portLink : Port → Option Fn := ${OPTS}`),
+  re(`def portRank : Port → ℕ := ${NUMS}`),
+  re("def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩"),
   re("def system : Sync Box Row Port Machine Fn State Value := ⟨rowBox, rowFixes, rowValue, rowMachine, rowState, rowNext, fnSource, fnTarget⟩"),
   re("def rows : Rows Box Row Port Fn Value := ⟨rowBox, rowFixes, rowValue, fnSource, fnTarget⟩"),
   re(`def (?:initial|unsafeState|safeState) : Machine → State → Bool := ${rows(BOOLS)}`),
@@ -324,29 +331,69 @@ export function localLeanAvailable() {
 }
 
 /** Why there is no verdict without local Lean: the two ways to get one, and what the second sends where. */
-export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off. Either build theory/ (install elan, then "
-  + "`cd theory && lake exe cache get && lake build`), or pass --remote (mode \"remote\") to send the certificate, which "
+export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off. Either build theory/ (install elan, run "
+  + "`pnpm lean:setup`, then `cd theory && lake build`), or pass --remote (mode \"remote\") to send the certificate, which "
   + `holds the model's ids and tables, with theory/CategoricalTriz.lean to AXLE at ${AXLE_URL}.`;
 
-let rebuilt = false;
+const MAX_OUTPUT = 64 << 20;
+/**
+ * `bin args` in theory/, without blocking: what spawnSync returns (status, signal, error, stdout,
+ * stderr), so several Lean processes can run at once. Output past MAX_OUTPUT kills the process
+ * and sets `error`, as spawnSync's maxBuffer does.
+ */
+function lakeRun(bin, args) {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, { cwd: THEORY_DIR, stdio: ["ignore", "pipe", "pipe"] });
+    const out = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 };
+    let error;
+    for (const stream of ["stdout", "stderr"]) {
+      child[stream].on("data", (chunk) => {
+        size[stream] += chunk.length;
+        if (size[stream] > MAX_OUTPUT && !error) { error = new Error(`${stream} exceeded ${MAX_OUTPUT} bytes`); child.kill(); }
+        else out[stream].push(chunk);
+      });
+    }
+    const done = (status, signal) => resolve({
+      status, signal, error, stdout: Buffer.concat(out.stdout).toString("utf8"), stderr: Buffer.concat(out.stderr).toString("utf8"),
+    });
+    // A process that never started has no 'close' to wait for.
+    child.on("error", (e) => { error ??= e; if (child.pid === undefined) done(null, null); });
+    // 'close': the process exited and its output streams ended, so the output is complete.
+    child.on("close", done);
+  });
+}
+
+let building;
+/**
+ * Bring the theory olean up to date with the source, with `lake build CategoricalTriz` (fast when
+ * it already is), once per process: concurrent callers share one build, so two `lake build`s never
+ * contend for Lake's lock. A failed build is retried by the next call.
+ */
+export function ensureBuilt() {
+  const bin = lakeBin();
+  if (!bin || !fs.existsSync(OLEAN)) return Promise.reject(new Error(NO_LOCAL_LEAN));
+  building ??= lakeRun(bin, ["build", "CategoricalTriz"]).then((b) => {
+    if (b.status !== 0) {
+      building = undefined;
+      throw new Error(`lake build CategoricalTriz failed:\n${b.stdout}${b.stderr}${b.error ?? ""}`);
+    }
+  });
+  return building;
+}
+
 /**
  * One `lake env lean --json` on `text` against theory/: its messages, at 1-based lines of `text`,
  * and whether Lean ran cleanly (every output line a message, exit 0, or 1 with an error reported).
+ * Each run writes its own temporary directory, so runs may overlap.
  */
-function runLean(text) {
+async function runLean(text) {
+  await ensureBuilt();
   const bin = lakeBin();
-  if (!bin || !fs.existsSync(OLEAN)) throw new Error(NO_LOCAL_LEAN);
-  if (!rebuilt) {
-    // Bring the theory olean up to date with the source (fast when it already is).
-    const b = spawnSync(bin, ["build", "CategoricalTriz"], { cwd: THEORY_DIR, encoding: "utf8" });
-    if (b.status !== 0) throw new Error(`lake build CategoricalTriz failed:\n${b.stdout}${b.stderr}`);
-    rebuilt = true;
-  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "triz-cert-"));
   const file = path.join(dir, "Certificate.lean");
   try {
     fs.writeFileSync(file, text);
-    const r = spawnSync(bin, ["env", "lean", "--json", file], { cwd: THEORY_DIR, encoding: "utf8", maxBuffer: 64 << 20 });
+    const r = await lakeRun(bin, ["env", "lean", "--json", file]);
     const messages = [];
     let clean = !r.error && !r.signal;
     for (const line of (r.stdout ?? "").split("\n")) {
@@ -364,8 +411,8 @@ function runLean(text) {
 }
 
 /** Run Lean on `content` against theory/; messages carry 1-based lines of `content`. */
-export function runLocal(content) {
-  return { mode: "local", messages: runLean(content).messages, toolProblems: [] };
+export async function runLocal(content) {
+  return { mode: "local", messages: (await runLean(content)).messages, toolProblems: [] };
 }
 
 const BATCH = "TrizBatch";
@@ -422,18 +469,20 @@ const leanText = (job) => (job.audit ? withAxioms(job.content) : job.content);
 /**
  * Run Lean on several jobs against theory/, as runLocal would one by one: every shareable job in
  * one process, the rest alone, and alone again any job the batch's messages cannot be placed for.
+ * The processes run one after another, so a call never has more than one Lean process.
  */
-export function runLocalBatch(jobs) {
+export async function runLocalBatch(jobs) {
   const runs = [];
   const shared = jobs.flatMap((j, i) => (shareable(j.content) ? [i] : []));
   if (shared.length > 1) {
     const layout = batchFile(shared.map((i) => leanText(jobs[i])));
-    const r = runLean(layout.text);
+    const r = await runLean(layout.text);
     splitBatch(layout, r.messages, r.clean).forEach((messages, n) => {
       if (messages) runs[shared[n]] = { mode: "local", messages, toolProblems: [], batched: true };
     });
   }
-  return jobs.map((j, i) => runs[i] ?? runLocal(leanText(j)));
+  for (const [i, j] of jobs.entries()) runs[i] ??= await runLocal(leanText(j));
+  return runs;
 }
 
 /** Run Lean on `content` through AXLE, with the theory inlined; lines are mapped back to `content`. */
@@ -518,7 +567,7 @@ export async function checkAll({ certificates = [], tampered = [] }, { mode } = 
   ];
   const runs = [];
   if (mode === "remote") for (const j of jobs) runs.push(await runRemote(leanText(j)));
-  else runs.push(...runLocalBatch(jobs));
+  else runs.push(...(await runLocalBatch(jobs)));
   let n = 0;
   return {
     certificates: certificates.map((content, i) => {
@@ -533,7 +582,8 @@ export async function checkAll({ certificates = [], tampered = [] }, { mode } = 
 
 /**
  * Tamper variants: every verdict negated; one function's carrier changed; the unsafe set emptied
- * or filled; every state blocked in the unsafe states; nothing acceptable; no situation allowed. A
+ * or filled; every state blocked in the unsafe states; nothing acceptable; no situation allowed;
+ * the invariant emptied; the port classes merged. A
  * data tamper is kept only where some verdict must fail under it: emptying the unsafe set leaves
  * an unreachable verdict true. Filling it puts every listed state in the unsafe set's state
  * conditions, so a port target's unreachable verdict fails at a listed state that admits a
@@ -576,6 +626,27 @@ export function tamperVariants(content) {
   data("no deliverable value acceptable", set(/^def acceptable : Deliverable → Value → Bool := .*$/m, false), verdicts(/^(?:weaker|count|firstOnly|secondOnly)_\d+_\d+$/));
   data("no situation allowed", set(/^def inputDomain : Input → Value → Bool := .*$/m, false), verdicts(/^nonempty$/));
   data("invariant emptied", content.replace(/^def invariantStates : List \(Machine → State\) := .*$/m, "def invariantStates : List (Machine → State) := []"), verdicts(/^invariantInitial$/));
+  // The class witness: in each namespace with two classes or more, every port put in class 0. That
+  // joins ports no function joins, so the forest check fails, and so must every verdict whose proof
+  // reads those classes.
+  const merged = new Set(), stack = [];
+  for (const line of content.split("\n")) {
+    let m;
+    if ((m = /^namespace (\S+)$/.exec(line))) stack.push(m[1]);
+    else if ((m = /^end (\S+)$/.exec(line)) && stack.at(-1) === m[1]) stack.pop();
+    else if ((m = /^abbrev Class := Fin (\d+)$/.exec(line)) && Number(m[1]) >= 2) merged.add(stack.slice(1).join("."));
+  }
+  stack.length = 0;
+  const zeroed = content.split("\n").map((line) => {
+    let m;
+    if ((m = /^namespace (\S+)$/.exec(line))) stack.push(m[1]);
+    else if ((m = /^end (\S+)$/.exec(line)) && stack.at(-1) === m[1]) stack.pop();
+    else if (/^def portClass : Port → Class := /.test(line) && merged.has(stack.slice(1).join("."))) return line.replace(/\d+(?=[,\]])/g, "0");
+    return line;
+  }).join("\n");
+  const lines = content.split("\n");
+  const reads = (proof) => [...merged].some((ns) => (ns ? proof.includes(`${ns}.classes`) : /\(q := classes\)/.test(proof)));
+  data("port classes merged", zeroed, spans(content).filter((t) => t.depth === 1 && reads(lines.slice(t.line, t.to).join("\n"))).map((t) => t.name));
   return variants;
 }
 

@@ -16,7 +16,7 @@ namespace BearingTrim
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"behavior\",\"namespace\":\"BearingTrim\",\"source\":\"e8fe1f9bdc6ea13f0494b33ff999e74c5e89b258ac0c0ab02fe9bb0f819db4e4\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"behavior\",\"namespace\":\"BearingTrim\",\"source\":\"e8fe1f9bdc6ea13f0494b33ff999e74c5e89b258ac0c0ab02fe9bb0f819db4e4\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"355f62e1cbced2d0d4dddeb1ce906f730434befd8a2c23ba9caebe167860b0de\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
 
 /-! ## The situations and the deliverables -/
 
@@ -39,6 +39,7 @@ abbrev Box := Fin 3
 abbrev Port := Fin 8
 abbrev Fn := Fin 4
 abbrev Row := Fin 7
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "shaft", "bearing"]
 /-- Each port's box and id. -/
@@ -53,6 +54,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 1, 1, 0, 0, 0], ![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 1, 1, 1, 0, 0, 0], ![0, 0, 1, 0, 0, 0, 0, 0], ![0, 0, 0, 0, 0, 1, 0, 1], ![0, 0, 0, 0, 0, 0, 0, 0]]
 def fnSource : Fn → Port := ![0, 6, 7, 4]
 def fnTarget : Fn → Port := ![1, 2, 3, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 0, 1, 2, 3, 3, 1, 2]
+def classRoot : Class → Port := ![0, 2, 3, 4]
+def portLink : Port → Option Fn := ![none, some 0, none, none, none, some 3, some 1, some 2]
+def portRank : Port → ℕ := ![0, 1, 0, 0, 0, 1, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 /-- The port each situation input is, where this model reads it. -/
 def reads : Input → Option Port := ![]
 def delivers : Deliverable → Port := ![1, 2]
@@ -69,6 +76,7 @@ abbrev Box := Fin 2
 abbrev Port := Fin 4
 abbrev Fn := Fin 2
 abbrev Row := Fin 2
+abbrev Class := Fin 2
 
 def boxId : Box → String := !["motor", "housing"]
 /-- Each port's box and id. -/
@@ -83,6 +91,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false], ![false,
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0], ![0, 0, 0, 0]]
 def fnSource : Fn → Port := ![0, 1]
 def fnTarget : Fn → Port := ![2, 3]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 1, 0, 1]
+def classRoot : Class → Port := ![0, 1]
+def portLink : Port → Option Fn := ![none, none, some 0, some 1]
+def portRank : Port → ℕ := ![0, 0, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 /-- The port each situation input is, where this model reads it. -/
 def reads : Input → Option Port := ![]
 def delivers : Deliverable → Port := ![2, 3]
@@ -95,10 +109,10 @@ end Concept
 
 /-- `compareBehavior`: the concept relates every situation to exactly the deliverable values the baseline does, decided over every situation and valuation. -/
 theorem preserved : Baseline.rows.relation inputDomain Baseline.reads Baseline.delivers = Concept.rows.relation inputDomain Concept.reads Concept.delivers :=
-  by funext u y; apply propext; revert u y; decide +kernel
+  by rw [Baseline.rows.relation_eq_classes Baseline.classes (by decide +kernel), Concept.rows.relation_eq_classes Concept.classes (by decide +kernel)]; funext u y; apply propext; revert u y; decide +kernel
 
 /-- `compareBehavior`: the relations are not empty: some situation has a steady state, so the equality is not vacuous. -/
 theorem nonempty : ∃ u y, Baseline.rows.relation inputDomain Baseline.reads Baseline.delivers u y :=
-  by decide +kernel
+  by rw [Baseline.rows.relation_eq_classes Baseline.classes (by decide +kernel)]; decide +kernel
 
 end BearingTrim

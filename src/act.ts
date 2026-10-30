@@ -60,6 +60,8 @@ export const Carrier = z.strictObject({
     .describe("Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior"),
   levels: z.array(CarrierLevel).min(1).optional()
     .describe("Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]"),
+  quantity: z.enum(["intensive", "extensive"]).optional()
+    .describe("How amounts on this carrier combine where one output port feeds several functions. 'intensive' (the default) is one shared level, such as a voltage, a temperature, or a copied message: the port meets the largest demand. 'extensive' is an amount that divides, such as a flow of water or a current: triz_feasibility makes the port supply the sum of the demands, and refuses an extensive input fed by several functions (model a merge box). Declare it explicitly; it is never inferred from the layer"),
 }, { error: keysHint({ unit: "the unit goes in dimension", units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
 
 export const Port = z.strictObject({
@@ -108,7 +110,7 @@ export const Box = z.strictObject({
   transition: z.array(TransitionRow).min(1).optional()
     .describe("Declared dynamics: rows (state, inputs) → (next state, outputs) over the declared state and carrier values, making the box a nondeterministic Mealy machine. A (state, inputs) pair with no row cannot occur; several rows are alternatives. Requires state; a box declares behavior or transition, not both"),
   feasibility: z.array(FeasibilityRow).min(1).optional()
-    .describe("Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. A port has one level shared by every function on it, so additive sharing of a flow needs a splitter box. Omit when unknown"),
+    .describe("Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. An output port of an intensive carrier has one level shared by every function on it; on an extensive carrier (`quantity`) the demands of its functions add up. Omit when unknown"),
 }, {
   error: keysHint({
     ports: "list input ports under inputs and output ports under outputs",

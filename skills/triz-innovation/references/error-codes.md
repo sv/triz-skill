@@ -147,6 +147,7 @@ The verdict tools that read declared rows, and the certificates they return.
 | `nothing-to-explore` | `triz_dynamics` | No box declares transition and no target names a box |
 | `no-product` | `triz_feasibility` | The model has no product box |
 | `unsupplied-requirement` | `triz_feasibility` | A feasibility row requires a level at an input no non-harmful function feeds |
+| `extensive-fan-in` | `triz_feasibility` | An input port of an extensive carrier is fed by several non-harmful functions, so how the amount divides among them is undeclared; model a merge box |
 | `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
 | `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe or safe target |
 | `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
@@ -178,3 +179,4 @@ that type-checks, with a `severity`. A lint never changes a verdict.
 | `unused-carrier` | lint (info) | A carrier types no port and no wire |
 | `unwired-port` | lint (info) | A port has no wire |
 | `unbacked-producible-row` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A producible row's output level is reached by no feasibility row of its box, read through the carriers' levels |
+| `extensive-fan-out` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An output port of an extensive carrier feeds several functions: `triz_feasibility` makes it supply their sum, while behaviour and dynamics give each function the port's one value |

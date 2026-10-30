@@ -48,6 +48,8 @@ export function checkSemanticIsomorphism(source: Model, target: Model, mapping: 
     const vm = mapping.values[c.id];
     if (!isBijection(vm, c.values ?? [], d.values ?? [])) errors.push(`carrier '${c.id}' values are not mapped bijectively`);
     if (c.layer !== d.layer || c.dimension !== d.dimension) errors.push(`carrier '${c.id}' quantity layer or dimension differs`);
+    // Extensive or intensive changes how triz_feasibility adds demands, so a map must keep it.
+    if ((c.quantity ?? "intensive") !== (d.quantity ?? "intensive")) errors.push(`carrier '${c.id}' quantity kind (intensive or extensive) differs`);
     if (bag((c.levels ?? []).map(l => ({ ...l, value: vm?.[l.value] }))) !== bag(d.levels ?? [])) errors.push(`carrier '${c.id}' levels differ`);
   }
   if (errors.length) return { ok: true as const, decided: true as const, aligned: false, profile, errors };

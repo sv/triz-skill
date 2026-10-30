@@ -4,10 +4,13 @@ name: Lean
 on:
   push:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/certify.*", "scripts/lean-setup.mjs", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+  # Every pull request runs the workflow, because "Build theory (no sorry)" is a required check and a
+  # workflow skipped by a path filter leaves a required check pending. The `changes` job applies the
+  # same paths instead: when none changed, the build job is skipped by its condition, which reports
+  # success.
   pull_request:
     branches: [main]
-    paths: ["theory/**", "scripts/certify.*", "src/**", "tests/**", "examples/function-models/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   # Manual run, regardless of paths: `gh workflow run lean.yml --ref <branch>`.
   workflow_dispatch:
 
@@ -16,14 +19,43 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  changes:
+    name: Lean-relevant changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      lean: ${{ steps.diff.outputs.lean }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The push paths above, as one pattern. Pushes and manual runs always build.
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then echo "lean=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "$BASE...$HEAD")
+          echo "$files"
+          if echo "$files" | grep -qE '^(theory/|scripts/certify\.|scripts/lean-setup\.mjs$|src/|tests/|examples/function-models/|examples/assurance/|skills/triz-innovation/data/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/lean\.yml$)'; then
+            echo "lean=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No Lean-relevant changes; the build is skipped."
+            echo "lean=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build theory (no sorry)
+    needs: changes
+    if: needs.changes.outputs.lean == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # Elan and the toolchain only; the Mathlib cache and the build are the next two steps.
+      # Elan and the toolchain only; the Mathlib cache and the build are the steps below.
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: theory
@@ -33,13 +65,50 @@ jobs:
           test: false
           lint: false
 
+      # The Mathlib modules theory/ imports, as `pnpm lean:setup` reads them (the runner's Node runs
+      # the script, which needs no dependencies), and a hash of the list for the packages cache key.
+      - name: Mathlib imports
+        id: imports
+        run: |
+          list=$(node scripts/lean-setup.mjs --print-imports | tr '\n' ' ')
+          test -n "$list"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "hash=$(printf '%s' "$list" | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      # The theory's own build. A changed .lean file misses the exact key and restores the closest
+      # entry, so Lake rebuilds only the modules whose inputs changed. Restored before the packages,
+      # so the key's hash does not walk Mathlib's sources under theory/.lake, which it excludes too.
+      - name: Cache the theory build
+        uses: actions/cache@v4
+        with:
+          path: theory/.lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-${{ hashFiles('theory/**/*.lean', '!theory/.lake/**', 'theory/lakefile.toml') }}
+          restore-keys: |
+            lean-build-${{ runner.os }}-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-
+
+      # Lake's packages (the Mathlib clone and its requirements, with the unpacked oleans) and the
+      # Mathlib cache's downloads. They depend on the toolchain and the manifest, and the oleans
+      # on the import list: a new import misses the exact key, restores the closest entry, fetches
+      # only what is new, and saves a new entry.
+      - name: Cache Lake packages and the Mathlib cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            theory/.lake/packages
+            ~/.cache/mathlib
+          key: lean-packages-${{ runner.os }}-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-${{ steps.imports.outputs.hash }}
+          restore-keys: |
+            lean-packages-${{ runner.os }}-${{ hashFiles('theory/lean-toolchain', 'theory/lake-manifest.json') }}-
+
       # Prebuilt oleans for the Mathlib modules theory/ imports and their import closure only, not
-      # all of Mathlib, from cache.mathlib.org as lean-action would fetch them.
+      # all of Mathlib, from cache.mathlib.org as lean-action would fetch them. With the packages
+      # cache restored, nothing is cloned, downloaded, or decompressed.
       - name: Mathlib cache (the theory's imports)
         working-directory: theory
         env:
           MATHLIB_CACHE_GET_URL: https://cache.mathlib.org/mathlib4
-        run: lake exe cache get $(find . -name '*.lean' -not -path './.lake/*' -exec sed -n 's/^import //p' {} + | tr -s ' ' '\n' | grep '^Mathlib\.' | sort -u)
+          IMPORTS: ${{ steps.imports.outputs.list }}
+        run: lake exe cache get $IMPORTS
 
       # --wfail turns any `sorry` warning into a failure.
       - name: Build theory (no sorry)
@@ -59,12 +128,17 @@ jobs:
       - name: Certificates (acceptance + tamper)
         run: node scripts/certify.mjs --local --tamper theory/Certificates/*.lean
 
-      # The tests that need Lean (fixtures and hostile generated certificates accepted, tampered
-      # copies rejected; one Lean process per test) skip without it or with TRIZ_SKIP_LEAN=1;
-      # TRIZ_REQUIRE_LEAN=1 runs them and makes a missing build fail instead.
       - run: pnpm install --frozen-lockfile
 
-      - name: Tests with Lean required
-        run: pnpm test
+      # Only the test files with Lean tests (`leanTest(`); the CI workflow runs every other test.
+      # TRIZ_REQUIRE_LEAN=1 runs the Lean tests and makes a missing build fail instead of skip.
+      # TRIZ_LEAN_JOBS=3 runs three at a time, each one `lake env lean` process (about 1.5 GB);
+      # the runner has 4 vCPUs and 16 GB. theory/ is built once before them, never by a test.
+      - name: Lean tests (Lean required, 3 at a time)
         env:
           TRIZ_REQUIRE_LEAN: "1"
+          TRIZ_LEAN_JOBS: "3"
+        run: |
+          files=$(grep -l 'leanTest(' tests/*.test.ts) || { echo "no test file declares a leanTest"; exit 1; }
+          echo "Lean test files:" $files
+          node --import tsx --test $files

@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "smoke:mcp": "node scripts/smoke-mcp.mjs",
+    "lean:setup": "node scripts/lean-setup.mjs",
     "schema": "node --import tsx scripts/gen-schema.mjs",
     "evals": "node --import tsx scripts/run-evals.mjs",
     "evals:dry": "node --import tsx scripts/run-evals.mjs --suite no-recall --limit 5 --dry-run",

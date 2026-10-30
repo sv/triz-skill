@@ -1576,6 +1576,24 @@ example : true ∈ kleeneStep (fun (s x : Bool) => s = true ∧ x = true) (upper
   refine ⟨⟨true, mem_upperClosure.mpr ⟨false, rfl, by decide⟩, true, ⟨rfl, rfl⟩, le_rfl⟩, ?_⟩
   simp
 
+/-! ### `selection_mono`, `extensive_demand_mono`
+
+A selection admitted at every demand up to 5 meets `kleeneStep_upperClosure`'s hypothesis,
+whatever it places. Admitted only at demand 3 (no `hok`), it is not admitted at the smaller demand
+0, and the hypothesis fails. Two consumers' summed demand grows with either of them. -/
+
+example : ∀ ⦃s s' x : ℕ⦄, s ≤ s' → (∃ σ : Bool, s' ≤ 5 ∧ (if σ then 2 else 1) = x) →
+    ∃ y ≤ x, ∃ σ : Bool, s ≤ 5 ∧ (if σ then 2 else 1) = y :=
+  selection_mono (fun σ : Bool => if σ then 2 else 1) fun _ _ _ h h' => h.trans h'
+
+example : ¬ ∀ ⦃s s' x : ℕ⦄, s ≤ s' → (∃ _ : Unit, s' = 3 ∧ (2 : ℕ) = x) →
+    ∃ y ≤ x, ∃ _ : Unit, s = 3 ∧ (2 : ℕ) = y := fun h => by
+  obtain ⟨_, _, _, h0, _⟩ := h (Nat.zero_le 3) ⟨(), rfl, rfl⟩
+  exact absurd h0 (by decide)
+
+example (d : Fin 2 → ℝ) : ∑ i, d i ≤ ∑ i, (d i + 1) :=
+  extensive_demand_mono _ fun _ _ => le_add_of_nonneg_right zero_le_one
+
 /-! ### `codesign_lfp`
 
 On `Fin 3`, where every configuration requires `1`, the least fixpoint holds `1` and not `0`. On
@@ -1790,6 +1808,35 @@ example : ¬ (t5 (level t5 3) ≤ 3) ∧ ¬ GaloisConnection t5 (level t5) := by
   refine ⟨by decide, fun h => ?_⟩
   have := (h 0 3).mpr bot_le
   exact absurd this (by decide)
+
+/-! ## Port classes: `WireClasses.Ok`, `eq_root`, `admitted_ssubset`
+
+Three ports and one function, from port 0 to port 1; port 2 is unwired. The witness with classes
+`{0, 1}` and `{2}` checks, and `eq_root` then reads port 1 at port 0. One that also puts port 2 in
+the first class fails the check, and it must: a valuation every function respects takes two values
+in that class, so no valuation of the classes gives it. `admitted_ssubset` holds on a relation that
+admits everything against one that admits nothing, and without `h'` (one relation against itself)
+the strict inclusion fails. -/
+
+def goodClasses : WireClasses (Fin 3) (Fin 1) (Fin 2) := ⟨![0, 0, 1], ![0, 2], ![none, some 0, none], ![0, 1, 0]⟩
+def joinedClasses : WireClasses (Fin 3) (Fin 1) (Fin 1) := ⟨![0, 0, 0], ![0], ![none, some 0, none], ![0, 1, 0]⟩
+
+example : goodClasses.Ok ![0] ![1] ∧ ¬ joinedClasses.Ok ![0] ![1] := by decide
+
+example (v : Fin 3 → Bool) (hv : ∀ w, v (![0] w) = v (![1] w)) : v 1 = v 0 :=
+  WireClasses.eq_root (q := goodClasses) (by decide) hv 1
+
+example : (∀ w, (![true, true, false] : Fin 3 → Bool) (![0] w) = ![true, true, false] (![1] w)) ∧
+    ¬ ∃ c : Fin 1 → Bool, ∀ x, (![true, true, false] : Fin 3 → Bool) x = c (joinedClasses.cls x) := by
+  decide
+
+example : admitted (fun _ : Bool => True) (fun _ _ : Bool => False) ⊂
+    admitted (fun _ : Bool => True) (fun u y : Bool => y = u) :=
+  admitted_ssubset (by decide) (by decide)
+
+example : ¬ admitted (fun _ : Bool => True) (fun u y : Bool => y = u) ⊂
+    admitted (fun _ : Bool => True) (fun u y : Bool => y = u) :=
+  lt_irrefl _
 
 /-! ## Generic opposed witnesses -/
 example :

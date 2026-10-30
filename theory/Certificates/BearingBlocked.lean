@@ -16,7 +16,7 @@ namespace BearingBlocked
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingBlocked\",\"source\":\"d2e338a020420bd0c9d79b1e930bdcc1edba2b48b41bbec7fcac18ba6892a6dd\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"8e7f5813c2da85890da47e9af5ca84c1486e63a82dbf0b7104a2d2e720fc31be\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingBlocked\",\"source\":\"d2e338a020420bd0c9d79b1e930bdcc1edba2b48b41bbec7fcac18ba6892a6dd\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"355f62e1cbced2d0d4dddeb1ce906f730434befd8a2c23ba9caebe167860b0de\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
 
 /-! ## The composed boxes as finite data -/
 
@@ -27,6 +27,7 @@ abbrev Box := Fin 3
 abbrev Port := Fin 8
 abbrev Fn := Fin 4
 abbrev Row := Fin 7
+abbrev Class := Fin 4
 
 def boxId : Box → String := !["motor", "shaft", "bearing"]
 /-- Each port's box and id. -/
@@ -41,6 +42,12 @@ def rowFixes : Row → Port → Bool := ![![true, false, false, false, false, fa
 def rowValue : Row → Port → Value := ![![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 1, 0, 0, 0, 0], ![0, 0, 0, 0, 1, 0, 0, 0], ![0, 0, 0, 1, 1, 0, 0, 0], ![0, 0, 0, 0, 0, 0, 0, 0], ![0, 0, 0, 0, 0, 1, 0, 1]]
 def fnSource : Fn → Port := ![0, 6, 7, 4]
 def fnTarget : Fn → Port := ![1, 2, 3, 5]
+/-- The classes of ports the functions join, each one variable: `portLink` and `portRank` are a spanning forest joining each port to its class's `classRoot` by functions, which every proof that reads `classes` checks (`WireClasses.Ok`). -/
+def portClass : Port → Class := ![0, 0, 1, 2, 3, 3, 1, 2]
+def classRoot : Class → Port := ![0, 2, 3, 4]
+def portLink : Port → Option Fn := ![none, some 0, none, none, none, some 3, some 1, some 2]
+def portRank : Port → ℕ := ![0, 1, 0, 0, 0, 1, 1, 1]
+def classes : WireClasses Port Fn Class := ⟨portClass, classRoot, portLink, portRank⟩
 def machineId : Machine → String := !["shaft"]
 def stateId : Machine → State → String := ![!["cold", "warm", "hot"]]
 def rowMachine : Row → Option Machine := ![none, some 0, some 0, some 0, some 0, none, none]
@@ -60,8 +67,8 @@ def invariant : Fin 3 → Machine → State := ![![0], ![1], ![2]]
 
 /-! ## Verdicts -/
 
-/-- `boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon, and none blocks in a state that meets the unsafe set's state conditions. The reached states hold every start, every step from them names one of them, none meets the unsafe set, and each admits a valuation or fails its state conditions (`unreachable_of_holding`). -/
+/-- `boundedDynamics`: no run from an initial state reaches the unsafe set, at any horizon, and none blocks in a state that meets the unsafe set's state conditions. The reached states hold every start, every step from them names one of them, none meets the unsafe set, and each admits a valuation or fails its state conditions, each decided over the valuations of the port classes (`unreachable_of_holding_classes`). -/
 theorem unreachable : (∀ n, ∀ a ∈ system.starts initial, ∀ b ∈ system.target unsafeState unsafeValue, ¬ reachIn system.Step n a b) ∧ ∀ n, ∀ a ∈ system.starts initial, ∀ b, reachIn system.Step n a b → (∃ v, system.Consistent (b.1, v)) ∨ ¬ ∀ m, unsafeState m (b.1 m) = true :=
-  system.unreachable_of_holding (inv := invariant) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+  system.unreachable_of_holding_classes (q := classes) (inv := invariant) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
 end BearingBlocked

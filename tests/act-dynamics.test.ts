@@ -15,6 +15,7 @@ import { externalBehavior } from "../src/act-behavior.js";
 import { boundedDynamics, checkRun, type DynamicsSpec, type RunStep } from "../src/act-dynamics.js";
 import { fromHypergraph, toHypergraph } from "../src/act-export.js";
 import { toolSpecs } from "../src/tools.js";
+import { clock } from "./support/clock.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -587,4 +588,75 @@ test("loop classification applies only to declared transitions, and not to time-
   assert.deepEqual(stateless.loops, { classified: false, reason: "no composed box declares transition; behavior rows are steady states, not transitions" });
   const sequenced = run(heater(), { inputs: power("on", "off") });
   assert.equal(sequenced.loops.classified, false);
+});
+
+/** The unbounded verdict beside a bounded one: present whenever the inputs are time-invariant. */
+function unbounded<T extends object>(v: T | undefined): Extract<T, { unbounded: unknown }>["unbounded"] {
+  assert.ok(v && "unbounded" in v, "an unbounded verdict beside the bounded one");
+  return (v as Extract<T, { unbounded: unknown }>).unbounded;
+}
+
+test("without an input sequence, the search continues past the horizon: an unsafe state first reached at step 25", () => {
+  const S25 = [{ box: "clock", state: ["s25"] }];
+  const r = run(clock(25), { unsafe: S25 });
+  assert.equal(r.horizon, 20);
+  // The bounded verdict is today's; the unbounded one beside it decides every horizon.
+  assert.ok(r.escalation?.verdict === "unreachable-within-horizon");
+  assert.deepEqual(r.escalation.basis, ["reachWithin_iff_trace"]);
+  const u = unbounded(r.escalation);
+  assert.ok(u.verdict === "reachable" && "trace" in u && u.trace);
+  assert.equal(u.time, 25);
+  assert.deepEqual(u.trace.map((s: RunStep) => s.state[0]), Array.from({ length: 26 }, (_, i) => `s${i}`));
+  assert.deepEqual(u.basis, ["reach_of_trace"]);
+  assert.deepEqual(checkRun(clock(25), { unsafe: S25 }, u.trace), { ok: true, errors: [] });
+  // Nothing bounded moves: the reached set, the counts, and the work are those of the horizon.
+  assert.equal(r.reachable.saturated, false);
+  assert.equal(r.reachable.configurations, 21);
+  assert.equal(r.statesExplored, 63);
+  // With a horizon past 25 the bounded verdict finds the same trace, and the unbounded one agrees.
+  const long = run(clock(25), { unsafe: S25, horizon: 30 });
+  assert.ok(long.escalation?.verdict === "reachable" && long.escalation.time === 25);
+  assert.deepEqual(unbounded(long.escalation), { verdict: "reachable", time: 25, basis: ["reach_of_trace"], note: "The bounded trace is a shortest one at every horizon." });
+  // Invariance the same way: s0..s24 holds within the horizon, and is left at time 25.
+  const safe = run(clock(25), { safe: [{ box: "clock", state: Array.from({ length: 25 }, (_, i) => `s${i}`) }] });
+  assert.equal(safe.invariance?.verdict, "invariant-within-horizon");
+  const left = unbounded(safe.invariance);
+  assert.ok(left.verdict === "violated" && left.time === 25);
+});
+
+test("an unreachable state is decided without a horizon: the reachable configurations saturate after step 24", () => {
+  const bad = [{ box: "clock", state: ["bad"] }];
+  const r = run(clock(24, { loop: true }), { unsafe: bad, safe: [{ box: "clock", state: Array.from({ length: 25 }, (_, i) => `s${i}`) }] });
+  assert.equal(r.escalation?.verdict, "unreachable-within-horizon");
+  assert.deepEqual(unbounded(r.escalation), {
+    verdict: "unreachable", completeAfter: 24, basis: ["reachWithin_iff_trace", "reachWithin_saturated", "unreachable_of_invariant"],
+    note: "The reachable configurations stopped growing after time 24, past the horizon: no run from these initial states reaches the unsafe set, at any horizon.",
+  });
+  assert.equal(r.invariance?.verdict, "invariant-within-horizon");
+  assert.equal(unbounded(r.invariance).verdict, "invariant");
+  // A port target that names the unreachable state's output is decided the same way.
+  const port = run(clock(24, { loop: true, port: true }), { unsafe: [{ box: "clock", port: "o", values: ["hi"] }] });
+  assert.equal(port.escalation?.verdict, "unreachable-within-horizon");
+  assert.equal(unbounded(port.escalation).verdict, "unreachable");
+  // Saturated within the horizon, the bounded verdict already holds at every horizon.
+  const short = run(clock(5, { loop: true }), { unsafe: bad });
+  assert.equal(short.escalation?.verdict, "unreachable");
+  assert.equal(unbounded(short.escalation).verdict, "unreachable");
+});
+
+test("past the cap beyond the horizon, the bounded verdict stays and only the unbounded one is undecided", () => {
+  const S25 = [{ box: "clock", state: ["s25"] }];
+  // 63 states decide the horizon; continuing to step 25 needs more than 64.
+  const capped = run(clock(25), { unsafe: S25, maxStates: 64 });
+  assert.equal(capped.escalation?.verdict, "unreachable-within-horizon");
+  const u = unbounded(capped.escalation);
+  assert.deepEqual([u.verdict, "reason" in u && u.reason], ["undecided", "cap-exceeded"]);
+  assert.match(u.note, /only the bounded verdict is decided/);
+  assert.equal(unbounded(run(clock(25), { unsafe: S25, maxStates: 70 }).escalation).verdict, "reachable");
+  // Below what the horizon needs, the bounded search fails closed, as before.
+  assert.match(errors(boundedDynamics(clock(25), { unsafe: S25, maxStates: 60 })), /the bounded search passed 60 states/);
+  // Under an input sequence the runs are indexed by time and cannot saturate: no unbounded verdict.
+  const timed = run(escalating(), { unsafe: HOT, inputs: [[], []] });
+  assert.ok(timed.escalation?.verdict === "unreachable-within-horizon" && !("unbounded" in timed.escalation));
+  assert.match(timed.escalation.note, /Longer runs are not explored \(the inputs vary with time\)/);
 });

@@ -704,6 +704,14 @@ theorem trim_lowers_cost (cost : ι → D → ℝ) (hc : ∀ i, 0 ≤ cost i) {k
     (h : kept ⊆ all) : ∑ i ∈ kept, cost i ≤ ∑ i ∈ all, cost i :=
   Finset.sum_le_sum_of_subset_of_nonneg h fun i _ _ => hc i
 
+/-- The demand on an extensive output is the sum of its consumers' demands, and that sum is
+monotone in each of them, as their maximum is on an intensive output. So a partial selection that
+demands no more than another still demands no more after both add the same row, and the solver
+may drop the dominated one (`expand`, `src/act-feasibility.ts`). -/
+theorem extensive_demand_mono (s : Finset ι) {d d' : ι → ℝ} (h : ∀ i ∈ s, d i ≤ d' i) :
+    ∑ i ∈ s, d i ≤ ∑ i ∈ s, d' i :=
+  Finset.sum_le_sum h
+
 /-- Replacing one part's cost vector by a componentwise lower one raises no dimension of the
 total (`cheap_copy`, Principles 26 and 27). -/
 theorem cheaper_part_lowers_cost [DecidableEq ι] (cost : ι → D → ℝ) (s : Finset ι) {i₀ : ι}
@@ -1787,6 +1795,17 @@ theorem kleeneStep_upperClosure {h : P → P → Prop}
   · rintro ⟨_, ⟨a, ha, x, hx, rfl⟩, hle⟩
     exact ⟨a, ⟨a, ha, le_rfl⟩, x, hx, hle⟩
 
+/-- The kernel's step has the selection shape: `ok s σ` says the row selection `σ` provides what
+`s` demands, and `place σ` is the demand and cost it places upstream. That demand depends on the
+rows chosen, not on `s`, whether the demands on one output take their maximum (an intensive
+carrier) or their sum (an extensive one, `extensive_demand_mono`). So the step meets
+`kleeneStep_upperClosure`'s hypothesis as soon as a smaller demand admits every selection a larger
+one does. -/
+theorem selection_mono {S : Type*} {ok : P → S → Prop} (place : S → P)
+    (hok : ∀ ⦃s s' σ⦄, s ≤ s' → ok s' σ → ok s σ) :
+    ∀ ⦃s s' x⦄, s ≤ s' → (∃ σ, ok s' σ ∧ place σ = x) → ∃ y ≤ x, ∃ σ, ok s σ ∧ place σ = y :=
+  fun _ _ _ hss ⟨σ, hσ, hx⟩ => ⟨_, hx.le, σ, hok hss hσ, rfl⟩
+
 /-- On a finite set of configurations, the least fixpoint of the step is the upward closure of the
 feasible configurations: those with a requirement below themselves. Its minimal elements are
 the minimal feasible configurations. -/
@@ -1898,7 +1917,65 @@ structure Sync (Bx Rw Vr Mc Wr St Val : Type*) where
   src : Wr → Vr
   tgt : Wr → Vr
 
-variable {Bx Rw Vr Mc Wr St Val In Dl Iv : Type*}
+variable {Bx Rw Vr Mc Wr St Val In Dl Iv K : Type*}
+
+/-- The ports the functions join, as checkable data: a function says its two ports carry one
+value, so each class of ports is one variable. `cls` names each port's class and `root` one port
+of each class. The forest `link`, `rank` joins every port to its class's root by functions: a port
+without a link is its class's root, and a linked port's function leads to a port of lower rank. -/
+structure WireClasses (Vr Wr K : Type*) where
+  cls : Vr → K
+  root : K → Vr
+  link : Vr → Option Wr
+  rank : Vr → ℕ
+
+namespace WireClasses
+
+/-- The checks on the witness: every function joins two ports of one class, and the forest leads
+every port to its class's root along functions, its rank falling at each step. A class map that
+joins two ports no path of functions joins fails the second check. -/
+def Ok (q : WireClasses Vr Wr K) (src tgt : Wr → Vr) : Prop :=
+  (∀ w, q.cls (src w) = q.cls (tgt w)) ∧
+    ∀ x, (q.link x = none → q.root (q.cls x) = x) ∧
+      ∀ w, q.link x = some w →
+        (src w = x ∧ q.rank (tgt w) < q.rank x) ∨ (tgt w = x ∧ q.rank (src w) < q.rank x)
+
+instance [Fintype Vr] [Fintype Wr] [DecidableEq Vr] [DecidableEq Wr] [DecidableEq K]
+    (q : WireClasses Vr Wr K) (src tgt : Wr → Vr) : Decidable (q.Ok src tgt) :=
+  inferInstanceAs (Decidable ((∀ w, q.cls (src w) = q.cls (tgt w)) ∧
+    ∀ x, (q.link x = none → q.root (q.cls x) = x) ∧
+      ∀ w, q.link x = some w →
+        (src w = x ∧ q.rank (tgt w) < q.rank x) ∨ (tgt w = x ∧ q.rank (src w) < q.rank x)))
+
+variable {q : WireClasses Vr Wr K} {src tgt : Wr → Vr}
+
+/-- A valuation every function respects takes its root's value on each class. -/
+theorem eq_root (hq : q.Ok src tgt) {v : Vr → Val} (hv : ∀ w, v (src w) = v (tgt w)) (x : Vr) :
+    v x = v (q.root (q.cls x)) := by
+  suffices h : ∀ n x, q.rank x = n → v x = v (q.root (q.cls x)) from h _ x rfl
+  intro n
+  induction n using Nat.strong_induction_on with
+  | _ n ih =>
+    intro x hx
+    obtain ⟨hnone, hsome⟩ := hq.2 x
+    cases hl : q.link x with
+    | none => rw [hnone hl]
+    | some w =>
+      rcases hsome w hl with ⟨hs, hr⟩ | ⟨ht, hr⟩
+      · rw [← hs, hv w, ih _ (hx ▸ hr) _ rfl, hq.1 w]
+      · rw [← ht, ← hv w, ih _ (hx ▸ hr) _ rfl, hq.1 w]
+
+/-- So such a valuation is a valuation of the classes, read through `cls`. -/
+theorem exists_eq_comp (hq : q.Ok src tgt) {v : Vr → Val} (hv : ∀ w, v (src w) = v (tgt w)) :
+    ∃ c : K → Val, v = c ∘ q.cls :=
+  ⟨v ∘ q.root, funext fun x => eq_root hq hv x⟩
+
+/-- And every valuation of the classes, read through `cls`, respects every function. -/
+theorem comp_respects (hq : q.Ok src tgt) (c : K → Val) (w : Wr) :
+    (c ∘ q.cls) (src w) = (c ∘ q.cls) (tgt w) :=
+  congrArg c (hq.1 w)
+
+end WireClasses
 
 namespace Rows
 
@@ -1925,6 +2002,38 @@ instance [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Wr] [Fintype Val] [Fint
     (delivers : Dl → Vr) [Fintype Dl] : DecidableRel (t.relation dom reads delivers) := fun u y =>
   inferInstanceAs (Decidable ((∀ j, dom j (u j) = true) ∧
     ∃ v, t.Steady v ∧ (∀ j x, reads j = some x → v x = u j) ∧ ∀ d, v (delivers d) = y d))
+
+/-- A steady state exists exactly when one exists through the classes: deciding it enumerates a
+value per class, not per port. -/
+theorem exists_steady_iff_classes {q : WireClasses Vr Wr K} (hq : q.Ok t.src t.tgt)
+    {P : (Vr → Val) → Prop} :
+    (∃ v, t.Steady v ∧ P v) ↔ ∃ c : K → Val, t.Steady (c ∘ q.cls) ∧ P (c ∘ q.cls) := by
+  constructor
+  · rintro ⟨v, hv, hp⟩
+    obtain ⟨c, rfl⟩ := WireClasses.exists_eq_comp hq hv.1
+    exact ⟨c, hv, hp⟩
+  · rintro ⟨c, hc, hp⟩
+    exact ⟨_, hc, hp⟩
+
+/-- The input→deliverable relation read through the classes: a value per class. -/
+def classRelation (q : WireClasses Vr Wr K) (dom : In → Val → Bool) (reads : In → Option Vr)
+    (delivers : Dl → Vr) (u : In → Val) (y : Dl → Val) : Prop :=
+  (∀ j, dom j (u j) = true) ∧ ∃ c : K → Val, t.Steady (c ∘ q.cls) ∧
+    (∀ j x, reads j = some x → c (q.cls x) = u j) ∧ ∀ d, c (q.cls (delivers d)) = y d
+
+instance [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Wr] [Fintype Val] [Fintype In] [Fintype K]
+    [DecidableEq Bx] [DecidableEq Vr] [DecidableEq Val] [DecidableEq K] (q : WireClasses Vr Wr K)
+    (dom : In → Val → Bool) (reads : In → Option Vr) (delivers : Dl → Vr) [Fintype Dl] :
+    DecidableRel (t.classRelation q dom reads delivers) := fun u y =>
+  inferInstanceAs (Decidable ((∀ j, dom j (u j) = true) ∧ ∃ c : K → Val, t.Steady (c ∘ q.cls) ∧
+    (∀ j x, reads j = some x → c (q.cls x) = u j) ∧ ∀ d, c (q.cls (delivers d)) = y d))
+
+/-- So the relation is its class reading, once the class witness checks (`exists_steady_iff_classes`). -/
+theorem relation_eq_classes (q : WireClasses Vr Wr K) (hq : q.Ok t.src t.tgt) {dom : In → Val → Bool}
+    {reads : In → Option Vr} {delivers : Dl → Vr} :
+    t.relation dom reads delivers = t.classRelation q dom reads delivers := by
+  funext u y
+  exact propext (and_congr_right fun _ => t.exists_steady_iff_classes hq)
 
 end Rows
 
@@ -2012,6 +2121,40 @@ theorem unreachable_of_holding {init : Mc → St → Bool} {inv : Iv → Mc → 
       (t.disjoint_holding_target hd),
     t.unblocked_of_holding (t.starts_subset_holding hs) (t.closed_holding hc) hb⟩
 
+/-- `unreachable_of_holding`, with the valuations read through the classes: a configuration that
+every function admits has a valuation of the classes, so the three checks over valuations need
+only a value per class. -/
+theorem unreachable_of_holding_classes {q : WireClasses Vr Wr K} (hq : q.Ok t.src t.tgt)
+    {init : Mc → St → Bool} {inv : Iv → Mc → St} {st : Mc → St → Bool} {vl : Vr → Val → Bool}
+    (hs : ∀ s : Mc → St, (∀ m, init m (s m) = true) → ∃ i, inv i = s)
+    (hc : ∀ i (c : K → Val), t.Consistent (inv i, c ∘ q.cls) → ∀ s : Mc → St,
+      t.Step (inv i, c ∘ q.cls) (s, c ∘ q.cls) → ∃ j, inv j = s)
+    (hd : ∀ i (c : K → Val), (inv i, c ∘ q.cls) ∉ t.target st vl)
+    (hb : ∀ i, (∃ c : K → Val, t.Consistent (inv i, c ∘ q.cls)) ∨ ¬ ∀ m, st m (inv i m) = true) :
+    (∀ n, ∀ a ∈ t.starts init, ∀ b ∈ t.target st vl, ¬ reachIn t.Step n a b) ∧
+      ∀ n, ∀ a ∈ t.starts init, ∀ b, reachIn t.Step n a b →
+        (∃ v, t.Consistent (b.1, v)) ∨ ¬ ∀ m, st m (b.1 m) = true := by
+  refine t.unreachable_of_holding hs ?_ ?_ ?_
+  · intro i v hv s h
+    obtain ⟨c, rfl⟩ := WireClasses.exists_eq_comp (v := v) hq hv.1
+    exact hc i c hv s h
+  · intro i v hv
+    obtain ⟨c, rfl⟩ := WireClasses.exists_eq_comp (v := v) hq hv.1.1
+    exact hd i c hv
+  · intro i
+    rcases hb i with ⟨c, hc⟩ | h
+    · exact .inl ⟨_, hc⟩
+    · exact .inr h
+
+/-- A set of configurations given by their global states alone is closed under `Step` when every
+step from one of its states, at a valuation of the classes, names one of its states. -/
+theorem closed_of_classes {q : WireClasses Vr Wr K} (hq : q.Ok t.src t.tgt) {S : (Mc → St) → Prop}
+    (h : ∀ s (c : K → Val) s', S s → t.Step (s, c ∘ q.cls) (s', c ∘ q.cls) → S s') :
+    Closed t.Step {c | S c.1} := by
+  rintro ⟨s, v⟩ hs ⟨s', v'⟩ hst
+  obtain ⟨c, rfl⟩ := WireClasses.exists_eq_comp (v := v) hq hst.1
+  exact h s c s' hs hst
+
 variable [Fintype Bx] [Fintype Rw] [Fintype Vr] [Fintype Mc] [Fintype Wr]
   [DecidableEq Bx] [DecidableEq Mc] [DecidableEq St] [DecidableEq Val]
 
@@ -2057,6 +2200,18 @@ instance {α β : Type*} [Fintype α] [Fintype β] (ok : β → Prop) [Decidable
 def admitted {α β : Type*} [Fintype α] [Fintype β] (ok : β → Prop) [DecidablePred ok] (R : α → β → Prop)
     [DecidableRel R] : Finset α :=
   Finset.univ.filter (· ∈ admits R ok)
+
+/-- A strictly weaker relation admits a strict superset, as finite sets: what
+`card_lt_of_strictly_weaker` counts, from the two inclusions, each decided on its own. -/
+theorem admitted_ssubset {α β : Type*} [Fintype α] [Fintype β] {ok : β → Prop} [DecidablePred ok]
+    {R S : α → β → Prop} [DecidableRel R] [DecidableRel S] (h : AtLeastAsWeak ok R S)
+    (h' : ¬ AtLeastAsWeak ok S R) : admitted ok S ⊂ admitted ok R := by
+  have mem : ∀ {T : α → β → Prop} [DecidableRel T] {u}, u ∈ admitted ok T ↔ u ∈ admits T ok := by
+    intro T _ u
+    simp [admitted]
+  refine Finset.ssubset_iff_subset_ne.mpr ⟨fun u hu => mem.mpr (h (mem.mp hu)), fun he => h' ?_⟩
+  intro u hu
+  exact mem.mp (he ▸ mem.mpr hu)
 
 end RowTables
 

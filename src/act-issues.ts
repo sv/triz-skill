@@ -129,6 +129,7 @@ export const ISSUE_CODES = {
   // Feasibility
   "no-product": "The model has no product box",
   "unsupplied-requirement": "A feasibility row requires a level at an input no non-harmful function feeds",
+  "extensive-fan-in": "An input port of an extensive carrier is fed by several non-harmful functions, so how the amount divides among them is undeclared",
   // Nine windows
   "ambiguous-port-name": "Collapsing gives two kept ports the same name",
   "no-earlier-snapshot": "A transition starts from a time with no snapshot",
@@ -145,6 +146,7 @@ export const ISSUE_CODES = {
   "unused-carrier": "Lint (info): a carrier types no port and no wire",
   "unwired-port": "Lint (info): a port has no wire",
   "unbacked-producible-row": "Lint: a producible row's output level is reached by no feasibility row of its box, read through the carriers' levels",
+  "extensive-fan-out": "Lint: an output port of an extensive carrier feeds several functions, which behaviour and dynamics read as one shared value",
 } as const;
 
 export type IssueCode = keyof typeof ISSUE_CODES;

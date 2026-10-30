@@ -74,13 +74,13 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 | Weakness of a concept | `triz_weakness` | `incomparable_of_witnesses`, `card_lt_of_strictly_weaker`; `level_gc` for a threshold | `admits_incomparable`, `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` | `admits`, `AtLeastAsWeak` |
 | Dynamics: escalation, invariance, separation in time | `triz_dynamics` | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `unreachable_of_invariant` | `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono`; dynamics read as behaviour, which the kernel does not compute: `relTrace_mealyRel_iff`, `relTrace_mealyRel_fixed` | `mealyStep`, `reachIn`, `reachWithin` |
 | Loop behaviour | `triz_dynamics` `loops` | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `recurrent_reach`, `return_ge_two` | — | `Closed` |
-| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` | `feasibility_comp`, `feasibility_par`, `feasibility_trace` | — |
+| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` | `feasibility_comp`, `feasibility_par`, `feasibility_trace`; for extensive carriers, `selection_mono`, `extensive_demand_mono` | — |
 | Levels | `triz_feasibility`, `triz_abstraction`, `triz_weakness` | `level_monotone`, `level_gc`, `level_band` | — | — |
 | Abstraction | `triz_abstraction` | `typed_restrict` and `typed_map` (typed), `reach_map`, `cycle_map`, `reach_quotient` (flows) | — | `Wiring.map` |
 | Ideality comparison | `triz_function_model`, `triz_trim` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` | — | — |
 | Physical contradiction, separation | `triz_separate` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` | `separation_on_condition` | — |
 | Same model in another domain | `comparison.isomorphism` | `typed_rename`, `transGen_equiv` | — | — |
-| Certificate of one run | `scripts/certify.mjs` | none: a certificate proves its own statements; see [Certificates](#certificates) | — | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation` |
+| Certificate of one run | `scripts/certify.mjs` | none: a certificate proves its own statements; see [Certificates](#certificates) | used by the proofs, never cited: `WireClasses.eq_root`, `WireClasses.exists_eq_comp`, `WireClasses.comp_respects`, `Rows.exists_steady_iff_classes`, `Rows.relation_eq_classes`, `Sync.unreachable_of_holding_classes`, `Sync.closed_of_classes`, `admitted_ssubset` | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation`, `Rows.classRelation`; port classes `WireClasses`, `WireClasses.Ok` |
 | Model transformation | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend`; per construction, `reach_quotient`, `flow_merge_typed`, `flow_merge_reach`, `edge_on_cycle`, `typed_rename`, `cheaper_part_lowers_cost` | — | — |
 | Reusable move, evolution-line step | `triz_rule_apply` | `typed_dpo` | `typed_overlay` (listed as citable, emitted by no verdict) | — |
 | A subsystem that lags | `uneven-development` | `edge_on_cycle`; the feasibility verdict's basis | — | — |
@@ -91,9 +91,10 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 
 The certificate statements use `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`,
 `no_section_of_overlap`, and `separated_iff_axis` over `Wiring.Typed` and `Wiring.Acts`, and
-`reach_of_trace`, `unreachable_of_invariant`, `unreachable_of_holding`, `AtLeastAsWeak`,
-`card_lt_of_strictly_weaker`, and `incomparable_of_witnesses` over the row tables `Sync.Step` and
-`Rows.relation` (`theory/Certificates/`).
+`reach_of_trace`, `unreachable_of_invariant`, `unreachable_of_holding_classes`, `closed_of_classes`,
+`AtLeastAsWeak`, `admitted_ssubset`, `card_lt_of_strictly_weaker`, and `incomparable_of_witnesses`
+over the row tables `Sync.Step` and `Rows.relation`, read through the port classes
+(`relation_eq_classes`) where a proof enumerates valuations (`theory/Certificates/`).
 
 ## Which verdict cites what
 
@@ -328,6 +329,20 @@ and `reachWithin` are reachability in exactly and within n steps. Lean proves:
 They hold for any step relation, so they cover the kernel's configuration graph. Lean does not
 prove that the search computes that graph; tests check it.
 
+**Without a horizon.** Without an input sequence the step relation is time-invariant and the
+configurations are finite: the product of the stateful boxes' states and the valuations. So the
+breadth-first search, continued from the horizon's frontier, reaches a layer that adds nothing
+(`reachWithin_saturated`) within the state cap, and `unbounded` gives the verdict at every
+horizon beside the bounded one: `reachable` with a shortest trace (`reach_of_trace`), or
+`unreachable` / `invariant` once the configurations stop growing (`unreachable_of_invariant`). The
+continuation runs after every other part of the result, on a budget and sets of its own that
+start where the horizon's search stopped, so the bounded verdicts, counts, fixed points, blocked
+runs, separation, and loops are what they were. Past the cap only `unbounded` is `undecided`
+(reason `cap-exceeded`); a decided bounded verdict never becomes a failure. Under an input sequence
+configurations are indexed by time, never saturate, and get no `unbounded` verdict. A certificate
+states the unbounded verdict when the bounded one is open: a later trace, or for a port target the
+reached global states as the invariant of `unreachable_of_holding_classes`.
+
 The reached fixed points are checked by tests, on the examples: the steps staying at a reached
 fixed point are exactly the steady states `triz_behavior` finds when each stateful box is frozen
 at that state. For stateless boxes every configuration is such a fixed point, and every step's
@@ -354,8 +369,21 @@ test checks the result against every row selection of 300 random models. Lean al
 series, parallel, and feedback composition keep monotonicity (`feasibility_comp`,
 `feasibility_par`, `feasibility_trace`); no verdict cites these.
 
+**Extensive and intensive carriers.** Several demands on one output port take their maximum on an
+intensive carrier (the default: one shared level) and their sum on a carrier declared
+`quantity: "extensive"` (an amount that divides). The step keeps its selection shape either way:
+the demand a selection places depends on the rows chosen, not on the configuration it serves, so
+`kleeneStep_upperClosure`'s hypothesis holds as soon as a smaller demand admits every selection a
+larger one does (`selection_mono`). The sum is monotone in each consumer's demand, as the maximum
+is (`extensive_demand_mono`), so dropping a dominated partial selection after each box stays
+sound. Neither lemma is cited in `basis`, which is unchanged. The brute-force test runs again with
+every carrier extensive: each output must supply the sum of what its functions' targets require.
+An extensive input fed by several functions fails closed (`extensive-fan-in`): how the amount
+divides among the feeders is not declared, and the solver does not choose a split.
+
 The ascent always ends, because every coordinate takes values in a finite set: the declared
-levels, and the sums of one row per box closed under max. The antichains can still grow
+levels and, on an extensive port, their sums over the consumers, and the sums of one row per box,
+closed under max. The antichains can still grow
 exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi (2015,
 Prop. 5) bounds the work by the width of the loop's resource poset, the height of its lattice of
 antichains, and the cost of one evaluation, not by the size of the model.
@@ -430,6 +458,32 @@ output alone proves nothing universal. Behavior inequality includes membership a
 at one pair; it does not certify every separately reported containment direction. Negative dynamics
 invariants contain all port valuations of each selected machine state, because `Sync.Step` constrains
 successor machine states but not successor consistency. A BFS node list is not automatically closed.
+
+**Port classes.** A function says its two ports carry one value, so the ports a chain of functions
+joins are one variable. A certificate that enumerates valuations (behaviour, weakness, a state-only
+invariant's closure, a saturated port target) carries the classes as proof data: `portClass`, a
+`classRoot` per class, and a spanning forest, `portLink` (the function each port was reached by) and
+`portRank`. `WireClasses.Ok` checks it: every function joins two ports of one class, and from every
+port the links lead to its class's root, the rank falling at each step. A class map that joins two
+ports no path of functions joins fails that check, and so does every verdict whose proof reads it
+(`--tamper`'s "port classes merged"). Given the check, a valuation every function respects is a
+valuation of the classes read through `portClass` (`WireClasses.eq_root`, `exists_eq_comp`). So:
+
+- `Rows.exists_steady_iff_classes`: a steady state exists exactly when one exists through the
+  classes, and `Rows.relation_eq_classes` rewrites `rows.relation` to `rows.classRelation`, which
+  `decide` evaluates over a value per class;
+- `Sync.unreachable_of_holding_classes` is `unreachable_of_holding` with its three valuation checks
+  over the classes, and `Sync.closed_of_classes` decides a state set's closure the same way;
+- `admitted_ssubset` gives a strict count from the two inclusions, each decided on its own.
+
+The certified statements stay over raw ports, and the checker pins them as before; only the
+proofs, and the tables they read, change. Initial coverage, unsafe exclusion, and safe containment
+of a state-only invariant read no valuation at all, so their proofs quantify over the global states
+only. The work estimate (`tableReads` on a generated certificate, capped at `MAX_CERT_ROWS`) raises
+the value count to the number of classes, not of ports: for `bearing-heat-behavior`'s trim, 4,550
+table reads instead of 69,376, and a chain of eight binary mediators (18 ports, 9 classes), which
+read 368,050,176 over its ports, now fits. A trace certificate checks one valuation per step and
+carries no classes.
 
 The request records `kind` (`model`, `separation`, `behavior`, `weakness`, or `dynamics`) and all of
 that generator's source options. The checker independently compares normalized source data with
@@ -718,8 +772,11 @@ The implemented guarantees are separated from future work in
     invariant that holds every valuation of each selected state, with initial coverage; and for
     a saturated port target, an unreachable escalation witnessed by the reached global states as
     an inductive invariant. All are decided within the cap on table reads, so only small models
-    are certified. Unreachability within the horizon only, safe port predicates, separation in
-    time, and loop classes are not certified, and runs under an input sequence are not encoded;
+    are certified. Under time-invariant inputs, the unbounded verdict (`unbounded`) is certified
+    when decided: a trace past the horizon, or saturation past it. Unreachability within the
+    horizon only (an input sequence, or the cap hit past the horizon), safe port predicates,
+    separation in time, and loop classes are not certified, and runs under an input sequence are
+    not encoded;
   - a port-target unreachable certificate's target, like an escalation's, is the admitted
     configurations in the unsafe set (`Sync.target`). A run that blocks has no admitted
     configuration there, so the certificate also states the kernel's further check: every reached
@@ -781,7 +838,9 @@ The implemented guarantees are separated from future work in
     antichain when requirements are monotone, and that the least fixpoint is the upward closure
     of the feasible configurations. The solver is checked against these by tests, including the
     brute-force comparison, not extracted from them.
-  - Shared intensive levels use max; extensive consumption needs an explicit split or balance.
+  - Shared intensive levels use max, and a carrier declared extensive sums the demands on one
+    output. The kind is declared, not checked: a mislabelled carrier gives the wrong sum, and
+    an extensive merge (several functions into one input) needs an explicit merge box.
     `triz_conservation` checks the declared arithmetic of such a balance, not constitutive
     physics, and infers no units or mixing laws.
   - Feasibility verdicts are label-blind under the same property tests as the wiring verdicts
