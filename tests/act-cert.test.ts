@@ -71,9 +71,12 @@ const LEAN_JOBS = (() => {
   if (!/^[1-9]\d*$/.test(jobs)) throw new Error(`TRIZ_LEAN_JOBS must be a positive integer, not ${JSON.stringify(jobs)}`);
   return Number(jobs);
 })();
-/** The Lean tests, declared where they stand and run together by the describe at the end of the file. */
+/** The Lean tests, declared where they stand and run together by the describe at the end of the file.
+ *  A slow test starts first, so with several jobs it does not set the floor by starting last. */
 const leanTests: Array<[string, () => Promise<void>]> = [];
-const leanTest = (name: string, fn: () => Promise<void>) => { leanTests.push([name, fn]); };
+const leanTest = (name: string, fn: () => Promise<void>, slow = false) => {
+  if (slow) leanTests.unshift([name, fn]); else leanTests.push([name, fn]);
+};
 
 /** The text outside string literals, where model ids must never appear. */
 const outsideStrings = (lean: string) => lean.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
@@ -1023,7 +1026,7 @@ leanTest("Lean accepts the mediator chain over its classes, and rejects a class 
   assert.ok(r.ok, r.problems.join("\n"));
   assert.deepEqual(r.certified, ["MediatorChain.preserved", "MediatorChain.nonempty"]);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
-});
+}, true);
 
 test("a horizon-free verdict is certified: a trace past the horizon, or an invariant that saturates past it", () => {
   // Reached first at step 25: the bounded verdict at the default horizon is unreachable-within-horizon.
