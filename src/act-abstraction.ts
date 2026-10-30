@@ -35,7 +35,7 @@
  * change the verdict.
  */
 import { z } from "zod";
-import { checkModel, harmLoops, shortestPath, type FunctionModel, type Polarity } from "./act.js";
+import { actsOn, checkModel, harmLoops, shortestPath, type FunctionModel, type Polarity } from "./act.js";
 import { rowsConsistency, READING, BAND } from "./act-levels.js";
 import { mapFlows, restrictFlows, stepsOf } from "./act-flow.js";
 import type { Theorem } from "./act-basis.js";
@@ -174,8 +174,8 @@ export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel,
 
   // The detailed graph whose loops map onto coarse loops: mapped functions with an image, and hidden ones.
   const visible = detailed.wires.filter((w) => (images.get(w.id)?.length ?? 0) > 0 || hidden.includes(w));
-  const adj = new Map<string, string[]>();
-  for (const w of visible) adj.set(w.from.box, [...new Set([...(adj.get(w.from.box) ?? []), w.to.box])].sort());
+  // Neighbours in declaration order, as harmLoops reads them, so tied detailed cycles break the same way.
+  const adj = actsOn(detailed, visible);
   const mappedBoxes = new Set(detailed.boxes.filter((b) => boxImage(b.id) !== undefined).map((b) => b.id));
   const detailedLoops = harmLoops(detailed);
   const onDetailedLoop = new Set(detailedLoops.flatMap((l) => l.negative));

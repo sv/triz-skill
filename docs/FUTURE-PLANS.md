@@ -29,7 +29,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 1 | Certify unreachability and invariance | **Landed in #39** | Closed | — |
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
 | 3 | Incomparability witnesses in weakness certificates | **Landed in #35** (equal pairs too) | Closed | — |
-| 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Open; #35's metamorphic tests cover dynamics up to tied witnesses | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
+| 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Partly landed: witnesses of the wiring checks now break ties in declaration order, as dynamics traces do, and renamed-twin tests cover them; canonical witnesses under permutation and symmetry stay open | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
 | 5 | Naturality of the verdicts in Lean | Open; **rank 4**, build 5th | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35; **rank 1** (the fibration and conditional descent), build 4th | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
@@ -131,10 +131,26 @@ the table-read cap refuses, and that limit is documented, not worked around.
 
 ## 4. Canonical dynamics tie-breaks, then their label-blindness tests
 
-Traces break ties in declaration order, which is a label, so dynamics verdicts are excluded from
-the label-blindness tests. Fix the tie-break (canonical id order after normalization), update
-the golden files, then extend tests/act-invariance-rows.test.ts to `triz_dynamics` as the wiring
-verdicts are covered.
+**Status.** Partly landed, on `claude/label-neutral-mode` (stacked on #42). Every tie between
+witnesses that the wiring checks break now follows declaration order, as dynamics traces already
+did: a harm loop's witness cycle among equally short ones (`actsOn` in `src/act.ts`, also read by
+`rerate`, `feedback`, and `triz_abstraction`), and the absorbers within one trim rule, whose first
+is an applied trim's default. Before, both followed id order. A renaming that keeps every
+array's order therefore shows the same witnesses, mapped back. `tests/act-invariance.test.ts`
+checks this with renamed twins (`tests/support/twin.ts`) of the examples and 200 generated
+models, whose new ids sort the other way, and for the bearing's escalation trace. No certificate
+theorem changed.
+
+**Open.** Declaration order is not canonical. Permuting the declarations can change the witness
+shown, and a symmetric model has no canonical witness: two equally short cycles that an
+automorphism swaps cannot be told apart by structure. Sorting by id, the old tie-break, is no
+fix: it moves under renaming. A canonical tie-break needs a canonical labelling up to
+automorphism, for example the individualisation-refinement order `findIsomorphism` already
+computes, with a fixed choice within each orbit. Then extend
+tests/act-invariance-rows.test.ts to `triz_dynamics` as the wiring verdicts are covered, and drop
+the validity-and-length comparison of tied witnesses. Other id-ordered choices stay: rule
+matching (`matchRule` tries elements in id order), the truncated conflict-cell list, and the
+coupling witness, which reads value names and port order.
 
 ## 5. Naturality of the verdicts in Lean
 

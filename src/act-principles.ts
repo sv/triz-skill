@@ -29,7 +29,7 @@
  * A construction makes the structural part of a principle checkable. It does not show that the
  * principle solves anything.
  */
-import { checkModel, harmLoops, shortestPath, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
+import { actsOn, checkModel, harmLoops, shortestPath, trimCandidates, type FunctionModel, type Polarity } from "./act.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { collapse } from "./act-windows.js";
 import { flowsThrough, mapFlows, stepsOf } from "./act-flow.js";
@@ -50,20 +50,9 @@ function duplicates(ids: string[]): string[] {
   return [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
 }
 
-/** Box → sorted successor boxes, as harmLoops builds it. */
-function successors(model: FunctionModel): Map<string, string[]> {
-  const adj = new Map<string, string[]>();
-  for (const w of model.wires) {
-    const list = adj.get(w.from.box) ?? adj.set(w.from.box, []).get(w.from.box)!;
-    if (!list.includes(w.to.box)) list.push(w.to.box);
-  }
-  for (const list of adj.values()) list.sort();
-  return adj;
-}
-
-/** A cycle through wire u → v: (u, v, …, u), or [] when v does not reach u. */
+/** A shortest cycle through wire u → v: (u, v, …, u), ties in declaration order as harmLoops breaks them; [] when v does not reach u. */
 function cycleThrough(model: FunctionModel, w: Wire): string[] {
-  const back = shortestPath(w.to.box, w.from.box, successors(model), new Set(model.boxes.map((b) => b.id)));
+  const back = shortestPath(w.to.box, w.from.box, actsOn(model), new Set(model.boxes.map((b) => b.id)));
   return back.length ? [w.from.box, ...back] : [];
 }
 

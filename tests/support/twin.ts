@@ -24,6 +24,8 @@ export interface Twin {
   wire(id: string): string;
   carrier(id: string): string;
   port(box: string, id: string): string;
+  /** A carrier value or a state. */
+  value(id: string): string;
   back<T>(x: T): T;
 }
 
@@ -124,5 +126,5 @@ export function renamedTwin(m: Model): Twin {
     if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [inverse.get(k) ?? k, back(v)]));
     return x;
   };
-  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, back: <T>(x: T) => back(x) as T };
+  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, value: V, back: <T>(x: T) => back(x) as T };
 }

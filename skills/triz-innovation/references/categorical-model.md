@@ -191,7 +191,9 @@ The finite assurance tools:
 3. **Trim.** Call `triz_trim` with the boxes to remove. The output holds three things:
    - each orphaned function, which blocks the trim;
    - each absorber, ordered rule B (the object serves itself) and then rule C (another
-     component, with supersystem resources last);
+     component, with supersystem resources last). Within a rule, boxes come in the order the
+     model declares them, and the first listed is the absorber an applied trim takes by
+     default;
    - one trimming problem per absorber of a useful function, and one level problem
      (`levelProblems`) per excessive or insufficient function: the object needs that flow at the
      right level, so no absorber is asked to take the defect over as it is. If no level of the
@@ -1214,7 +1216,9 @@ map.
   them, and nothing is claimed to be a fibration.
 - **Label-blindness.** It shows the kernel ignores domain meaning, not that a solution transfers
   between domains. Isomorphic wiring can still get different behaviour, feasibility, dynamics,
-  and flow verdicts.
+  and flow verdicts. Tied witnesses (harm-loop cycles, absorber order, dynamics traces) follow
+  declaration order: renaming that keeps every list's order shows the same witnesses, while
+  reordering the boxes, or a symmetric model, can show another, never another verdict.
 - **Certificates.** They prove the listed statements for the encoded scope and declared rows,
   within a cap on table reads; not the encoder, not the evaluator, not physical truth.
 - **Trimming.** It is not framed as a Kan extension: a decided trim depends on the absorber

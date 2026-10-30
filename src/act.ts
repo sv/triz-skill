@@ -468,7 +468,25 @@ function stronglyConnected(nodes: string[], adj: Map<string, string[]>): string[
   return out;
 }
 
-/** Shortest path from `start` to `goal` inside `within` (BFS, sorted neighbours); [] if unreachable. */
+/**
+ * Box → the boxes it acts on through `wires`, each list in the declaration order of the boxes.
+ * Witness searches read neighbours in this order, so a tie between equally short witnesses goes to
+ * the box declared first, and a renaming that keeps declaration order keeps the witness. Permuting
+ * the boxes can change it; no verdict reads which tied witness is shown.
+ */
+export function actsOn(model: FunctionModel, wires: readonly Wire[] = model.wires): Map<string, string[]> {
+  const rank = new Map(model.boxes.map((b, i) => [b.id, i]));
+  const adj = new Map<string, string[]>();
+  for (const w of wires) {
+    const list = adj.get(w.from.box) ?? adj.set(w.from.box, []).get(w.from.box)!;
+    if (!list.includes(w.to.box)) list.push(w.to.box);
+  }
+  const at = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
+  for (const list of adj.values()) list.sort((a, b) => at(a) - at(b));
+  return adj;
+}
+
+/** Shortest path from `start` to `goal` inside `within` (BFS, neighbours in `adj` order); [] if unreachable. */
 export function shortestPath(start: string, goal: string, adj: Map<string, string[]>, within: Set<string>): string[] {
   const prev = new Map<string, string | null>([[start, null]]);
   const queue = [start];
@@ -495,15 +513,12 @@ export interface HarmLoop {
  * Closed loops that a harmful or excessive function belongs to. A function u→v lies on a
  * cycle iff v reaches u, i.e. iff u and v share a strongly connected component, so this is
  * exhaustive where a single DFS pass is not. Each negative function gets one witness cycle
- * (u, v, …, u). Loops made only of useful functions are ordinary feedback and are not reported.
+ * (u, v, …, u), a shortest one; among equally short cycles the search takes boxes in declaration
+ * order (`actsOn`). The loop, box, and function lists are sets, sorted by id so that two models
+ * compare by them. Loops made only of useful functions are ordinary feedback and are not reported.
  */
 export function harmLoops(model: FunctionModel): HarmLoop[] {
-  const adj = new Map<string, string[]>();
-  for (const w of model.wires) {
-    const list = adj.get(w.from.box) ?? adj.set(w.from.box, []).get(w.from.box)!;
-    if (!list.includes(w.to.box)) list.push(w.to.box);
-  }
-  for (const list of adj.values()) list.sort();
+  const adj = actsOn(model);
   const nodes = model.boxes.map((b) => b.id).sort();
   const loops: HarmLoop[] = [];
   for (const scc of stronglyConnected(nodes, adj)) {
@@ -661,7 +676,10 @@ export interface Absorber { box: string; port: string; rule: "B" | "C"; supersys
  * performs: rule A if its object is trimmed too (the function is no longer needed); otherwise
  * rule B absorbers (the object has an output of the same carrier: self-service) and rule C
  * absorbers (another remaining box does, system components before supersystem resources).
- * Rules follow the MATRIZ knowledge base; absorbers are listed most radical rule first.
+ * Rules follow the MATRIZ knowledge base; absorbers are listed most radical rule first, and
+ * within a rule in declaration order of the boxes, each at its first output of the carrier in
+ * port order. The first is applyTrim's default, so a renaming that keeps declaration order keeps
+ * it; permuting the boxes can change it.
  * A function with no absorber is orphaned and blocks the trim. A typed match is a necessary
  * condition only: each absorber is a trimming problem to solve and substantiate, not a result.
  */
@@ -678,12 +696,13 @@ export function trimCandidates(model: FunctionModel, trim: string[]) {
   const functions = performed.map((w) => {
     if (trimmed.has(w.to.box)) return { wire: w.id, carrier: w.carrier, object: w.to.box, rule: "A" as TrimRule, absorbers: [] as Absorber[] };
     const absorbers: Absorber[] = [];
-    for (const b of [...boxes.values()].sort((x, y) => x.id.localeCompare(y.id))) {
+    for (const b of model.boxes) {
       if (trimmed.has(b.id)) continue;
       const port = outputs(b).find((p) => p.carrier === w.carrier);
       if (port) absorbers.push({ box: b.id, port: port.id, rule: b.id === w.to.box ? "B" : "C", supersystem: SUPERSYSTEM.has(b.role) });
     }
-    absorbers.sort((x, y) => x.rule.localeCompare(y.rule) || Number(x.supersystem) - Number(y.supersystem) || x.box.localeCompare(y.box));
+    // A stable sort: ties keep declaration order.
+    absorbers.sort((x, y) => x.rule.localeCompare(y.rule) || Number(x.supersystem) - Number(y.supersystem));
     return { wire: w.id, carrier: w.carrier, object: w.to.box, rule: (absorbers[0]?.rule ?? null) as TrimRule | null, absorbers };
   });
   const orphaned = functions.filter((f) => f.rule === null).map((f) => f.wire);

@@ -761,7 +761,7 @@ The implemented guarantees are separated from future work in
   can recover. It does not say how often, or whether, a run does return; that needs a fairness
   assumption, which the kernel does not make.
   Dynamics verdicts are not covered by the label-blindness property tests, and traces break
-  ties in declaration order. The extended metamorphic tests
+  ties in declaration order, as the wiring witnesses do. The extended metamorphic tests
   (`tests/act-extended-invariance.test.ts`) check reachable sets, loop classes, and shortest
   traces under renamed states, values, targets, and inputs, comparing a tied witness by validity
   and length, not identity.
@@ -869,8 +869,20 @@ The implemented guarantees are separated from future work in
   maps that preserve those annotations, with value and state maps, within a budget; past it, the
   answer is undecided, never non-isomorphic.
   - Property tests check this over 200 seeded random models with every array permuted.
-  - Excluded by design: free text, witness-cycle tie-breaks (which follow id order), absorber
-    port tie-breaks (which follow port order), and the truncated conflict-cell list.
+  - Excluded by design: free text, which tied witness is shown, and the truncated conflict-cell
+    list (truncated in id order).
+  - Tied witnesses follow declaration order, the index in the model's arrays, not id order: a
+    harm loop's witness cycle among equally short ones (`actsOn`), and the same search for the
+    cycles `rerate`, `feedback`, and `triz_abstraction` report; the absorbers within one trim rule,
+    whose first is the default absorber of an applied trim, each at the box's first output of the
+    carrier in port order; and dynamics traces, as before. A renaming that keeps every array's
+    order therefore shows the same witnesses, mapped back. `tests/act-invariance.test.ts` checks
+    this on the examples and 200 generated models whose renamed ids sort the other way. The limit
+    remains: permuting the declarations can change the witness shown, and a symmetric model has
+    no canonical witness at all; neither changes a verdict. The loop, box, and function lists stay
+    sets sorted by id, so two models compare by them. Other id-ordered choices are unchanged:
+    `triz_rule_apply` tries model elements in id order, the conflict-cell list is truncated in
+    id order, and a coupling witness reads value names and port order.
   - The bearing and connection-pool examples are isomorphic and get the same wiring
     verdicts. That shows the kernel ignores domain meaning. It does not show that a TRIZ
     solution transfers between domains.
