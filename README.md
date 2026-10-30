@@ -116,7 +116,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_build_model` | Build a typed model from explicitly rated component interactions, with stable ids, lints, and a bounded completeness report |
-| `triz_expand_hierarchy` | Substitute a box’s checked inner model into its parent and return fresh id maps; stateless wiring scope |
+| `triz_expand_hierarchy` | Substitute a box’s checked inner model into its parent and return fresh box/wire/flow maps; preserve local cost, feasibility, state and flow declarations |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check; `mpv_weights` for a comparison over the main parameters of value |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time); each separated pair gets suggested operations that could build the separation (hints, not verdicts) |

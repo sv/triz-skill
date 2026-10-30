@@ -21,7 +21,7 @@ recalling principle numbers or matrix cells.
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
 | `triz_build_model(domain, components[], interactions[], flows?)` | Build stable typed ports and functions from subject/action/object interactions; every carrier and polarity must be supplied; reports unrecorded pairs, isolated components, and product reach |
-| `triz_expand_hierarchy(model, box)` | Expand one checked inner model through its explicit interface before flat semantic analysis; returns fresh ids and rejects unsupported annotations |
+| `triz_expand_hierarchy(model, box)` | Expand one checked inner model through its explicit interface before flat semantic analysis; preserves local cost/resource/state rows and standalone flows, returns fresh ids, and refuses ambiguous parent flow routes or inner policies |
 | `triz_function_model(model, compare_to?, box_map?, mpv_weights?)` | Type-check a function model; harm loops, ideality profile, separation, baseline comparison, and whether the two models share a wiring shape; with `mpv_weights`, the comparison over the main parameters of value only, by explicit weights |
 | `triz_trim(model, trim[])` | Screen a trimming by rules A/B/C; orphaned functions block it; excessive and insufficient functions come back as level problems |
 | `triz_separate(contradiction, along?, certificate?)` | Decide whether a physical contradiction separates over space, time, condition, direction, or level; with `along`, index the parameter by one axis; each separated pair gets `suggestions` (hints: the operations that could build it on each separating axis); with `certificate`, also return a Lean certificate |

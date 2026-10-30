@@ -597,7 +597,8 @@ test("the state cap fails closed: boundary valuations are checked before the sea
   assert.match(errors(externalBehavior(bearing(), { maxStates: 3 })), /the steady-state search passed 3 states/);
   assert.match(errors(trimPreservesBehavior(bearing(), { trim: ["bearing"], maxStates: 3 })), /^baseline: the steady-state search passed 3 states/);
   const ok = externalBehavior(bearing(), { maxStates: 8 });
-  assert.ok(ok.ok && ok.decided && ok.statesExplored === 8);
+  // Pruning may reduce search work without changing the decided relation.
+  assert.ok(ok.ok && ok.decided && ok.statesExplored > 0 && ok.statesExplored <= 8);
 });
 
 test("triz_behavior answers over the shared tool spec and fails closed", async () => {

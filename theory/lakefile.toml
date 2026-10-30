@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -45,3 +45,7 @@ name = "Restriction"
 # Semantic transport under explicit equivalences.
 [[lean_lib]]
 name = "Naturality"
+
+# One scoped arc-consistency support pass preserves the exact solution set.
+[[lean_lib]]
+name = "Propagation"

@@ -1,3 +1,4 @@
+import { propagateRows } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
@@ -253,6 +254,10 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
     return { rows, vars: [...new Set(rows[0].map(([i]) => i))] };
   });
 
+  // Keep every boundary valuation and its empty table row; only the joined relations are pruned.
+  // A preprocessing cap falls back to the original sets without charging the search budget.
+  const propagated = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!)).sets;
+
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const table = new Map<string, Row>();
   const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
@@ -269,7 +274,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
     boundary.forEach((i, j) => { assign[i] = input[j]; });
     const row: Row = { input, outputs: new Map(), states: [], count: 0 };
     table.set(tupleKey(input), row);
-    overflow = !joinRows(sets, assign, () => {
+    overflow = !joinRows(propagated, assign, () => {
       const y = out.map((i) => assign[i]!);
       row.outputs.set(tupleKey(y), y);
       if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));

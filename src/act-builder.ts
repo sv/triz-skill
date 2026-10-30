@@ -26,6 +26,7 @@ const normalizeCarrier = (c: z.infer<typeof Carrier>): z.infer<typeof Carrier> =
   ...(c.values === undefined ? {} : { values: [...c.values].sort(cmp) }),
   ...(c.levels === undefined ? {} : { levels: c.levels.map(({ value, from }) => ({ value, from })) }),
   ...(c.quantity === "extensive" ? { quantity: "extensive" as const } : {}),
+  ...(c.loss === undefined ? {} : { loss: c.loss }),
 });
 const carrierKey = (c: z.infer<typeof Carrier>) => JSON.stringify(normalizeCarrier(c));
 

@@ -85,9 +85,14 @@ outer behavior, producible, state, transition, feasibility or cost summary.
 
 `triz_nine_windows` displays the inner model and its interface when one selected box declares
 one. `triz_expand_hierarchy(model, box)` explicitly substitutes it into the parent and returns
-fresh box/wire maps. It supports stateless wiring and rejects changes of product deliverable
-identity, flows, costs, feasibility, dynamics and other unsupported inner metadata. Expand further
-nested boxes one at a time. Until expanded, semantic tools do not infer inner rows; residual
+fresh box/wire/flow maps. It preserves each inner box’s fixed cost, feasibility rows, states,
+initial states and transition rows, and rewrites standalone inner flow paths and media to the fresh
+box ids. Parent budgets and weights stay on the parent. An outer flow that passes through the
+replaced box or names it as medium is refused: the interface does not determine a unique inner
+route. Declare that route explicitly rather than guessing. Inner budgets, weights, contradictions,
+different domains, and product deliverable identity changes are still refused. Expand further
+nested boxes one at a time. Resource and dynamic declarations are preserved and tested against
+manually flattened models; the static substitution theorem does not prove those semantics. Until expanded, semantic tools do not infer inner rows; residual
 synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
 and costs incomplete. Generic explicit deletes may remove a whole nested box; they are structural
 edits, not behavior-preservation claims.
@@ -102,6 +107,13 @@ verdict and adds no rows to the model. `max_cost_search` caps the exact search a
 nodes; cap or integer overflow gives `undecided`, with no optimality claim. Two-hole costs are
 unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
 not certified by the graded-residual theorem.
+
+Before stateless composition, bounded unary-domain arc consistency removes unsupported values
+and rows over the wire-unified variables. Surviving rows keep their original order. Every original
+boundary input and its empty-output row is still enumerated, so pruning changes no relation or
+admitted situation. A separate preprocessing cap discards all partial pruning and uses the old
+join. Arc consistency does not decide global consistency: cyclic constraints can still have no
+joint solution. The boundary-valuation and join-search caps remain in force.
 
 ## Fields and tool dependencies
 

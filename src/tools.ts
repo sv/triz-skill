@@ -370,7 +370,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
     },
     {
       name: "triz_expand_hierarchy",
-      description: "Substitute one box's declared inner model into its parent through its checked input/output interface. Returns a typed model and fresh id maps. Expand nested boxes one at a time before requesting flat behavior or resource verdicts; unsupported annotations fail closed. triz_nine_windows reads a selected box's inner model as its subsystem view.",
+      description: "Substitute one box's declared inner model into its parent through its checked input/output interface. Returns a typed model and fresh box, wire and flow id maps. Preserves inner box costs, feasibility, states and transitions, and standalone inner flows. Parent flows through the replaced box require an explicit inner route and fail closed, as do inner budgets, weights, contradictions and product-identity changes. Expand nested boxes one at a time before requesting flat behavior, dynamics or resource verdicts. triz_nine_windows reads a selected box's inner model as its subsystem view.",
       shape: { model: act.FunctionModel, box: Id.describe("Box whose inner model is substituted into the parent") },
       handler: async ({ model, box }: { model: act.FunctionModel; box: string }) => text(substitute(model, box)),
     },

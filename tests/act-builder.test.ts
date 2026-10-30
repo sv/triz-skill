@@ -86,3 +86,20 @@ test("equivalent carrier defaults and value-set order yield the same full model"
   const z = structuredClone(x); z.interactions[2].carrier.quantity = "extensive";
   const conflict = buildModel(z); assert.equal(conflict.ok, false);
 });
+
+
+test("builder preserves declared loss metadata and rejects contradictory descriptors", () => {
+  for (const loss of [false, true]) {
+    const x = clone();
+    x.interactions[1].carrier.loss = loss;
+    x.interactions[1].polarity = "excessive";
+    const result = buildModel(BuildModelRequest.parse(x));
+    assert.ok(result.ok);
+    assert.equal(result.model.carriers.find(c => c.id === "heat")?.loss, loss);
+    assert.equal(result.warnings.some(w => w.code === "defect-on-loss-carrier"), loss);
+    x.interactions.push({ ...x.interactions[1], action: "warm", carrier: { ...x.interactions[1].carrier, loss: !loss } });
+    const conflict = buildModel(x);
+    assert.equal(conflict.ok, false);
+    if (!conflict.ok) assert.equal(conflict.issues[0].code, "carrier-mismatch");
+  }
+});
