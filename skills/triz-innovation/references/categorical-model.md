@@ -142,8 +142,10 @@ table per link. A separate preprocessing cap (1,000,000 work units) discards all
 and uses the old join. Arc consistency does not decide global consistency: cyclic constraints can
 still have no joint solution. The boundary-valuation and join-search caps remain in force.
 
-The composed relation (`triz_behavior` without `compare_to`), `triz_adequacy`'s result, and every
-steady-state `cap-exceeded` failure or `state-cap` verdict carry `propagation: { status, work }`. `status` is `complete` (pruned to
+The composed relation (`triz_behavior` with neither `compare_to` nor `trim`), `triz_adequacy`'s
+result, and every failure of the steady-state search past its state cap (`cap-exceeded`, or a
+`state-cap` verdict) carry `propagation: { status, work }`. Caps checked before pruning runs, on
+boundary valuations or candidate rows, carry none. `status` is `complete` (pruned to
 the fixpoint) or `fallback` (the pruning cap was hit, so nothing was pruned), and `work` is the
 units spent. After a fallback, a state cap's message and hint say the search ran over unpruned
 rows, so the cause is the size of the tables: declare fewer values or rows, or split the model.
