@@ -75,7 +75,8 @@ fixpoints as different questions.
 
 **Foundation:** abstract interpretation [R21](../theory/REFERENCES.md#r21),
 [R22](../theory/REFERENCES.md#r22), and counterexample-guided refinement [R4](../theory/REFERENCES.md#r4). A greatest-fixpoint
-reformulation over sets of complete valuations is possible but does not remove global search.
+characterization over complete valuations is proved in `SteadyStateGfp.lean`; its full-valuation
+filter does not remove global search.
 Local domain consistency alone is not a complete solver [R25](../theory/REFERENCES.md#r25).
 
 ## 5. Fine-grained implementation/evidence contracts
@@ -146,8 +147,9 @@ are not a complete replacement for exact compatibility decisions [R13](../theory
 - Enumerate all required interface-aware pre-critical pairs, prove coverage and validate a join
   for each. Apply a confluence theorem only after proving this implementation meets its
   hypotheses. An exhausted budget yields `undecided`.
-- Formalize the absorber-aware trim replay and its two-absorber counterexample in Lean.
-  The counterexample proves absorber dependence, not undecidability.
+- The absorber-aware trim structural rule and two-absorber counterexample are formalized in
+  `ControlledTrim.lean`. The counterexample proves absorber dependence, not undecidability.
+  General categorical identification/pushout claims still need their own proof.
 - Introduce AGREE/PBPO+ only if generic control of previously unlisted surrounding context is a
   required consumer; these are additional formalisms, not alternate names for ordinary DPO.
 - Optionally construct the category of elements for the level presheaf. State variance and base
@@ -184,10 +186,10 @@ the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
 | 8 grouping theorem | Row/diagram bridge delivered; unused overlapping union proofs removed in favor of #32 (merged). Optimized evaluator correctness remains §4. |
 | 9 harm completeness | Deferred to §3; witness validity must not be described as completeness. |
 | 10 loop certificates | Deferred to §3; recurrence requires a quantified statement and full premises. #32's `recurrent_reach` is that statement for the `recurrent` verdict's basis; certificates remain §3. |
-| 11 whole composition | Delivered by exact global finite constraints; greatest-fixpoint language not required. |
-| 12 merged residual | Real independent finite-library synthesis delivered; the two-box residual (maximal pairs) landed in #32; three or more boxes and coordinated factorization remain §6. |
+| 11 whole composition | Exact global finite constraints delivered; greatest fixed point of complete-valuation filtering proved. No local-propagation or implementation theorem. |
+| 12 merged residual | Explicit joint_boxes residual and projection-safety checking delivered, beside existing two-box maximal pairs and finite-library synthesis. N-adic concept lattices remain open. |
 | 13 absorber checks | Complete endpoint/assignment search delivered, with joint checks and a shared budget. |
-| 14 controlled trim | Explicit replay delivered; AGREE/PBPO+ and general categorical claims remain §8. |
+| 14 controlled trim | Explicit replay and typed retained-interface rule proved, with absorber-dependent behavior witness; AGREE/PBPO+ and universal categorical claims remain §8. |
 | 15 fibration | Optional §8; proposed full-grid fibration had the wrong variance. |
 | 16 overlapping separation | Exact global finite joins delivered; a pairwise scan was rejected as insufficient. |
 | 17 critical pairs | Termination measure and occurrence commutation delivered; global critical-pair obligations remain §8. |

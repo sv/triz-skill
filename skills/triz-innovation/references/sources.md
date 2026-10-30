@@ -318,3 +318,9 @@ verified checkers (Alkassar et al.), implementation-aware co-design (Censi), bou
 synthesis (Iannopollo et al.), sound abstraction/refinement, exact global-section constraints,
 network calculus, and DPO with interfaces. A citation alone does not establish that a kernel
 operation satisfies a paper's hypotheses.
+
+The controlled-trim proof in `theory/ControlledTrim.lean` uses explicit absorber reattachment
+and the existing ordinary DPO deletion/gluing basis. Related context-control formalisms are
+AGREE ([R15](../../../theory/REFERENCES.md#r15)) and PBPO+
+([R16](../../../theory/REFERENCES.md#r16)); those references motivate the distinction, but the
+repository does not implement their general categorical constructions or a Kan universal property.

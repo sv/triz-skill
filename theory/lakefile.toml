@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -49,3 +49,15 @@ name = "Naturality"
 # One scoped arc-consistency support pass preserves the exact solution set.
 [[lean_lib]]
 name = "Propagation"
+
+# Joint merged-hole residuals and nonfactorization.
+[[lean_lib]]
+name = "JointResidual"
+
+# Absorber reattachment as explicit typed deletion/gluing rule data.
+[[lean_lib]]
+name = "ControlledTrim"
+
+# Complete-valuation consistency as a greatest fixed point.
+[[lean_lib]]
+name = "SteadyStateGfp"
