@@ -28,6 +28,37 @@ resource modes remain `undecided`. Resource and behavior modes cannot be chosen 
 
 ## Search and editing
 
+### General, reusable catalogues
+
+`triz_component_catalogue` returns the shared `general` catalogue. Its type parameter `T` can bind
+to any explicitly declared model carrier. Add this selection to a search request:
+
+```json
+{"catalogues": [{"catalogue":"general", "bindings":{"T":"your-carrier-id"}}]}
+```
+
+Identity (`out = in`) and fan-out (`left = right = in`) are abstract mathematical relations.
+Finite rows come only from the bound carrier's declared values. No physical implementation,
+conservation law, feasibility mode or cost is inferred. Engineering contracts still require
+substantiated concrete implementations. An instantiated identity has a checked Lean behavior
+certificate and tamper variants.
+
+Reusable libraries follow `component-catalogue.schema.json`: format/version, id, type parameters,
+local carriers and entries with source/license declarations. Entries define expanded concrete
+boxes or abstract primitives. Combine bundles with `catalogues: [{catalogue: bundle, bindings: {...}}]`.
+Tags and domains organize entries without gating compatibility or ranking, so one library can
+mix domains. Source/license assertions on supplied bundles remain unverified declarations.
+
+Parameters require explicit bindings. Concrete local carriers reuse a unique compatible type
+with the same explicit quantity, or import a fresh internal type. Ambiguity requires a binding.
+Aliases preserve layer, quantity/SI, finite values, levels and resource-combination declarations;
+SI alone does not establish the same quantity. Names never supply missing type declarations.
+`carriersAdded`, `catalogueBindings` and each chosen component's `catalogueOrigin` retain imported
+types, bindings and sources. Replay extends the original model with `carriersAdded` first.
+
+Instantiation shares `max_work` with search; at most ten bundles and 100 combined entries are
+admitted. Legacy request-local `catalogue` arrays remain supported. No external data is fetched.
+
 The search works backward from unsupplied inputs. It tries compatible available outputs, then
 creates compatible catalogue instances and adds their inputs as obligations. Created outputs
 can be shared. Feedback is possible; contracts check the declared steady-state relation. Typing

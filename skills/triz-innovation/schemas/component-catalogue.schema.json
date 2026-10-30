@@ -1,0 +1,932 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "#/$defs/ComponentCatalogue",
+  "$defs": {
+    "ComponentCatalogue": {
+      "type": "object",
+      "properties": {
+        "format": {
+          "type": "string",
+          "const": "triz-component-catalogue-v1"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parameters": {
+          "default": [],
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "carriers": {
+          "default": [],
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Carrier"
+          }
+        },
+        "entries": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "component": {
+                    "type": "object",
+                    "properties": {
+                      "bond": {
+                        "description": "Bond-graph element; triz_bond_graph checks causality separately from function ratings",
+                        "type": "object",
+                        "properties": {
+                          "element": {
+                            "type": "string",
+                            "enum": [
+                              "0",
+                              "1",
+                              "Se",
+                              "Sf",
+                              "R",
+                              "C",
+                              "I",
+                              "TF",
+                              "GY"
+                            ]
+                          },
+                          "parameters": {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string"
+                            },
+                            "additionalProperties": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "required": [
+                          "element"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "actions": {
+                        "description": "Declared maintenance actions on this box state space; solved by triz_lifecycle",
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "guard": {
+                              "minItems": 1,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "minLength": 1
+                              }
+                            },
+                            "cost": {
+                              "type": "object",
+                              "propertyNames": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^(?!__proto__$)"
+                              },
+                              "additionalProperties": {
+                                "type": "number",
+                                "minimum": 0
+                              }
+                            },
+                            "transitions": {
+                              "minItems": 1,
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "state": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "next": {
+                                    "type": "string",
+                                    "minLength": 1
+                                  },
+                                  "probability": {
+                                    "anyOf": [
+                                      {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 1
+                                      },
+                                      {
+                                        "type": "string",
+                                        "maxLength": 512
+                                      }
+                                    ]
+                                  },
+                                  "cost": {
+                                    "type": "object",
+                                    "propertyNames": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "pattern": "^(?!__proto__$)"
+                                    },
+                                    "additionalProperties": {
+                                      "type": "number",
+                                      "minimum": 0
+                                    }
+                                  }
+                                },
+                                "required": [
+                                  "state",
+                                  "next"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "guard",
+                            "transitions"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "id": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "tool",
+                          "product",
+                          "mediator",
+                          "environment",
+                          "supersystem"
+                        ],
+                        "description": "Function-analysis role; environment and supersystem boxes are resources outside the engineered system"
+                      },
+                      "action": {
+                        "description": "Main action verb, e.g. 'support', 'route', 'monetize'",
+                        "type": "string"
+                      },
+                      "inputs": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/Port"
+                        }
+                      },
+                      "outputs": {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/Port"
+                        }
+                      },
+                      "cost": {
+                        "description": "Cost per resource dimension, e.g. { usd_month: 400, latency_ms: 2.5 }; dimensions are never summed together",
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^(?!__proto__$)"
+                        },
+                        "additionalProperties": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "behavior": {
+                        "description": "Declared behaviour: a finite relation from input-port values to output-port values over the carriers' declared values. An input tuple with no row cannot occur; several rows for one input tuple are alternatives. Omit when unknown",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/BehaviorRow"
+                        }
+                      },
+                      "producible": {
+                        "description": "For a box whose behaviour is unknown: the rows it can physically produce, over the carriers' declared values, as behavior rows. triz_behavior weakest_spec keeps only these, and reports the rows the target needs that the box cannot produce. A box declares behavior or producible, not both",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/BehaviorRow"
+                        }
+                      },
+                      "state": {
+                        "description": "Declared state: the finite set of values the box carries from one step to the next. Requires transition",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "initial": {
+                        "description": "States the box may start in; a subset of state",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "transition": {
+                        "description": "Declared dynamics: rows (state, inputs) → (next state, outputs) over the declared state and carrier values, making the box a nondeterministic Mealy machine. A (state, inputs) pair with no row cannot occur; several rows are alternatives. Requires state; a box declares behavior or transition, not both",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/TransitionRow"
+                        }
+                      },
+                      "feasibility": {
+                        "description": "Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. An output port of an intensive carrier has one level shared by every function on it; on an extensive carrier (`quantity`) the demands of its functions add up. Omit when unknown",
+                        "minItems": 1,
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/FeasibilityRow"
+                        }
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "role"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "max_instances": {
+                    "default": 1,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
+                  },
+                  "tags": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "domains": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "citation": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "license": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "citation",
+                      "license"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "component",
+                  "max_instances",
+                  "source"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "primitive": {
+                    "type": "string",
+                    "enum": [
+                      "identity",
+                      "fanout"
+                    ]
+                  },
+                  "carrier": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "max_instances": {
+                    "default": 1,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8
+                  },
+                  "tags": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "domains": {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "source": {
+                    "type": "object",
+                    "properties": {
+                      "citation": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "license": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "citation",
+                      "license"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "id",
+                  "primitive",
+                  "carrier",
+                  "max_instances",
+                  "source"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "format",
+        "id",
+        "parameters",
+        "carriers",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "Reusable domain-independent typed components; tags/domains organize entries without constraining compatibility"
+    },
+    "Carrier": {
+      "type": "object",
+      "properties": {
+        "energy": {
+          "description": "Explicit energy effort/flow pair; no domain presets or information bonds",
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "energy",
+                "thermal-approximation"
+              ]
+            },
+            "effort": {
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "si": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "L": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "M": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "T": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "I": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "Θ": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "N": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "J": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "quantity",
+                "si"
+              ],
+              "additionalProperties": false
+            },
+            "flow": {
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "si": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "L": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "M": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "T": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "I": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "Θ": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "N": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "J": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "quantity",
+                "si"
+              ],
+              "additionalProperties": false
+            },
+            "power_si": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "L": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "M": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "T": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "I": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "Θ": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "N": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "J": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 512
+                }
+              ]
+            },
+            "approximation": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "kind",
+            "effort",
+            "flow",
+            "power_si"
+          ],
+          "additionalProperties": false
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "layer": {
+          "type": "string",
+          "enum": [
+            "material",
+            "energy",
+            "information",
+            "financial",
+            "legal",
+            "temporal"
+          ]
+        },
+        "dimension": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unit, protocol, or measure carried, e.g. 'W thermal', 'gRPC request', 'USD/month'"
+        },
+        "effect_quantity": {
+          "description": "Explicit effect quantity type; never inferred from free-text dimension",
+          "type": "string",
+          "minLength": 1
+        },
+        "si": {
+          "description": "Explicit SI exponent vector, or base-unit expression such as kg·m·s^-2; omitted exponents are zero",
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "L": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "M": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "T": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "I": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "Θ": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "N": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "J": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          ]
+        },
+        "unit": {
+          "description": "Display unit; parsed base-unit expressions are linted against si; no conversion",
+          "type": "string"
+        },
+        "values": {
+          "description": "Finite set of values the carrier can take, e.g. ['low', 'high']; required on every port of a box that declares behavior",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "levels": {
+          "description": "Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CarrierLevel"
+          }
+        },
+        "quantity": {
+          "description": "How amounts on this carrier combine where one output port feeds several functions. 'intensive' (the default) is one shared level, such as a voltage, a temperature, or a copied message: the port meets the largest demand. 'extensive' is an amount that divides, such as a flow of water or a current: triz_feasibility makes the port supply the sum of the demands, and refuses an extensive input fed by several functions (model a merge box). Declare it explicitly; it is never inferred from the layer",
+          "type": "string",
+          "enum": [
+            "intensive",
+            "extensive"
+          ]
+        },
+        "loss": {
+          "description": "Whether the flow is a loss: true when no level of it is wanted from any performer, such as a pressure drop, leakage, noise, or wear; false when some level is. Read only by the defect-on-loss-carrier lint, which then ignores its word list, so the lint gives the same warnings after any renaming. Omitted, the lint guesses from the words of the carrier id, its dimension, and the function verbs. No verdict reads it",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "layer",
+        "dimension"
+      ],
+      "additionalProperties": false
+    },
+    "CarrierLevel": {
+      "type": "object",
+      "properties": {
+        "unit": {
+          "description": "Explicit base-unit expression for these thresholds; checked against carrier si",
+          "type": "string"
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "description": "A declared value of the carrier"
+        },
+        "from": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Least amount that reads as this value, in the units of the feasibility rows on this carrier"
+        }
+      },
+      "required": [
+        "value",
+        "from"
+      ],
+      "additionalProperties": false
+    },
+    "Port": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique within its box"
+        },
+        "carrier": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Carrier id"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "carrier"
+      ],
+      "additionalProperties": false
+    },
+    "BehaviorRow": {
+      "type": "object",
+      "properties": {
+        "in": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Input port id → value; names every input port of the box"
+        },
+        "out": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Output port id → value; names every output port of the box"
+        }
+      },
+      "required": [
+        "in",
+        "out"
+      ],
+      "additionalProperties": false,
+      "description": "One admissible (inputs, outputs) pair of the box's relation"
+    },
+    "TransitionRow": {
+      "type": "object",
+      "properties": {
+        "cost": {
+          "description": "Nonnegative cost incurred by this step; missing dimensions are zero; dimensions are never combined implicitly",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "string",
+                "maxLength": 512,
+                "pattern": "^[+-]?\\d+\\/[1-9]\\d*$"
+              }
+            ]
+          }
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Current state; one of the box's declared state values"
+        },
+        "in": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Input port id → value; names every input port of the box"
+        },
+        "next": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Next state; one of the box's declared state values"
+        },
+        "out": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Output port id → value; names every output port of the box"
+        }
+      },
+      "required": [
+        "state",
+        "in",
+        "next",
+        "out"
+      ],
+      "additionalProperties": false,
+      "description": "One admissible step of a stateful box: in this state, on these inputs, it may move to next and emit these outputs"
+    },
+    "FeasibilityRow": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "description": "Optional explicit base-unit expression per named input/output amount; checked against its carrier si",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "provides": {
+          "description": "Output port id → level the box can provide there, in the carrier's dimension; an omitted port provides nothing (level 0)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "requires": {
+          "description": "Input port id → level the box needs there to provide this row; an omitted port needs nothing. Only a non-harmful function can supply it",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        },
+        "cost": {
+          "description": "Operating resources per cost dimension, added to the box's fixed cost; an omitted dimension needs nothing",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?!__proto__$)"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      },
+      "additionalProperties": false,
+      "description": "One minimal (functionality provided, resources required) pair of the box's monotone feasibility relation"
+    }
+  },
+  "title": "Reusable component catalogue"
+}

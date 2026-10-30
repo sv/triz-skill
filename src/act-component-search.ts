@@ -20,6 +20,11 @@ import {
 } from "./act-contract.js";
 import { fail, issue, type Failure } from "./act-issues.js";
 import { REWRITE } from "./act-basis.js";
+import {
+  CatalogueSelection,
+  ConcreteComponentEntry,
+  instantiateCatalogues,
+} from "./act-component-catalogue.js";
 
 export const ComponentSearchRequest = z.strictObject({
   model: FunctionModel.describe(
@@ -27,15 +32,14 @@ export const ComponentSearchRequest = z.strictObject({
   ),
   resources: z.array(Endpoint).max(100),
   targets: z.array(Endpoint).min(1).max(32),
-  catalogue: z
-    .array(
-      z.strictObject({
-        id: z.string().min(1),
-        component: Box,
-        max_instances: z.number().int().min(1).max(8).default(1),
-      }),
-    )
-    .max(100),
+  catalogue: z.array(ConcreteComponentEntry).max(100).default([]),
+  catalogues: z
+    .array(CatalogueSelection)
+    .max(10)
+    .default([])
+    .describe(
+      "Reusable catalogues, including general, with explicit type-parameter/carrier bindings; domains/tags do not gate compatibility",
+    ),
   remove: z.array(z.string().min(1)).max(100).default([]),
   replace_wires: z.array(z.string().min(1)).max(100).default([]),
   flows: z
@@ -63,9 +67,33 @@ const key = (e: End) => JSON.stringify([e.box, e.port]);
 export function searchComponents(input: unknown) {
   const parsed = ComponentSearchRequest.safeParse(input);
   if (!parsed.success) return engineeringInvalid(parsed.error.issues);
-  const a = parsed.data,
-    check = checkModel(a.model, "$.model");
+  const check = checkModel(parsed.data.model, "$.model");
   if (!check.ok) return fail(check.issues);
+  const budget = new EngineeringBudget(parsed.data.max_work);
+  const prepared = instantiateCatalogues(
+    parsed.data.model,
+    parsed.data.catalogue,
+    parsed.data.catalogues,
+    (n) => budget.spend(n),
+  );
+  if (!prepared.ok) return prepared;
+  if ("verdict" in prepared)
+    return {
+      ...prepared,
+      allDecided: false,
+      checkedCount: 0,
+      satisfyingCount: 0,
+      candidates: [],
+      results: [],
+      work: budget.used,
+      maxWork: budget.max,
+      basis: REWRITE,
+    };
+  const a = {
+    ...parsed.data,
+    model: prepared.model,
+    catalogue: prepared.entries,
+  };
   const bad = (path: string, message: string, hint: string) =>
     fail([issue("invalid-argument", path, message, hint)]);
   if (!!a.contract !== !!a.implementation)
@@ -104,9 +132,11 @@ export function searchComponents(input: unknown) {
     if (!c.ok) return fail(c.issues);
   }
   for (const [i, t] of a.catalogue.entries()) {
+    const entryRoot =
+      prepared.entryPaths[t.id] ?? `$.catalogue[${i}].component`;
     if (t.component.role === "product")
       return bad(
-        `$.catalogue[${i}].component.role`,
+        `${entryRoot}.role`,
         "New product boxes would change the required interface",
         "Use tool, mediator or environment templates and retain the existing product ports.",
       );
@@ -124,11 +154,13 @@ export function searchComponents(input: unknown) {
         c.issues.map((e) => ({
           ...e,
           path: e.path
+            .replace(`$.catalogue[${i}].boxes[0]`, entryRoot)
             .replace(
-              `$.catalogue[${i}].boxes[0]`,
-              `$.catalogue[${i}].component`,
-            )
-            .replace(`$.catalogue[${i}].carriers`, "$.model.carriers"),
+              new RegExp(`^\\$\\.catalogue\\[${i}\\]\\.carriers\\[(\\d+)\\]`),
+              (_, n) =>
+                prepared.carrierPaths[a.model.carriers[Number(n)]?.id] ??
+                `$.model.carriers[${n}]`,
+            ),
         })),
       );
     if (
@@ -136,12 +168,11 @@ export function searchComponents(input: unknown) {
       (t.component.outputs?.length ?? 0) > 16
     )
       return bad(
-        `$.catalogue[${i}].component`,
+        entryRoot,
         "A component exceeds the 16-input/output search bound",
         "Use a smaller interface or a reviewed finite subsystem summary.",
       );
   }
-  const budget = new EngineeringBudget(a.max_work);
   const inputWork =
     modelWork(a.model) +
     a.catalogue.reduce(
@@ -222,7 +253,11 @@ export function searchComponents(input: unknown) {
   type Candidate = {
     model: Model;
     rewrite: RewriteStep;
-    components: Array<{ box: string; template: string }>;
+    components: Array<{
+      box: string;
+      template: string;
+      catalogueOrigin?: (typeof prepared.origins)[string];
+    }>;
     result?: Evaluation;
   };
   const candidates: Candidate[] = [],
@@ -373,7 +408,16 @@ export function searchComponents(input: unknown) {
             ...rest,
             ...(b.inputs ?? []).map((p) => ({ box: b.id, port: p.id })),
           ],
-          [...choices, { box: b.id, template: t.id }],
+          [
+            ...choices,
+            {
+              box: b.id,
+              template: t.id,
+              ...(prepared.origins[t.id]
+                ? { catalogueOrigin: prepared.origins[t.id] }
+                : {}),
+            },
+          ],
         );
         counts[i]--;
         if (capped || failure) return;
@@ -401,6 +445,8 @@ export function searchComponents(input: unknown) {
     checkedCount,
     satisfyingCount,
     candidates: capped ? [] : candidates,
+    carriersAdded: prepared.carriersAdded,
+    catalogueBindings: prepared.bindings,
     results,
     listedLimit: a.limit,
     truncated: satisfyingCount > a.limit,

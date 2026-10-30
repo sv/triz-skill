@@ -18,6 +18,10 @@ replacement, carrier-binding or contract/evidence requests; `hierarchy-substitut
 components; and the rewrite engine's typing, freshness and dangling-flow codes. Search exhaustion
 is an `undecided` result with `reason: "work-cap"`, not an input error.
 
+Reusable catalogue errors also use `invalid-argument`: unbound parameters, unknown local types,
+ambiguous/incompatible aliases, duplicate names, absent source/license fields and library limits.
+Bind types explicitly or correct the portable catalogue schema.
+
 | Code | Raised by | Meaning |
 |---|---|---|
 | `draft-model` | imported models | Ratings or assumptions remain unconfirmed inside the model; review every pending item before analysis |

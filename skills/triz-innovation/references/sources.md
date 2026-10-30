@@ -349,3 +349,7 @@ repository does not implement their general categorical constructions or a Kan u
   [math connections](../../../docs/math-connections.md).
 - All added test costs, transition probabilities and effect chains are explicitly synthetic
   mathematical fixtures, not engineering or TRIZ case-study data.
+- The general catalogue defines identity (`out = in`) and fan-out (`left = right = in`) as new
+  repository mathematical relations in `src/act-component-catalogue.ts`, under the repository MIT
+  license. They import no physical-effect/parts data and assert no empirical realization or cost.
+  Caller-provided source/license metadata is retained as declared evidence.

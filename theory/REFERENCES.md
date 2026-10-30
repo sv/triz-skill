@@ -736,3 +736,11 @@ lead for future Dirac-structure composition. Not a proof dependency or an implem
 algebra; [CSLib v4.35.0](https://github.com/leanprover/cslib/tree/v4.35.0), Apache-2.0, commit
 `5b56df99362532c46e1175381fbbdd755bd56030`, matching Lean/Mathlib 4.35.0 pins. Checked
 2026-10-30. Candidate adapter foundations only; neither is an installed dependency.
+
+## R116 — General abstract component definitions
+
+`src/act-component-catalogue.ts` defines identity (`out = in`) and diagonal fan-out
+(`left = right = in`) over arbitrary declared carrier types. These are new repository mathematical
+definitions under its MIT license, with no empirical parts/physics data or case studies.
+`Certificates.GeneralIdentity` checks an instantiated finite behavior comparison; physical
+realization and resource costs do not follow from these definitions.

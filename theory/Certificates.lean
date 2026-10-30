@@ -2,6 +2,7 @@ import Certificates.MeanCostFixture
 import Certificates.LifecycleFixture
 import Certificates.ComponentNetwork
 import Certificates.ComponentBehavior
+import Certificates.GeneralIdentity
 import Certificates.BearingHeat
 import Certificates.SoftwareCache
 import Certificates.BearingEscalation

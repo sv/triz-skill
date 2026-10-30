@@ -21,7 +21,7 @@ test("every mcp_tools name is a registered tool", () => {
 test("router → tool mapping is pinned", () => {
   const mapped = Object.fromEntries(triz.toolCatalog().filter((t) => t.mcp_tools).map((t) => [t.source_code, t.mcp_tools]));
   assert.deepEqual(mapped, {
-    EDB: ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search"],
+    EDB: ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search", "triz_component_catalogue"],
     PRINCIPLES: ["triz_principle"],
     SEPARATION: ["triz_separate"],
     SO: ["triz_nine_windows"],

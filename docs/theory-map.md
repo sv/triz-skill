@@ -23,6 +23,12 @@ properties. `ComponentSearch.chain_nil`, `chain_append` and `chain_preserves` us
 prove identity, serial composition and conditional predicate preservation, separately from
 arbitrary multi-input topology search.
 
+Reusable catalogues instantiate declared type bindings before search. General identity/fan-out
+entries are mathematical equality relations with rows derived only from declared finite values.
+`Certificates.GeneralIdentity` certifies one instantiated identity's whole-model behavior and
+nonemptiness, with tamper rejection. It does not verify the catalogue compiler, physical
+realizability, resource modes or supplied source/license assertions.
+
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the inventory below, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.

@@ -201,6 +201,7 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `si`, `unit` | carrier | explicit dimension equality and `dimension-mismatch` lints; base-unit input such as kg·m·s^-2 | free-text dimensions only; no conversion or inference |
 | `effect_quantity` | carrier | typed effect resource and weakest-spec output hints | no inference from carrier labels |
 | `catalogue`, `resources`, `targets` | `triz_component_search` arguments | automatic component/wiring discovery, including multi-input/shared assemblies; optional finite property/resource contracts | no discovery outside the bounded catalogue |
+| `catalogues`, `bindings` | `triz_component_search` arguments | reusable cross-domain bundles, explicit type parameters and source metadata | legacy local entries remain supported; no domain-name matching |
 | `chain`, `from`, `to` | `triz_effect_insert` arguments | insert discovered chains, explicit replacement, SI checks, citations and replay | effects stay standalone hypotheses |
 | transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
 | `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
@@ -1215,6 +1216,13 @@ complete candidate's finite behavior, acceptable values, harms and budget. Other
 claims typing only. Complete absence is `impossible-in-library`; caps or unknown properties are
 `undecided`. `remove` names parts to replace; their lost retained consumers become obligations.
 `certificate:true` returns supported typing/behavior certificates for the first result.
+
+`triz_component_catalogue` returns general identity/fan-out relations parameterized by carrier
+`T`. Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
+sourced entries. Bind parameters explicitly; conflicting or ambiguous aliases fail closed.
+Tags/domains only organize entries. Abstract relations declare no physical resource modes or
+costs. Imported carriers and entry origins are returned for replay; supplied source/license
+assertions remain unverified. See the discovery guide for schema and examples.
 
 `triz_effect_insert` consumes a found chain and explicit `from`/`to` ports. Existing suppliers
 require `replace_wire`. Bind intermediate carriers or declare new layers explicitly; values and

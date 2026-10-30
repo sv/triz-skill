@@ -10,7 +10,7 @@
     { "id": 3, "source_code": "ARIZ", "name": "Algorithm for Inventive Problem Solving", "stages": ["modeling", "synthesis"], "signals": ["difficult contradiction", "minimal change", "inventive problem"] },
     { "id": 4, "source_code": "ARIP", "name": "Algorithm for Engineering Problem Solving", "stages": ["modeling", "synthesis"], "signals": ["engineering problem", "structured solving"] },
     { "id": 5, "source_code": "BM", "name": "Benchmarking", "stages": ["analysis"], "signals": ["alternative system", "comparison", "best known result"] },
-    { "id": 6, "source_code": "EDB", "name": "Effects database", "stages": ["synthesis"], "signals": ["needed function", "scientific effect", "mechanism search", "component search", "desired properties", "effect chain"], "mcp_tools": ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search"] },
+    { "id": 6, "source_code": "EDB", "name": "Effects database", "stages": ["synthesis"], "signals": ["needed function", "scientific effect", "mechanism search", "component search", "desired properties", "effect chain"], "mcp_tools": ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search", "triz_component_catalogue"] },
     { "id": 7, "source_code": "SFA", "name": "Su-Field analysis", "stages": ["modeling"], "signals": ["harmful interaction", "missing interaction", "insufficient interaction"] },
     { "id": 8, "source_code": "IA", "name": "Inversion analysis", "stages": ["analysis", "modeling"], "signals": ["assumption", "reverse action", "fixed relation"] },
     { "id": 9, "source_code": "DA", "name": "Diagnostic analysis", "stages": ["analysis", "modeling"], "signals": ["unknown mechanism", "localize cause", "intermittent failure"] },

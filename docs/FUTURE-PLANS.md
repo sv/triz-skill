@@ -82,6 +82,10 @@ component/wiring discovery from a finite catalogue, including multi-input/shared
 explicit replacement and optional whole-model finite contracts. See
 [component discovery](component-discovery.md) for catalogue, component and work bounds.
 
+The same PR adds reusable domain-independent bundles, explicit type bindings and shared
+polymorphic identity/fan-out relations. Domain tags organize entries without limiting composition.
+Empirical component specifications remain separately sourced inputs.
+
 ## Current implementation batch
 
 Implemented in this checkout, with the remaining scope kept explicit:
