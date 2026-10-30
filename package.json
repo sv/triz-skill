@@ -6,7 +6,8 @@
   "type": "module",
   "packageManager": "pnpm@12.14.0",
   "bin": {
-    "triz-mcp": "dist/server.js"
+    "triz-mcp": "dist/server.js",
+    "triz": "dist/cli.js"
   },
   "scripts": {
     "start": "tsx src/server.ts",
