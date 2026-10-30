@@ -4,10 +4,16 @@
  * names, verbs, layers, dimensions), with every array permuted. Verdicts are compared after
  * mapping ids back. Excluded by design:
  *  - free text (error strings, trimming problems, notes), compared by count;
- *  - witness cycles, compared by validity and length: ties between equally short cycles are
- *    broken by id order;
- *  - absorber ports, because ties between same-carrier ports follow port order;
+ *  - witness cycles, compared by validity and length: ties between equally short cycles follow
+ *    declaration order, which the permutation changes;
+ *  - absorber order and ports, compared as sets: ties within a rule follow declaration order, and
+ *    the port is a box's first output of the carrier in port order;
  *  - conflict-cell lists, compared by count: the list is truncated in id order.
+ *
+ * The renamed-twin tests at the end cover the witnesses: a renaming that keeps every array's
+ * order shows the same witness cycles, absorbers, default trim, rerate cycles, and dynamics
+ * trace, mapped back, although its ids sort the other way. Permuting the declarations, or a
+ * symmetric model, can still change which tied witness is shown.
  *
  * This shows that the kernel reads only the wiring shape. It does not show that a TRIZ solution
  * transfers between domains.
@@ -21,7 +27,11 @@ import {
   FunctionModel, checkModel, harmLoops, idealityProfile, compareIdeality, trimCandidates, separationCheck, dynamize,
 } from "../src/act.js";
 import { findIsomorphism, checkIsomorphism, type ModelMapping } from "../src/act-iso.js";
+import { applyTrim } from "../src/act-rewrite.js";
+import { rerate } from "../src/act-principles.js";
+import { boundedDynamics } from "../src/act-dynamics.js";
 import { rng, genModel, relabel, invert, pick, int, shuffle, type Maps } from "./support/gen.js";
+import { renamedTwin } from "./support/twin.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -282,4 +292,88 @@ test("isomorphism with '__proto__', 'constructor', 'toString' ids neither pollut
   // A mapping that leaves an inherited-name id unmapped is rejected, not read through the prototype.
   const partial = { ...found.mapping, boxes: Object.fromEntries(Object.entries(found.mapping.boxes).filter(([k]) => k !== "constructor")) };
   assert.match(checkIsomorphism(a, b, partial).errors.join(), /boxes: 'constructor' is not mapped/);
+});
+
+/**
+ * The witnesses a model and its renamed twin show, in original ids. The twin keeps every array's
+ * order and its ids sort the other way, so this compares exactly: each harm loop's witness cycle
+ * per function, each trim function's absorbers in order (the first is applyTrim's default), the
+ * default trim's re-attachments, and the cycle `rerate` reports for each useful function. `back`
+ * maps a twin's results into the original ids before the id-sorted sets are put in order.
+ */
+function witnesses(m: FunctionModel, trim: string[], back: <T>(x: T) => T = (x) => x) {
+  const t = back(trimCandidates(m, trim)), applied = back(applyTrim(m, { trim }));
+  return {
+    loops: sorted(back(harmLoops(m)).map((l) => ({ boxes: [...l.boxes].sort(), negative: [...l.negative].sort(), cycles: sorted(l.cycles.map((c) => [c.via, c.path])) }))),
+    trim: !t.ok ? { ok: false } : {
+      verdict: t.verdict, orphaned: t.orphaned, dropped: t.dropped, removedHarms: t.removedHarms,
+      functions: t.functions.map((f) => [f.wire, f.rule, f.absorbers.map((a) => [a.box, a.port, a.rule, a.supersystem])]),
+      level: t.levelProblems.map((p) => [p.wire, p.absorbers]),
+    },
+    applied: !applied.ok ? { ok: false } : { chosen: applied.chosen, wires: applied.model.wires.map((w) => [w.id, w.from, w.to]) },
+    rerate: m.wires.filter((w) => w.polarity === "useful").map((w) => {
+      const r = rerate(m, { wire: w.id, polarity: "excessive" });
+      return back([w.id, r.ok ? r.cycle ?? [] : null]);
+    }),
+  };
+}
+
+test("property: a renamed twin that keeps declaration order shows the same witnesses (200 seeds)", () => {
+  const cases = ["bearing-heat", "connection-pool", "marketplace-take-rate", "software-cache"].map((n) => example(n));
+  for (let seed = 1; seed <= SEEDS; seed++) cases.push(genModel(rng(40_000 + seed)));
+  cases.forEach((m, k) => {
+    const tw = renamedTwin(m);
+    const trim = [m.boxes[k % m.boxes.length].id];
+    assert.deepEqual(witnesses(tw.model, trim.map(tw.box), tw.back), witnesses(m, trim), `case ${k}`);
+  });
+
+  // Dynamics traces already break ties in declaration order: the twin's shortest trace is the original's.
+  const dyn = example("bearing-heat-dynamics"), tw = renamedTwin(dyn);
+  const trace = (m: FunctionModel, box: string, hot: string) => {
+    const r = boundedDynamics(m, { unsafe: [{ box, state: [hot] }] });
+    assert.ok(r.ok && r.decided);
+    return { variables: r.variables, verdict: r.escalation!.verdict, trace: "trace" in r.escalation! ? r.escalation.trace : null };
+  };
+  const shown = trace(dyn, "shaft", "hot");
+  assert.equal(shown.verdict, "reachable");
+  assert.deepEqual(tw.back(trace(tw.model, tw.box("shaft"), tw.value("hot"))), shown);
+});
+
+test("witness ties follow declaration order: permuting the declarations can change the witness, never the verdict", () => {
+  // Two equally short return paths from b to a, through c or through d; a symmetric model has no
+  // canonical witness, so the earlier-declared box wins.
+  const m = (order: string[]): FunctionModel => ({
+    domain: "physical",
+    carriers: [{ id: "k", layer: "energy", dimension: "W" }],
+    boxes: order.map((id) => ({ id, name: id, role: id === "a" ? "product" : "tool", inputs: [{ id: "i", carrier: "k" }], outputs: [{ id: "o", carrier: "k" }] })),
+    wires: [["a", "b", "harmful"], ["b", "c", "useful"], ["b", "d", "useful"], ["c", "a", "useful"], ["d", "a", "useful"]].map(([u, v, p]) => ({
+      id: `${u}${v}`, from: { box: u, port: "o" }, to: { box: v, port: "i" }, carrier: "k", polarity: p as "harmful" | "useful",
+    })),
+  });
+  const cycle = (x: FunctionModel) => harmLoops(x).flatMap((l) => l.cycles.map((c) => c.path));
+  assert.deepEqual(cycle(m(["a", "b", "c", "d"])), [["a", "b", "c", "a"]]);
+  assert.deepEqual(cycle(m(["a", "b", "d", "c"])), [["a", "b", "d", "a"]]);
+  const twin = renamedTwin(m(["a", "b", "c", "d"]));
+  assert.deepEqual(twin.back(cycle(twin.model)), [["a", "b", "c", "a"]], "a renaming that keeps declaration order keeps the witness");
+  const verdict = (x: FunctionModel) => harmLoops(x).map((l) => [[...l.boxes].sort(), l.negative]);
+  assert.deepEqual(verdict(m(["a", "b", "d", "c"])), verdict(m(["a", "b", "c", "d"])));
+
+  // Absorbers of one rule list in declaration order too, and the first is the trim's default:
+  // trimming t leaves x and y, which both offer 'k' to p.
+  const offer = (order: string[]): FunctionModel => ({
+    domain: "physical",
+    carriers: [{ id: "k", layer: "energy", dimension: "W" }],
+    boxes: [
+      { id: "p", name: "p", role: "product", inputs: [{ id: "i", carrier: "k" }] },
+      ...order.map((id) => ({ id, name: id, role: "tool" as const, outputs: [{ id: "o", carrier: "k" }] })),
+    ],
+    wires: [{ id: "tp", from: { box: "t", port: "o" }, to: { box: "p", port: "i" }, carrier: "k", polarity: "useful" }],
+  });
+  const absorbers = (x: FunctionModel) => {
+    const r = trimCandidates(x, ["t"]), a = applyTrim(x, { trim: ["t"] });
+    assert.ok(r.ok && a.ok);
+    return [r.functions.map((f) => f.absorbers.map((y) => y.box)), a.chosen.map((c) => c.box)];
+  };
+  assert.deepEqual(absorbers(offer(["t", "x", "y"])), [[["x", "y"]], ["x"]]);
+  assert.deepEqual(absorbers(offer(["t", "y", "x"])), [[["y", "x"]], ["y"]]);
 });

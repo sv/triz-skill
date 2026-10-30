@@ -29,8 +29,9 @@ valid. Mutable API pages should be read against the project's pinned dependencie
 | Co-design, weakness, synthesis and engineering | [R5](#r5)–[R8](#r8), [R10](#r10)–[R11](#r11), [R30](#r30), [R91](#r91)–[R93](#r93) |
 | Categorical foundations and alternatives | [R12](#r12)–[R13](#r13), [R17](#r17)–[R18](#r18), [R27](#r27)–[R29](#r29), [R31](#r31)–[R33](#r33), [R35](#r35)–[R39](#r39), [R49](#r49)–[R50](#r50), [R95](#r95)–[R96](#r96) |
 | Rewriting, critical pairs and undecidability | [R14](#r14)–[R16](#r16), [R34](#r34), [R40](#r40)–[R41](#r41), [R44](#r44)–[R47](#r47), [R82](#r82)–[R83](#r83) |
-| Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90) |
+| Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90), [R97](#r97)–[R100](#r100) |
 | AI-TRIZ, published cases and supplied material | [R70](#r70)–[R74](#r74), [R77](#r77)–[R81](#r81), [R88](#r88) |
+| Naming, abstraction and neutral models | [R101](#r101)–[R109](#r109) |
 
 ## R1
 
@@ -607,3 +608,81 @@ P. Le Masson, A. Hatchuel and B. Weil, *Sheafification as a design technique for
 R. Bělohlávek, *Concept lattices and order in fuzzy logic*, Annals of Pure and Applied Logic 128 (2004), 277–298.
 
 **Future work.** Concept lattices over complete residuated lattices: the graded form of the formal concepts behind the two-box weakest specification (FUTURE-PLANS Q1, stage 2). It needs a commutative, integral quantale with residuation, not an arbitrary quantale.
+
+## R97
+
+G. S. Altshuller, *АРИЗ-85-В* (ARIZ-85-V, algorithm of inventive problem solving), nine parts, in Russian. Official G. S. Altshuller Foundation. [Index](https://www.altshuller.ru/triz/ariz85v.asp); [Part 1](https://www.altshuller.ru/triz/ariz85v-1.asp); [Part 3](https://www.altshuller.ru/triz/ariz85v-3.asp); [Part 4](https://www.altshuller.ru/triz/ariz85v-4.asp); [Part 6](https://www.altshuller.ru/triz/ariz85v-6.asp); [Part 7](https://www.altshuller.ru/triz/ariz85v-7.asp).
+
+**TRIZ context.** The primary text behind `references/ariz.md`'s step 1.1 section: step 1.1 states the mini-problem without special terms, note 4 limits that to the terms for the tool and the external environment and gives three reasons, and an ATTENTION box before step 3.3 asks for plain wording throughout. Steps 4.1(в) and 6.1 and Part 7 are the checkpoints where [FUTURE-PLANS.md](../docs/FUTURE-PLANS.md) N4 restores domain labels. The pages are Windows-1251 encoded. Practice wisdom, not an experiment.
+
+## R98
+
+MATRIZ, *ARIZ 85-C: Algorithm of inventive problem solving – parts 1-3*, based on V. Philatov, A. Zusman, G. Altshuller and B. Zlotin, *Tools of Classical TRIZ*, Ideation International (1999), ISBN 978-1928747024. [MATRIZ PDF](https://wiki.matriz.org/wp-content/uploads/2025/08/ARIZ-85-C.pdf).
+
+**TRIZ context.** An English text of Parts 1–3 of [R97](#r97); it names no translator. Its introduction asks that non-specialised replacements keep the "true" meaning, and its note 4 states the hidden-properties reason without [R97](#r97)'s formwork example. It notes that function analysis was less developed when ARIZ was written.
+
+## R99
+
+G. S. Altshuller, *АРИЗ-77* (ARIZ-77), in Russian. Official G. S. Altshuller Foundation. [Text](https://www.altshuller.ru/triz/ariz77.asp).
+
+**TRIZ context.** An earlier version, cited for lineage only: its step 2.1 asks for the problem to be written without special terms, the instruction that ARIZ-85-В moved to step 1.1.
+
+## R100
+
+G. S. Altshuller, *АРИЗ-82-Г* (ARIZ-82-G), in Russian. Official G. S. Altshuller Foundation. [Text](https://www.altshuller.ru/triz/ariz82g.asp).
+
+**TRIZ context.** An earlier version, cited for lineage only: its step 2.1 states the mini-problem without special terms, as ARIZ-85-В step 1.1 does.
+
+## R101
+
+T. McCaffrey, *Innovation Relies on the Obscure: A Key to Overcoming the Classic Problem of Functional Fixedness*, Psychological Science 23(3), 215–218 (2012). [DOI:10.1177/0956797611429580](https://doi.org/10.1177/0956797611429580).
+
+**Future work / evidence.** The Generic Parts Technique: re-describe each part by material, shape and size when its description implies a use. Per the abstract, trained subjects solved on average 67% more functional-fixedness problems than controls. Only the abstract was read; no independent replication was found. It motivates the plain gloss of [FUTURE-PLANS.md](../docs/FUTURE-PLANS.md) N1.
+
+## R102
+
+M. Bilalić, P. McLeod and F. Gobet, *Inflexibility of experts: Reality or myth? Quantifying the Einstellung effect in chess masters*, Cognitive Psychology 56(2), 73–102 (2008). [DOI:10.1016/j.cogpsych.2007.02.001](https://doi.org/10.1016/j.cogpsych.2007.02.001); [author preprint](http://bura.brunel.ac.uk/bitstream/2438/641/1/Flexibility_Cog%20Psy_revisionFINAL.pdf).
+
+**Future work / evidence.** Read in the preprint: shown a familiar but longer solution, experts performed like players about three standard deviations weaker. It motivates glossing hardest where a name cues a good-enough answer (FUTURE-PLANS N2).
+
+## R103
+
+M. L. Gick and K. J. Holyoak, *Schema induction and analogical transfer*, Cognitive Psychology 15(1), 1–38 (1983). [DOI:10.1016/0010-0285(83)90002-6](https://doi.org/10.1016/0010-0285(83)90002-6).
+
+**Future work / evidence.** A bare principle or diagram was rarely used without a hint, while two compared analogues plus the principle or diagram raised unprompted transfer. It motivates re-concretising and pairing analogues (FUTURE-PLANS N4). Results come from the full text as read in the review.
+
+## R104
+
+K. Valmeekam, M. Marquez, S. Sreedharan and S. Kambhampati, *On the Planning Abilities of Large Language Models: A Critical Investigation*, NeurIPS 2023. [arXiv:2305.15771](https://arxiv.org/abs/2305.15771). Its Mystery Blocksworld domains are part of PlanBench: K. Valmeekam, M. Marquez, A. Olmo, S. Sreedharan and S. Kambhampati, *PlanBench: An Extensible Benchmark for Evaluating Large Language Models on Planning and Reasoning about Change*, NeurIPS 2023 Datasets and Benchmarks, [arXiv:2206.10498](https://arxiv.org/abs/2206.10498).
+
+**Future work / evidence.** With Blocksworld's actions and predicates renamed (Mystery Blocksworld), GPT-4's zero-shot natural-language plans fell from 210 valid of 600 to 1, and to 0 with random strings. It motivates keeping relation names and never letting the LLM reason over bare ids (FUTURE-PLANS N2, N3).
+
+## R105
+
+K. Valmeekam, K. Stechly and S. Kambhampati, *LLMs Still Can't Plan; Can LRMs? A Preliminary Evaluation of OpenAI's o1 on PlanBench* (2024). [arXiv:2409.13373](https://arxiv.org/abs/2409.13373).
+
+**Future work / evidence.** On Mystery Blocksworld, o1-preview fell from 97.8% to 52.8%, and GPT-4 reached 10% even with the translation back to Blocksworld supplied in the prompt (FUTURE-PLANS N3).
+
+## R106
+
+A. B. Corrêa, A. G. Pereira and J. Seipp, *Frontier Large Language Models Rival State-of-the-Art Planners* (2025; v2 2026). [arXiv:2511.09378](https://arxiv.org/abs/2511.09378).
+
+**Future work / evidence.** On 360 freshly generated planning tasks, reasoning models solved about 6–41% fewer tasks when every action, predicate and object name was replaced by a random string, and the strongest often recognised the domain from structure alone. The venue is not confirmed. It bounds what renaming can do: it hides vocabulary, not structure (FUTURE-PLANS N3, N5).
+
+## R107
+
+L. Pan, A. Albalak, X. Wang and W. Y. Wang, *Logic-LM: Empowering Large Language Models with Symbolic Solvers for Faithful Logical Reasoning*, Findings of EMNLP 2023 (per the arXiv record). [arXiv:2305.12295](https://arxiv.org/abs/2305.12295).
+
+**Future work / evidence.** The LLM writes a symbolic formulation and a solver reasons; per the abstract, 39.2% better on average than standard prompting. Only the abstract was read. It motivates FUTURE-PLANS N3: the kernel computes, the LLM translates.
+
+## R108
+
+J. Hofmeister, J. Siegmund and D. V. Holt, *Shorter identifier names take longer to comprehend*, SANER 2017, 217–227. [DOI:10.1109/SANER.2017.7884623](https://doi.org/10.1109/SANER.2017.7884623); [author PDF](https://www.se.cs.uni-saarland.de/publications/docs/HoSeHo17.pdf).
+
+**Future work / evidence.** In a defect-finding task, 72 professional developers comprehended code 19% faster when identifiers were words rather than letters or abbreviations. It motivates keeping domain labels for people, lints and checks (FUTURE-PLANS N1). The DOI was read from the Crossref record.
+
+## R109
+
+D. Zahner, J. V. Nickerson, B. Tversky, J. E. Corter and J. Ma, *A fix for fixation? Rerepresenting and abstracting as creative processes in the design of information systems*, Artificial Intelligence for Engineering Design, Analysis and Manufacturing 24(2), 231–244 (2010). [DOI:10.1017/S0890060410000077](https://doi.org/10.1017/S0890060410000077).
+
+**Future work / evidence.** Per the abstract, re-representing and abstracting both raised originality, but not all the added ideas fit the problem's constraints; the authors propose generating first and pruning later. It motivates keeping constraints concrete and re-concretising (FUTURE-PLANS N2, N4).
