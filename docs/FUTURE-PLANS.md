@@ -17,7 +17,7 @@ which the items close, is in the [theory map](theory-map.md#what-is-not-claimed)
 
 Later sections add open items. C1–C8 come from a scan for natural constraints on the kernel's
 objects: properties the objects already have, or could declare, that the kernel ignores. C1, C5,
-and the carrier half of C2 have landed on `claude/constraints-batch-1`. Q1–Q6 come from applied
+and the carrier half of C2 have landed in #42. Q1–Q6 come from applied
 category theory. Their sources were checked, and the notes below keep the corrections and
 cautions from that check. B1–B2 build models from interaction tables and source documents, and
 S1–S5 take the semantic analyses to large models. [Next priorities](#next-priorities) ranks the
@@ -33,11 +33,11 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 5 | Naturality of the verdicts in Lean | Open; **rank 4**, build 5th | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35; **rank 1** (the fibration and conditional descent), build 4th | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
-| C1 | Quotient the row-table certificates by wires | **Landed** (`claude/constraints-batch-1`) | Adds: certificates for larger models within the same table-read cap | — |
-| C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** (`claude/constraints-batch-1`); cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
+| C1 | Quotient the row-table certificates by wires | **Landed** in #42 | Adds: certificates for larger models within the same table-read cap | — |
+| C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** in #42; cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
 | C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
-| C5 | Decide time-invariant dynamics without a horizon | **Landed** (`claude/constraints-batch-1`) | Narrowed: "Unreachability within the horizon only … not certified" now holds only under input sequences or past the cap | — |
+| C5 | Decide time-invariant dynamics without a horizon | **Landed** in #42 | Narrowed: "Unreachability within the horizon only … not certified" now holds only under input sequences or past the cap | — |
 | C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
 | C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
 | C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
@@ -94,7 +94,7 @@ pairs with C5 and Q5.
 
 ## Landed
 
-- **`claude/constraints-batch-1`** — C1 (row-table certificates over wired port classes), the
+- **#42** — C1 (row-table certificates over wired port classes), the
   carrier half of C2 (`Carrier.quantity`, summed extensive demands, `extensive-fan-in`,
   `extensive-fan-out`), and C5 (`unbounded` dynamics verdicts, certified when decided). Each entry
   below records what was measured and what stays open.
@@ -192,7 +192,7 @@ line numbers.
 
 ### C1. Quotient the row-table certificates by wires
 
-- **Status.** Landed on `claude/constraints-batch-1`. The classes come from the encoded functions
+- **Status.** Landed in #42. The classes come from the encoded functions
   (a breadth-first forest per class), not from `portVariables`, so they are exactly the wires Lean
   sees. Measured: the bearing's trim certificate reads 4,550 table entries instead of 69,376 (the
   scan's 2,240 assumed the row reads also drop to classes; they stay over raw ports). A chain of
@@ -224,7 +224,7 @@ line numbers.
 
 ### C2. Quantity kind: extensive or intensive carriers, and cost aggregation
 
-- **Status.** The carrier half landed on `claude/constraints-batch-1`: `Carrier.quantity`, summed
+- **Status.** The carrier half landed in #42: `Carrier.quantity`, summed
   demands on extensive outputs, `extensive-fan-in` (an extensive input fed by several functions
   fails closed), the `extensive-fan-out` lint, and in Lean `selection_mono` and
   `extensive_demand_mono`. The test case reads as planned: 5 feeding 4 + 4 is `feasible` intensive
@@ -320,7 +320,7 @@ line numbers.
 
 ### C5. Decide time-invariant dynamics without a horizon
 
-- **Status.** Landed on `claude/constraints-batch-1`. `escalation.unbounded` and
+- **Status.** Landed in #42. `escalation.unbounded` and
   `invariance.unbounded` sit beside the bounded verdicts, absent under `inputs`. The continuation
   runs after separation and loops, on a budget and sets of its own that start where the horizon's
   search stopped, so no existing field moves; past the cap only `unbounded` is `undecided`
