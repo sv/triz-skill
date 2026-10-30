@@ -76,7 +76,7 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
 | `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
 | `producible` | a box without `behavior` or `transition` | `weakest_spec` cut to what the box can make: `impossible` with reason `infeasible`; with `feasibility` and `levels` too, the `unbacked-producible-row` lint | the spec ranges over every row of the box's declared values |
-| `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance, separation in time, `loops`; dynamics certificates; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
+| `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance (each bounded by the horizon, and without `inputs` also `unbounded`, at every horizon), separation in time, `loops`; dynamics certificates; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
 | `feasibility`, `cost`, `budget` | box; box; model | `triz_feasibility` (with `trim`, each absorber's added resources), `uneven-development`, `triz_nine_windows` `system.verdicts.feasibility`, resource modes in `triz_implementations` and `triz_synthesize` | `undecided`: `missing-feasibility`, or `no-budget`, or `unbudgeted`; a box outside the solve adds only its `cost` |
 | `levels` | carrier with `values` | amounts read as values: `levels` in `triz_feasibility` and `triz_abstraction`; `at_least`/`below` in every `acceptable` | no reading between amounts and values; a threshold fails (`invalid-threshold`) |
 | `quantity` | carrier | `extensive`: in `triz_feasibility` an output's demands add up, an input fed by several functions fails closed (`extensive-fan-in`), and the `extensive-fan-out` lint; `triz_isomorphism` maps it unchanged | `intensive`: one shared level, so an output meets the largest demand |
@@ -396,7 +396,7 @@ lists exactly which claims were proved.
 | Separation | The finite compatibility, separation, conflict and gluing statements listed in `certifies` |
 | Reachable dynamics escalation | An initial admitted trace reaches the unsafe target within its length |
 | Supported state-only negative dynamics | An invariant contains initial states, is closed under `Sync.Step`, and excludes unsafe states or lies in the safe set |
-| Saturated unreachable port target | An invariant excludes every admitted unsafe configuration, and no run blocks in a state that meets the unsafe set's state conditions (`unreachable_of_holding`) |
+| Saturated unreachable port target, within the horizon or past it (`unbounded`) | An invariant excludes every admitted unsafe configuration, and no run blocks in a state that meets the unsafe set's state conditions (`unreachable_of_holding_classes`) |
 | Weakness strict order, equality or incomparability | The actual composed row relations have the stated admission inclusions or distinguishing admitted/rejected situations |
 | `triz_behavior` comparison | The aligned finite relations are equal and nonempty, or an input/output pair belongs to just one of them |
 
@@ -411,8 +411,11 @@ concept-only gained deliverables outside the baseline interface. Residual specif
 lost deliverables are not certified. Weakness prior masses are not certified. Negative dynamics
 require no input schedule and checked closure: state-only certificates exclude unsafe states
 regardless of admitted valuations; saturated port-target certificates exclude only admitted
-unsafe configurations. Bounded-only negatives, safe port-invariance claims, separation and loop
-classes remain unsupported. A combined request can return only the supported escalation proof.
+unsafe configurations. When the bounded escalation is open (`unreachable-within-horizon` or
+`undecided`) and `unbounded` is decided, the certificate states the unbounded verdict: the trace
+past the horizon, or the unreachable invariant. Bounded-only negatives (an input schedule, or the
+cap hit past the horizon), safe port-invariance claims, separation and loop classes remain
+unsupported. A combined request can return only the supported escalation proof.
 Blocked-state port uncertainty remains explicit.
 
 Check the proof and its input binding with an explicit execution mode:
@@ -739,6 +742,15 @@ states of a stateful box, and `{ box, port, values }` names values of a port, su
   within the horizon.
 - **Invariance** (`safe`): `violated`, with a shortest trace out of the set; `invariant`;
   `invariant-within-horizon`; or `undecided`, on the same terms.
+- **Without a horizon** (`unbounded`, inside `escalation` and `invariance`). Without `inputs`,
+  the configurations are finite, so the search continues past the horizon, within the same
+  `max_states`, until they stop growing. `unbounded.verdict` holds at every horizon:
+  `reachable` or `violated`, with `time` and, when that is past the horizon, a shortest `trace`;
+  `unreachable` or `invariant`, with `completeAfter`; or `undecided`, with reason `cap-exceeded`
+  (the cap ran out past the horizon) or `blocked`. The bounded verdict beside it is unchanged, so
+  read it when the horizon is itself the requirement, and `unbounded` for "ever". A clock that
+  first reaches its unsafe state at step 25 reads `unreachable-within-horizon` at the default
+  horizon and `unbounded: reachable` at time 25. With `inputs` there is no `unbounded`.
 - **Separation in time** (`separation`): two to four demands, each a target set with an
   inclusive time window; the windows must not overlap. `realizable` means one run visits each
   target set at some time within its window; the trace and the visit times are the witness.
@@ -1172,7 +1184,9 @@ map.
   a concept resolves the contradiction. A prior needs evidence, only breaks ties, and is not
   certified.
 - **Dynamics.** Finite and discrete. `unreachable` holds for the rows and initial states as
-  declared, and a `reachable` trace is a mechanism to substantiate. `trapped` and `recurrent`
+  declared, and a `reachable` trace is a mechanism to substantiate. A `*-within-horizon` verdict
+  says nothing past the horizon; read `unbounded` for that, which is `undecided` past the cap and
+  absent under `inputs`. `trapped` and `recurrent`
   describe the declared state graph, not unbounded growth or how often a run returns.
 - **Steady states.** Behaviour rows are never read as transitions, and nothing is claimed about
   convergence or which steady state the system reaches.

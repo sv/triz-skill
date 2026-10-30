@@ -494,7 +494,9 @@ const classWork = (ports: number, wires: number) => ports * (wires + 2) + wires;
  * A reachable dynamics verdict is checked by its row-derived trace. A saturated unreachable
  * verdict uses the reached global states to exclude every admitted unsafe configuration.
  * State-only safety and independently provable negative verdicts use a reconstructed state
- * closure. Unsupported bounded-only and time-varying claims fail closed.
+ * closure. A bounded verdict the horizon leaves open is certified through its decided `unbounded`
+ * verdict (a later trace, or saturation past the horizon). Unsupported bounded-only and
+ * time-varying claims fail closed.
  */
 export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, opts: { namespace?: string } = {}): Certificate {
   const ns = namespaceOf(opts);
@@ -512,7 +514,12 @@ export function dynamicsCertificate(model: FunctionModel, spec: DynamicsSpec, op
   if (!r.decided) {
     return fail([issue("not-certifiable", "$.model", r.note, `Declare behavior or transition for ${quoted(r.missingBehavior)}; the runs depend on them, so nothing is decided to certify.`)]);
   }
-  const esc = r.escalation;
+  const bounded = r.escalation;
+  // A verdict the horizon leaves open is certified by the unbounded one when that is decided: a
+  // shortest trace past the horizon, or reachable configurations that saturate past it.
+  const later = bounded && "unbounded" in bounded && (bounded.verdict === "unreachable-within-horizon" || bounded.verdict === "undecided") ? bounded.unbounded : undefined;
+  const esc = later?.verdict === "reachable" && "trace" in later && later.trace ? { verdict: "reachable" as const, time: later.time, trace: later.trace }
+    : later?.verdict === "unreachable" ? { verdict: "unreachable" as const } : bounded;
   const stateOnly = [...spec.unsafe ?? [], ...spec.safe ?? []].every((c) => "state" in c);
   if (!esc || (esc.verdict !== "reachable" && stateOnly) || esc.verdict === "unreachable-within-horizon") return dynamicsInvariantCertificate(model, spec, ns, r);
   if (esc.verdict !== "reachable" && esc.verdict !== "unreachable") {
@@ -790,7 +797,7 @@ function dynamicsInvariantCertificate(model: FunctionModel, spec: DynamicsSpec, 
   const queue = [...reached]; for (let i = 0; i < queue.length; i++) for (let j = 0; j < ss.length; j++) if (!reached.has(j) && step(ss[queue[i]], ss[j])) { reached.add(j); queue.push(j); }
   const table = (conditions: NonNullable<DynamicsSpec["safe"]>) => machines.map((m) => Array.from({ length: states }, (_, s) => conditions.filter((c) => c.box === m.box && "state" in c).every((c) => "state" in c && c.state.includes(m.states[s]))));
   const unsafe = spec.unsafe && table(spec.unsafe), safe = spec.safe && table(spec.safe);
-  if ((unsafe && [...reached].some((i) => ss[i].every((s, m) => unsafe[m][s]))) || (safe && [...reached].some((i) => ss[i].some((s, m) => !safe[m][s])))) return fail([issue("not-certifiable", "$.horizon", "the independently closed state set does not establish an invariant; only the bounded horizon verdict holds", "Bounded-layer certificates are not implemented; increase the horizon to find the later counterexample, or read the bounded verdict without a certificate.")]);
+  if ((unsafe && [...reached].some((i) => ss[i].every((s, m) => unsafe[m][s]))) || (safe && [...reached].some((i) => ss[i].some((s, m) => !safe[m][s])))) return fail([issue("not-certifiable", "$.horizon", "the independently closed state set does not establish an invariant; only the bounded horizon verdict holds", "Bounded-layer certificates are not implemented. Raise max_states so the search past the horizon decides (the verdict's unbounded field: a later trace is certified), or read the bounded verdict without a certificate.")]);
   const lines = ["/-! ## Independently derived state invariant -/", "", `abbrev Machine := ${fin(machines.length)}`, `abbrev State := ${fin(states)}`, `abbrev Value := ${fin(values)}`,
     ...rowSection({ boxes: composed.map((b) => b.id), ports, wires: wires.map((w) => w.id) }, rows, wires, names, values, classes),
     `def machineId : Machine → String := ${vec(machines.map((m) => leanString(m.box)))}`,

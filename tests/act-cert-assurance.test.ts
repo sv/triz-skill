@@ -77,7 +77,11 @@ test("negative dynamics derives a genuinely closed invariant and reports bounded
   assert.deepEqual(c.certifies.map((x) => x.theorem), ["TrizCertificate.unreachable", "TrizCertificate.safetyInvariant"]);
   assert.deepEqual(lint(c.content), []);
   assert.deepEqual(checkCorrespondence(c.content, { kind: "dynamics", model: dynamics(), spec }), []);
-  const bounded = dynamicsCertificate(dynamics("later"), { horizon: 0, unsafe: spec.unsafe }); assert.ok(!bounded.ok);
+  // At horizon 0 the bounded verdict leaves "bad" open; past the horizon a trace reaches it at time 2, and that is certified.
+  const later = dynamicsCertificate(dynamics("later"), { horizon: 0, unsafe: spec.unsafe }); assert.ok(later.ok);
+  assert.deepEqual(later.certifies.map((x) => x.verdict), ["boundedDynamics: a run reaches the unsafe set at time 2"]);
+  // With the search past the horizon cut by the cap, only the bounded verdict holds.
+  const bounded = dynamicsCertificate(dynamics("later"), { horizon: 0, unsafe: spec.unsafe, maxStates: 3 }); assert.ok(!bounded.ok);
   assert.match(bounded.errors.join(";"), /only the bounded horizon verdict holds/);
   const sequence = dynamicsCertificate(dynamics(), { unsafe: spec.unsafe, inputs: [[]], horizon: 0 }); assert.ok(!sequence.ok);
   assert.match(sequence.errors.join(";"), /input sequence/);

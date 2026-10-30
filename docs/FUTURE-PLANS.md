@@ -34,7 +34,7 @@ ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
 | C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** (`claude/constraints-batch-1`); cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
 | C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
-| C5 | Decide time-invariant dynamics without a horizon | Open; next batch | "Unreachability within the horizon only … not certified", for time-invariant inputs | S |
+| C5 | Decide time-invariant dynamics without a horizon | **Landed** (`claude/constraints-batch-1`) | Narrowed: "Unreachability within the horizon only … not certified" now holds only under input sequences or past the cap | — |
 | C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
 | C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
 | C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
@@ -268,7 +268,14 @@ implementation batch. Evidence names symbols rather than line numbers.
 
 ### C5. Decide time-invariant dynamics without a horizon
 
-- **Status.** Open; next batch. **Effort:** S.
+- **Status.** Landed on `claude/constraints-batch-1`. `escalation.unbounded` and
+  `invariance.unbounded` sit beside the bounded verdicts, absent under `inputs`. The continuation
+  runs after separation and loops, on a budget and sets of its own that start where the horizon's
+  search stopped, so no existing field moves; past the cap only `unbounded` is `undecided`
+  (`cap-exceeded`). Certificates state a decided `unbounded` verdict when the bounded one is open:
+  a trace past the horizon, or `unreachable_of_holding_classes` for a port target. That flips two
+  former refusals (bearing at `horizon: 1` now certifies the trace to time 2); the refusal remains
+  past the cap. **Effort:** S.
 - **Constraint.** The configuration space is finite: the product of the state sets and the
   valuations. With time-invariant inputs the breadth-first search always saturates, so the horizon
   is not needed to decide.

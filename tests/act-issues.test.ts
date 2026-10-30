@@ -327,8 +327,9 @@ const cases: Case[] = [
   { code: "certificate-needs-unsafe", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), certificate: true }, pick: (r) => r.certificate, path: "$.unsafe" },
   { code: "certificate-input-sequence", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], inputs: [[], [], []], certificate: true },
     pick: (r) => r.certificate, path: "$.inputs" },
-  { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, certificate: true },
-    pick: (r) => r.certificate, path: "$.horizon", hint: /increase the horizon/ },
+  // Past the cap beyond the horizon, only the bounded verdict holds.
+  { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, max_states: 12, certificate: true },
+    pick: (r) => r.certificate, path: "$.horizon", hint: /Raise max_states so the search past the horizon decides/ },
   { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
   // rule negative application conditions and weakness priors
   { code: "forbid-violated", tool: "triz_rule_apply", args: {

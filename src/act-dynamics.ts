@@ -21,7 +21,10 @@
  *    each time, up to a horizon: the reachable configurations, the fixed points among them, the
  *    blocked runs, and three verdicts. Escalation: some run reaches an unsafe set (shortest
  *    trace). Invariance: every reachable configuration is in a safe set. Separation in time: one
- *    run visits each demand's target set within its window.
+ *    run visits each demand's target set within its window. Without an input sequence the
+ *    configurations are finite, so escalation and invariance also carry `unbounded`: the same
+ *    search continued past the horizon until the configurations stop growing, within the same
+ *    cap, decides them at every horizon; past the cap only `unbounded` is undecided.
  *  - Loop classification — on the reachable graph of the stateful boxes' global states, each
  *    closed strongly connected component (no step leaves it) settles at a fixed point, oscillates
  *    (a cycle and no fixed point), or blocks. Classes: bistable (fixed points in two or more
@@ -453,6 +456,7 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
     depth++;
   }
   if (overflow) return OVERFLOW;
+  const exploredAtHorizon = budget.explored, frontier = layer;
   const saturated = !s.sequence && !layer.length;
   const nodes = [...seen.values()];
   const deepest = nodes.reduce((t, n) => Math.max(t, n.time), -1);
@@ -478,20 +482,85 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
       ? { verdict: "unreachable" as const, basis: UNREACHABLE,
           note: `The reachable configurations stopped growing after time ${deepest}: no run from these initial states and inputs reaches the unsafe set, at any horizon.` }
       : { verdict: "unreachable-within-horizon" as const, horizon, basis: EXHAUSTED,
-          note: `No run reaches the unsafe set within ${horizon} steps. Longer runs are not explored${s.sequence ? " (the inputs vary with time)" : ""}.` });
+          note: `No run reaches the unsafe set within ${horizon} steps. ${s.sequence ? "Longer runs are not explored (the inputs vary with time)." : "unbounded gives the verdict at every horizon."}` });
   const invariance = safe && (left
     ? { verdict: "violated" as const, time: left.time, trace: left.trace, basis: TRACE,
         note: `A run leaves the safe set at time ${left.time}; the trace is a shortest one${left.trace[left.trace.length - 1].values ? "" : ", and the run blocks there"}.` }
     : unsure.safe ? UNDETERMINED("safe", unsure.safe)
     : saturated
       ? { verdict: "invariant" as const, basis: SATURATED, note: "Every reachable configuration is in the safe set, at any horizon." }
-      : { verdict: "invariant-within-horizon" as const, horizon, basis: EXHAUSTED, note: `Every configuration reachable within ${horizon} steps is in the safe set.` });
+      : { verdict: "invariant-within-horizon" as const, horizon, basis: EXHAUSTED, note: `Every configuration reachable within ${horizon} steps is in the safe set.${s.sequence ? "" : " unbounded gives the verdict at every horizon."}` });
 
   const separation = spec.separation && separate(s, spec.separation, steps, budget, verified);
   if (separation === null) return OVERFLOW;
   const loops = s.sequence ? { classified: false as const, reason: "the inputs vary with time; omit inputs to classify the loops" }
     : !s.machines.length ? { classified: false as const, reason: "no composed box declares transition; behavior rows are steady states, not transitions" }
     : classify(model, s, spec, memo, max, verified);
+
+  // Past the horizon (C5). Without an input sequence the configurations are finite, so the same
+  // search, continued from the frontier, saturates within the cap. It runs last, on a budget and
+  // sets of its own, so nothing above changes; past the cap only the unbounded verdict is undecided.
+  const open = (v?: string) => v === "unreachable-within-horizon" || v === "invariant-within-horizon" || v === "undecided";
+  const beyond = s.sequence || !(open(escalation ? escalation.verdict : undefined) || open(invariance ? invariance.verdict : undefined)) ? undefined : (() => {
+    const more = { explored: exploredAtHorizon, max };
+    const steps2 = stepper(s, more, memo);
+    const known = new Set(seen.keys()), stuck = new Set(blocked.keys());
+    const after: Array<(typeof stops)[number]> = [];
+    let hit2: Node | undefined, violation2: Node | undefined, over = false, deepest2 = deepest, wave = frontier;
+    const settled = () => (!escalation || !open(escalation.verdict) || hit2 !== undefined || (unsafeAt !== undefined && after.some((b) => unsafeAt(b.state) === "holds")))
+      && (!invariance || !open(invariance.verdict) || violation2 !== undefined || (safeAt !== undefined && after.some((b) => safeAt(b.state) === "fails")));
+    while (!over && wave.length && !settled()) {
+      const into: Node[] = [];
+      for (const n of wave) {
+        for (const state of n.next) {
+          if (over) break;
+          const time = n.time + 1, out = steps2(state, time);
+          if (!out) { over = true; break; }
+          if (!out.length && !stuck.has(tupleKey([0, state]))) { stuck.add(tupleKey([0, state])); after.push({ time, state, parent: n }); }
+          for (const st of out) {
+            const k = tupleKey([0, state, st.values]);
+            if (known.has(k)) continue;
+            if (++more.explored > max) { over = true; break; }
+            known.add(k);
+            const m: Node = { time, state, values: st.values, next: st.next, mask: 0, parent: n };
+            into.push(m);
+            deepest2 = Math.max(deepest2, time);
+            if (unsafe && !hit2 && unsafe(state, st.values)) hit2 = m;
+            if (safe && !violation2 && !safe(state, st.values)) violation2 = m;
+          }
+        }
+      }
+      wave = into;
+    }
+    return { over, deepest: deepest2, hit: hit2, violation: violation2, stops: after };
+  })();
+  const CAP = `Past the horizon the search passed ${max} states before the reachable configurations stopped growing, so only the bounded verdict is decided. Raise max_states, or declare fewer states or carrier values.`;
+  const shortest = (what: string, t: number, trace: RunStep[]) => `Past the horizon, a run from the initial states ${what} at time ${t}; the trace is a shortest one${trace[trace.length - 1].values ? "" : ", and the run blocks there"}.`;
+  const unboundedEscalation = (e: NonNullable<typeof escalation>) => {
+    if (e.verdict === "reachable") return { verdict: "reachable" as const, time: e.time, basis: TRACE, note: "The bounded trace is a shortest one at every horizon." };
+    if (e.verdict === "unreachable") return { verdict: "unreachable" as const, completeAfter: deepest, basis: UNREACHABLE, note: "The reachable configurations stopped growing within the horizon, so the bounded verdict holds at every horizon." };
+    const later = earliest(beyond!.hit, beyond!.stops.find((b) => unsafeAt!(b.state) === "holds"));
+    if (later) return { verdict: "reachable" as const, time: later.time, trace: later.trace, basis: TRACE, note: `${shortest("reaches the unsafe set", later.time, later.trace)} It is a candidate mechanism: substantiate every row on it.` };
+    if (beyond!.over) return { verdict: "undecided" as const, reason: "cap-exceeded" as const, note: CAP };
+    const block = beyond!.stops.find((b) => unsafeAt!(b.state) === "undetermined");
+    if (e.verdict === "undecided") return { verdict: "undecided" as const, reason: "blocked" as const, time: e.time, trace: e.trace, note: e.note };
+    if (block) return UNDETERMINED("unsafe", block);
+    return { verdict: "unreachable" as const, completeAfter: beyond!.deepest, basis: UNREACHABLE,
+      note: `The reachable configurations stopped growing after time ${beyond!.deepest}, past the horizon: no run from these initial states reaches the unsafe set, at any horizon.` };
+  };
+  const unboundedInvariance = (v: NonNullable<typeof invariance>) => {
+    if (v.verdict === "violated") return { verdict: "violated" as const, time: v.time, basis: TRACE, note: "The bounded trace is a shortest one at every horizon." };
+    if (v.verdict === "invariant") return { verdict: "invariant" as const, completeAfter: deepest, basis: SATURATED, note: "The reachable configurations stopped growing within the horizon, so the bounded verdict holds at every horizon." };
+    const later = earliest(beyond!.violation, beyond!.stops.find((b) => safeAt!(b.state) === "fails"));
+    if (later) return { verdict: "violated" as const, time: later.time, trace: later.trace, basis: TRACE, note: shortest("leaves the safe set", later.time, later.trace) };
+    if (beyond!.over) return { verdict: "undecided" as const, reason: "cap-exceeded" as const, note: CAP };
+    const block = beyond!.stops.find((b) => safeAt!(b.state) === "undetermined");
+    if (v.verdict === "undecided") return { verdict: "undecided" as const, reason: "blocked" as const, time: v.time, trace: v.trace, note: v.note };
+    if (block) return UNDETERMINED("safe", block);
+    return { verdict: "invariant" as const, completeAfter: beyond!.deepest, basis: SATURATED, note: `The reachable configurations stopped growing after time ${beyond!.deepest}, past the horizon: every one is in the safe set, at any horizon.` };
+  };
+  const escalationOut = escalation && !s.sequence ? { ...escalation, unbounded: unboundedEscalation(escalation) } : escalation;
+  const invarianceOut = invariance && !s.sequence ? { ...invariance, unbounded: unboundedInvariance(invariance) } : invariance;
 
   const states = new Map<string, string[]>();
   for (const n of nodes) states.set(tupleKey(n.state), n.state);
@@ -516,8 +585,8 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
       count: blocked.size,
       ...(stops.length ? { first: stopTrace(stops[0]) } : {}),
     },
-    ...(escalation ? { escalation } : {}),
-    ...(invariance ? { invariance } : {}),
+    ...(escalationOut ? { escalation: escalationOut } : {}),
+    ...(invarianceOut ? { invariance: invarianceOut } : {}),
     ...(separation ? { separation } : {}),
     loops,
     statesExplored: budget.explored,

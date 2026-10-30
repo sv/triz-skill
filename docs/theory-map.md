@@ -329,6 +329,20 @@ and `reachWithin` are reachability in exactly and within n steps. Lean proves:
 They hold for any step relation, so they cover the kernel's configuration graph. Lean does not
 prove that the search computes that graph; tests check it.
 
+**Without a horizon.** Without an input sequence the step relation is time-invariant and the
+configurations are finite: the product of the stateful boxes' states and the valuations. So the
+breadth-first search, continued from the horizon's frontier, reaches a layer that adds nothing
+(`reachWithin_saturated`) within the state cap, and `unbounded` gives the verdict at every
+horizon beside the bounded one: `reachable` with a shortest trace (`reach_of_trace`), or
+`unreachable` / `invariant` once the configurations stop growing (`unreachable_of_invariant`). The
+continuation runs after every other part of the result, on a budget and sets of its own that
+start where the horizon's search stopped, so the bounded verdicts, counts, fixed points, blocked
+runs, separation, and loops are what they were. Past the cap only `unbounded` is `undecided`
+(reason `cap-exceeded`); a decided bounded verdict never becomes a failure. Under an input sequence
+configurations are indexed by time, never saturate, and get no `unbounded` verdict. A certificate
+states the unbounded verdict when the bounded one is open: a later trace, or for a port target the
+reached global states as the invariant of `unreachable_of_holding_classes`.
+
 The reached fixed points are checked by tests, on the examples: the steps staying at a reached
 fixed point are exactly the steady states `triz_behavior` finds when each stateful box is frozen
 at that state. For stateless boxes every configuration is such a fixed point, and every step's
@@ -758,8 +772,11 @@ The implemented guarantees are separated from future work in
     invariant that holds every valuation of each selected state, with initial coverage; and for
     a saturated port target, an unreachable escalation witnessed by the reached global states as
     an inductive invariant. All are decided within the cap on table reads, so only small models
-    are certified. Unreachability within the horizon only, safe port predicates, separation in
-    time, and loop classes are not certified, and runs under an input sequence are not encoded;
+    are certified. Under time-invariant inputs, the unbounded verdict (`unbounded`) is certified
+    when decided: a trace past the horizon, or saturation past it. Unreachability within the
+    horizon only (an input sequence, or the cap hit past the horizon), safe port predicates,
+    separation in time, and loop classes are not certified, and runs under an input sequence are
+    not encoded;
   - a port-target unreachable certificate's target, like an escalation's, is the admitted
     configurations in the unsafe set (`Sync.target`). A run that blocks has no admitted
     configuration there, so the certificate also states the kernel's further check: every reached

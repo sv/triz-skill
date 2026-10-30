@@ -32,6 +32,7 @@ import { toolSpecs } from "../src/tools.js";
 import "../src/data.js";
 import { accept, batchFile, bindRequest, check, checkAll, checkCorrespondence, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
+import { clock } from "./support/clock.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const example = (name: string): FunctionModel =>
@@ -427,7 +428,11 @@ test("escalation certificates fail closed on what a trace cannot witness", () =>
   const m = example("bearing-heat-dynamics");
   const fails = (c: Certificate) => (c.ok ? "" : c.errors.join("; "));
   assert.match(fails(dynamicsCertificate(m, {})), /pass unsafe/);
-  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })), /only the bounded horizon verdict holds/);
+  // At horizon 1 the bounded verdict is unreachable-within-horizon; the unbounded one, a trace to
+  // time 2, is what a certificate states. Past the cap beyond the horizon only the bounded verdict
+  // holds, and the independent state closure, which reaches hot, does not establish an invariant.
+  assert.deepEqual(content(dynamicsCertificate(m, { unsafe: HOT, horizon: 1 })).match(/^theorem escalation : .*reachWithin system\.Step (\d+) a b :=$/m)?.[1], "2");
+  assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, horizon: 1, maxStates: 12 })), /only the bounded horizon verdict holds/);
   assert.ok(dynamicsCertificate(damped(), { unsafe: HOT }).ok);
   assert.ok(dynamicsCertificate(damped(), { unsafe: HOT, horizon: 1 }).ok, "the independent state closure can establish an all-horizons invariant beyond a bounded search");
   assert.match(fails(dynamicsCertificate(m, { unsafe: HOT, inputs: [[], [], []] })), /an input sequence indexes the runs by time/);
@@ -516,8 +521,13 @@ test("triz_dynamics and triz_weakness return certificates, or the reason there i
   assert.equal(dyn.certificate.format, "lean");
   assert.equal(dyn.certificate.content, content(dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT })));
   assert.deepEqual(dyn.certificate.certifies.map((x: { theorem: string }) => x.theorem), ["TrizCertificate.escalation"]);
-  const none = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, certificate: true });
+  const later = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, certificate: true });
+  assert.equal(later.escalation.verdict, "unreachable-within-horizon");
+  assert.equal(later.escalation.unbounded.verdict, "reachable");
+  assert.deepEqual(later.certificate.certifies, [{ theorem: "TrizCertificate.escalation", verdict: "boundedDynamics: a run reaches the unsafe set at time 2" }]);
+  const none = await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT, horizon: 1, max_states: 12, certificate: true });
   assert.equal(none.escalation.verdict, "unreachable-within-horizon");
+  assert.equal(none.escalation.unbounded.reason, "cap-exceeded");
   assert.deepEqual(none.certificate.ok, false);
   assert.match(none.certificate.errors.join(), /only the bounded horizon verdict holds/);
   assert.equal((await call("triz_dynamics", { model: example("bearing-heat-dynamics"), unsafe: HOT })).certificate, undefined);
@@ -1005,5 +1015,37 @@ leanTest("Lean accepts the mediator chain over its classes, and rejects a class 
   const { certificates: [r], tampered } = await checkAll({ certificates: [chain], tampered: variants }, { mode: "local" });
   assert.ok(r.ok, r.problems.join("\n"));
   assert.deepEqual(r.certified, ["MediatorChain.preserved", "MediatorChain.nonempty"]);
+  for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
+});
+
+test("a horizon-free verdict is certified: a trace past the horizon, or an invariant that saturates past it", () => {
+  // Reached first at step 25: the bounded verdict at the default horizon is unreachable-within-horizon.
+  const late = dynamicsCertificate(clock(25), { unsafe: [{ box: "clock", state: ["s25"] }] });
+  assert.deepEqual(late.ok && late.certifies, [{ theorem: "TrizCertificate.escalation", verdict: "boundedDynamics: a run reaches the unsafe set at time 25" }]);
+  assert.match(content(late), /^def trace : Fin 26 → /m);
+  // A port target that saturates after step 24: certified through unreachable_of_holding_classes.
+  const spec = { unsafe: [{ box: "clock", port: "o", values: ["hi"] }] };
+  const r = boundedDynamics(clock(24, { loop: true, port: true }), spec);
+  assert.ok(r.ok && r.decided && r.escalation?.verdict === "unreachable-within-horizon");
+  const never = dynamicsCertificate(clock(24, { loop: true, port: true }), spec);
+  assert.deepEqual(never.ok && never.certifies.map((c) => c.theorem), ["TrizCertificate.unreachable"]);
+  assert.match(content(never), /^def invariant : Fin 25 → Machine → State := /m);
+  assert.match(content(never), /unreachable_of_holding_classes \(q := classes\)/);
+  assert.deepEqual(lint(content(never)), []);
+  // Under an input sequence there is no unbounded verdict, and no certificate, as before.
+  assert.ok(!dynamicsCertificate(clock(25), { unsafe: [{ box: "clock", state: ["s25"] }], inputs: Array.from({ length: 21 }, () => []) }).ok);
+});
+
+leanTest("Lean accepts the horizon-free certificates, and rejects their tampered copies", async () => {
+  // Past the default horizon of 20, but small enough to keep the Lean check short: step 21.
+  const texts = [
+    dynamicsCertificate(clock(21), { unsafe: [{ box: "clock", state: ["s21"] }] }, { namespace: "LateEscalation" }),
+    dynamicsCertificate(clock(21, { loop: true, port: true }), { unsafe: [{ box: "clock", port: "o", values: ["hi"] }] }, { namespace: "NeverHigh" }),
+    dynamicsCertificate(clock(21, { loop: true }), { unsafe: [{ box: "clock", state: ["bad"] }] }, { namespace: "NeverBad" }),
+  ].map(content);
+  const variants = texts.flatMap(tamperVariants);
+  const { certificates, tampered } = await checkAll({ certificates: texts, tampered: variants }, { mode: "local" });
+  for (const r of certificates) assert.ok(r.ok, r.problems.join("\n"));
+  assert.deepEqual(certificates.map((r) => r.certified), [["LateEscalation.escalation"], ["NeverHigh.unreachable"], ["NeverBad.invariantInitial", "NeverBad.invariantClosed", "NeverBad.invariantDisjoint", "NeverBad.unreachable"]]);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
 });
