@@ -702,6 +702,10 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
   if (opts.maxCostSearch !== undefined && opts.rowCosts === undefined) return fail([issue("invalid-row-costs", "$.max_cost_search", "a cost search cap requires row costs", "Supply row_costs with the cap.")]);
+  // row_costs price the residual of one unknown box. Where none is computed, refuse them, as the
+  // two-box path does, rather than return a result that silently drops them.
+  const unpriced = (outcome: string) => fail([issue("invalid-row-costs", "$.row_costs", `row costs price the residual of one unknown box, and none is computed here: ${outcome}`,
+    "Drop row_costs to get this result; price rows once one box to specify has a residual that covers the target.")]);
   // Paths as with compare_to: the baseline is compare_to, the concept is model.
   const checked = checkModel(baseline, "$.compare_to");
   if (!checked.ok) return rebase(fail(checked.issues), [], `${of}: `);
@@ -715,6 +719,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const gainedDeliverables = [...byKey].filter(([k]) => !wanted.has(k)).map(([, d]) => d);
   const lost = target.filter((d) => !byKey.has(deliverableKey(d)));
   if (lost.length) {
+    if (opts.rowCosts !== undefined) return unpriced("the concept loses deliverables (impossible, lost-deliverables)");
     return {
       ok: true as const, verdict: "impossible" as const, reason: "lost-deliverables" as const, preserves: false as const,
       deliverables: target, lostDeliverables: lost, gainedDeliverables,
@@ -725,6 +730,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const before = plan(baseline, target, opts);
   if (before.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.compare_to", "weakest specification cannot evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (before.missing.length) {
+    if (opts.rowCosts !== undefined) return unpriced(`the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"} declares no behaviour for ${quoted(before.missing)} (undecided, missing-behavior)`);
     return {
       ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, deliverables: target, missingBehavior: before.missing, missingIn: of,
       note: `Declare behavior for ${before.missing.map((id) => `'${id}'`).join(", ")} in the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"}: the target relation depends on them.`,
@@ -733,6 +739,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const p = plan(concept, observe, opts);
   if (p.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "weakest specification cannot specify or evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (p.missing.length > 2) {
+    if (opts.rowCosts !== undefined) return unpriced(`${p.missing.length} composed boxes declare no behaviour (undecided, several-holes)`);
     return {
       ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
       note: `${p.missing.length} composed boxes declare no behaviour (${p.missing.map((id) => `'${id}'`).join(", ")}). The weakest specification is decided for one or two unknown boxes only: with more, the maximal safe choices are not computed. Declare all but one or two.`,
@@ -758,6 +765,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const t = evaluate(baseline, before, target, max);
   if (!t.ok) return capped(t, `${of}: `, [["$.model", "$.compare_to"]]);
   if ([...t.table.values()].every((r) => !r.count)) {
+    if (opts.rowCosts !== undefined) return unpriced("the target relation is empty (undecided, no-steady-state)");
     return {
       ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, deliverables: target,
       note: "The target relation is empty: the baseline has no steady state at any input. Every relation for the box stays inside it and the empty relation equals it, so nothing is decided. Check the baseline's loops.",
@@ -840,18 +848,26 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   let cheapestExtension: unknown;
   if (opts.rowCosts !== undefined) {
     if (boxes.length !== 1 || !producible) return fail([issue("invalid-row-costs", "$.row_costs", "row costs require one unknown box with producible rows", "Supply producible rows for the unknown box.")]);
-    const costs = new Map<string, number>();
+    // Shape first: each entry names one row of the box (every port once, a declared value on each),
+    // once, at a nonnegative safe-integer cost. Relevance depends on coverage, decided next.
+    const costs = new Map<string, number>(), entryAt = new Map<string, number>();
     for (const [i, entry] of opts.rowCosts.entries()) {
       const row = entry?.row;
-      const validKeys = row && row.in && row.out && Object.keys(row.in).length === ports.filter(p => p.side === "in").length && Object.keys(row.out).length === ports.filter(p => p.side === "out").length && ports.every(p => Object.hasOwn(p.side === "in" ? row.in : row.out, p.id));
+      const sideOf = (side: "in" | "out") => (side === "in" ? row.in : row.out) as Record<string, unknown>;
+      const validKeys = row && row.in && row.out && Object.keys(row.in).length === ports.filter(p => p.side === "in").length && Object.keys(row.out).length === ports.filter(p => p.side === "out").length
+        && ports.every(p => Object.hasOwn(sideOf(p.side), p.id) && domain.get(p.carrier)!.includes(sideOf(p.side)[p.id] as string));
       const key = validKeys ? tupleKey(ports.map(p => (p.side === "in" ? row.in : row.out)[p.id])) : "";
-      if (!validKeys || !candidates.has(key) || costs.has(key) || !Number.isSafeInteger(entry.cost) || entry.cost < 0) return fail([issue("invalid-row-costs", `$.row_costs[${i}]`, "each cost must uniquely name a relevant safe nonproducible row with a nonnegative safe integer cost", "List each relevant row once with its cost.")]);
-      costs.set(key, entry.cost);
+      if (!validKeys || costs.has(key) || !Number.isSafeInteger(entry.cost) || entry.cost < 0) return fail([issue("invalid-row-costs", `$.row_costs[${i}]`, `each cost must name one row of '${hole.id}' once, every port with a declared value, at a nonnegative safe integer cost`, "List each row once with its cost.")]);
+      costs.set(key, entry.cost); entryAt.set(key, i);
     }
-    if (costs.size !== candidates.size) return fail([issue("invalid-row-costs", "$.row_costs", "costs are missing for relevant rows", "Request weakest_spec with full_relation: true and list every row in extensionCandidates with an explicit cost.")]);
     if (opts.maxCostSearch !== undefined && (!Number.isSafeInteger(opts.maxCostSearch) || (opts.maxCostSearch < 1 || opts.maxCostSearch > 100_000))) return fail([issue("invalid-row-costs", "$.max_cost_search", "the cost search cap must be an integer from 1 to 100000", "Give a positive integer.")]);
+    // Coverage before relevance: when the residual misses the target, no added row can give it and
+    // no row is relevant, so the supplied costs are answered with not-applicable, not refused.
     if (ofResidual.uncovered) cheapestExtension = { status: "not-applicable", reason: "target-not-covered-by-residual" };
     else {
+      const irrelevant = [...costs.keys()].find((key) => !candidates.has(key));
+      if (irrelevant !== undefined) return fail([issue("invalid-row-costs", `$.row_costs[${entryAt.get(irrelevant)}]`, "each cost must name a relevant safe nonproducible row, one listed in extensionCandidates", "List each row of extensionCandidates once with its cost, and no other row.")]);
+      if (costs.size !== candidates.size) return fail([issue("invalid-row-costs", "$.row_costs", "costs are missing for relevant rows", "Request weakest_spec with full_relation: true and list every row in extensionCandidates with an explicit cost.")]);
       const result = cheapestCover(covering.length, [...candidates].map(([key, row]) => ({ row, cost: costs.get(key)!, covers: covering.flatMap((set, i) => set.includes(key) ? [i] : []) })), opts.maxCostSearch);
       cheapestExtension = result;
     }

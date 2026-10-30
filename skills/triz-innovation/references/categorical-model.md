@@ -118,8 +118,14 @@ candidate exactly once in `row_costs: [{ row: { in, out }, cost }]`, with nonneg
 prices in one common caller-chosen unit. `cheapestExtension` finds the least total cost set,
 paying once per added row even when it covers several target pairs. It changes no Boolean
 verdict and adds no rows to the model. `max_cost_search` caps the exact search at up to 100,000
-nodes; cap or integer overflow gives `undecided`, with no optimality claim. Two-hole costs are
-unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
+nodes; cap or integer overflow gives `undecided`, with no optimality claim. When the residual
+itself misses the target (`impossible`, `not-covered`), no added row can help: `cheapestExtension`
+is `{ status: "not-applicable", reason: "target-not-covered-by-residual" }`, and the supplied
+entries are checked for shape only (each a row of the box, every port once with a declared value,
+listed once, at a valid cost). Where no one-box residual is computed (two or several boxes to
+specify, missing baseline behaviour, an empty target relation, a lost deliverable) `row_costs`
+fail with `invalid-row-costs`, whose message names the result; drop them to see it. Two-hole costs
+are unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
 not certified by the graded-residual theorem.
 
 ## Fields and tool dependencies

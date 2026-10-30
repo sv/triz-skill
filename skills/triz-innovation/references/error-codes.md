@@ -21,7 +21,7 @@ registers (`src/act-issues.ts`), each listed once.
 | `hierarchy-interface` | model checks | The interface omits or repeats an outer or exposed inner port |
 | `hierarchy-binding` | model checks | A binding names the wrong side, carrier, or a wired inner input |
 | `hierarchy-substitution` | expansion, transformations, semantic tools | The operation cannot preserve nested structure or annotations; expand supported nested boxes first |
-| `invalid-row-costs` | weakest specification | Prices are missing, duplicated, malformed, irrelevant, or unsupported in the selected mode; use full_relation to discover extensionCandidates |
+| `invalid-row-costs` | weakest specification | Prices are missing, duplicated, malformed, irrelevant, or unsupported in the selected mode, including every result that computes no one-box residual (two or several boxes to specify, missing baseline behaviour, an empty target, a lost deliverable); use full_relation to discover extensionCandidates |
 | `row-costs-without-weakest-spec` | behavior tool | row_costs needs weakest_spec; max_cost_search also needs row_costs |
 
 ## Model and row typing
