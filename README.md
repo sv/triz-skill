@@ -146,6 +146,25 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
+## Command line
+
+The package also installs `triz`, which runs the same tools without an MCP client, for scripts
+and agents with a shell. It validates arguments exactly as the server does and prints only JSON
+on stdout:
+
+```bash
+triz list                                       # one line per tool; --json for a JSON array
+triz schema triz_behavior                       # the description and input JSON Schema, as JSON
+echo '{"improving": 9, "worsening": 14}' | triz call triz_matrix    # or: triz call <tool> args.json
+```
+
+`triz call` exits 0 with a result, 1 when the result has `ok: false` (its `issues` and hints are
+still on stdout), and 2 on a usage error or arguments that fail the tool's schema (the issues as
+JSON on stderr); `--pretty` indents the output. Without a global install, run
+`npx -y -p triz-mcp triz …`; from a checkout, `node --import tsx src/cli.ts …`, or
+`node dist/cli.js …` after `pnpm build`. `triz_graph` and `triz_purpose` read `TRIZ_GRAPH` and
+`TRIZ_REGISTRY`, as on the server.
+
 ## Function models as typed data
 
 The eight-workstream assurance extension adds whole-model behavior, operational adequacy,

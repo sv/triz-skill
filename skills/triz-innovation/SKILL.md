@@ -51,6 +51,10 @@ from it — never numbers recalled from memory; a blank or diagonal cell is a fa
 not a gap to fill. The skill remains usable without the server, but the recall rule stands.
 See [tool-selection.md](references/tool-selection.md).
 
+To call a tool, use MCP if the server is connected; otherwise run `triz schema <tool>` to read
+its arguments, then `triz call <tool> args.json` (the same tools; `npx -y -p triz-mcp triz …`
+without an install). Do not read `src/` to learn a tool.
+
 ## Workflow
 
 1. **Frame.** Establish the boundary, decision owner, stakeholders, desired outcome, baseline,
