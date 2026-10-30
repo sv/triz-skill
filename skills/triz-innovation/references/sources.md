@@ -27,6 +27,30 @@ The notes below explain how those sources inform the skill.
 - [TRIZfest 2019 proceedings](https://matriz.org/wp-content/uploads/2019/12/TRIZfest-2019-Proceedings.pdf)
   — includes product marketing, digital anti-trolling, and market-adjacency cases.
 
+## ARIZ texts
+
+[ariz.md](ariz.md) takes step 1.1, note 4, and the Part 3 reminder from these texts, checked on
+2026-10-30. Paraphrase only; quotations stay a few words long.
+
+- [ARIZ-85-В](https://www.altshuller.ru/triz/ariz85v.asp): G. S. Altshuller's Russian text on the
+  Official G. S. Altshuller Foundation site, one page per part, Windows-1251 encoded
+  ([R97](../../../theory/REFERENCES.md#r97)). Step 1.1 and note 4 are read on the
+  [Part 1](https://www.altshuller.ru/triz/ariz85v-1.asp) page, and the ATTENTION box before
+  step 3.3 on the [Part 3](https://www.altshuller.ru/triz/ariz85v-3.asp) page.
+- [ARIZ 85-C, parts 1–3](https://wiki.matriz.org/wp-content/uploads/2025/08/ARIZ-85-C.pdf):
+  MATRIZ's English text, based on Philatov, Zusman, Altshuller and Zlotin, *Tools of Classical
+  TRIZ* (Ideation International, 1999). It names no translator and covers Parts 1–3 only
+  ([R98](../../../theory/REFERENCES.md#r98)). Its note 4 states the hidden-properties reason
+  without the formwork example, and its introduction asks that replacements keep the "true"
+  meaning.
+- [ARIZ-77](https://www.altshuller.ru/triz/ariz77.asp) and
+  [ARIZ-82-Г](https://www.altshuller.ru/triz/ariz82g.asp), on the same site
+  ([R99](../../../theory/REFERENCES.md#r99), [R100](../../../theory/REFERENCES.md#r100)):
+  earlier versions, where the same instruction is step 2.1.
+
+Where the two ARIZ-85 texts differ, ariz.md says which one it follows. No study tests step 1.1
+against a control; its support is practice wisdom.
+
 ## What changed in this skill
 
 The 2025 Review explicitly warns about terminological ambiguity, mixing rigorous tools with unrelated

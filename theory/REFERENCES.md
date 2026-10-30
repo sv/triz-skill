@@ -29,7 +29,7 @@ valid. Mutable API pages should be read against the project's pinned dependencie
 | Co-design, weakness, synthesis and engineering | [R5](#r5)–[R8](#r8), [R10](#r10)–[R11](#r11), [R30](#r30), [R91](#r91)–[R93](#r93) |
 | Categorical foundations and alternatives | [R12](#r12)–[R13](#r13), [R17](#r17)–[R18](#r18), [R27](#r27)–[R29](#r29), [R31](#r31)–[R33](#r33), [R35](#r35)–[R39](#r39), [R49](#r49)–[R50](#r50), [R95](#r95)–[R96](#r96) |
 | Rewriting, critical pairs and undecidability | [R14](#r14)–[R16](#r16), [R34](#r34), [R40](#r40)–[R41](#r41), [R44](#r44)–[R47](#r47), [R82](#r82)–[R83](#r83) |
-| Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90) |
+| Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90), [R97](#r97)–[R100](#r100) |
 | AI-TRIZ, published cases and supplied material | [R70](#r70)–[R74](#r74), [R77](#r77)–[R81](#r81), [R88](#r88) |
 
 ## R1
@@ -607,3 +607,27 @@ P. Le Masson, A. Hatchuel and B. Weil, *Sheafification as a design technique for
 R. Bělohlávek, *Concept lattices and order in fuzzy logic*, Annals of Pure and Applied Logic 128 (2004), 277–298.
 
 **Future work.** Concept lattices over complete residuated lattices: the graded form of the formal concepts behind the two-box weakest specification (FUTURE-PLANS Q1, stage 2). It needs a commutative, integral quantale with residuation, not an arbitrary quantale.
+
+## R97
+
+G. S. Altshuller, *АРИЗ-85-В* (ARIZ-85-V, algorithm of inventive problem solving), nine parts, in Russian. Official G. S. Altshuller Foundation. [Index](https://www.altshuller.ru/triz/ariz85v.asp); [Part 1](https://www.altshuller.ru/triz/ariz85v-1.asp); [Part 3](https://www.altshuller.ru/triz/ariz85v-3.asp).
+
+**TRIZ context.** The primary text behind `references/ariz.md`'s step 1.1 section: step 1.1 states the mini-problem without special terms, note 4 limits that to the terms for the tool and the external environment and gives three reasons, and an ATTENTION box before step 3.3 asks for plain wording throughout. The pages are Windows-1251 encoded. Practice wisdom, not an experiment.
+
+## R98
+
+MATRIZ, *ARIZ 85-C: Algorithm of inventive problem solving – parts 1-3*, based on V. Philatov, A. Zusman, G. Altshuller and B. Zlotin, *Tools of Classical TRIZ*, Ideation International (1999), ISBN 978-1928747024. [MATRIZ PDF](https://wiki.matriz.org/wp-content/uploads/2025/08/ARIZ-85-C.pdf).
+
+**TRIZ context.** An English text of Parts 1–3 of [R97](#r97); it names no translator. Its introduction asks that non-specialised replacements keep the "true" meaning, and its note 4 states the hidden-properties reason without [R97](#r97)'s formwork example. It notes that function analysis was less developed when ARIZ was written.
+
+## R99
+
+G. S. Altshuller, *АРИЗ-77* (ARIZ-77), in Russian. Official G. S. Altshuller Foundation. [Text](https://www.altshuller.ru/triz/ariz77.asp).
+
+**TRIZ context.** An earlier version, cited for lineage only: its step 2.1 asks for the problem to be written without special terms, the instruction that ARIZ-85-В moved to step 1.1.
+
+## R100
+
+G. S. Altshuller, *АРИЗ-82-Г* (ARIZ-82-G), in Russian. Official G. S. Altshuller Foundation. [Text](https://www.altshuller.ru/triz/ariz82g.asp).
+
+**TRIZ context.** An earlier version, cited for lineage only: its step 2.1 states the mini-problem without special terms, as ARIZ-85-В step 1.1 does.
