@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Share resource source-support checks with hierarchical subsystem contracts and isolate box-local lifecycle availability from global acceptable states.
 - Guard feasible steady-state resource balances with a bounded source-support check; ungrounded circular witnesses remain undecided. Component discovery reports unused resources and supports requiring all of them.
 - Add explicit rational per-state lifecycle holding costs, charged once per source-state decision step and included in policies, gains and certificates.
 - Add reusable domain-independent catalogues, explicit type bindings, shared abstract identity/fan-out relations, source metadata and a portable JSON schema.

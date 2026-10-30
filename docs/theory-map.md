@@ -673,7 +673,9 @@ The runtime hierarchy checker additionally checks explicit parent-flow routes an
 budget/weight or independent contradiction policies. `triz_subsystem_contract` checks exact,
 nonblocking inner steady-state behavior and the supported single resource mode against a declared
 interface contract. These TypeScript checks are tested; `Hierarchy.lean` proves neither their
-resource coupling nor their implementation correct. The coupling of one resource mode to all
+resource support nor their implementation correct. Flat and hierarchical checks share a bounded
+source-support closure; declared boundary input amounts seed it for subsystem contracts, and
+ungrounded circular modes remain undecided. The coupling of one resource mode to all
 behavior rows remains an empirical declaration. Import provenance and analyst review prevent
 accidental use of unconfirmed drafts; they do not authenticate source contents or analyst claims.
 

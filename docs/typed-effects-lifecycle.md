@@ -88,6 +88,11 @@ and must sum exactly to one for each enabled state/action. Every state needs an 
 An explicit model-level state may represent a global configuration. The tool does not infer a
 synchronized product MDP from independently controlled wired boxes.
 
+For a box-local call, pass `acceptable: [state, ...]` explicitly to report availability; its
+default is an empty list. Global `lifecycle.acceptable` applies only to model-level calls.
+Adding another lifecycle cannot change a selected box's availability or invalidate its states,
+even when global and local state names collide.
+
 `triz_lifecycle` uses exact rational policy evaluation and strict policy improvement, with bounded
 policy enumeration as a fallback for singular starting policies. It returns one solution per
 cost dimension unless explicit `weights` name every cost dimension. Each solution reports the

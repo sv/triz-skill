@@ -24,7 +24,7 @@ export const LifecycleRequest = z.strictObject({
   model: FunctionModel,
   box: z.string().optional(),
   weights: z.record(z.string(), z.number().nonnegative()).optional(),
-  acceptable: z.array(z.string()).optional(),
+  acceptable: z.array(z.string()).optional().describe("Acceptable states for availability reporting. Box-local calls default to an empty list; model-level calls default to model.lifecycle.acceptable."),
   derive_prior: z.boolean().default(false),
   max_steps: z.number().int().min(1).max(1_000_000).default(100_000),
   certificate: z.boolean().optional(),
@@ -171,7 +171,9 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
         );
     }
   });
-  const acceptable = a.acceptable ?? m.lifecycle?.acceptable ?? [];
+  // A selected box has its own state space; model-level availability metadata
+  // must not implicitly constrain it, even when state names happen to match.
+  const acceptable = a.acceptable ?? (box ? [] : m.lifecycle?.acceptable) ?? [];
   if (acceptable.some((s) => !ids.has(s)))
     errors.push(
       issue(

@@ -142,6 +142,11 @@ Resource verification currently requires one feasibility row per inner box, carr
 behavior rows, and `resource_binding: "all-behavior-rows"`. That binding remains a declared
 empirical assertion (`coupling: "declared-unverified"`). Checks include level bands, extensive
 sums or intensive maxima, boundary amounts, costs, the contract budget and any inner budget.
+The same source-support closure used by flat feasibility must ground every selected inner row;
+declared boundary input amounts seed that closure. A closed positive-requirement cycle remains
+`undecided` with `resources.reason: "circular-resource-support"`. `resources.sourceSupport` reports
+grounded boxes and unmet requirements. `max_support_work` caps this check independently of
+`max_states` (default 100,000, maximum 1,000,000); exhaustion gives `source-support-cap`.
 Multiple modes, deeper nesting, missing evidence or search caps give `undecided`. Checking does
 not install or cache a summary on the shell; declared rows do not become verified by copying a
 status field. Dynamic contracts and local residual synthesis remain future work.

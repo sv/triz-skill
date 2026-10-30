@@ -89,6 +89,8 @@ Empirical component specifications remain separately sourced inputs.
 PR #51 review fixes distinguish steady resource balance from grounded input support, expose
 unused discovery resources and a require-all option, and add explicit per-state lifecycle holding
 costs. Startup/physical realizability and continuous-time cost models remain outside those checks.
+The flat and hierarchical resource paths share that bounded support check, with declared boundary
+supplies for subsystem contracts. Box-local availability uses only the request's acceptable states.
 
 ## Current implementation batch
 

@@ -53,6 +53,7 @@ import { checkModel, type FunctionModel } from "./act.js";
 import { applyTrim } from "./act-rewrite.js";
 import type { Theorem } from "./act-basis.js";
 import { at, fail, issue, rebase, where, type Failure } from "./act-issues.js";
+import { resourceSourceSupport, ResourceSupportCap } from "./act-resource-support.js";
 
 type Box = FunctionModel["boxes"][number];
 type Endpoint = { box: string; port: string };
@@ -245,20 +246,11 @@ const record = (dims: string[], v: number[]) => Object.fromEntries(dims.map((d, 
  * grounded provision. A stalled closure is unknown initialization/support, not
  * a proof that the steady-state equations are inconsistent. */
 function sourceSupport(p:Problem,witness:Config,charge:()=>void) {
-  const available=p.ports.map(()=>0), active=p.composed.map(()=>false);
-  const selected=p.composed.map((_,i)=>p.rows[i].find(r=>r.index===witness.rows[i])!);
-  let changed=true;
-  while(changed) {
-    changed=false;
-    for(let k=0;k<selected.length;k++) {
-      charge();if(active[k])continue;
-      const row=selected[k];
-      if(!row.demand.every(([i,level])=>{charge();return available[i]>=level;}))continue;
-      active[k]=true;changed=true;
-      for(const [i,level] of row.provide){charge();available[i]=level;}
-    }
-  }
-  return {grounded:active.every(Boolean),groundedBoxes:p.composed.filter((_,i)=>active[i]).map(b=>b.id),unresolved:p.composed.flatMap((b,k)=>active[k]?[]:[{box:b.id,row:witness.rows[k],requirements:selected[k].demand.filter(([i,level])=>available[i]<level).map(([i,level])=>({...p.ports[i],required:level,groundedProvision:available[i]}))}])};
+  const rows=p.composed.map((b,i)=>{
+    const r=p.rows[i].find(r=>r.index===witness.rows[i])!;
+    return {box:b.id,row:r.index,demand:r.demand,provide:r.provide};
+  });
+  return resourceSourceSupport(p.ports,rows,charge);
 }
 
 /** The minimal resource vectors against the budget: feasible, infeasible (over-budget), or undecided (no budget, or an unbudgeted dimension in use). */
@@ -317,9 +309,9 @@ export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listA
   let supportWork=0;
   const support=[] as ReturnType<typeof sourceSupport>[];
   try {
-    for(const {witness} of s.minimal) support.push(sourceSupport(p,witness,()=>{if(s.candidates + ++supportWork > full.maxCandidates)throw new Error("support-cap");}));
+    for(const {witness} of s.minimal) support.push(sourceSupport(p,witness,()=>{if(s.candidates + ++supportWork > full.maxCandidates)throw new ResourceSupportCap();}));
   } catch(e) {
-    if(e instanceof Error&&e.message==="support-cap")return capExceeded("resource source-support checking exhausted the shared candidate/work cap","$.model");
+    if(e instanceof ResourceSupportCap)return capExceeded("resource source-support checking exhausted the shared candidate/work cap","$.model");
     throw e;
   }
   const groundedWithin=within.filter(i=>support[i].grounded);

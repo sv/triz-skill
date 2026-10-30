@@ -24,7 +24,10 @@ Bind types explicitly or correct the portable catalogue schema.
 
 Resource balances with no grounded selected witness are successful analyses with
 `verdict: "undecided"` and `reason: "circular-resource-support"`; see `sourceSupport` and
-`steadyState`. Source-support work exhaustion uses `cap-exceeded`. Holding-cost keys naming
+`steadyState`. Flat source-support work exhaustion uses `cap-exceeded`. Subsystem contracts
+report `resources.reason: "circular-resource-support"` or `"source-support-cap"` with overall
+`status: "undecided"`; their independent `max_support_work` defaults to 100,000.
+Holding-cost keys naming
 unknown states use `undeclared-state`; negative/malformed amounts use schema validation codes.
 
 | Code | Raised by | Meaning |

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { FunctionModel, checkModel, type FunctionModel as Model } from "./act.js";
 import { summarizeSubsystem } from "./act-refinement.js";
 import { at, fail, issue, type Issue } from "./act-issues.js";
+import { resourceSourceSupport, ResourceSupportCap, type SupportRow } from "./act-resource-support.js";
 
 const Id = z.string().min(1);
 const ContractKey = z.string().regex(/^(?!__proto__$)/);
@@ -43,6 +44,8 @@ export const SubsystemContractRequest = z.strictObject({
     resource_binding: z.literal("all-behavior-rows").optional(),
   })),
   max_states: z.number().int().min(1).max(100_000).optional(),
+  max_support_work: z.number().int().min(1).max(1_000_000).optional()
+    .describe("Source-support work cap, independent of the behavior state cap; defaults to 100000"),
 });
 export type SubsystemContractRequest = z.infer<typeof SubsystemContractRequest>;
 const canonical = (ids: string[], r: Record<string, string>) => JSON.stringify(ids.map(k => r[k]));
@@ -57,7 +60,7 @@ export function checkSubsystemContract(input: unknown) {
   if (bad) return fail([issue("invalid-argument", at("$.contract", ...bad), "__proto__ is not a usable contract key", "Use another port or resource dimension name.")]);
   const parsed = SubsystemContractRequest.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues.map(e => issue("invalid-argument", at("$", ...e.path.map(String)), e.message, "Use the strict subsystem contract schema.")));
-  const { model, box, mode, contract, max_states = 100_000 } = parsed.data;
+  const { model, box, mode, contract, max_states = 100_000, max_support_work = 100_000 } = parsed.data;
   const checked = checkModel(model, "$.model");
   if (!checked.ok) return fail(checked.issues);
   const outer = model.boxes.find(b => b.id === box);
@@ -117,20 +120,20 @@ export function checkSubsystemContract(input: unknown) {
   const behavior = { classification: !missing.length && !extra.length ? "exact" as const : !missing.length ? "overapproximation" as const : !extra.length ? "underapproximation" as const : "incomparable" as const,
     inputEnabled: blocked.length === 0, missingPairCount: missing.length, extraPairCount: extra.length, blockedInputCount: blocked.length,
     ...(missing.length ? { missingExample: JSON.parse(missing[0]) } : {}), ...(extra.length ? { extraExample: JSON.parse(extra[0]) } : {}), ...(blocked.length ? { blockedExample: JSON.parse(blocked[0]) } : {}) };
-  const resource = checkResources(inner, outer.inner, contract.resources, contract.resource_binding, contract.assumptions, contract.behavior);
+  const resource = checkResources(inner, outer.inner, contract.resources, contract.resource_binding, contract.assumptions, contract.behavior, max_support_work);
   const behaviorPass = behavior.classification === "exact" && behavior.inputEnabled;
   const status = !behaviorPass || resource.status === "rejected" ? "rejected" as const : resource.status === "undecided" ? "undecided" as const : "checked" as const;
   // The interface hides internal functions; a checked contract still names the harmful or
   // excessive ones behind it, as triz_subsystem_summary does.
   const hiddenHarms = "hiddenHarms" in summary && Array.isArray(summary.hiddenHarms) ? summary.hiddenHarms : [];
   return { ok: true as const, ...base, status, behavior, resources: resource, hiddenHarms, scope: "whole-inner-model" as const,
-    note: "Checks concern the complete declared steady-state relation and the single declared numeric mode within the stated assumptions. Behavior/resource coupling and the operating envelope remain empirical assertions, not verified evidence. hiddenHarms lists the harmful or excessive inner functions behind the interface." };
+    note: "Checks concern the complete declared steady-state relation and the single declared numeric mode within the stated assumptions, with resource support grounded in boundary supplies or rows without positive requirements. Startup is not simulated. Behavior/resource coupling and the operating envelope remain empirical assertions, not verified evidence. hiddenHarms lists the harmful or excessive inner functions behind the interface." };
 }
 
 /** Check the one numeric mode directly, including disconnected boxes and extensive fan-out. */
 function checkResources(inner: Model, binding: { inputs: Array<{ outer: string; inner: { box: string; port: string } }>; outputs: Array<{ outer: string; inner: { box: string; port: string } }> },
   resources: SubsystemContractRequest["contract"]["resources"], coupling: SubsystemContractRequest["contract"]["resource_binding"],
-  assumptions: SubsystemContractRequest["contract"]["assumptions"], behavior: SubsystemContractRequest["contract"]["behavior"]) {
+  assumptions: SubsystemContractRequest["contract"]["assumptions"], behavior: SubsystemContractRequest["contract"]["behavior"], maxSupportWork: number) {
   const undecided = (reason: string) => ({ status: "undecided" as const, reason });
   const rejected = (reason: string) => ({ status: "rejected" as const, reason });
   if (!coupling) return undecided("missing-resource-binding");
@@ -241,5 +244,49 @@ function checkResources(inner: Model, binding: { inputs: Array<{ outer: string; 
   }
   if ([...costs].some(([d, amount]) => own(resources.budget, d) === undefined && amount > 0)) return undecided("unbudgeted-resource");
   if ([...costs].some(([d, amount]) => amount > (own(resources.budget, d) ?? 0))) return rejected("over-budget");
-  return { status: "checked" as const, costs: Object.fromEntries(costs), coupling: "declared-unverified" as const };
+  let supportWork = 0;
+  const charge = () => { if (++supportWork > maxSupportWork) throw new ResourceSupportCap(); };
+  try {
+    const ports = inner.boxes.flatMap(b => [...(b.outputs ?? []), ...(b.inputs ?? [])].map(p => {
+      charge();
+      return { box: b.id, port: p.id };
+    }));
+    const index = new Map(ports.map((p, i) => [key(p), i]));
+    const feeding = new Map<string, Model["wires"]>();
+    for (const w of inner.wires) {
+      charge();
+      if (w.polarity === "harmful") continue;
+      const k = key(w.to);
+      feeding.set(k, [...(feeding.get(k) ?? []), w]);
+    }
+    const rows: SupportRow[] = inner.boxes.map(b => {
+      charge();
+      const mode = b.feasibility![0];
+      return {
+        box: b.id, row: 0,
+        provide: (b.outputs ?? []).map(p => { charge(); return [index.get(key({ box: b.id, port: p.id }))!, asNumber(mode.provides, p.id)]; }),
+        demand: (b.inputs ?? []).flatMap(p => {
+          charge();
+          const level = asNumber(mode.requires, p.id), end = { box: b.id, port: p.id };
+          if (!level) return [];
+          const wires = feeding.get(key(end)) ?? [];
+          return wires.length
+            ? wires.map(w => { charge(); return [index.get(key(w.from))!, level] as [number, number]; })
+            : [[index.get(key(end))!, level] as [number, number]];
+        }),
+      };
+    });
+    const initial: Array<[number, number]> = binding.inputs.map(b => {
+      charge();
+      return [index.get(key(b.inner))!, asNumber(resources.inputs, b.outer)];
+    });
+    const sourceSupport = { ...resourceSourceSupport(ports, rows, charge, initial), work: supportWork };
+    const result = { costs: Object.fromEntries(costs), coupling: "declared-unverified" as const, sourceSupport };
+    return sourceSupport.grounded
+      ? { status: "checked" as const, ...result }
+      : { ...undecided("circular-resource-support"), ...result };
+  } catch (e) {
+    if (e instanceof ResourceSupportCap) return { ...undecided("source-support-cap"), supportWork };
+    throw e;
+  }
 }

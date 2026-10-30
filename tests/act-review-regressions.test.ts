@@ -337,3 +337,30 @@ test("holding costs validate their state names and box-local selection does not 
   });
   assert.ok(different.ok && "aligned" in different && !different.aligned);
 });
+
+test("box-local lifecycle results do not inherit unrelated or colliding global availability states", () => {
+  const local: FunctionModel = { domain: "software", carriers: [], wires: [], boxes: [{
+    id: "local", name: "Local", role: "tool", state: ["ready"], initial: ["ready"],
+    transition: [{ state: "ready", next: "ready", in: {}, out: {} }],
+    holding_cost: { ready: { resource: 2 } },
+    actions: [{ id: "wait", guard: ["ready"], cost: { resource: 1 }, transitions: [{ state: "ready", next: "ready", probability: 1 }] }],
+  }] };
+  const baseline = lifecycle({ model: local, box: "local" });
+  assert.ok(baseline.ok && "solutions" in baseline);
+  assert.equal(baseline.solutions![0].availability, "0");
+  for (const state of ["unrelated", "ready"]) {
+    const model = structuredClone(local);
+    model.lifecycle = { states: [state], acceptable: [state], holding_cost: { [state]: { resource: 99 } } };
+    model.actions = [{ id: "global-wait", guard: [state], cost: { resource: 7 }, transitions: [{ state, next: state, probability: 1 }] }];
+    assert.deepEqual(lifecycle({ model, box: "local" }), baseline);
+    const explicit = lifecycle({ model, box: "local", acceptable: ["ready"] });
+    assert.ok(explicit.ok && "solutions" in explicit);
+    assert.equal(explicit.solutions![0].availability, "1");
+    assert.equal(explicit.solutions![0].gain.resource, "3");
+    const global = lifecycle({ model });
+    assert.ok(global.ok && "solutions" in global);
+    assert.equal(global.solutions![0].availability, "1");
+    assert.equal(global.solutions![0].gain.resource, "106");
+  }
+  assert.equal(lifecycle({ model: local, box: "local", acceptable: ["unknown"] }).ok, false);
+});
