@@ -15,11 +15,14 @@ assurance extension (#35) are in [categorical-future-plan.md](categorical-future
 what it delivered in [categorical-assurance.md](categorical-assurance.md). "What is not claimed",
 which the items close, is in the [theory map](theory-map.md#what-is-not-claimed).
 
-Two later sections add open items. C1–C8 come from a scan for natural constraints on the kernel's
-objects: properties the objects already have, or could declare, that the kernel ignores. C1, C2
-and C5 are the next implementation batch. Q1–Q6 come from applied category theory. Their sources
-were checked, and the notes below keep the corrections and cautions from that check. Literature
-ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
+Later sections add open items. C1–C8 come from a scan for natural constraints on the kernel's
+objects: properties the objects already have, or could declare, that the kernel ignores. C1, C5,
+and the carrier half of C2 have landed on `claude/constraints-batch-1`. Q1–Q6 come from applied
+category theory. Their sources were checked, and the notes below keep the corrections and
+cautions from that check. B1–B2 build models from interaction tables and source documents, and
+S1–S5 take the semantic analyses to large models. [Next priorities](#next-priorities) ranks the
+open items by leverage and gives the build order. Literature ids (R…) refer to
+[theory/REFERENCES.md](../theory/REFERENCES.md).
 
 | # | Item | Status | Closes or adds ("What is not claimed" in the theory map) | Effort |
 |---|---|---|---|---|
@@ -27,9 +30,9 @@ ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
 | 3 | Incomparability witnesses in weakness certificates | **Landed in #35** (equal pairs too) | Closed | — |
 | 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Open; #35's metamorphic tests cover dynamics up to tied witnesses | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
-| 5 | Naturality of the verdicts in Lean | Open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
+| 5 | Naturality of the verdicts in Lean | Open; **rank 4**, build 5th | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
-| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35 | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
+| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35; **rank 1** (the fibration and conditional descent), build 4th | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
 | C1 | Quotient the row-table certificates by wires | **Landed** (`claude/constraints-batch-1`) | Adds: certificates for larger models within the same table-read cap | — |
 | C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** (`claude/constraints-batch-1`); cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
@@ -38,15 +41,63 @@ ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
 | C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
 | C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
 | C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
-| Q1 | Graded relations over a commutative quantale, staged | Open | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
+| Q1 | Graded relations over a commutative quantale, staged | Open; **rank 3** (stage 1), build 1st | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
 | Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
 | Q3 | Cross-check `triz_feasibility` against an independent co-design solver | Open; dev only | Adds: a second oracle beside the brute-force tests | S–M |
 | Q4 | Supersystem constraints as design problems | Open; docs | Adds: workflow guidance | S |
-| Q5 | Hierarchical boxes through operad substitution | Open | Adds: checked zoom in and out between box and inner model | M–L |
+| Q5 | Hierarchical boxes through operad substitution | Open; **rank 2**, build 3rd | Adds: checked zoom in and out between box and inner model | M–L |
 | Q6 | Minimal base refinement when no global section exists | Open | Adds: a concrete next move after `irreducible` | M |
+| B1 | A model builder from an interaction table | Open; build 2nd, right after Q1 | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
+| B2 | Pluggable importers that draft B1's interaction table | Open; after B1 | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
+| S1 | Steady states by variable elimination along a tree decomposition | Open; needs C1 (landed) | Adds: behaviour cost exponential in treewidth, not in the boundary inputs | M–L |
+| S2 | Generalized arc consistency before enumeration | Open; independent, can come early | Adds: values and rows pruned before the steady-state search | S–M |
+| S3 | Per-subsystem interface contracts | Open; needs Q5 | Adds: residuals and weakest specifications against local targets | M–L |
+| S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
+| S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
+
+## Next priorities
+
+Ranked by leverage: what each item adds to the verdicts an analysis can rest on, against its
+cost. The build order differs from the ranking, because Q1 and Q5 do not depend on item 7.
+
+1. **Item 7: the 9 windows as a discrete fibration, and descent for residuals.**
+   - Packaging the restriction grid (`Wiring.restrictionGrid`) as a discrete fibration is S, in
+     Lean only.
+   - Descent of weakest specifications along restriction is conditional. Restriction and residual
+     do not commute in general, so descent needs an exchange condition of Beck–Chevalley type.
+     #41 supplies one for a single case: `external_sub_iff_of_extends`, with `extends_of_accepts`
+     as a sufficient condition. Prove descent under that hypothesis, and document it as
+     conditional.
+   - Concept lattices descend less cleanly. Leave them out of the first version.
+2. **Q5: hierarchical boxes through operad substitution.** The optional `inner` model and the
+   substitution lemma. It gives the "zoom in" half of the 9 windows, complementary to item 7's
+   restriction. The monoidal Grothendieck packaging waits until a verdict needs it.
+3. **Q1 stage 1: the graded residual.** Generic over a commutative quantale, instantiated at
+   `Prop` and at the min-plus cost quantale over ℕ∞. It answers which rows are cheapest to make
+   producible for `weakest_spec`.
+4. **Item 5: naturality of the verdicts in Lean.** It hardens trust rather than adding
+   capability: #35 and #37 already test label-blindness thoroughly.
+
+**Build order.**
+
+1. Q1 stage 1: the smallest, and useful at once.
+2. B1, the model builder; B2's importers follow it.
+3. Q5.
+4. Item 7, with descent under extension. It builds on Q5, so zooming in and restricting share one
+   structure.
+5. Item 5.
+
+Q2 and the dynamic simulation relations of [categorical-future-plan.md](categorical-future-plan.md)
+§6 come after; Q4 is docs only. On the scaling path (S1–S5), Q2, C1 and Q5 are prerequisites, and
+C1 has landed. S2 is independent and cheap, so it can come early; S1 needs C1; S3 needs Q5; S5
+pairs with C5 and Q5.
 
 ## Landed
 
+- **`claude/constraints-batch-1`** — C1 (row-table certificates over wired port classes), the
+  carrier half of C2 (`Carrier.quantity`, summed extensive demands, `extensive-fan-in`,
+  `extensive-fan-out`), and C5 (`unbounded` dynamics verdicts, certified when decided). Each entry
+  below records what was measured and what stays open.
 - **#39** `feat(certify): certify unreachable escalations and preserved behaviour` — items 1 and
   2. An unreachable escalation is certified by an inductive invariant exactly as planned: the
   global states the search reached, closed under `Sync.Step` and disjoint from the unsafe set,
@@ -135,8 +186,9 @@ feasibility solver is.
 ## From natural constraints
 
 A scan of the kernel's objects (main at `5179b99`, re-checked on this branch) for constraints they
-satisfy or could declare, ranked by payoff against effort. C1, C2 and C5 are the next
-implementation batch. Evidence names symbols rather than line numbers.
+satisfy or could declare, ranked by payoff against effort. C1, C5, and the carrier half of C2
+have landed; cost aggregation (C2) and C3, C4, C6–C8 are open. Evidence names symbols rather than
+line numbers.
 
 ### C1. Quotient the row-table certificates by wires
 
@@ -482,6 +534,111 @@ to exist; the entries say how far each check went. Corrections that shape the en
   motivation and analogy only: its C-K/topos model treats the knowledge base as a topos and
   sheafification as preserving existing knowledge while expanding it. It is not a basis for any
   kernel theorem.
+
+## Building models
+
+Every verdict starts from a typed `FunctionModel`, and writing one by hand is where most analyses
+stall. B1 builds the model from the table an analyst already keeps; B2 drafts that table from
+documents the project already has. Neither decides a rating: those stay the analyst's.
+
+### B1. A model builder from an interaction table
+
+- **Status.** Open; build order right after Q1 stage 1. **Effort:** S–M.
+- **Change.** A new tool, for example `triz_build_model`, takes:
+  - components: id, name, and role;
+  - interactions as triples: subject, action, object, a carrier with its layer and dimension, and
+    a polarity (useful, insufficient, excessive, or harmful);
+  - optional flows.
+
+  It returns a typed `FunctionModel`: the carriers, ports generated per box and carrier on each
+  side, and the wires.
+- **Deterministic.** Ids are stable, so re-running after an edit gives the same ids. The result
+  goes through the existing typing and lints, and errors carry a code, a path, and a hint.
+- **Completeness report.** Pairs of components that touch through no interaction (gaps in the
+  interaction matrix), isolated components, and whether the product is reached.
+- **Risks.** It never invents a polarity or a behaviour: ratings come from the caller, and boxes
+  get no rows. Stable ids must survive renaming a component, or an edit reads as a new model.
+
+### B2. Pluggable importers
+
+- **Status.** Open; depends on B1. **Effort:** M per importer.
+- **Change.** An `Importer` interface: a source document goes in, and a draft interaction table
+  comes out for B1, never a finished model. Every triple carries its provenance: the source file
+  and the location in it.
+- **Constraints.** Importers run locally, on the stdio server or as a CLI, and fetch nothing over
+  the network by default. They parse the data they are given and never recall facts, following
+  the repository's no-recall rule. Polarity defaults to useful and is flagged for the analyst to
+  confirm.
+- **Planned plugins.**
+  - **BOM** (CSV or JSON, parent and child): components and their hierarchy. The hierarchy feeds
+    Q5's `inner` models.
+  - **OpenAPI:** services or endpoints as boxes, request and response schemas as carriers, and
+    calls as useful functions.
+  - **SysML v2:** parts and blocks as boxes; ports, connectors, and item flows as wires. The
+    mapping is close to one-to-one, but SysML has no harmful or insufficient ratings, so those
+    stay the analyst's. SysML v2 was formally adopted by the OMG in 2025, with a textual notation
+    and a standard Systems Modeling API ([OMG SysML](https://www.omg.org/spec/SysML)).
+  - **Free-text documents:** an LLM-assisted extractor with citations, whose output is always a
+    draft for confirmation.
+- **Risks.** A draft read as a model would carry unconfirmed ratings into every verdict; the
+  draft flag and the provenance must reach B1's output.
+
+## Scaling to large models
+
+The structural analyses (typing, harm loops, trims, flows, rules) already scale: about 80 ms on a
+generated model of 3,000 boxes and 600 harm loops, measured on main at `b881d8d`. The limits are
+in the semantic analyses: `MAX_STATES` (100,000 boundary valuations), `MAX_CONCEPTS` (10,000),
+`MAX_CANDIDATES` (1,000,000) and `MAX_ANTICHAIN` (1,000) in feasibility, `MAX_CERT_ROWS`
+(2,000,000), the dynamics state cap and horizon, and global separation's work cap of 100,000.
+Flat models of 1,000 boxes or more with dense feedback stay out of reach for behaviour and
+feasibility. The route is hierarchy plus contracts.
+
+### S1. Steady states by variable elimination along a tree decomposition
+
+- **Status.** Open; depends on C1, which has landed. **Effort:** M–L.
+- **Change.** Eliminate variables along a tree decomposition of the port graph, over C1's wired
+  port classes, with a min-fill ordering.
+- **Adds.** The cost becomes exponential in the treewidth, not in the number of boundary inputs.
+  It generalises C7, which covers only separation regions.
+- **Risks.** Dense feedback keeps the treewidth high; the cap then still decides.
+
+### S2. Generalized arc consistency before enumeration
+
+- **Status.** Open; independent and cheap, so it can come early. **Effort:** S–M.
+- **Change.** Before the search starts, prune the values and rows that cannot extend to a steady
+  state.
+- **Soundness.** It rests on #41's `external_sub_iff_of_extends` and `extends_of_accepts`; the
+  pruning itself is standard constraint propagation.
+- **Risks.** Arc consistency is not global consistency (the triangle case in C7), so it only
+  shrinks the search, never replaces it.
+
+### S3. Per-subsystem interface contracts
+
+- **Status.** Open; needs Q5. **Effort:** M–L.
+- **Change.** Each subsystem gets an assume/guarantee contract, so residuals and weakest
+  specifications can be computed against local targets instead of the global deliverables. A
+  global target pushed down to a neighbourhood is otherwise itself a residual of the rest.
+- **Depends.** It builds on Q5 (`inner` models) and #35's contracts. Descent for residuals (item
+  7) is the theory side.
+- **Risks.** #41's exchange condition makes a contract sound but does not produce one: the
+  contract is declared, and checked.
+
+### S4. Incremental use without server state
+
+- **Status.** Open. **Effort:** M.
+- **Change.** Tools accept a previous result as a warm start: a feasibility antichain, or the
+  steady-state relations of unchanged subsystems. Alternatively, subsystem summaries are keyed by
+  a content hash, so an edit recomputes only the changed part.
+- **Risks.** The MCP server stays stateless, so a warm start is caller data and must be checked,
+  not trusted.
+
+### S5. Compositional dynamics
+
+- **Status.** Open; pairs with C5 and Q5. **Effort:** M.
+- **Change.** Minimise each stateful component or subsystem by bisimulation (partition
+  refinement) before forming the product, then compose hierarchically with Q5.
+- **Adds.** Smaller products for C5's horizon-free verdicts.
+- **Risks.** Minimisation must keep the states and ports the targets name observable.
 
 ## Deliberately not planned
 
