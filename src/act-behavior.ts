@@ -1,3 +1,4 @@
+import { MAX_PROPAGATION_WORK, propagateRows, type PropagationStatus } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
@@ -57,7 +58,7 @@ export type Typed = Endpoint & { carrier: string };
 /** Ports observed by an evaluation: deliverables, and with `side: "out"` any other composed port. */
 type Observed = Typed & { side?: "in" | "out" };
 /** `cap` marks a failure past the state cap, which the spec and ranking read as undecided. */
-type Failure = BaseFailure & { cap?: true };
+type Failure = BaseFailure & { cap?: true; propagation?: PropagationStatus };
 
 /** Cap on boundary valuations and on search states, per evaluation. */
 export const MAX_STATES = 100_000;
@@ -132,7 +133,7 @@ export function plan(model: FunctionModel, observe: Endpoint[], opts: { scope?: 
 }
 
 interface Row { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number; }
-interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; }
+interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; propagation: PropagationStatus; }
 
 export interface PortVariables {
   variables: Array<Typed & { side: "in" | "out" }>;
@@ -253,6 +254,12 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
     return { rows, vars: [...new Set(rows[0].map(([i]) => i))] };
   });
 
+  // Keep every boundary valuation and its empty table row; only the joined relations are pruned.
+  // A preprocessing cap falls back to the original sets without charging the search budget; the
+  // status is reported, so a state cap after a fallback names the unpruned join as its cause.
+  const pruning = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!));
+  const propagated = pruning.sets, propagation: PropagationStatus = { status: pruning.status, work: pruning.work };
+
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const table = new Map<string, Row>();
   const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
@@ -269,16 +276,23 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
     boundary.forEach((i, j) => { assign[i] = input[j]; });
     const row: Row = { input, outputs: new Map(), states: [], count: 0 };
     table.set(tupleKey(input), row);
-    overflow = !joinRows(sets, assign, () => {
+    overflow = !joinRows(propagated, assign, () => {
       const y = out.map((i) => assign[i]!);
       row.outputs.set(tupleKey(y), y);
       if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));
       row.count++;
     }, budget);
   }
-  if (overflow) return capFail(`the steady-state search passed ${max} states. Declare fewer values or split the model`, "$.model", "Declare fewer values on the carriers inside loops, or split the model.");
+  if (overflow) {
+    const unpruned = propagation.status === "fallback";
+    return {
+      ...capFail(`the steady-state search passed ${max} states${unpruned ? `, over unpruned rows: arc-consistency pruning stopped at its own work limit (${MAX_PROPAGATION_WORK}) and was discarded` : ""}. Declare fewer values or split the model`, "$.model",
+        unpruned ? "Declare fewer values or behaviour rows on the composed boxes, or split the model: pruning gave up before the search, so both the pruning and the search see the whole tables." : "Declare fewer values on the carriers inside loops, or split the model."),
+      propagation,
+    };
+  }
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
-  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored };
+  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored, propagation };
 }
 
 const sorted = (m: Map<string, string[]>) => [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, t]) => t);
@@ -297,7 +311,7 @@ function summary(e: Evaluation, p: Plan, fullRelation = false) {
     composed: p.composed.map((b) => b.id),
     downstream: p.downstream,
     partialDownstream: p.partialDownstream,
-    statesExplored: e.explored,
+    statesExplored: e.explored, propagation: e.propagation,
     basis: SERIES, scope: p.scope, assumption: assumption(p.scope),
   };
 }
@@ -435,9 +449,9 @@ function compareBehaviorScoped(baseline: FunctionModel, concept: FunctionModel, 
   }
   const max = opts.maxStates ?? MAX_STATES;
   const b = evaluate(baseline, before, deliverables, max);
-  if (!b.ok) return rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: ");
+  if (!b.ok) return { ...rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: "), ...(b.propagation ? { propagation: b.propagation } : {}) };
   const c = evaluate(concept, after, observed, max);
-  if (!c.ok) return rebase(fail(c.issues), [], "concept: ");
+  if (!c.ok) return { ...rebase(fail(c.issues), [], "concept: "), ...(c.propagation ? { propagation: c.propagation } : {}) };
 
   // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
   const cInputs = c.inputs.map(align.toBaseline);
@@ -641,7 +655,7 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
     requiredSituationCount: selected.size, checkedAllBoundaryInputs: opts.requiredInputs === undefined,
     blockedInputCount: blocked.length, blockedInputs: blocked.slice(0, LISTED),
     unacceptableInputCount: unacceptable.length, unacceptableOutputs: unacceptable.slice(0, LISTED),
-    statesExplored: e.explored,
+    statesExplored: e.explored, propagation: e.propagation,
     note: "Adequacy requires a steady state at every required input and acceptable values in every possible deliverable output there. Equal partial relations may both fail this requirement. Acceptance and nonblocking are checked only at the required complete input assignments; this does not establish dynamic convergence or physical feasibility.",
   };
 }
@@ -650,7 +664,10 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
 const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
   const r = rebase(fail(f.issues), rules, prefix);
   return f.cap
-    ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: r.errors, note: "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
+    ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: r.errors, ...(f.propagation ? { propagation: f.propagation } : {}),
+      note: f.propagation?.status === "fallback"
+        ? "The search passed the state cap over unpruned rows: arc-consistency pruning stopped at its own work limit and was discarded first. Nothing is decided. Declare fewer values or rows, or split the model."
+        : "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
     : r;
 };
 
@@ -702,6 +719,10 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
   if (opts.maxCostSearch !== undefined && opts.rowCosts === undefined) return fail([issue("invalid-row-costs", "$.max_cost_search", "a cost search cap requires row costs", "Supply row_costs with the cap.")]);
+  // row_costs price the residual of one unknown box. Where none is computed, refuse them, as the
+  // two-box path does, rather than return a result that silently drops them.
+  const unpriced = (outcome: string) => fail([issue("invalid-row-costs", "$.row_costs", `row costs price the residual of one unknown box, and none is computed here: ${outcome}`,
+    "Drop row_costs to get this result; price rows once one box to specify has a residual that covers the target.")]);
   // Paths as with compare_to: the baseline is compare_to, the concept is model.
   const checked = checkModel(baseline, "$.compare_to");
   if (!checked.ok) return rebase(fail(checked.issues), [], `${of}: `);
@@ -715,6 +736,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const gainedDeliverables = [...byKey].filter(([k]) => !wanted.has(k)).map(([, d]) => d);
   const lost = target.filter((d) => !byKey.has(deliverableKey(d)));
   if (lost.length) {
+    if (opts.rowCosts !== undefined) return unpriced("the concept loses deliverables (impossible, lost-deliverables)");
     return {
       ok: true as const, verdict: "impossible" as const, reason: "lost-deliverables" as const, preserves: false as const,
       deliverables: target, lostDeliverables: lost, gainedDeliverables,
@@ -725,6 +747,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const before = plan(baseline, target, opts);
   if (before.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.compare_to", "weakest specification cannot evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (before.missing.length) {
+    if (opts.rowCosts !== undefined) return unpriced(`the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"} declares no behaviour for ${quoted(before.missing)} (undecided, missing-behavior)`);
     return {
       ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, deliverables: target, missingBehavior: before.missing, missingIn: of,
       note: `Declare behavior for ${before.missing.map((id) => `'${id}'`).join(", ")} in the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"}: the target relation depends on them.`,
@@ -733,6 +756,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const p = plan(concept, observe, opts);
   if (p.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "weakest specification cannot specify or evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (p.missing.length > 2) {
+    if (opts.rowCosts !== undefined) return unpriced(`${p.missing.length} composed boxes declare no behaviour (undecided, several-holes)`);
     return {
       ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
       note: `${p.missing.length} composed boxes declare no behaviour (${p.missing.map((id) => `'${id}'`).join(", ")}). The weakest specification is decided for one or two unknown boxes only: with more, the maximal safe choices are not computed. Declare all but one or two.`,
@@ -758,6 +782,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const t = evaluate(baseline, before, target, max);
   if (!t.ok) return capped(t, `${of}: `, [["$.model", "$.compare_to"]]);
   if ([...t.table.values()].every((r) => !r.count)) {
+    if (opts.rowCosts !== undefined) return unpriced("the target relation is empty (undecided, no-steady-state)");
     return {
       ok: true as const, verdict: "undecided" as const, reason: "no-steady-state" as const, deliverables: target,
       note: "The target relation is empty: the baseline has no steady state at any input. Every relation for the box stays inside it and the empty relation equals it, so nothing is decided. Check the baseline's loops.",
@@ -840,18 +865,26 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   let cheapestExtension: unknown;
   if (opts.rowCosts !== undefined) {
     if (boxes.length !== 1 || !producible) return fail([issue("invalid-row-costs", "$.row_costs", "row costs require one unknown box with producible rows", "Supply producible rows for the unknown box.")]);
-    const costs = new Map<string, number>();
+    // Shape first: each entry names one row of the box (every port once, a declared value on each),
+    // once, at a nonnegative safe-integer cost. Relevance depends on coverage, decided next.
+    const costs = new Map<string, number>(), entryAt = new Map<string, number>();
     for (const [i, entry] of opts.rowCosts.entries()) {
       const row = entry?.row;
-      const validKeys = row && row.in && row.out && Object.keys(row.in).length === ports.filter(p => p.side === "in").length && Object.keys(row.out).length === ports.filter(p => p.side === "out").length && ports.every(p => Object.hasOwn(p.side === "in" ? row.in : row.out, p.id));
+      const sideOf = (side: "in" | "out") => (side === "in" ? row.in : row.out) as Record<string, unknown>;
+      const validKeys = row && row.in && row.out && Object.keys(row.in).length === ports.filter(p => p.side === "in").length && Object.keys(row.out).length === ports.filter(p => p.side === "out").length
+        && ports.every(p => Object.hasOwn(sideOf(p.side), p.id) && domain.get(p.carrier)!.includes(sideOf(p.side)[p.id] as string));
       const key = validKeys ? tupleKey(ports.map(p => (p.side === "in" ? row.in : row.out)[p.id])) : "";
-      if (!validKeys || !candidates.has(key) || costs.has(key) || !Number.isSafeInteger(entry.cost) || entry.cost < 0) return fail([issue("invalid-row-costs", `$.row_costs[${i}]`, "each cost must uniquely name a relevant safe nonproducible row with a nonnegative safe integer cost", "List each relevant row once with its cost.")]);
-      costs.set(key, entry.cost);
+      if (!validKeys || costs.has(key) || !Number.isSafeInteger(entry.cost) || entry.cost < 0) return fail([issue("invalid-row-costs", `$.row_costs[${i}]`, `each cost must name one row of '${hole.id}' once, every port with a declared value, at a nonnegative safe integer cost`, "List each row once with its cost.")]);
+      costs.set(key, entry.cost); entryAt.set(key, i);
     }
-    if (costs.size !== candidates.size) return fail([issue("invalid-row-costs", "$.row_costs", "costs are missing for relevant rows", "Request weakest_spec with full_relation: true and list every row in extensionCandidates with an explicit cost.")]);
     if (opts.maxCostSearch !== undefined && (!Number.isSafeInteger(opts.maxCostSearch) || (opts.maxCostSearch < 1 || opts.maxCostSearch > 100_000))) return fail([issue("invalid-row-costs", "$.max_cost_search", "the cost search cap must be an integer from 1 to 100000", "Give a positive integer.")]);
+    // Coverage before relevance: when the residual misses the target, no added row can give it and
+    // no row is relevant, so the supplied costs are answered with not-applicable, not refused.
     if (ofResidual.uncovered) cheapestExtension = { status: "not-applicable", reason: "target-not-covered-by-residual" };
     else {
+      const irrelevant = [...costs.keys()].find((key) => !candidates.has(key));
+      if (irrelevant !== undefined) return fail([issue("invalid-row-costs", `$.row_costs[${entryAt.get(irrelevant)}]`, "each cost must name a relevant safe nonproducible row, one listed in extensionCandidates", "List each row of extensionCandidates once with its cost, and no other row.")]);
+      if (costs.size !== candidates.size) return fail([issue("invalid-row-costs", "$.row_costs", "costs are missing for relevant rows", "Request weakest_spec with full_relation: true and list every row in extensionCandidates with an explicit cost.")]);
       const result = cheapestCover(covering.length, [...candidates].map(([key, row]) => ({ row, cost: costs.get(key)!, covers: covering.flatMap((set, i) => set.includes(key) ? [i] : []) })), opts.maxCostSearch);
       cheapestExtension = result;
     }

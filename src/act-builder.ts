@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Carrier, Flow, FunctionModel, Polarity, Role, checkModel } from "./act.js";
+import { Carrier, Flow, FunctionModel, Polarity, Role, checkModel, sameCarrier } from "./act.js";
 import { at, fail, issue, type Issue } from "./act-issues.js";
 import { lintModel } from "./act-lint.js";
 
@@ -13,12 +13,23 @@ export const BuildModelRequest = z.strictObject({
 });
 export type BuildModelRequest = z.infer<typeof BuildModelRequest>;
 
-// JSON escapes lone surrogates before UTF-8 encoding; unlike concatenation or a hash this
-// is an injective encoding of the whole tuple, even for punctuation and arbitrary user IDs.
-const tupleId = (kind: string, ...parts: string[]) => `${kind}_${Buffer.from(JSON.stringify(parts)).toString("base64url")}`;
+type Interaction = BuildModelRequest["interactions"][number];
+/**
+ * Readable generated ids: the kind and the parts joined by ':', each part percent-escaped ('%' as
+ * '%25', ':' as '%3A'). An escaped part contains no ':', so splitting at ':' recovers the parts and
+ * unescaping each recovers the ids: distinct tuples never share an id, whatever the user ids hold.
+ * The Id schema only requires a nonempty string, so nothing else needs escaping.
+ */
+const escape = (part: string) => part.replace(/[%:]/g, (c) => (c === "%" ? "%25" : "%3A"));
+const tupleId = (kind: "in" | "out" | "wire", ...parts: string[]) => [kind, ...parts.map(escape)].join(":");
 const cmp = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
-const portId = (side: "in" | "out", carrier: string) => tupleId(side, carrier);
-const identity = (i: BuildModelRequest["interactions"][number]) => JSON.stringify([i.subject, i.action, i.object, i.carrier.id]);
+/** One input port per incoming interaction, so no input port is fed by two functions (no fan-in);
+ *  the object is the port's box, so carrier, subject and action identify the interaction there. */
+const inPort = (i: Interaction) => tupleId("in", i.carrier.id, i.subject, i.action);
+/** One output port per (subject, carrier): its functions fan out from one shared port. */
+const outPort = (carrier: string) => tupleId("out", carrier);
+const wireId = (i: Interaction) => tupleId("wire", i.subject, i.action, i.object, i.carrier.id);
+const identity = (i: Interaction) => JSON.stringify([i.subject, i.action, i.object, i.carrier.id]);
 // Values form a set; levels remain ordered thresholds. Omitted quantity and explicit
 // intensive both mean the default shared quantity, so emit one canonical representation.
 const normalizeCarrier = (c: z.infer<typeof Carrier>): z.infer<typeof Carrier> => ({
@@ -26,8 +37,8 @@ const normalizeCarrier = (c: z.infer<typeof Carrier>): z.infer<typeof Carrier> =
   ...(c.values === undefined ? {} : { values: [...c.values].sort(cmp) }),
   ...(c.levels === undefined ? {} : { levels: c.levels.map(({ value, from }) => ({ value, from })) }),
   ...(c.quantity === "extensive" ? { quantity: "extensive" as const } : {}),
+  ...(c.loss === undefined ? {} : { loss: c.loss }),
 });
-const carrierKey = (c: z.infer<typeof Carrier>) => JSON.stringify(normalizeCarrier(c));
 
 /** Build only what the table declares. No behavior or function rating is inferred. */
 export function buildModel(input: BuildModelRequest) {
@@ -44,7 +55,7 @@ export function buildModel(input: BuildModelRequest) {
       issues.push(issue("unknown-box", at("$", "interactions", index, side), `unknown component '${i[side]}'`, "Use a declared component id."));
     }
     const existing = carriers.get(i.carrier.id);
-    if (existing && carrierKey(existing.carrier) !== carrierKey(i.carrier)) {
+    if (existing && !sameCarrier(existing.carrier, i.carrier)) {
       issues.push(issue("carrier-mismatch", at("$", "interactions", index, "carrier"), `conflicting declarations of carrier '${i.carrier.id}'`, `Use the same carrier descriptor as interactions[${existing.index}].carrier, or give the different carrier a distinct id.`));
     } else if (!existing) carriers.set(i.carrier.id, { carrier: normalizeCarrier(i.carrier), index });
     const key = identity(i), prior = interactions.get(key);
@@ -57,20 +68,25 @@ export function buildModel(input: BuildModelRequest) {
   const orderedComponents = input.components.map((c, index) => ({ c, index })).sort((a, b) => cmp(a.c.id, b.c.id));
   const orderedCarriers = [...carriers.values()].sort((a, b) => cmp(a.carrier.id, b.carrier.id));
   const orderedFlows = (input.flows ?? []).map((flow, index) => ({ flow, index })).sort((a, b) => cmp(a.flow.id, b.flow.id));
-  const ports = new Map<string, { ins: Set<string>; outs: Set<string> }>();
-  for (const id of components.keys()) ports.set(id, { ins: new Set(), outs: new Set() });
+  // Input ports: one per interaction into the box, ordered by carrier, subject, then action.
+  // Output ports: one per carrier the box sends, shared by the functions that fan out from it.
+  const ports = new Map<string, { ins: Interaction[]; outs: Set<string> }>();
+  for (const id of components.keys()) ports.set(id, { ins: [], outs: new Set() });
   for (const { i } of orderedInteractions) {
-    ports.get(i.object)!.ins.add(i.carrier.id);
+    ports.get(i.object)!.ins.push(i);
     ports.get(i.subject)!.outs.add(i.carrier.id);
   }
+  const inOrder = (i: Interaction) => JSON.stringify([i.carrier.id, i.subject, i.action]);
   const model: FunctionModel = {
     domain: input.domain, ...(input.system === undefined ? {} : { system: input.system }),
     carriers: orderedCarriers.map(({ carrier }) => carrier),
     boxes: orderedComponents.map(({ c }) => {
       const { ins, outs } = ports.get(c.id)!;
-      return { ...c, inputs: [...ins].sort(cmp).map((id) => ({ id: portId("in", id), carrier: id })), outputs: [...outs].sort(cmp).map((id) => ({ id: portId("out", id), carrier: id })) };
+      return { ...c,
+        inputs: [...ins].sort((a, b) => cmp(inOrder(a), inOrder(b))).map((i) => ({ id: inPort(i), carrier: i.carrier.id })),
+        outputs: [...outs].sort(cmp).map((id) => ({ id: outPort(id), carrier: id })) };
     }),
-    wires: orderedInteractions.map(({ i }) => ({ id: tupleId("wire", i.subject, i.action, i.object, i.carrier.id), from: { box: i.subject, port: portId("out", i.carrier.id) }, to: { box: i.object, port: portId("in", i.carrier.id) }, carrier: i.carrier.id, polarity: i.polarity, verb: i.action })),
+    wires: orderedInteractions.map(({ i }) => ({ id: wireId(i), from: { box: i.subject, port: outPort(i.carrier.id) }, to: { box: i.object, port: inPort(i) }, carrier: i.carrier.id, polarity: i.polarity, verb: i.action })),
     ...(input.flows === undefined ? {} : { flows: orderedFlows.map(({ flow }) => flow) }),
   };
   // Diagnostics on generated elements point to the table entry that generated them.

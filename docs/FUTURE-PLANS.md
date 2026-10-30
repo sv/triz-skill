@@ -32,7 +32,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
 | 3 | Incomparability witnesses in weakness certificates | **Landed in #35** (equal pairs too) | Closed | — |
 | 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Partly landed: witnesses of the wiring checks now break ties in declaration order, as dynamics traces do, and renamed-twin tests cover them; canonical witnesses under permutation and symmetry stay open | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
-| 5 | Naturality of the verdicts in Lean | Partly implemented: semantic transport; all-verdict naturality remains open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
+| 5 | Naturality of the verdicts in Lean | Partly implemented: indices, values, hole coordinates, weakness and operational adequacy transport; remaining verdicts open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly implemented: two boxes, whole-model search, grid lifting and conditional residual descent; other closures open | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
 | C1 | Quotient the row-table certificates by wires | **Landed** in #42 | Adds: certificates for larger models within the same table-read cap | — |
@@ -47,12 +47,12 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
 | Q3 | Cross-check `triz_feasibility` against an independent co-design solver | Open; dev only | Adds: a second oracle beside the brute-force tests | S–M |
 | Q4 | Supersystem constraints as design problems | Open; docs | Adds: workflow guidance | S |
-| Q5 | Hierarchical boxes through operad substitution | Initial stateless scope implemented in this checkout; wider annotations open | Adds: checked zoom in and out between box and inner model | M–L |
+| Q5 | Hierarchical boxes through operad substitution | Wiring, local cost/resource/state declarations and standalone flows implemented; route/policy composition open | Adds: checked zoom in and out between box and inner model | M–L |
 | Q6 | Minimal base refinement when no global section exists | Open | Adds: a concrete next move after `irreducible` | M |
 | B1 | A model builder from an interaction table | Implemented in this checkout | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
 | B2 | Pluggable importers that draft B1's interaction table | Open; after B1 | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
 | S1 | Steady states by variable elimination along a tree decomposition | Open; needs C1 (landed) | Adds: behaviour cost exponential in treewidth, not in the boundary inputs | M–L |
-| S2 | Generalized arc consistency before enumeration | Open; independent, can come early | Adds: values and rows pruned before the steady-state search | S–M |
+| S2 | Generalized arc consistency before enumeration | Implemented in this checkout, bounded preprocessing with safe fallback | Adds: values and rows pruned before the steady-state search | S–M |
 | S3 | Per-subsystem interface contracts | Open; needs Q5 | Adds: residuals and weakest specifications against local targets | M–L |
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
@@ -75,10 +75,13 @@ Implemented in this checkout, with the remaining scope kept explicit:
   concepts and graded weakness remain open.
 - **B1:** `triz_build_model` builds typed models from explicit interaction tables, with stable
   ids, lints, and bounded completeness reporting. B2 importers remain open.
-- **Q5 initial stateless scope:** checked `inner` interfaces, explicit `triz_expand_hierarchy`,
-  and inner subsystem windows. `external_substituteWired` proves arbitrary-context wired
-  substitution, including feedback. The TypeScript translation is tested, not extracted.
-  Product-identity changes, flows, costs, feasibility and dynamics are refused by expansion.
+- **Q5:** checked `inner` interfaces, explicit `triz_expand_hierarchy`, and inner subsystem
+  windows. Expansion now retains box costs, feasibility, states, initial states and transitions,
+  standalone inner flows, and parent budgets/weights; fresh box/wire/flow maps are returned.
+  Parent flow crossings need a declared inner route; product identity changes and inner policies
+  (budget, weights, contradictions) remain refused. `external_substituteWired` proves static
+  arbitrary-context wired substitution including feedback; resource/dynamic preservation is
+  tested against manually flattened models, not claimed by that theorem.
 - **Item 7, restriction part:** `theory/Restriction.lean` proves unique forward lifts for
   Mathlib’s category of elements of `restrictionGrid` (a discrete opfibration), with incoming
   lifts in the opposite categories (the discrete fibration orientation). `residual_descends`
@@ -86,49 +89,47 @@ Implemented in this checkout, with the remaining scope kept explicit:
   `external_sub_project_of_extends` supplies each instance of the square under extension.
   A counterexample proves extension without target saturation insufficient. Concept lattices
   and the other larger closures remain open.
-- **Item 5, first semantic transport theorems:** `theory/Naturality.lean` transports steady
-  valuations, external relations, hole contexts, residuals, exact target realization, and
-  reachability under explicit equivalences. Concrete hole theorems keep the hole coordinates
-  and value type fixed. This does not prove every kernel verdict natural, capped TypeScript
-  search correct, or a selected tied witness invariant.
+- **Item 5:** `theory/Naturality.lean` now transports value labels and hole input/output
+  coordinates as well as diagram indices. Concrete hole-context and residual transport are
+  proved from steady valuations; weakness inclusion, equality, strict inclusion, incomparability,
+  and operational adequacy (nonblocking and all outputs acceptable) transport as well. This
+  does not prove every remaining kernel verdict natural, capped TypeScript search correct,
+  or a selected tied witness invariant.
+- **S2:** bounded generalized arc consistency prunes rows and unary domains before the exact
+  steady-state join, with unchanged boundary rows and a separate cap that falls back to the
+  original join. A constrained 12-box chain fits a 25-node search budget that the old join
+  exceeds. Exhaustive tests cover sparse rows, wired equalities, cyclic inconsistency and cap
+  rollback. `Propagation.solution_iff_pruned` proves an abstract local support pass over total
+  row functions, not the TypeScript sequential fixed-point implementation.
 
 ## Next priorities
 
-Ranked by leverage: what each item adds to the verdicts an analysis can rest on, against its
-cost. The build order differs from the ranking, because Q1 and Q5 do not depend on item 7.
+The initial Q1, B1, Q5 and restriction/descent scopes are implemented above; S2 and the value/
+hole-coordinate portion of item 5 are implemented as well. The next useful slices are:
 
-1. **Item 7: the 9 windows as a discrete fibration, and descent for residuals.**
-   - The restriction grid (`Wiring.restrictionGrid`) has unique forward lifts in Lean (a discrete opfibration); the reversed projection has
-     the discrete fibration orientation. This restriction part is implemented.
-   - Descent of weakest specifications along restriction is conditional. Restriction and residual
-     do not commute in general, so descent needs an exchange condition of Beck–Chevalley type.
-     #41 supplies one for a single case: `external_sub_iff_of_extends`, with `extends_of_accepts`
-     as a sufficient condition for extension. Descent additionally needs a context square
-     uniform in the hole relation and a saturated target; the conditional theorem and a
-     counterexample without saturation are implemented in `Restriction.lean`.
-   - Concept lattices descend less cleanly. Leave them out of the first version.
-2. **Q5: hierarchical boxes through operad substitution.** The optional `inner` model and the
-   substitution lemma. It gives the "zoom in" half of the 9 windows, complementary to item 7's
-   restriction. The monoidal Grothendieck packaging waits until a verdict needs it.
-3. **Q1 stage 1: the graded residual.** Generic over a commutative quantale, instantiated at
-   `Prop` and at the min-plus cost quantale over ℕ∞. It answers which rows are cheapest to make
-   producible for `weakest_spec`.
-4. **Item 5: naturality of the verdicts in Lean.** It hardens trust rather than adding
-   capability: #35 and #37 already test label-blindness thoroughly.
+1. **Q5 and S3: explicit flow routes and subsystem contracts.** Let callers declare how an
+   outer flow passes through an inner model, and check the route instead of inferring one.
+   Interface contracts should distinguish a declared summary from one checked against the inner
+   behavior and resources. Inner budget/weight/contradiction policies need an explicit composition
+   rule before expansion accepts them.
+2. **B2: local importers with draft provenance.** Start with one BOM importer and a pluggable
+   interface. Preserve source locations and unconfirmed ratings through B1; a draft must not be
+   usable as an analyst-confirmed model merely by dropping an output envelope.
+3. **Item 7: the remaining categorical closures.** Joint residuals for more than two holes,
+   controlled trim embeddings, and the whole-model greatest-fixpoint characterization remain.
+   The restriction-grid lifting and target-saturated conditional descent are proved; concept
+   lattices and unrestricted descent remain outside that result.
+4. **Item 5: remaining verdict naturality.** Extend the current concrete diagram, residual,
+   weakness and operational-adequacy transport to finite counts, resource dimensions and the
+   remaining dynamic verdict families. Capped TypeScript search and identity of selected tied
+   witnesses are separate obligations; symmetric ties do not supply a canonical single witness.
+5. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates, then S1 variable
+   elimination, S3 interface contracts and S5 compositional dynamics as their prerequisites are
+   met. S2 unary-domain propagation is implemented and does not replace global consistency.
 
-**Original build order (initial scopes now implemented above).**
-
-1. Q1 stage 1: the smallest, and useful at once.
-2. B1, the model builder; B2's importers follow it.
-3. Q5.
-4. Item 7, with descent under uniform extension and target saturation. It builds on Q5, so zooming in and restricting share one
-   structure.
-5. Item 5.
-
-Q2 and the dynamic simulation relations of [categorical-future-plan.md](categorical-future-plan.md)
-§6 come after; Q4 is docs only. On the scaling path (S1–S5), Q2, C1 and Q5 are prerequisites, and
-C1 has landed. S2 is independent and cheap, so it can come early; S1 needs C1; S3 needs Q5; S5
-pairs with C5 and Q5.
+Q4 remains documentation-only. Dynamic simulation relations are tracked separately in
+[categorical-future-plan.md](categorical-future-plan.md) §6. Q1 stage 2 remains conditional on
+an actual use case rather than being the next automatic enrichment.
 
 ## Landed
 
@@ -563,7 +564,7 @@ to exist; the entries say how far each check went. Corrections that shape the en
 
 ### Q5. Hierarchical boxes through operad substitution
 
-- **Status.** Initial stateless scope implemented in this checkout; wider annotations open. **Effort:** M–L.
+- **Status.** Wiring, local cost/resource/state declarations and standalone flows implemented; route/policy composition open. **Effort:** M–L.
 - **Change.** Schema: an optional `inner` model on a box, with matching interface ports. Lean: a
   substitution lemma, that the external relation of the substituted diagram equals the composite
   through the box's external relation. It builds on `glueAlong`, `seq`, `par`, and `feedback` in
@@ -604,8 +605,9 @@ documents the project already has. Neither decides a rating: those stay the anal
     a polarity (useful, insufficient, excessive, or harmful);
   - optional flows.
 
-  It returns a typed `FunctionModel`: the carriers, ports generated per box and carrier on each
-  side, and the wires.
+  It returns a typed `FunctionModel`: the carriers, the ports (an input port per interaction on
+  its object, so no input port is fed twice, and an output port per subject and carrier), and
+  the wires.
 - **Deterministic.** Ids are stable, so re-running after an edit gives the same ids. The result
   goes through the existing typing and lints, and errors carry a code, a path, and a hint.
 - **Completeness report.** Pairs of components that touch through no interaction (gaps in the
@@ -658,11 +660,14 @@ feasibility. The route is hierarchy plus contracts.
 
 ### S2. Generalized arc consistency before enumeration
 
-- **Status.** Open; independent and cheap, so it can come early. **Effort:** S–M.
+- **Status.** Implemented in this checkout. **Effort:** S–M.
 - **Change.** Before the search starts, prune the values and rows that cannot extend to a steady
   state.
-- **Soundness.** It rests on #41's `external_sub_iff_of_extends` and `extends_of_accepts`; the
-  pruning itself is standard constraint propagation.
+- **Soundness.** Unsupported values and rows cannot occur in a satisfying assignment.
+  `theory/Propagation.lean` proves one abstract scoped support pass preserves exactly the
+  solution set. The TypeScript loop, wildcard representation and wire translation are checked
+  independently against exhaustive valuations, not extracted from that theorem. Preprocessing
+  has its own work cap and discards partial pruning on exhaustion.
 - **Risks.** Arc consistency is not global consistency (the triangle case in C7), so it only
   shrinks the search, never replaces it.
 

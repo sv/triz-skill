@@ -70,8 +70,23 @@ are in the [theory map](../../../docs/theory-map.md#theorem-inventory).
 
 `triz_build_model` accepts a domain, components (`id`, `name`, `role`), and interactions
 (`subject`, `action`, `object`, `carrier`, `polarity`). Each carrier supplies its id, layer and
-dimension. Optional flows reference those component and carrier ids. It generates one port per
-box/carrier/side and stable wire ids; renaming a component’s display name changes no ids. It
+dimension. Optional flows reference those component and carrier ids. It generates the ports and
+wires by one fixed scheme, and the same table always gives the same ids; renaming a component’s
+display name changes none:
+
+| Generated | Id | One per |
+|---|---|---|
+| Input port on the object | `in:<carrier>:<subject>:<action>` | interaction |
+| Output port on the subject | `out:<carrier>` | subject and carrier |
+| Wire | `wire:<subject>:<action>:<object>:<carrier>` | interaction |
+
+So two interactions bringing the same carrier into one object reach two input ports, and no
+input port is fed by two functions: no source has to agree with another under behaviour, and an
+extensive carrier never fails with `extensive-fan-in`. Declare the object's behavior or
+feasibility rows per port. An output port is shared by the subject's functions on that carrier
+and fans out: one shared level on an intensive carrier, the sum of the demands on an extensive
+one. Each part is percent-escaped (`:` as `%3A`, `%` as `%25`), so ids containing `:` never
+collide: `wire:a%3Ab:…` is subject `a:b`. Quote the generated ids back exactly. It
 validates the result and returns lints and a completeness report. Unrecorded component pairs
 are prompts to review, not claims that every pair should interact. Product reach counts any
 incoming interaction, including harm; it does not establish a useful deliverable. Ratings and
@@ -85,11 +100,20 @@ outer behavior, producible, state, transition, feasibility or cost summary.
 
 `triz_nine_windows` displays the inner model and its interface when one selected box declares
 one. `triz_expand_hierarchy(model, box)` explicitly substitutes it into the parent and returns
-fresh box/wire maps. It supports stateless wiring and rejects changes of product deliverable
-identity, flows, costs, feasibility, dynamics and other unsupported inner metadata. Expand further
-nested boxes one at a time. Until expanded, semantic tools do not infer inner rows; residual
+fresh box/wire/flow maps. It preserves each inner box’s fixed cost, feasibility rows, states,
+initial states and transition rows, and rewrites standalone inner flow paths and media to the fresh
+box ids. Parent budgets and weights stay on the parent. An outer flow that passes through the
+replaced box or names it as medium is refused: the interface does not determine a unique inner
+route. Declare that route explicitly rather than guessing. Inner budgets, weights, contradictions,
+different domains, and product deliverable identity changes are still refused. Expand further
+nested boxes one at a time. Resource and dynamic declarations are preserved and tested against
+manually flattened models; the static substitution theorem does not prove those semantics. Until expanded, semantic tools do not infer inner rows; residual
 synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
-and costs incomplete. Generic explicit deletes may remove a whole nested box; they are structural
+and costs incomplete. `triz_function_model` reads harm loops and separation over the outer wiring
+and the model's own contradictions only: with nested boxes it returns `incompleteHierarchy` (their
+ids) beside them, and its isomorphism check carries `incompleteHierarchy: true`. An empty
+`harmLoops` there is not a clean verdict, since a loop inside an inner model is not reported:
+expand first. Generic explicit deletes may remove a whole nested box; they are structural
 edits, not behavior-preservation claims.
 
 For a one-hole `weakest_spec` with an infeasible producible bound, `extensionCandidates.rows`
@@ -99,9 +123,32 @@ candidate exactly once in `row_costs: [{ row: { in, out }, cost }]`, with nonneg
 prices in one common caller-chosen unit. `cheapestExtension` finds the least total cost set,
 paying once per added row even when it covers several target pairs. It changes no Boolean
 verdict and adds no rows to the model. `max_cost_search` caps the exact search at up to 100,000
-nodes; cap or integer overflow gives `undecided`, with no optimality claim. Two-hole costs are
-unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
+nodes; cap or integer overflow gives `undecided`, with no optimality claim. When the residual
+itself misses the target (`impossible`, `not-covered`), no added row can help: `cheapestExtension`
+is `{ status: "not-applicable", reason: "target-not-covered-by-residual" }`, and the supplied
+entries are checked for shape only (each a row of the box, every port once with a declared value,
+listed once, at a valid cost). Where no one-box residual is computed (two or several boxes to
+specify, missing baseline behaviour, an empty target relation, a lost deliverable) `row_costs`
+fail with `invalid-row-costs`, whose message names the result; drop them to see it. Two-hole costs
+are unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
 not certified by the graded-residual theorem.
+
+Before stateless composition, bounded unary-domain arc consistency removes unsupported values
+and rows over the wire-unified variables. Surviving rows keep their original order. Every original
+boundary input and its empty-output row is still enumerated, so pruning changes no relation or
+admitted situation. A worklist revises a table again only when one of its variables lost a
+value, so one pruning that ripples down a chain costs a pass per table, not a rescan of every
+table per link. A separate preprocessing cap (1,000,000 work units) discards all partial pruning
+and uses the old join. Arc consistency does not decide global consistency: cyclic constraints can
+still have no joint solution. The boundary-valuation and join-search caps remain in force.
+
+The composed relation (`triz_behavior` with neither `compare_to` nor `trim`), `triz_adequacy`'s
+result, and every failure of the steady-state search past its state cap (`cap-exceeded`, or a
+`state-cap` verdict) carry `propagation: { status, work }`. Caps checked before pruning runs, on
+boundary valuations or candidate rows, carry none. `status` is `complete` (pruned to
+the fixpoint) or `fallback` (the pruning cap was hit, so nothing was pruned), and `work` is the
+units spent. After a fallback, a state cap's message and hint say the search ran over unpruned
+rows, so the cause is the size of the tables: declare fewer values or rows, or split the model.
 
 ## Fields and tool dependencies
 
