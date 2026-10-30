@@ -1,4 +1,4 @@
-import { propagateRows } from "./act-propagation.js";
+import { MAX_PROPAGATION_WORK, propagateRows, type PropagationStatus } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
@@ -58,7 +58,7 @@ export type Typed = Endpoint & { carrier: string };
 /** Ports observed by an evaluation: deliverables, and with `side: "out"` any other composed port. */
 type Observed = Typed & { side?: "in" | "out" };
 /** `cap` marks a failure past the state cap, which the spec and ranking read as undecided. */
-type Failure = BaseFailure & { cap?: true };
+type Failure = BaseFailure & { cap?: true; propagation?: PropagationStatus };
 
 /** Cap on boundary valuations and on search states, per evaluation. */
 export const MAX_STATES = 100_000;
@@ -133,7 +133,7 @@ export function plan(model: FunctionModel, observe: Endpoint[], opts: { scope?: 
 }
 
 interface Row { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number; }
-interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; }
+interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; propagation: PropagationStatus; }
 
 export interface PortVariables {
   variables: Array<Typed & { side: "in" | "out" }>;
@@ -255,8 +255,10 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
   });
 
   // Keep every boundary valuation and its empty table row; only the joined relations are pruned.
-  // A preprocessing cap falls back to the original sets without charging the search budget.
-  const propagated = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!)).sets;
+  // A preprocessing cap falls back to the original sets without charging the search budget; the
+  // status is reported, so a state cap after a fallback names the unpruned join as its cause.
+  const pruning = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!));
+  const propagated = pruning.sets, propagation: PropagationStatus = { status: pruning.status, work: pruning.work };
 
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const table = new Map<string, Row>();
@@ -281,9 +283,16 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
       row.count++;
     }, budget);
   }
-  if (overflow) return capFail(`the steady-state search passed ${max} states. Declare fewer values or split the model`, "$.model", "Declare fewer values on the carriers inside loops, or split the model.");
+  if (overflow) {
+    const unpruned = propagation.status === "fallback";
+    return {
+      ...capFail(`the steady-state search passed ${max} states${unpruned ? `, over unpruned rows: arc-consistency pruning stopped at its own work limit (${MAX_PROPAGATION_WORK}) and was discarded` : ""}. Declare fewer values or split the model`, "$.model",
+        unpruned ? "Declare fewer values or behaviour rows on the composed boxes, or split the model: pruning gave up before the search, so both the pruning and the search see the whole tables." : "Declare fewer values on the carriers inside loops, or split the model."),
+      propagation,
+    };
+  }
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
-  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored };
+  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored, propagation };
 }
 
 const sorted = (m: Map<string, string[]>) => [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, t]) => t);
@@ -302,7 +311,7 @@ function summary(e: Evaluation, p: Plan, fullRelation = false) {
     composed: p.composed.map((b) => b.id),
     downstream: p.downstream,
     partialDownstream: p.partialDownstream,
-    statesExplored: e.explored,
+    statesExplored: e.explored, propagation: e.propagation,
     basis: SERIES, scope: p.scope, assumption: assumption(p.scope),
   };
 }
@@ -440,9 +449,9 @@ function compareBehaviorScoped(baseline: FunctionModel, concept: FunctionModel, 
   }
   const max = opts.maxStates ?? MAX_STATES;
   const b = evaluate(baseline, before, deliverables, max);
-  if (!b.ok) return rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: ");
+  if (!b.ok) return { ...rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: "), ...(b.propagation ? { propagation: b.propagation } : {}) };
   const c = evaluate(concept, after, observed, max);
-  if (!c.ok) return rebase(fail(c.issues), [], "concept: ");
+  if (!c.ok) return { ...rebase(fail(c.issues), [], "concept: "), ...(c.propagation ? { propagation: c.propagation } : {}) };
 
   // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
   const cInputs = c.inputs.map(align.toBaseline);
@@ -646,7 +655,7 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
     requiredSituationCount: selected.size, checkedAllBoundaryInputs: opts.requiredInputs === undefined,
     blockedInputCount: blocked.length, blockedInputs: blocked.slice(0, LISTED),
     unacceptableInputCount: unacceptable.length, unacceptableOutputs: unacceptable.slice(0, LISTED),
-    statesExplored: e.explored,
+    statesExplored: e.explored, propagation: e.propagation,
     note: "Adequacy requires a steady state at every required input and acceptable values in every possible deliverable output there. Equal partial relations may both fail this requirement. Acceptance and nonblocking are checked only at the required complete input assignments; this does not establish dynamic convergence or physical feasibility.",
   };
 }
@@ -655,7 +664,10 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
 const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
   const r = rebase(fail(f.issues), rules, prefix);
   return f.cap
-    ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: r.errors, note: "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
+    ? { ok: true as const, verdict: "undecided" as const, reason: "state-cap" as const, errors: r.errors, ...(f.propagation ? { propagation: f.propagation } : {}),
+      note: f.propagation?.status === "fallback"
+        ? "The search passed the state cap over unpruned rows: arc-consistency pruning stopped at its own work limit and was discarded first. Nothing is decided. Declare fewer values or rows, or split the model."
+        : "The search passed the state cap, so nothing is decided. Declare fewer values or split the model." }
     : r;
 };
 

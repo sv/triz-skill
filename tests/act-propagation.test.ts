@@ -148,3 +148,106 @@ test("domain preflight falls back before traversing or copying oversized shared 
   assert.equal(result.status, "fallback");
   assert.equal(result.sets, sets);
 });
+
+/**
+ * The fixpoint by rescanning every table until nothing changes, charged as propagateRows charges
+ * one revision: the reference the worklist must agree with, and the work it must beat.
+ */
+function rescanAll(sets: PropagationSet[], domains: string[][]) {
+  let work = 0;
+  for (const d of domains) work += 1 + d.length;
+  for (const s of sets) work += 1 + s.vars.length;
+  const values = domains.map(d => new Set(d));
+  const current = sets.map(s => ({ vars: s.vars, rows: s.rows }));
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let index = 0; index < current.length; index++) {
+      const set = current[index];
+      work += 1 + set.vars.length;
+      const supported = new Map(set.vars.map(i => [i, new Set<string>()]));
+      const keep = set.rows.filter(row => {
+        work++;
+        const binding = new Map<number, string>();
+        for (const [i, value] of row) {
+          work++;
+          if (!values[i].has(value) || (binding.has(i) && binding.get(i) !== value)) return false;
+          binding.set(i, value);
+        }
+        for (const [i, value] of binding) supported.get(i)!.add(value);
+        for (const i of set.vars) { work++; if (!binding.has(i)) for (const value of values[i]) { work++; supported.get(i)!.add(value); } }
+        return true;
+      });
+      if (keep.length !== set.rows.length) { changed = true; current[index] = { vars: set.vars, rows: keep }; }
+      if (!keep.length) return { sets: current, work, emptied: true };
+      for (const [i, support] of supported) for (const value of values[i]) { work++; if (!support.has(value)) { values[i].delete(value); changed = true; } }
+    }
+  }
+  return { sets: current, work, emptied: false };
+}
+
+test("the worklist reaches the rescanning fixpoint, revising only tables whose variables shrank", () => {
+  // A chain of equalities x0 = x1 = … = x40 over 30 values, then x40 = v0 at the far end: one
+  // pruning that ripples back through every link. Rescanning needs a pass per link.
+  const n = 41, values = Array.from({ length: 30 }, (_, i) => `v${i}`), domains = Array.from({ length: n }, () => values);
+  const sets: PropagationSet[] = [
+    ...Array.from({ length: n - 1 }, (_, k): PropagationSet => ({ vars: [k, k + 1], rows: values.map(x => [[k, x], [k + 1, x]]) })),
+    { vars: [n - 1], rows: [[[n - 1, "v0"]]] },
+  ];
+  const snapshot = structuredClone(sets);
+  const worklist = propagateRows(sets, domains), rescan = rescanAll(sets, domains);
+  assert.equal(worklist.status, "complete");
+  assert.deepEqual(worklist.sets, rescan.sets, "the same rows survive, in order");
+  assert.ok(worklist.sets.slice(0, n - 1).every(s => s.rows.length === 1 && s.rows[0][0][1] === "v0"));
+  assert.deepEqual(sets, snapshot, "the inputs are not mutated");
+  assert.ok(worklist.work * 10 < rescan.work, `worklist ${worklist.work} vs rescanning ${rescan.work}`);
+  // Within a budget the rescan would exhaust, the worklist completes; below its own need it falls back whole.
+  assert.equal(propagateRows(sets, domains, worklist.work).status, "complete");
+  const short = propagateRows(sets, domains, worklist.work - 1);
+  assert.equal(short.status, "fallback");
+  assert.equal(short.sets, sets);
+  // On random tables both reach the same fixpoint, and the worklist never charges more.
+  let seed = 977;
+  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed >>> 8; };
+  const small = [["0", "1", "2"], ["0", "1", "2"], ["0", "1", "2"], ["0", "1", "2"]];
+  for (let k = 0; k < 300; k++) {
+    const random: PropagationSet[] = Array.from({ length: 1 + rand() % 5 }, () => {
+      const cols = [...new Set(Array.from({ length: 1 + rand() % 3 }, () => rand() % 4))];
+      return { vars: cols, rows: Array.from({ length: rand() % 7 }, () => cols.filter(() => rand() % 5 !== 0).map(i => [i, String(rand() % 3)] as [number, string])) };
+    });
+    const a = propagateRows(random, small), b = rescanAll(random, small);
+    assert.equal(a.status, "complete");
+    assert.deepEqual(solutions(a.sets, small), solutions(random, small));
+    if (!b.emptied && a.sets.every(s => s.rows.length)) assert.deepEqual(a.sets, b.sets);
+    assert.ok(a.work <= b.work + random.length * small.length, `${a.work} vs ${b.work}`);
+  }
+});
+
+test("behaviour results report the propagation status, and a state cap after a fallback names it", () => {
+  const ok = externalBehavior(chain(), { fullRelation: true });
+  assert.ok(ok.ok && ok.decided);
+  assert.equal(ok.propagation.status, "complete");
+  assert.ok(ok.propagation.work > 0);
+  // 1,000 variables of 1,000 values: the domain preflight alone passes the pruning work limit.
+  const ids = Array.from({ length: 1000 }, (_, i) => String(i)), values = Array.from({ length: 1000 }, (_, i) => `v${i}`);
+  const wide: FunctionModel = {
+    domain: "software", carriers: [{ id: "c", layer: "information", dimension: "x", values }],
+    boxes: [
+      { id: "s", name: "S", role: "tool", outputs: ids.map(id => ({ id, carrier: "c" })), behavior: ["v0", "v1"].map(v => ({ in: {}, out: Object.fromEntries(ids.map(id => [id, v])) })) },
+      { id: "p", name: "P", role: "product", inputs: ids.map(id => ({ id, carrier: "c" })) },
+    ],
+    wires: ids.map(id => ({ id, from: { box: "s", port: id }, to: { box: "p", port: id }, carrier: "c", polarity: "useful" as const })),
+  };
+  const fallback = externalBehavior(wide);
+  assert.ok(fallback.ok && fallback.decided);
+  assert.equal(fallback.propagation.status, "fallback");
+  const capped = externalBehavior(wide, { maxStates: 1 });
+  assert.ok(!capped.ok);
+  assert.equal(capped.issues[0].code, "cap-exceeded");
+  assert.match(capped.issues[0].message, /unpruned rows: arc-consistency pruning stopped at its own work limit/);
+  assert.deepEqual("propagation" in capped && capped.propagation, { status: "fallback", work: 1_001_000 });
+  // A state cap with complete pruning says nothing about pruning.
+  const pruned = externalBehavior(chain(), { maxStates: 1 });
+  assert.ok(!pruned.ok);
+  assert.doesNotMatch(pruned.issues[0].message, /unpruned/);
+  assert.equal((pruned as { propagation?: { status: string } }).propagation?.status, "complete");
+});

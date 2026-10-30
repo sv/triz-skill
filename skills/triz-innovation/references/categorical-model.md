@@ -136,9 +136,17 @@ not certified by the graded-residual theorem.
 Before stateless composition, bounded unary-domain arc consistency removes unsupported values
 and rows over the wire-unified variables. Surviving rows keep their original order. Every original
 boundary input and its empty-output row is still enumerated, so pruning changes no relation or
-admitted situation. A separate preprocessing cap discards all partial pruning and uses the old
-join. Arc consistency does not decide global consistency: cyclic constraints can still have no
-joint solution. The boundary-valuation and join-search caps remain in force.
+admitted situation. A worklist revises a table again only when one of its variables lost a
+value, so one pruning that ripples down a chain costs a pass per table, not a rescan of every
+table per link. A separate preprocessing cap (1,000,000 work units) discards all partial pruning
+and uses the old join. Arc consistency does not decide global consistency: cyclic constraints can
+still have no joint solution. The boundary-valuation and join-search caps remain in force.
+
+The composed relation (`triz_behavior` without `compare_to`), `triz_adequacy`'s result, and every
+steady-state `cap-exceeded` failure or `state-cap` verdict carry `propagation: { status, work }`. `status` is `complete` (pruned to
+the fixpoint) or `fallback` (the pruning cap was hit, so nothing was pruned), and `work` is the
+units spent. After a fallback, a state cap's message and hint say the search ran over unpruned
+rows, so the cause is the size of the tables: declare fewer values or rows, or split the model.
 
 ## Fields and tool dependencies
 
