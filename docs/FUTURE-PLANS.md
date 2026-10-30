@@ -67,11 +67,11 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 
 | Item | Status | Implemented scope and remaining limits |
 |---|---|---|
-| T2 Dimensions | Implemented in this PR | Explicit SI vectors/base-unit parsing, shared equality and dimension lints; no conversions/inference |
-| T3 Costed dynamics | Implemented in this PR | Exact Karp cycle ranges, potentials and achieving-cycle certificates; no probabilities/continuous time |
-| T1 Typed effects | Implemented in this PR | Typed filters, capped checked chains and weakest-spec hints; six statement-derived entries; external catalogue rights gap remains |
-| T4 Lifecycle MDP | Implemented in this PR | Exact scalar-gain policy iteration, stationary occupancy/availability, certificates and concept-specific priors; general multichain/product-MDP/game scope remains open |
-| T5 Bond graphs | Design and first structural implementation in this PR | Explicit effort/flow typing, capped causality and equation structure; no numerical simulation/chemistry |
+| T2 Dimensions | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit SI vectors/base-unit parsing, shared equality and dimension lints; no conversions/inference |
+| T3 Costed dynamics | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact Karp cycle ranges, potentials and achieving-cycle certificates; no probabilities/continuous time |
+| T1 Typed effects | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Typed filters, capped checked chains and weakest-spec hints; six statement-derived entries; external catalogue rights gap remains |
+| T4 Lifecycle MDP | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact scalar-gain policy iteration, stationary occupancy/availability, certificates and concept-specific priors; general multichain/product-MDP/game scope remains open |
+| T5 Bond graphs | Design and first structural implementation in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit effort/flow typing, capped causality and equation structure; no numerical simulation/chemistry |
 
 The requested build order was T2 → T3 → T1 → T4 → T5, consolidated into one PR at the user's
 request. Lean/Mathlib were upgraded to 4.35.0 at the user's subsequent request. Follow-up
@@ -518,8 +518,10 @@ line numbers.
 - A joint residual for three or more boxes under pairwise-decomposable safety: item 7.
 - An acyclic shortcut for the feasibility ascent: on acyclic parts the ascent already stops after
   depth-many steps.
-- Markov kernels for weakness priors: `joint_prior` covers correlated conditions, and Bennett's
-  uniform-task caveat stays.
+- General Markov kernels for weakness priors: [#51](https://github.com/sv/triz-skill/pull/51)
+  adds opt-in concept-specific priors from finite lifecycle stationary occupancy; arbitrary
+  kernels and nonstationary operating distributions remain open. `joint_prior` still covers
+  declared correlated conditions, and Bennett's uniform-task caveat stays.
 
 ## From applied category theory
 
