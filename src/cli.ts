@@ -217,7 +217,9 @@ async function run(argv: string[]): Promise<Outcome> {
   if (command !== "list" && p.json) return usage(`--json is an option of list, not ${command}`, p.pretty);
   if (command !== "call" && p.args !== undefined) return usage(`--args is an option of call, not ${command}`, p.pretty);
 
-  const specs = toolSpecs({ graph, layout: loadElk });
+  // The stdio server's options (src/server.ts), the local-only import and review tools
+  // included: like that server, this command runs on the caller's machine, never hosted.
+  const specs = toolSpecs({ graph, layout: loadElk, localImports: true });
 
   if (command === "list") {
     if (rest.length) return usage(`list takes no arguments, got '${rest[0]}'`, p.pretty);

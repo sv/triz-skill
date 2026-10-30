@@ -43,7 +43,7 @@ test("list: one line per tool, name then the first sentence; --json the full des
   const r = triz(["list"]);
   assert.equal(r.code, 0, r.stderr);
   const lines = r.stdout.trimEnd().split("\n");
-  const names = toolSpecs({ graph }).map((s) => s.name);
+  const names = toolSpecs({ graph, localImports: true }).map((s) => s.name);
   assert.deepEqual(lines.map((l) => l.split(/\s+/)[0]), names);
   const fm = lines.find((l) => l.startsWith("triz_function_model "));
   assert.ok(fm);
@@ -67,17 +67,37 @@ test("schema: the description and the inputSchema an MCP client lists", async ()
 
   // The stdio server's own listing, over an in-memory transport.
   const server = new McpServer({ name: "triz-mcp", version: "0.0.0" });
-  bindV1(server, toolSpecs({ graph, layout: loadElk }));
+  bindV1(server, toolSpecs({ graph, layout: loadElk, localImports: true }));
   const client = new Client({ name: "cli-test", version: "0.0.0" });
   const [a, b] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(a), client.connect(b)]);
   const { tools } = await client.listTools();
   await client.close();
-  for (const name of ["triz_behavior", "triz_evals", "triz_graph", "triz_adequacy"]) {
+  for (const name of ["triz_behavior", "triz_evals", "triz_graph", "triz_adequacy", "triz_import_source", "triz_review_import"]) {
     const listed = tools.find((t) => t.name === name)!;
     const out = name === "triz_behavior" ? s : JSON.parse(triz(["schema", name]).stdout);
     assert.deepEqual(out, { name, description: listed.description, inputSchema: listed.inputSchema }, name);
   }
+});
+
+test("list and call: the local-only import and review tools, as on the stdio server", () => {
+  // The CLI and the stdio server pass the same toolSpecs options; the hosted Worker does not.
+  const options = (f: string) => fs.readFileSync(path.join(root, "src", f), "utf8").match(/toolSpecs\(\{([^}]*)\}\)/)?.[1].trim();
+  assert.equal(options("cli.ts"), options("server.ts"));
+  assert.match(options("cli.ts") ?? "", /\blocalImports: true\b/);
+  const listed = triz(["list"]).stdout.trimEnd().split("\n").map((l) => l.split(/\s+/)[0]);
+  assert.ok(listed.includes("triz_import_source") && listed.includes("triz_review_import"), listed.join(" "));
+  assert.equal(toolSpecs().some((s) => s.name === "triz_import_source"), false, "the hosted tool set has no importer");
+
+  const csv = "id,name,parent_id\nroot,Assembly,\npart,Component,root\n";
+  const imported = triz(["call", "triz_import_source", "--args", JSON.stringify({ format: "bom-csv", source: { id: "parts.csv", text: csv } })]);
+  assert.equal(imported.code, 0, imported.stderr);
+  const draft = JSON.parse(imported.stdout).model;
+  assert.equal(draft.provenance.status, "draft");
+  const decisions = draft.provenance.pending.map((p: { id: string }) => ({ id: p.id, decision: "confirm" }));
+  const reviewed = triz(["call", "triz_review_import", "-"], { input: JSON.stringify({ model: draft, decisions }) });
+  assert.equal(reviewed.code, 0, reviewed.stderr);
+  assert.equal(JSON.parse(reviewed.stdout).model.provenance.status, "reviewed");
 });
 
 test("schema and call: an unknown tool exits 2 with the closest names", () => {

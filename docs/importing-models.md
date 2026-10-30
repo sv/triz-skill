@@ -1,6 +1,7 @@
 # Importing local models
 
-The local stdio server exposes `triz_import_source` and `triz_review_import`. The public hosted
+The local stdio server and the `triz` command line expose `triz_import_source` and
+`triz_review_import` (for example `triz call triz_import_source args.json`). The public hosted
 endpoint does not register these tools. Importers consume supplied text: they do not fetch URLs,
 resolve external files, run source code, load Julia checkpoints, or call API endpoints.
 

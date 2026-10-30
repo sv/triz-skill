@@ -145,7 +145,7 @@ Multiple modes, deeper nesting, missing evidence or search caps give `undecided`
 not install or cache a summary on the shell; declared rows do not become verified by copying a
 status field. Dynamic contracts and local residual synthesis remain future work.
 
-The local stdio tools `triz_import_source` and `triz_review_import` support source drafting. Every
+The local-only tools `triz_import_source` and `triz_review_import` (stdio server and `triz` CLI) support source drafting. Every
 imported model embeds `provenance` with component, interaction and containment locations plus
 pending role/carrier/polarity/assumption decisions. B1 preserves it. Analysis refuses `draft-model`
 even if the caller extracts only the model from the response. Edit proposed meanings, then confirm

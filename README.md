@@ -119,8 +119,8 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_build_model` | Build a typed model from explicitly rated component interactions, with stable ids, lints, and a bounded completeness report |
 | `triz_expand_hierarchy` | Expand an inner model with explicit checked flow routes, media mappings, and opt-in budget, weight and contradiction policies |
 | `triz_subsystem_contract` | Distinguish a declared interface summary from one checked against complete inner behavior and a supported resource mode |
-| `triz_import_source` | Local stdio only: draft BOM, OpenAPI, Quint, Lean or Julia inputs with embedded source locations and pending review |
-| `triz_review_import` | Local stdio only: confirm every pending rating and assumption while retaining source provenance |
+| `triz_import_source` | Local only (stdio server and `triz` CLI): draft BOM, OpenAPI, Quint, Lean or Julia inputs with embedded source locations and pending review |
+| `triz_review_import` | Local only (stdio server and `triz` CLI): confirm every pending rating and assumption while retaining source provenance |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check; `mpv_weights` for a comparison over the main parameters of value |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time); each separated pair gets suggested operations that could build the separation (hints, not verdicts) |
