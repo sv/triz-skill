@@ -130,6 +130,7 @@ over the row tables `Sync.Step` and `Rows.relation`, read through the port class
 | `triz_behavior` `weakest_spec`, one box | `spec` | `le_residual_iff`, and `covers_iff_exists_eq`, or `covers_feasible_iff` with producible rows |
 | `triz_behavior` `weakest_spec`, one box | `impossible`, `not-covered` | `not_covers_iff`, and `map_empty` when the spec is empty |
 | `triz_behavior` `weakest_spec`, one box | `impossible`, `infeasible` | `not_covers_feasible_iff`, `required_row_of_eq`, and `map_empty` when the cut spec is empty |
+| `triz_behavior` `weakest_spec`, `joint_boxes` | `spec` or `impossible` | `le_residual_iff`, `covers_iff_exists_eq`, `covers_feasible_iff`, their noncoverage converses; `JointResidual.lean` supplies the sigma-port context |
 | `triz_behavior` `weakest_spec`, two boxes | `spec` | `safe_iff_le_concept`, `concept_maximal`, `exists_eq₂_iff`; with producible rows, `safe_feasible_iff`, `safe_feasible_iff_le_concept`, `concept_feasible_maximal`, `exists_eq₂_feasible_iff` |
 | `triz_behavior` `weakest_spec`, two boxes | `impossible`, `infeasible` | `exists_eq₂_feasible_iff`, `exists_eq₂_iff` |
 | `triz_behavior` `weakest_spec`, two boxes | `impossible`, `not-covered` | `exists_eq₂_iff` |
@@ -278,10 +279,19 @@ What each verdict computes and how it is checked, beyond what the agent referenc
   union of its rows' composites. Then `R ⊆ W` iff `C[R]` stays inside the target
   (`le_residual_iff`; `gc_residual`, a Galois connection). So `W` is the weakest box
   specification, the residual in Rel. One search finds every row's composite: the box admits
-  every row, and each steady state is grouped by the row it uses. With three or more boxes
-  without behaviour, the largest safe relation for one depends on the relations chosen for the
-  others, so no box has a single weakest choice. Lean states nothing for three or more, and the
-  kernel computes nothing.
+  every row, and each steady state is grouped by the row it uses. With several unknown boxes,
+  a per-box choice depends on the others. The explicit joint mode below keeps that coupling.
+- **Joint merged hole.** `joint_boxes` selects every composed box without behavior as a single
+  relation over the disjoint union of its ports. The existing wires, including inter-hole wires,
+  remain in the context. `Semantics.OpenDiagram.jointContext_preservesUnions`
+  inherits the one-hole union theorem for sigma-indexed ports. `joint_residual_coverage` and
+  `joint_feasible_coverage` instantiate the residual coverage theorems. The runtime groups complete
+  steady states by the whole joint tuple, cuts safe tuples by per-box producibility, and checks
+  exact target coverage. `joint_nonfactorization` is a concrete three-hole residual whose safe
+  per-hole projections can mix into an unsafe tuple. Runtime `independentSafe` and `factorizes`
+  report projection safety and Cartesian equality respectively; no independent implementation is
+  invented. Bounded output carries counts/truncation flags, and `full_relation` lists complete rows.
+  Tests compare with independent enumeration of all complete port valuations on feedback loops.
 - **Two boxes.** The context `C` sends a pair of relations `(R₁, R₂)` to `C[R₁, R₂]`. It
   preserves unions in each box (`holeContext₂_preservesUnions₂`), so a pair stays inside the
   target iff every pair of rows, one of each box, does (`le_safeRows_iff`). One search finds
@@ -628,8 +638,11 @@ name and text, and each structural row naming a `triz_transform` operation.
 | `Restriction.lean` | `restrictionGrid_unique_forward_lift`, `restrictionGrid_unique_opposite_lift`, `residual_descends`, `external_sub_project_of_extends` | Covariant element projection is an opfibration; its opposite is a fibration. Residual descent requires a uniform context square and a saturated target, not extension alone. Checked positive and negative witnesses. |
 | `Naturality.lean` | `steady_values_rename`, `external_values_rename`, `hole_context_values_rename`, `hole_residual_values_rename`, `weakness_rename`, `diagram_operational_adequacy_values_rename` | Diagram indices, value labels and hole coordinates transport together. The concrete context square is proved from steady valuations. Weakness preserves inclusion, equality, strict inclusion and incomparability; operational adequacy includes nonblocking and universal acceptance on the transported required inputs. Older `hole_adequate_rename` concerns exact relation equality. |
 | `Propagation.lean` | `solution_survives`, `solution_iff_pruned` | One abstract support-elimination pass over scoped total-row constraints preserves every satisfying assignment. It does not prove global consistency, or correctness of the TypeScript sequential iteration and wildcard representation. |
+| `JointResidual.lean` | `jointContext_preservesUnions`, `joint_residual_coverage`, `joint_feasible_coverage`, `joint_nonfactorization` | One coupled relation over sigma-indexed hole ports, feasible cuts, and a concrete three-hole residual witness. No n-adic concept lattice or implementation proof. |
+| `ControlledTrim.lean` | `Rule`, `typed`, `retained_wire`, `attachment`, `absorber_changes_behavior` | Explicit cut/absorber interface as typed deletion/gluing data, with retained wiring and two-absorber semantic counterexample. No AGREE/PBPO+ or Kan universal property. |
+| `SteadyStateGfp.lean` | `steadyStates_gfp`, `consistency_top`, `consistency_iterate_top` | Mathlib gfp of the whole-diagram complete-valuation constraint filter; one-pass descent from top, with feedback/downstream witnesses. No local propagation algorithm. |
 
-All five modules are default targets of `lake build --wfail`. None proves that the TypeScript
+All these modules are default targets of `lake build --wfail`. None proves that the TypeScript
 searches are extracted from Lean, that selected tied witnesses are canonical, or that supplied
 rows describe physical reality.
 
@@ -696,8 +709,10 @@ The implemented guarantees are separated from future work in
   restate composition from the declared rows (`Rows.relation`) and decide it there; they do not
   certify the evaluator either. Lean relates those row tables to open diagrams (`rowsDiagram`,
   `rows_steady_iff`, `rows_relation_iff_external`); that does not prove the TypeScript encoder.
-- The weakest specification is decided for one or two boxes without behaviour. With three or
-  more, none is computed: Lean states nothing for them, and n-adic concepts are not in Mathlib.
+- The default weakest-spec modes return one relation or maximal pairs for two boxes. The
+  `joint_boxes` mode handles more boxes as one coupled relation; it does not enumerate n-adic
+  concept lattices or assert per-box implementability. The finite joint algorithm is tested, not
+  extracted from Lean or certified per instance.
   - For two boxes, the safe relations are not a product of per-box residuals. Lean proves what
     the kernel computes. A pair of relations keeps the composite inside the target iff every row
     of the first forms a safe pair with every row of the second (`le_safeRows_iff`). Every safe
@@ -761,8 +776,10 @@ The implemented guarantees are separated from future work in
   fixpoint: its values are unordered, so there is no least value to iterate from, and iterating
   from no value delivers nothing on an unseeded loop. Feasibility uses one because its levels are
   ordered and its relations monotone ([Co-design feasibility](../skills/triz-innovation/references/categorical-model.md#co-design-feasibility)).
-  A greatest fixpoint over sets of complete valuations is a possible reformulation, not a reason
-  to use local domain propagation as a complete global solver.
+  `SteadyStateGfp.lean` proves the greatest-fixed-point characterization for the filter derived
+  from every port, box and wire constraint on complete valuations. It reaches the fixed point in
+  one pass from the full valuation set. Enumerating that set can be exponential; this result does
+  not turn local domain propagation into a complete global solver or verify the TypeScript join.
   `triz_dynamics` adds bounded runs only where state and initial states are declared.
 - Dynamics are finite and discrete. Smooth dynamics (ODEs, tangent bundles), controller
   synthesis, double categories, and profunctor coend formulas are not adopted. A `reachable`

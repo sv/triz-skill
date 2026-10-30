@@ -34,7 +34,8 @@ behaviour), Mealy fixed-point statements, and recurrent reachability. This work 
 distinct row/OpenDiagram adapters (`rowsDiagram`, `rows_relation_iff_external`) and certificate
 lemmas, and dropped its own overlapping one-hole theorem layer in favour of #32's. `triz_synthesize`
 is not a second residual: it searches complete tuples from a declared finite library on fixed
-wiring, while `weakest_spec` computes the maximal safe relations for one or two boxes.
+wiring, while `weakest_spec` computes a one-box residual, two-box maximal pairs, or an explicitly
+selected coupled relation with `joint_boxes`.
 
 Merged [PR #38](https://github.com/sv/triz-skill/pull/38) suggests the finest segmentation of a
 box's declared relation (`behavior.finest`, `factorisations`); with `scope: "whole"`,
@@ -54,6 +55,24 @@ unreachable-escalation certificates, including comparison mappings and one-sided
 branch extends that shared implementation with request binding, whole scope, changed comparisons,
 all weakness pair outcomes and stronger state-only safety. The duplicate generic invariant lemma
 was removed in favor of `unreachable_of_invariant`; both certificate target meanings remain explicit.
+
+## Joint residuals and closure proofs
+
+`triz_behavior` with `weakest_spec` and `joint_boxes` computes one relation over every selected
+unknown box's combined ports. It preserves existing wires and checks exact coverage against the
+baseline target. Per-box producible cuts apply before coverage. The per-box projections may be
+unsafe when declared independently; the result reports a mixed-row witness instead of installing
+those behaviors. The default one/two-box modes and finite-library synthesis remain distinct.
+
+`JointResidual.lean` proves joint-context union preservation, residual/feasible coverage and an
+actual three-hole residual nonfactorization. `ControlledTrim.lean` formalizes the cut boundary,
+retained absorber and wire/interface conditions of explicit reattachment, including a concrete
+absorber-dependent behavior witness. `SteadyStateGfp.lean` identifies whole-diagram steady states
+with Mathlib's greatest fixed point of complete-valuation constraint filtering. That filter
+reaches its fixed point from the full valuation set in one pass; enumerating the set may be
+exponential. None of these theorems extracts or certifies the TypeScript implementation, makes
+local propagation globally complete, proves a general AGREE/PBPO+ formalism, or proves physical
+realizability. Independent exhaustive feedback tests cross-check the joint finite solver.
 
 ## Behavioral scope and adequacy
 

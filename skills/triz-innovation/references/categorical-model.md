@@ -645,9 +645,39 @@ is fixed by what was declared:
 Decide the result with `triz_behavior` and `compare_to`. Without declared behaviour, new boxes
 stay undecided.
 
+## Joint weakest specification
+
+With `weakest_spec: true` and `compare_to` or `trim`, pass `joint_boxes` naming every composed
+box without behavior exactly once. The selected boxes form one relation over their combined
+ports; keep the existing wiring, including wires between holes. Declared boxes, duplicates,
+unknown ids, out-of-scope boxes and omitted holes fail with `invalid-joint-boxes`. The default
+one/two-box modes below remain unchanged. `row_costs` is unsupported for a joint relation.
+
+`joint.endpoints` identifies each port by box, side, port and carrier. Each `joint.rows` entry is
+a map from box id to that box's `{in, out}` row, and denotes **one joint tuple**. `joint.residual`
+contains all safe tuples; `joint.rows` intersects them with every box's declared `producible`
+rows. Safety alone is insufficient: `spec` requires exact target coverage, otherwise `impossible`
+reports `not-covered` or `infeasible`. Empty targets, missing baseline behavior and caps remain
+undecided. The candidate row product and complete semantic evaluation are bounded by `max_states`.
+
+`joint.projections` lists the per-box projections. `independentSafe` checks whether declaring
+those projections separately stays inside the target; `factorizes` checks their product equals
+the feasible joint relation. An unsafe split returns `couplingWarning` and a concrete mixed-row
+counterexample. Retain the joint relation when splitting is unsafe; the tool does not install
+independent behaviors or claim a physically realizable implementation. Context-inert tuples stay
+in the residual because they contribute no steady states.
+
+The default displays at most 200 residual rows, feasible rows and rows per projection, with exact
+counts and `residualTruncated`, `rowsTruncated` and `projectionsTruncated` flags. Use
+`full_relation: true` for complete lists within the same cap. Decisions always use complete sets;
+a displayed prefix is not an executable complete specification. Joint residuals are not certified
+per instance. `theory/JointResidual.lean` proves the abstract sigma-port context/coverage results
+and a concrete three-hole residual nonfactorization; independent complete-port tests check the
+finite implementation on feedback wiring.
+
 ## Weakest box specification
 
-`triz_behavior` with `weakest_spec` takes a concept in which one or two boxes that can reach a
+By default, `triz_behavior` with `weakest_spec` takes a concept in which one or two boxes that can reach a
 deliverable declare no behaviour, and a target relation. The bullets up to **Re-check** are about
 one box; **Two boxes** below is about two. The target is the relation of the
 baseline given as `compare_to` (with `box_map` when a segmentation moved deliverables), or, with
@@ -674,8 +704,8 @@ inputs.
     search. A deliverable needs a function into it, which is wiring, not behaviour. Deliverables
     only the concept has are listed (`gainedDeliverables`) and not compared, as in
     `compare_to`.
-  - Three or more boxes without behaviour give `undecided` (`several-holes`): no box has a single
-    weakest choice, and the kernel computes nothing.
+  - Without `joint_boxes`, three or more boxes without behaviour give `undecided`
+    (`several-holes`): no independent per-box weakest choice is computed. Use the coupled mode below.
   - Missing baseline behaviour, and a target empty at every input (`no-steady-state`), give
     `undecided`.
   - The state cap gives `undecided` (`state-cap`). This includes more candidate rows than
