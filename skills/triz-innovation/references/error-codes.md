@@ -169,11 +169,12 @@ The verdict tools that read declared rows, and the certificates they return.
 ## Lints
 
 Returned under `warnings` by `triz_function_model`, `triz_trim`, and `triz_behavior` for a model
-that type-checks, with a `severity`. A lint never changes a verdict.
+that type-checks, with a `severity`. A lint never changes a verdict. Only
+`defect-on-loss-carrier` reads labels, and only on a carrier without a declared `loss`.
 
 | Code | Raised by | Meaning |
 |---|---|---|
-| `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a loss-like flow (pressure drop, leakage, noise, …) |
+| `defect-on-loss-carrier` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An excessive or insufficient function on a carrier declared `loss: true`, or, with no declaration, on a loss-like flow by the words of the carrier id, its dimension, or the verb (pressure drop, leakage, noise, …). That word list is the one place a lint reads labels, so it is exempt from label-blindness; a declared `loss` is not |
 | `trim-level-functions` | lint: `triz_trim` | The trim removes excessive or insufficient functions, listed under levelProblems |
 | `product-without-deliverable` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A product box receives no non-harmful function |
 | `unused-carrier` | lint (info) | A carrier types no port and no wire |

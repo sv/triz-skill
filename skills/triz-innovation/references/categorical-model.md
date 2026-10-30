@@ -80,6 +80,7 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `feasibility`, `cost`, `budget` | box; box; model | `triz_feasibility` (with `trim`, each absorber's added resources), `uneven-development`, `triz_nine_windows` `system.verdicts.feasibility`, resource modes in `triz_implementations` and `triz_synthesize` | `undecided`: `missing-feasibility`, or `no-budget`, or `unbudgeted`; a box outside the solve adds only its `cost` |
 | `levels` | carrier with `values` | amounts read as values: `levels` in `triz_feasibility` and `triz_abstraction`; `at_least`/`below` in every `acceptable` | no reading between amounts and values; a threshold fails (`invalid-threshold`) |
 | `quantity` | carrier | `extensive`: in `triz_feasibility` an output's demands add up, an input fed by several functions fails closed (`extensive-fan-in`), and the `extensive-fan-out` lint; `triz_isomorphism` maps it unchanged | `intensive`: one shared level, so an output meets the largest demand |
+| `loss` | carrier | the `defect-on-loss-carrier` lint, decided by the declaration: `true` raises it on an excessive or insufficient function of the carrier, `false` silences it. No verdict reads it, and `triz_isomorphism` does not compare it | the lint guesses from the words of the carrier id, its dimension, and the verbs, so renaming can raise or silence it |
 | `flows` | model | `triz_flow`; adjacency for `merge`; `flows` in `triz_abstraction`; `flowsChanged` in `triz_nine_windows` | functions say only who acts on whom, not series order |
 | `priors` or `joint_prior` | `triz_weakness` argument | `weightedAdmitted` and `byWeight`, or `jointAdmittedWeight`, `jointAdmittedProbability`, and `byJointPrior` | the uniform count, `byCount` |
 | `weights`; `mpv_weights` | model; `triz_function_model` argument | a scalar ideality ratio; `comparison.mpv` | costs per dimension, never summed |
@@ -346,7 +347,11 @@ an array, or an unknown transformation `op`.
 model that type-checks, in the same shape plus `severity` (`warning` or `info`). A lint never
 changes a verdict; the next section lists them. The loss lexicon behind
 `defect-on-loss-carrier` is a heuristic over carrier ids, dimensions, and verbs; a warning is a
-prompt to check the rating, not a finding.
+prompt to check the rating, not a finding. It is the only lint that reads labels, so it is exempt
+from label-blindness: renaming a carrier, its dimension, or a verb can raise or silence it, and
+never moves a verdict. Declare `loss` on the carrier to decide it instead. `true` raises it and
+`false` silences it whatever the words, and then the lint survives any renaming. Run lints on
+the labelled model before renaming it.
 
 ## Issue and lint codes
 
@@ -358,7 +363,7 @@ The lints:
 
 | Lint | Means | What to do |
 |---|---|---|
-| `defect-on-loss-carrier` | an excessive or insufficient function on a loss-like flow (a pressure drop, leakage, noise, wear) | Rating it excessive says some level of the flow is wanted from the performer; if no level of it is useful, rate it harmful |
+| `defect-on-loss-carrier` | an excessive or insufficient function on a carrier declared `loss: true`, or, with no declaration, on a loss-like flow by its words (a pressure drop, leakage, noise, wear) | Rating it excessive says some level of the flow is wanted from the performer; if no level of it is useful, rate it harmful. If some level is wanted, declare `loss: false` |
 | `trim-level-functions` | the trim removes excessive or insufficient functions, posed under `levelProblems` | Solve each as a level problem; no absorber takes the defect over |
 | `product-without-deliverable` | a product box no non-harmful function acts on | Add the function it should receive, or change its role |
 | `unused-carrier` (info) | a carrier that types nothing | Delete it, or type the port or wire meant to carry it |

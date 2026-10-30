@@ -7,7 +7,8 @@
  *  - defect-on-loss-carrier       (warning) an excessive or insufficient function whose flow is a
  *                                 loss: a pressure drop, leakage, noise. A useful-but-excessive
  *                                 rating says some level of the flow is wanted from the performer;
- *                                 for a loss no level is, so the function is harmful.
+ *                                 for a loss no level is, so the function is harmful. A carrier's
+ *                                 declared `loss` decides; without it, the loss lexicon below.
  *  - product-without-deliverable  (warning) a product box no non-harmful function acts on, so the
  *                                 model has no deliverable there.
  *  - unused-carrier               (info) a carrier that types no port and no wire.
@@ -25,7 +26,10 @@
  *                                 one value, as if each received the whole amount.
  *
  * The loss lexicon is a heuristic over carrier ids, dimensions, and function verbs; a match is a
- * prompt to check the rating, not a finding.
+ * prompt to check the rating, not a finding. It is the only lint that reads labels: on a carrier
+ * without a declared `loss`, renaming the carrier, its dimension, or a verb can raise or silence
+ * it, so it is exempt from label-blindness. A declared `loss: true` raises it and `loss: false`
+ * silences it whatever the words, and then it is label-blind. No lint changes a verdict.
  */
 import type { FunctionModel } from "./act.js";
 import { at, quoted, type Severity, type Warning, type IssueCode } from "./act-issues.js";
@@ -45,11 +49,14 @@ export function lintModel(model: FunctionModel, root = "$.model"): Warning[] {
   model.wires.forEach((w, i) => {
     if (w.polarity !== "excessive" && w.polarity !== "insufficient") return;
     const c = carriers.get(w.carrier);
-    const loss = words(w.carrier, c?.dimension, w.verb).find((x) => LOSS.has(x));
-    if (!loss) return;
+    // A declared `loss` decides, in both directions; only without one does the word list guess.
+    if (c?.loss === false) return;
+    const loss = c?.loss ? null : words(w.carrier, c?.dimension, w.verb).find((x) => LOSS.has(x));
+    if (loss === undefined) return;
     out.push(lint("defect-on-loss-carrier", "warning", at(root, "wires", i, "polarity"),
-      `function '${w.id}' (${w.from.box} → ${w.to.box}) carries '${w.carrier}'${c ? ` (${c.dimension})` : ""}, a loss-like flow ('${loss}'), rated ${w.polarity}`,
-      `Rate it harmful if no level of it is useful. ${w.polarity === "excessive" ? "Excessive" : "Insufficient"} says some level of '${w.carrier}' is wanted from '${w.from.box}'; if only less of it is better, '${w.id}' is a harm, and the useful function '${w.from.box}' performs is another wire.`));
+      `function '${w.id}' (${w.from.box} → ${w.to.box}) carries '${w.carrier}'${c ? ` (${c.dimension})` : ""}, ${loss === null ? "declared a loss (loss: true)" : `a loss-like flow ('${loss}')`}, rated ${w.polarity}`,
+      `Rate it harmful if no level of it is useful. ${w.polarity === "excessive" ? "Excessive" : "Insufficient"} says some level of '${w.carrier}' is wanted from '${w.from.box}'; if only less of it is better, '${w.id}' is a harm, and the useful function '${w.from.box}' performs is another wire.`
+        + (loss === null ? "" : ` The word '${loss}' is a guess: declare loss: false on carrier '${w.carrier}' if some level of it is wanted, or loss: true to keep this check after renaming.`)));
   });
   const fed = new Set(model.wires.filter((w) => w.polarity !== "harmful").map((w) => w.to.box));
   model.boxes.forEach((b, i) => {

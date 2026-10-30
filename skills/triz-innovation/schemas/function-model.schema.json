@@ -130,6 +130,10 @@
             "intensive",
             "extensive"
           ]
+        },
+        "loss": {
+          "description": "Whether the flow is a loss: true when no level of it is wanted from any performer, such as a pressure drop, leakage, noise, or wear; false when some level is. Read only by the defect-on-loss-carrier lint, which then ignores its word list, so the lint gives the same warnings after any renaming. Omitted, the lint guesses from the words of the carrier id, its dimension, and the function verbs. No verdict reads it",
+          "type": "boolean"
         }
       },
       "required": [

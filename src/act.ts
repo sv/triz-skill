@@ -62,6 +62,8 @@ export const Carrier = z.strictObject({
     .describe("Thresholds that read a numeric amount (a feasibility row's level) as one of the declared values (a behavior row's value): an amount reads as the last level whose `from` it reaches. The list orders its values from least to most; the first starts at 0 and each `from` exceeds the one before. Requires values, e.g. [{ value: 'low', from: 0 }, { value: 'high', from: 50 }]"),
   quantity: z.enum(["intensive", "extensive"]).optional()
     .describe("How amounts on this carrier combine where one output port feeds several functions. 'intensive' (the default) is one shared level, such as a voltage, a temperature, or a copied message: the port meets the largest demand. 'extensive' is an amount that divides, such as a flow of water or a current: triz_feasibility makes the port supply the sum of the demands, and refuses an extensive input fed by several functions (model a merge box). Declare it explicitly; it is never inferred from the layer"),
+  loss: z.boolean().optional()
+    .describe("Whether the flow is a loss: true when no level of it is wanted from any performer, such as a pressure drop, leakage, noise, or wear; false when some level is. Read only by the defect-on-loss-carrier lint, which then ignores its word list, so the lint gives the same warnings after any renaming. Omitted, the lint guesses from the words of the carrier id, its dimension, and the function verbs. No verdict reads it"),
 }, { error: keysHint({ unit: "the unit goes in dimension", units: "the unit goes in dimension", type: "the flow type goes in layer", kind: "the flow type goes in layer", name: "a carrier has an id and a dimension, no name" }) }).meta({ id: "Carrier" });
 
 export const Port = z.strictObject({

@@ -874,6 +874,12 @@ The implemented guarantees are separated from future work in
   - The bearing and connection-pool examples are isomorphic and get the same wiring
     verdicts. That shows the kernel ignores domain meaning. It does not show that a TRIZ
     solution transfers between domains.
+  - Lints are outside the claim, and none changes a verdict. `defect-on-loss-carrier` reads
+    labels: on a carrier without a declared `loss`, it guesses from the words of the carrier id,
+    its dimension, and the function verbs, so a renaming can raise or silence it. It is exempt
+    from label-blindness. A declared `loss` decides it in both directions, and then it is
+    label-blind. `tests/act-issues.test.ts` renames every id and label of each example and
+    checks that this lint is the only output that moves.
 - The hypergraph export uses the hypergraph form of Bonchi et al. (2022, Def. 3.1): hyperedges
   with ordered sources and targets, plus an interface. The encoding is this kernel's own choice.
   Ports are the vertices, and one port may carry several functions: fan-out, or a useful and a
