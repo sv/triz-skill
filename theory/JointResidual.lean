@@ -56,18 +56,16 @@ theorem three_residual_iff (f : ThreePorts → Bool) :
     jointRow f ∈ residual (jointContext threeDiagram threePin threePout) threeTarget ↔
     f ⟨0, ()⟩ = f ⟨1, ()⟩ ∧ f ⟨1, ()⟩ = f ⟨2, ()⟩ := by
   simp [residual, jointContext, holeContext, external, steadyStates, withHole, ofRel,
-    threeDiagram, threeTarget, threePin, threePout, jointRow, Function.comp_def, funext_iff, Option.forall, Set.mem_setOf_eq]
+    threeDiagram, threeTarget, threePin, threePout, jointRow, Function.comp_def, funext_iff, Option.forall]
   constructor
   · intro h
     apply h f f
-    · change (∀ x : (Σ _ : Fin 3, Empty), f (nomatch x.2) = nomatch x.2) ∧ ∀ x, f x = f x
-      constructor
-      · intro x; exact nomatch x.2
-      · intro x; rfl
+    · change ∀ x, f x = f x
+      intro x; rfl
     · intro x; rfl
   · intro h b x hx hb
-    change (∀ p : (Σ _ : Fin 3, Empty), x (nomatch p.2) = nomatch p.2) ∧ ∀ p, x p = f p at hx
-    have hxf : x = f := funext hx.2
+    change ∀ p, x p = f p at hx
+    have hxf : x = f := funext hx
     have hxb : x = b := funext hb
     rw [← hxb, hxf]
     exact h

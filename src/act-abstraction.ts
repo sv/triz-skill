@@ -1,3 +1,4 @@
+import { dimensionConflict } from "./act-dimensions.js";
 /**
  * Abstraction between two models of one system: a detailed model (many boxes, costs, feasibility)
  * and a coarse one (few boxes, declared behaviour), linked by a typed map.
@@ -228,6 +229,13 @@ export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel,
   });
   const levelFindings = levels.flatMap((l) => ("inconsistencies" in l ? l.inconsistencies : []));
 
+  const dimensionWarnings = mappedPorts.flatMap(p => {
+    const b = dBoxes.get(p.box)!;
+    const port = ports(b).find(q => q.id === p.port && q.side === p.side)!;
+    const image = cBoxes.get(p.image.box)!;
+    const target = cCarriers.get(ports(image).find(q => q.id === p.image.port)!.carrier)!;
+    return dimensionConflict(dCarriers.get(port.carrier)?.si, target?.si) ? [{ code: "dimension-mismatch" as const, path: "$.map.carriers", severity: "warning" as const, message: "Mapped carriers have conflicting SI dimensions; level readings are not comparable", hint: "Map amounts and levels with the same SI dimension." }] : [];
+  });
   const checks = {
     total: { ok: !total.length, errors: total },
     typed: { ok: !typed.length, errors: typed, ...(typed.length ? {} : { basis: ["typed_restrict", "typed_map"] as Theorem[] }) },
@@ -264,6 +272,7 @@ export function checkAbstraction(detailed: FunctionModel, coarse: FunctionModel,
   const reaches = !forgotten.length && checks.total.ok;
   return {
     ok: true as const,
+    warnings: dimensionWarnings,
     verdict: failed.length ? "not-an-abstraction" as const : "abstraction" as const,
     failed,
     checks,

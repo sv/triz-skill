@@ -1009,3 +1009,36 @@ The implemented guarantees are separated from future work in
 - `triz_separate`'s `suggestions` are hints. A separation verdict says a piecewise assignment
   exists; it does not say that the suggested move builds one, that the move is the best one, or
   that the cited principle applies.
+
+
+## Typed effects and lifecycle extension
+
+The theory is now pinned jointly to Lean and Mathlib **v4.35.0**. Existing libraries retain
+non-module syntax through Lake's documented `allowNonModules` compatibility flag. Deprecated
+Mathlib imports/lemmas and affected proofs were migrated; warning failures remain enabled.
+
+| Library | Statement | Claim scope |
+|---|---|---|
+| `MeanCost` | `telescope` | Finite permutation-closed vertex potentials cancel exactly |
+| `MeanCost` | `cycle_lower`, `cycle_upper` | Edge potential inequalities bound every finite cycle's total, hence mean |
+| `MeanCost` | `attains_bound` | A nonempty cycle with total n·λ has mean λ |
+| `MeanCost` | `Bounds`, `CycleWitness` | Decidable finite potential and achieving-cycle certificate predicates |
+| `Lifecycle` | `stationary_invariant` | πP=π plus explicit measure/kernel encoding compatibility implies `Kernel.Invariant` |
+| `Lifecycle` | `stationary_cost_lower` | Stationary expected cost bounds from gain/bias inequalities |
+| `Lifecycle` | `policy_attains_gain` | A stationary policy satisfying gain/bias equality attains its gain |
+| `Lifecycle` | `optimality_stationary` | Bellman inequalities certify no enabled stationary competitor has lower stationary expected cost |
+| `Lifecycle` | `Stationary`, `Optimality` | Decidable stochastic-row, occupancy, selected-policy and gain/bias predicates |
+
+These names are registered in `src/act-basis.ts`; its theorem-to-file map extends the original
+single-file basis test. Cycle results cite `MeanCost.cycle_lower`, `cycle_upper`, `attains_bound`.
+Lifecycle results cite `stationary_invariant`, `optimality_stationary`, `policy_attains_gain`.
+The TypeScript algorithms are not extracted from Lean. Generated rational certificates use
+`decide +kernel` and have per-statement tamper rejection. Request binding uses a manifest and
+full regeneration. Source pins include the local dimension/schema and cost/lifecycle predicate libraries; the new rational tables do not have the separate correspondence encoder
+used by the older wiring/row-table certificate kinds. This limitation is explicit.
+
+SI equality, typed effect search, and bond causality are finite structural checks with no
+additional Lean theorem claim. See [API and scope](typed-effects-lifecycle.md) and
+[bond-graph design](bond-graphs.md). No unit conversion, dimensional inference, physical
+sufficiency, general multichain optimal control, ergodic/sample-path frequency theorem,
+continuous time, discounting, chemistry, or numeric simulation is claimed.

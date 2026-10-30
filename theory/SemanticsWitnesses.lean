@@ -525,13 +525,13 @@ example : withAccepting.external (fun _ => true) (fun _ => true) := by
       refine ⟨fun p => if h : p = 2 then t ⟨1, by decide⟩ else t ⟨p, h⟩, ?_, fun _ => trivial,
         fun b hb => ?_, fun _ _ => ?_⟩
       · funext ⟨p, hp⟩
-        exact dif_neg hp
+        exact dite_eq_right hp
       · cases b
         · exact absurd rfl hb
         · trivial
       · show (if h : (1 : Fin 3) = 2 then t ⟨1, by decide⟩ else t ⟨1, h⟩) =
           (if h : (2 : Fin 3) = 2 then t ⟨1, by decide⟩ else t ⟨2, h⟩)
-        rw [dif_neg (by decide), dif_pos rfl]
+        rw [dite_eq_right (by decide), dite_eq_left rfl]
   have hpart : acceptingUpstream.external (fun _ => true) (fun _ => true) := by
     refine ⟨fun _ => true, ⟨fun _ => trivial, fun ⟨b, hb⟩ => ⟨fun _ => true, ?_, rfl⟩,
       fun w => (w.2.2 rfl).elim⟩, rfl, rfl⟩

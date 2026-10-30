@@ -120,22 +120,24 @@ theorem costResidual_eq_tsub (a b : ℕ∞) : costResidual a b = (b - a : ℕ∞
 /-- A finite path with cost 2 needs at least 3 more to meet bound 5. -/
 example : costResidual (2 : ℕ∞) (5 : ℕ∞) = (3 : ℕ∞) := by
   rw [costResidual_eq_tsub]
-  exact (ENat.coe_sub 5 2).symm
+  exact (ENat.natCast_sub 5 2).symm
 
 /-- An impossible path has infinite cost, and imposes no extra cost on the row. -/
 example : costResidual (⊤ : ℕ∞) (5 : ℕ∞) = (0 : ℕ∞) := by
   rw [costResidual_eq_tsub]
   simp
+  rfl
 
 /-- An unbounded target cannot be reached by a finite path without infinite row cost. -/
 example : costResidual (2 : ℕ∞) (⊤ : ℕ∞) = (⊤ : ℕ∞) := by
   rw [costResidual_eq_tsub]
   simp
+  rfl
 
 example : costContext (fun (_ : Unit) (_ : Unit) => (2 : ℕ∞))
     (fun _ => (3 : ℕ∞)) () = (5 : ℕ∞) := by
   simp only [costContext, iSup_unique]
-  exact (ENat.coe_add 2 3).symm
+  exact (ENat.natCast_add 2 3).symm
 
 example : costContext (fun (_ : Unit) (_ : Unit) => (⊤ : ℕ∞))
     (fun _ => (3 : ℕ∞)) () = (⊤ : ℕ∞) := by

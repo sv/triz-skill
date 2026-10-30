@@ -198,6 +198,11 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 
 | Field | On | Unlocks | Without it |
 |---|---|---|---|
+| `si`, `unit` | carrier | explicit dimension equality and `dimension-mismatch` lints; base-unit input such as kg·m·s^-2 | free-text dimensions only; no conversion or inference |
+| `effect_quantity` | carrier | typed effect resource and weakest-spec output hints | no inference from carrier labels |
+| transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
+| `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
+| `energy`, `bond` | carrier; box | `triz_bond_graph` structural causality and equation structure | no inferred physical domain |
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
 | `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
 | `producible` | a box without `behavior` or `transition` | `weakest_spec` cut to what the box can make: `impossible` with reason `infeasible`; with `feasibility` and `levels` too, the `unbacked-producible-row` lint | the spec ranges over every row of the box's declared values |
@@ -490,6 +495,7 @@ The lints:
 
 | Lint | Means | What to do |
 |---|---|---|
+| `dimension-mismatch` | Explicit units or mapped SI dimensions conflict; review amount and level declarations |
 | `defect-on-loss-carrier` | an excessive or insufficient function on a carrier declared `loss: true`, or, with no declaration, on a loss-like flow by its words (a pressure drop, leakage, noise, wear) | Rating it excessive says some level of the flow is wanted from the performer; if no level of it is useful, rate it harmful. If some level is wanted, declare `loss: false` |
 | `trim-level-functions` | the trim removes excessive or insufficient functions, posed under `levelProblems` | Solve each as a level problem; no absorber takes the defect over |
 | `product-without-deliverable` | a product box no non-harmful function acts on | Add the function it should receive, or change its role |
@@ -556,7 +562,7 @@ Check the proof and its input binding with an explicit execution mode:
   `theory/` is not built, the script stops and names both options; it never falls back to the
   network.
 - **Remotely**, only with `--remote`: the certificate, which holds the model's ids and tables,
-  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.32.2`, no
+  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.35.0`, no
   key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own revision, which
   may differ from the pin. The MCP server and the Worker never call AXLE.
 
@@ -1382,3 +1388,26 @@ map.
   within a cap on table reads; not the encoder, not the evaluator, not physical truth.
 - **Trimming.** It is not framed as a Kan extension: a decided trim depends on the absorber
   chosen.
+
+
+## Typed effects, cycle costs, lifecycle and energy subsystems
+
+Use [typed-effects-lifecycle.md](../../../docs/typed-effects-lifecycle.md) for request shapes and
+complete claim limits. `triz_effect_chains` searches explicit resources and typed input/output
+quantities, ranks complete bounded results, and returns checked wiring hypotheses. Conditions
+remain hypotheses until declared met. Weakest-spec effect hints change no verdict.
+
+On transition `cost`, read each closed component's `meanCost` per dimension, including exact
+rational bounds and row-indexed cycle witnesses. `max_cost_work` caps this calculation; a capped
+prefix is undecided. This is a nondeterministic cycle range, with no controller/environment game.
+
+Declare action guards, outcomes and exact probabilities for `triz_lifecycle`. Its checked
+scalar gain/bias equations and unique stationary occupancy support a stationary optimal policy;
+unsupported multichain cases stay undecided. `derive_prior` needs explicit state-to-situation
+mappings. `triz_weakness.lifecycle_priors` optionally reads each concept's own occupancy and
+reports a separate probability ranking, preserving the inclusion verdict. Availability is
+stationary acceptable-state mass; no ergodic or sample-path claim is made.
+
+`triz_bond_graph` reads declared energy pairs and element types. Its causal assignment, derivative
+storage and algebraic-loop findings are structural. Read [the design](../../../docs/bond-graphs.md)
+before modelling thermal approximations. No numerical simulation or physical sufficiency is claimed.

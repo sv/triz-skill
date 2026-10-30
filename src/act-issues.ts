@@ -15,6 +15,7 @@
 
 /** Every issue and lint code, with what it means. references/error-codes.md tabulates them; a test keeps the two in sync. */
 export const ISSUE_CODES = {
+  "dimension-mismatch": "Explicit SI dimensions conflict across declarations, units, or mapped levels",
   // Typing of a model
   "duplicate-id": "Two elements of one kind share an id (carrier, box, wire, port, state, value, demand, concept)",
   "unknown-carrier": "A port or wire names a carrier the model does not declare",
@@ -130,6 +131,11 @@ export const ISSUE_CODES = {
   "invalid-prior": "A weakness priors entry is malformed: names neither or both of a port and a carrier, an input that is not a situation input, an undeclared value, a duplicate, or a weight that is not a nonnegative number; or priors and joint_prior are both given",
   // Abstraction
   "unmapped-box": "map.ports names a box that map.boxes does not map",
+  "invalid-probability": "Lifecycle probabilities do not sum exactly to one for a state and action",
+  "invalid-bond": "An energy declaration, element arity, or bond port is invalid",
+  "causality-conflict": "No source/junction causality assignment exists",
+  "derivative-causality": "Storage requires derivative rather than integral causality",
+  "algebraic-loop": "Direct constitutive dependencies contain a cycle",
   // Dynamics
   "no-state": "A target or initial names a box that declares no state",
   "uninitialised-state": "A stateful box has no initial states",

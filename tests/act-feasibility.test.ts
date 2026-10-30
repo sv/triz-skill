@@ -349,6 +349,9 @@ test("a dominated feasibility row fails closed in every tool that takes a model"
   const bad = bearing();
   box(bad, "housing").feasibility!.push({ provides: { bore: 300 }, cost: { usd_unit: 1 } });
   const args: Record<string, unknown> = {
+    triz_bond_graph: { model: bad },
+    triz_lifecycle: { model: bad },
+    triz_effect_chains: { model: bad, output:{quantity:"synthetic"} },
     triz_function_model: { model: bad },
     triz_trim: { model: bad, trim: ["bearing"] },
     triz_export: { model: bad, format: "hypergraph" },

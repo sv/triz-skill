@@ -12,7 +12,7 @@
  *
  * Remote (--remote only, an explicit opt-in): the certificate, which holds the model's ids and
  * tables, leaves this machine. It is POSTed with theory/CategoricalTriz.lean inlined ahead of it
- * to the AXLE service (axle.axiommath.ai, or AXLE_API_URL), environment lean-4.32.2, no API key.
+ * to the AXLE service (axle.axiommath.ai, or AXLE_API_URL), environment lean-4.35.0, no API key.
  * AXLE replaces the imports with `import Mathlib` at its own Mathlib revision, which may differ
  * from the repo pin, and a remote verdict trusts AXLE to run that Lean faithfully. The MCP server
  * and the hosted Worker never call AXLE; only this script does, and only with --remote.
@@ -58,9 +58,10 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const THEORY_DIR = path.resolve(here, "../theory");
 const THEORY_FILE = path.join(THEORY_DIR, "CategoricalTriz.lean");
+const sourcePin = (files) => createHash("sha256").update(files.map(file=>`${file}\0${fs.readFileSync(path.resolve(here,"..",file),"utf8")}\0`).join("")).digest("hex");
 const OLEAN = path.join(THEORY_DIR, ".lake/build/lib/lean/CategoricalTriz.olean");
 export const AXLE_URL = process.env.AXLE_API_URL ?? "https://axle.axiommath.ai";
-export const AXLE_ENVIRONMENT = "lean-4.32.2";
+export const AXLE_ENVIRONMENT = "lean-4.35.0";
 export const STANDARD_AXIOMS = ["propext", "Classical.choice", "Quot.sound"];
 
 /**
@@ -139,7 +140,14 @@ const OPTS = "!\\[(?:(?:none|some \\d+)(?:, (?:none|some \\d+))*)?\\]";
 const rows = (inner) => `!\\[(?:${inner}(?:, ${inner})*)?\\]`;
 const re = (s) => new RegExp(`^${s}$`);
 /** Every declaration line the generator writes at column 0; data only, so the meaning stays in theory/. */
+const RAT = "\\(-?\\d+(?:/[1-9]\\d*)? : ℚ\\)";
+const RATVEC = rows(RAT);
 const DECLARATIONS = [
+  re(`def (?:costFrom|costTo|actionOwner|lifecyclePolicy) : Fin \\d+ → Fin \\d+ := ${NUMS}`),
+  re(`def (?:costValue|costLower|costUpper|lifecyclePi|lifecycleCost|lifecycleBias|actionCost) : Fin \\d+ → ℚ := ${RATVEC}`),
+  re(`def (?:lifecycleP|actionP) : Fin \\d+ → Fin \\d+ → ℚ := ${rows(RATVEC)}`),
+  re(`def (?:meanLower|meanUpper|lifecycleGain) : ℚ := ${RAT}`),
+  re(`def (?:minWitness|maxWitness) : List \\(Fin \\d+\\) := \\[(?:\\d+(?:, \\d+)*)?\\]`),
   re('def certificateManifest : String := ""'),
   re(`def (?:firstOnly|secondOnly)\\d+X\\d+ : Input → Value := ${NUMS}`),
   re(`def invariantStates : List \\(Machine → State\\) := \\[(?:${NUMS}(?:, ${NUMS})*)?\\]`),
@@ -197,6 +205,11 @@ const DIAGRAM = [
 function statementOk(name, s) {
   let m;
   const pairSection = (i, j) => `∃ s : Cell → Val, (∀ c ∈ support ${i}, s c ∈ values ${i}) ∧ (∀ c ∈ support ${j}, s c ∈ values ${j})`;
+  if (name === "meanBounds") return s === "MeanCost.Bounds costFrom costTo costValue costLower costUpper meanLower meanUpper";
+  if (name === "meanMinWitness") return s === "MeanCost.CycleWitness costFrom costTo costValue meanLower minWitness";
+  if (name === "meanMaxWitness") return s === "MeanCost.CycleWitness costFrom costTo costValue meanUpper maxWitness";
+  if (name === "lifecycleOccupancy") return s === "Lifecycle.Stationary lifecycleP lifecyclePi";
+  if (name === "lifecycleOptimality") return s === "Lifecycle.Optimality lifecycleP lifecycleCost lifecycleBias lifecycleGain actionOwner actionP actionCost lifecyclePolicy";
   if (name === "typed") return s === "diagram.Typed";
   if ((m = /^back_\d+$/.exec(name))) return /^Relation\.ReflTransGen diagram\.Acts \(diagram\.tgt (\d+)\)\.1 \(diagram\.src \1\)\.1$/.test(s);
   if ((m = /^loop_\d+$/.exec(name))) {
@@ -491,7 +504,10 @@ export async function runRemote(content) {
     const lines = src.split("\n");
     return { imports: lines.filter((l) => /^import /.test(l)), body: lines.filter((l) => !/^import /.test(l)) };
   };
-  const theory = split(fs.readFileSync(THEORY_FILE, "utf8"));
+  const localNames=["MeanCost","Lifecycle"];
+  const local=localNames.map(name=>split(fs.readFileSync(path.join(THEORY_DIR,`${name}.lean`),"utf8")));
+  const base=split(fs.readFileSync(THEORY_FILE, "utf8"));
+  const theory={imports:[...local.flatMap(x=>x.imports),...base.imports].filter(l=>!localNames.some(n=>l.trim()===`import ${n}`)),body:[...local.flatMap(x=>x.body),...base.body]};
   const cert = split(content);
   const imports = [...new Set([...theory.imports, ...cert.imports.filter((l) => l.trim() !== "import CategoricalTriz")])];
   const SENTINEL = "-- triz certificate starts here";
@@ -598,6 +614,10 @@ export function tamperVariants(content) {
     content: content.replace(/^(theorem \S+ : )(.*) :=$/gm, "$1¬ ($2) :="),
     mustFail: theorems(content).map((t) => t.name),
   }];
+  for (const short of ["meanBounds", "meanMinWitness", "meanMaxWitness", "lifecycleOccupancy", "lifecycleOptimality"]) {
+    const targets = theorems(content).filter(t=>t.short===short);
+    if(targets.length) variants.push({name:`${short} negated`,content:content.replace(new RegExp(`^(theorem ${short} : )(.*) :=$`,"m"),"$1¬ ($2) :="),mustFail:targets.map(t=>t.name)});
+  }
   const carrier = /^( {2}carrier := !\[)(\d+)/m.exec(content);
   const carriers = Number(/^abbrev Carrier := Fin (\d+)$/m.exec(content)?.[1] ?? 0);
   if (carrier && carriers > 1) {
@@ -612,6 +632,12 @@ export function tamperVariants(content) {
   const verdicts = (short) => theorems(content).filter((t) => short.test(t.short) && t.depth === 1).map((t) => t.name);
   const data = (name, tampered, mustFail) => { if (tampered !== content && mustFail.length) variants.push({ name, content: tampered, mustFail }); };
   data("the unsafe set emptied", set(/^def (?:unsafeState|unsafeValue) : .*$/gm, false), verdicts(/^escalation$/));
+  const raiseRational = (line) => line.replace(/\((-?\d+)(?:\/(\d+))? : ℚ\)/, (_,n,d) => `(${BigInt(n)+BigInt(d??1)}/${d??1} : ℚ)`);
+  data("minimum bound raised", content.replace(/^def meanLower : ℚ := .*$/m,raiseRational), verdicts(/^meanBounds$|^meanMinWitness$/));
+  data("minimum cycle emptied", content.replace(/^(def minWitness : List \(Fin \d+\) := ).*$/m,"$1[]"), verdicts(/^meanMinWitness$/));
+  data("maximum cycle emptied", content.replace(/^(def maxWitness : List \(Fin \d+\) := ).*$/m,"$1[]"), verdicts(/^meanMaxWitness$/));
+  data("stationary occupancy emptied", content.replace(/^def lifecyclePi : .*$/m,line=>line.replace(/\(-?\d+(?:\/\d+)? : ℚ\)/g,"(0 : ℚ)")), verdicts(/^lifecycleOccupancy$/));
+  data("lifecycle gain raised", content.replace(/^def lifecycleGain : ℚ := .*$/m,raiseRational), verdicts(/^lifecycleOptimality$/));
   const names = new Set(theorems(content).map((t) => t.name));
   const unsafeProofs = verdicts(/^unreachable$/).map((name) => {
     const disjoint = name.replace(/\.unreachable$/, ".invariantDisjoint");
@@ -715,7 +741,7 @@ function literalTables(content) {
 /** Compare the request to normalized literal tables with a separate direct encoder.
 This checks correspondence and request binding; it is not a proof of the TypeScript encoder. */
 export function checkCorrespondence(content, request) {
-  if (!request || typeof request !== "object" || !["model","separation","weakness","behavior","dynamics"].includes(request.kind)) return ["authoritative request needs a supported certificate kind"];
+  if (!request || typeof request !== "object" || !["model","separation","weakness","behavior","dynamics","mean-cost","lifecycle"].includes(request.kind)) return ["authoritative request needs a supported certificate kind"];
   if (code(content) === null) return ["certificate is outside the lexical data subset"];
   content = dataCode(content);
   const problems = [], tables = literalTables(content), manifestText = tables.get("certificateManifest");
@@ -723,9 +749,10 @@ export function checkCorrespondence(content, request) {
   try { manifest = JSON.parse(manifestText); } catch { return ["missing or invalid certificate manifest"]; }
   const normalized = { ...request, ...(["behavior","weakness"].includes(request.kind) ? { scope: request.scope ?? "upstream" } : {}) };
   const source = createHash("sha256").update(canonical(normalized)).digest("hex");
-  const scope = ["model","separation"].includes(request.kind) ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : normalized.scope;
-  for (const [key,value] of Object.entries({ format: "triz-certificate-v2", kind: request.kind, source, schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: createHash("sha256").update(fs.readFileSync(THEORY_FILE)).digest("hex"), schemaSource: createHash("sha256").update(fs.readFileSync(path.resolve(here,"../src/act.ts"))).digest("hex"), lean: "4.32.2", mathlib: "v4.32.2", scope })) if (manifest[key] !== value) problems.push(`manifest ${key} does not match the authoritative request or supported pin`);
+  const scope = ["mean-cost","lifecycle"].includes(request.kind) ? "finite-cost" : ["model","separation"].includes(request.kind) ? "structural" : request.kind === "dynamics" ? "dynamics-upstream" : normalized.scope;
+  for (const [key,value] of Object.entries({ format: "triz-certificate-v2", kind: request.kind, source, schema: "function-model-v1", generator: "triz-cert-2", theory: "CategoricalTriz/v2", theorySource: sourcePin(["theory/CategoricalTriz.lean","theory/MeanCost.lean","theory/Lifecycle.lean"]), schemaSource: sourcePin(["src/act.ts","src/act-dimensions.ts","src/act-lifecycle-schema.ts","src/act-bond-schema.ts"]), lean: "4.35.0", mathlib: "v4.35.0", scope })) if (manifest[key] !== value) problems.push(`manifest ${key} does not match the authoritative request or supported pin`);
   const outer = /^namespace ([A-Z][A-Za-z0-9]*)$/m.exec(content)?.[1]; if (manifest.namespace !== outer) problems.push("manifest namespace differs from the certificate namespace");
+  if (["mean-cost","lifecycle"].includes(request.kind)) return problems; // full rational tables are checked by exact request regeneration below
   const normalizedIds = (v) => typeof v === "string" ? [...v].map((ch)=>{const n=ch.codePointAt(0);return /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/u.test(ch)&&(n>0xffff||(n>=0xd800&&n<=0xdfff))?"\ufffd":ch;}).join("") : Array.isArray(v) ? v.map(normalizedIds) : v;
   const eq = (name,value) => { if (canonical(tables.get(name)) !== canonical(normalizedIds(value))) problems.push(`table ${name} does not encode the authoritative request`); };
   const raw = (name,value) => { const found = [...content.matchAll(new RegExp(`^def ${name} : .* := (.*)$`, "gm"))].map((m) => m[1]); if (found.length !== 1 || found[0] !== value) problems.push(`table ${name} does not encode the authoritative request`); };
@@ -823,7 +850,7 @@ export function bindRequest(content, request) {
   catch (e) { return [`malformed authoritative request: ${e.message ?? e}`]; }
   if (problems.length) return problems;
   const manifest = JSON.parse(literalTables(content).get("certificateManifest"));
-  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,priors:r.priors,jointPrior:r.jointPrior,boxMap:r.boxMap}; const out=r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
+  const program = `import fs from "node:fs"; import * as c from "./src/act-cert.ts"; const r=JSON.parse(fs.readFileSync(0,"utf8")); const o={namespace:${JSON.stringify(manifest.namespace)},scope:r.scope,maxStates:r.maxStates,priors:r.priors,jointPrior:r.jointPrior,boxMap:r.boxMap}; const out=r.kind==="mean-cost"?c.meanCostCertificate(r.model,r.spec,r.component,r.dimension,o):r.kind==="lifecycle"?c.lifecycleCertificate(r.args,r.objective,o):r.kind==="model"?c.modelCertificate(r.model,o):r.kind==="separation"?c.separationCertificate(r.contradiction,o):r.kind==="dynamics"?c.dynamicsCertificate(r.model,r.spec,o):r.kind==="weakness"?c.weaknessCertificate(r.concepts,r.acceptable,o):r.kind==="behavior"?c.behaviorCertificate(r.baseline,r.concept,o):null; process.stdout.write(JSON.stringify(out));`;
   const regen = spawnSync(process.execPath,["--import","tsx","--input-type=module","-e",program],{cwd:path.resolve(here,".."),input:JSON.stringify(request),encoding:"utf8",maxBuffer:64<<20});
   if (regen.status !== 0) return [`cannot regenerate the authoritative request: ${regen.stderr.trim()}`];
   let generated; try { generated=JSON.parse(regen.stdout); } catch { return ["generator returned invalid JSON"]; }

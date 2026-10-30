@@ -1,5 +1,7 @@
 /** Annotation-preserving isomorphism. Search continues after a structural mapping fails. */
 import { z } from "zod";
+import { rational, show } from "./act-rational.js";
+import { sameDimension } from "./act-dimensions.js";
 import { FunctionModel, checkModel, type FunctionModel as Model } from "./act.js";
 import { checkIsomorphism, findIsomorphism, type ModelMapping } from "./act-iso.js";
 import { fail, issue } from "./act-issues.js";
@@ -31,12 +33,14 @@ const sameSet = (a: string[], b: string[]) => bag([...new Set(a)]) === bag([...n
 function isBijection(map: Record<string, string> | undefined, from: string[], to: string[]) {
   return !!map && sameSet(Object.keys(map), from) && sameSet(Object.values(map), to) && new Set(Object.values(map)).size === from.length && from.length === to.length;
 }
-const resources = (m: Model) => [...new Set([...m.boxes.flatMap(b => [...Object.keys(b.cost ?? {}), ...(b.feasibility ?? []).flatMap(r => Object.keys(r.cost ?? {}))]), ...Object.keys(m.budget ?? {}), ...Object.keys(m.weights ?? {}).filter(k => k !== "harmful")])];
+const transitionCost = (v:Record<string,number|string>|undefined,dims:Record<string,string>)=>Object.fromEntries(Object.entries(v??{}).map(([k,n])=>[dims[k]??k,show(rational(n))]));
+const resources = (m: Model) => [...new Set([...m.boxes.flatMap(b => [...Object.keys(b.cost ?? {}), ...(b.feasibility ?? []).flatMap(r => Object.keys(r.cost ?? {})), ...(b.transition??[]).flatMap(r=>Object.keys(r.cost??{}))]), ...[...(m.actions??[]),...m.boxes.flatMap(b=>b.actions??[])].flatMap(a=>[...Object.keys(a.cost??{}),...a.transitions.flatMap(r=>Object.keys(r.cost??{}))]), ...Object.keys(m.budget ?? {}), ...Object.keys(m.weights ?? {}).filter(k => k !== "harmful")])];
 
 export function checkSemanticIsomorphism(source: Model, target: Model, mapping: SemanticMapping, profile: SemanticProfile = "all") {
   const a = checkModel(source), b = checkModel(target);
   if (!a.ok || !b.ok) return fail([...(!a.ok ? a.issues : []), ...(!b.ok ? b.issues : [])]);
   if (source.boxes.some(b => b.inner) || target.boxes.some(b => b.inner)) return fail([issue("hierarchy-substitution", "$.source", "Semantic isomorphism requires expanded hierarchy", "Expand nested boxes in both models before checking semantic annotations.")]);
+  if(source.lifecycle||target.lifecycle||source.actions||target.actions)return fail([issue("hierarchy-substitution","$.source","Model-level lifecycle state mappings are not part of semantic isomorphism","Compare model-level lifecycle policies directly, or use box-local actions with explicit state maps.")]);
   const errors: string[] = [];
   // Extra feasibility-only dimensions are irrelevant to the structural checker.
   const structuralDims = new Set([...source.boxes.flatMap(x => Object.keys(x.cost ?? {})), ...Object.keys(source.budget ?? {}), ...Object.keys(source.weights ?? {}).filter(k => k !== "harmful")]);
@@ -48,7 +52,7 @@ export function checkSemanticIsomorphism(source: Model, target: Model, mapping: 
     const d = carriers.get(mapping.carriers[c.id])!;
     const vm = mapping.values[c.id];
     if (!isBijection(vm, c.values ?? [], d.values ?? [])) errors.push(`carrier '${c.id}' values are not mapped bijectively`);
-    if (c.layer !== d.layer || c.dimension !== d.dimension) errors.push(`carrier '${c.id}' quantity layer or dimension differs`);
+    if (c.layer !== d.layer || (!c.si && !d.si ? c.dimension !== d.dimension : !sameDimension(c.si, d.si))) errors.push(`carrier '${c.id}' quantity layer or dimension differs`);
     // Extensive or intensive changes how triz_feasibility adds demands, so a map must keep it.
     if ((c.quantity ?? "intensive") !== (d.quantity ?? "intensive")) errors.push(`carrier '${c.id}' quantity kind (intensive or extensive) differs`);
     if (bag((c.levels ?? []).map(l => ({ ...l, value: vm?.[l.value] }))) !== bag(d.levels ?? [])) errors.push(`carrier '${c.id}' levels differ`);
@@ -75,8 +79,10 @@ export function checkSemanticIsomorphism(source: Model, target: Model, mapping: 
       const sm = mapping.states?.[box.id] ?? {};
       if (!isBijection(sm, box.state ?? [], other.state ?? [])) errors.push(`box '${box.id}' state map is not bijective`);
       else {
+        const actionBag=(actions:NonNullable<Model["actions"]>,state:(s:string)=>string,dims:Record<string,string>)=>bag(actions.map(a=>({guard:a.guard.map(state).sort(),cost:vector(a.cost,dims),transitions:a.transitions.map(r=>({state:state(r.state),next:state(r.next),probability:r.probability===undefined?null:show(rational(r.probability)),cost:vector(r.cost,dims)})).map(canonical).sort()})));
+        if(actionBag(box.actions??[],s=>sm[s],mapping.dims)!==actionBag(other.actions??[],s=>s,{}))errors.push(`box '${box.id}' maintenance actions differ`);
         if (!sameSet((box.initial ?? []).map(s => sm[s]), other.initial ?? [])) errors.push(`box '${box.id}' initial states differ`);
-        if ((box.transition === undefined) !== (other.transition === undefined) || bag((box.transition ?? []).map(r => ({ state: sm[r.state], next: sm[r.next], in: mapped(r.in, "inputs"), out: mapped(r.out, "outputs") }))) !== bag(other.transition ?? [])) errors.push(`box '${box.id}' transitions differ`);
+        if ((box.transition === undefined) !== (other.transition === undefined) || bag((box.transition ?? []).map(r => ({ state: sm[r.state], next: sm[r.next], in: mapped(r.in, "inputs"), out: mapped(r.out, "outputs"), cost:transitionCost(r.cost,mapping.dims) }))) !== bag((other.transition ?? []).map(r=>({...r,cost:transitionCost(r.cost,{})})))) errors.push(`box '${box.id}' transitions differ`);
         if ((box.behavior === undefined) !== (other.behavior === undefined) || bag(rows(box.behavior ?? [])) !== bag(other.behavior ?? [])) errors.push(`box '${box.id}' stateless behavior differs`);
       }
     }

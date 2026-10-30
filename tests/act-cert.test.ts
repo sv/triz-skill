@@ -24,7 +24,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { FunctionModel, checkModel, harmLoops, separationCheck, type PhysicalContradiction } from "../src/act.js";
-import { behaviorCertificate, dynamicsCertificate, modelCertificate, separationCertificate, trimCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
+import { costModel, lifecycleModel } from "./support/lifecycle.js";
+import { meanCostCertificate, lifecycleCertificate, behaviorCertificate, dynamicsCertificate, modelCertificate, separationCertificate, trimCertificate, weaknessCertificate, leanString, MAX_CERT_ROWS, MAX_CERT_WORK, RESERVED_NAMESPACES, type Certificate } from "../src/act-cert.js";
 import { boundedDynamics, reachedStates } from "../src/act-dynamics.js";
 import { compareBehavior, trimPreservesBehavior, weaknessRanking } from "../src/act-behavior.js";
 import { interpose, segment } from "../src/act-rewrite.js";
@@ -50,6 +51,8 @@ function damped(): FunctionModel {
 const BEARING_TRIM = { trim: ["bearing"] };
 /** Every checked-in certificate, by namespace, and how to generate it again. */
 const GENERATED: Record<string, (ns: string) => Certificate> = {
+  MeanCostFixture: n=>meanCostCertificate(costModel(),{},0,"resource",{namespace:n}),
+  LifecycleFixture: n=>lifecycleCertificate({model:lifecycleModel()},0,{namespace:n}),
   ...Object.fromEntries(Object.entries(FIXTURES).map(([ns, name]) => [ns, (n: string) => modelCertificate(example(name), { namespace: n })])),
   BearingEscalation: (n) => dynamicsCertificate(example("bearing-heat-dynamics"), { unsafe: HOT }, { namespace: n }),
   SupportWeakness: (n) => weaknessCertificate(supportConcepts(), SUPPORT_ACCEPTABLE, { namespace: n }),

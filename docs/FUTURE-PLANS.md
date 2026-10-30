@@ -63,6 +63,20 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | N5 | Renamed-twin tests and an agent comprehension check | Kernel half landed (`tests/support/twin.ts`); agent half open | Adds: metamorphic tests of the agent | M |
 | N6 | `triz_neutralize`: the neutral register with a stable mapping | Open | Adds: an order-preserving renaming and the map back | M |
 
+## Typed effects and lifecycle batch
+
+| Item | Status | Implemented scope and remaining limits |
+|---|---|---|
+| T2 Dimensions | Implemented in this PR | Explicit SI vectors/base-unit parsing, shared equality and dimension lints; no conversions/inference |
+| T3 Costed dynamics | Implemented in this PR | Exact Karp cycle ranges, potentials and achieving-cycle certificates; no probabilities/continuous time |
+| T1 Typed effects | Implemented in this PR | Typed filters, capped checked chains and weakest-spec hints; six statement-derived entries; external catalogue rights gap remains |
+| T4 Lifecycle MDP | Implemented in this PR | Exact scalar-gain policy iteration, stationary occupancy/availability, certificates and concept-specific priors; general multichain/product-MDP/game scope remains open |
+| T5 Bond graphs | Design and first structural implementation in this PR | Explicit effort/flow typing, capped causality and equation structure; no numerical simulation/chemistry |
+
+The requested build order was T2 → T3 → T1 → T4 → T5, consolidated into one PR at the user's
+request. Lean/Mathlib were upgraded to 4.35.0 at the user's subsequent request. Follow-up
+mathematical connections and compatible library tags are in [math-connections.md](math-connections.md).
+
 ## Current implementation batch
 
 Implemented in this checkout, with the remaining scope kept explicit:

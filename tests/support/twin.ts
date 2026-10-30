@@ -26,6 +26,8 @@ export interface Twin {
   port(box: string, id: string): string;
   /** A carrier value or a state. */
   value(id: string): string;
+  action(id: string): string;
+  dim(id: string): string;
   back<T>(x: T): T;
 }
 
@@ -44,11 +46,15 @@ export function renamedTwin(m: Model): Twin {
   const pcs = m.contradictions ?? [];
   const boxes = family(m.boxes.map((b) => b.id), "b"), wires = family(m.wires.map((w) => w.id), "w");
   const carriers = family(m.carriers.map((c) => c.id), "c"), flows = family((m.flows ?? []).map((f) => f.id), "f");
+  const actions = family([...(m.actions ?? []), ...m.boxes.flatMap(b=>b.actions??[])].map(a=>a.id), "a");
   const dims = family([
-    ...m.boxes.flatMap((b) => [...Object.keys(b.cost ?? {}), ...(b.feasibility ?? []).flatMap((r) => Object.keys(r.cost ?? {}))]),
+    ...[...(m.actions??[]), ...m.boxes.flatMap(b=>b.actions??[])].flatMap(a=>[...Object.keys(a.cost??{}),...a.transitions.flatMap(r=>Object.keys(r.cost??{}))]),
+    ...m.boxes.flatMap((b) => [...Object.keys(b.cost ?? {}), ...(b.feasibility ?? []).flatMap((r) => Object.keys(r.cost ?? {})), ...(b.transition ?? []).flatMap(r => Object.keys(r.cost ?? {}))]),
     ...Object.keys(m.budget ?? {}), ...Object.keys(m.weights ?? {}).filter((d) => d !== "harmful"),
   ], "d");
   const values = family([
+    ...(m.lifecycle?.states??[]),
+    ...[...(m.actions??[]),...m.boxes.flatMap(b=>b.actions??[])].flatMap(a=>[...a.guard,...a.transitions.flatMap(r=>[r.state,r.next])]),
     ...m.carriers.flatMap((c) => [...(c.values ?? []), ...(c.levels ?? []).map((l) => l.value)]),
     ...m.boxes.flatMap((b) => [...(b.state ?? []), ...(b.initial ?? []), ...rowValues(b.behavior), ...rowValues(b.producible),
       ...(b.transition ?? []).flatMap((t) => [t.state, t.next, ...Object.values(t.in), ...Object.values(t.out)])]),
@@ -71,8 +77,11 @@ export function renamedTwin(m: Model): Twin {
   const end = (e: { box: string; port: string }) => ({ box: B(e.box), port: P(e.box, e.port) });
   const opt = <T, U>(x: T | undefined, f: (y: T) => U) => (x === undefined ? {} : f(x));
 
+  const actionRows = (as:NonNullable<Model["actions"]>) => as.map(a=>({...a,id:get(actions,a.id),guard:a.guard.map(V),...opt(a.cost,c=>({cost:keyed(c,D)})),transitions:a.transitions.map(r=>({...r,state:V(r.state),next:V(r.next),...opt(r.cost,c=>({cost:keyed(c,D)}))}))}));
   const model: Model = {
     domain: m.domain,
+    ...opt(m.actions,as=>({actions:actionRows(as)})),
+    ...opt(m.lifecycle,l=>({lifecycle:{...l,states:l.states.map(V),...opt(l.acceptable,vs=>({acceptable:vs.map(V)})),...opt(l.situations,ss=>({situations:Object.fromEntries(Object.entries(ss).map(([s,input])=>[V(s),input.map(x=>({box:B(x.box),port:P(x.box,x.port),value:V(x.value)}))]))}))}})),
     ...opt(m.system, () => ({ system: "the system" })),
     carriers: m.carriers.map((c, i) => ({
       ...c, id: C(c.id), dimension: `unit ${i + 1}`,
@@ -80,7 +89,7 @@ export function renamedTwin(m: Model): Twin {
       ...opt(c.levels, (ls) => ({ levels: ls.map((l) => ({ ...l, value: V(l.value) })) })),
     })),
     boxes: m.boxes.map((b) => ({
-      ...b, id: B(b.id), name: `part ${B(b.id)}`,
+      ...b, ...opt(b.actions,as=>({actions:actionRows(as)})), id: B(b.id), name: `part ${B(b.id)}`,
       ...opt(b.action, () => ({ action: "act on" })),
       ...opt(b.inputs, (ps) => ({ inputs: ps.map((p) => ({ ...p, id: P(b.id, p.id), carrier: C(p.carrier), ...opt(p.label, () => ({ label: "a port" })) })) })),
       ...opt(b.outputs, (ps) => ({ outputs: ps.map((p) => ({ ...p, id: P(b.id, p.id), carrier: C(p.carrier), ...opt(p.label, () => ({ label: "a port" })) })) })),
@@ -89,8 +98,9 @@ export function renamedTwin(m: Model): Twin {
       ...opt(b.producible, (rs) => ({ producible: rs.map((r) => ({ in: valued(r.in, b.id), out: valued(r.out, b.id) })) })),
       ...opt(b.state, (s) => ({ state: s.map(V) })),
       ...opt(b.initial, (s) => ({ initial: s.map(V) })),
-      ...opt(b.transition, (rs) => ({ transition: rs.map((r) => ({ state: V(r.state), in: valued(r.in, b.id), next: V(r.next), out: valued(r.out, b.id) })) })),
+      ...opt(b.transition, (rs) => ({ transition: rs.map((r) => ({ state: V(r.state), in: valued(r.in, b.id), next: V(r.next), out: valued(r.out, b.id), ...opt(r.cost, c => ({cost:keyed(c,D)})) })) })),
       ...opt(b.feasibility, (rs) => ({ feasibility: rs.map((r) => ({
+        ...opt(r.units, (x) => ({ units: keyed(x, (p) => P(b.id,p)) })),
         ...opt(r.provides, (x) => ({ provides: keyed(x, (p) => P(b.id, p)) })),
         ...opt(r.requires, (x) => ({ requires: keyed(x, (p) => P(b.id, p)) })),
         ...opt(r.cost, (x) => ({ cost: keyed(x, D) })),
@@ -126,5 +136,5 @@ export function renamedTwin(m: Model): Twin {
     if (x && typeof x === "object") return Object.fromEntries(Object.entries(x).map(([k, v]) => [inverse.get(k) ?? k, back(v)]));
     return x;
   };
-  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, value: V, back: <T>(x: T) => back(x) as T };
+  return { model, box: B, wire: (x) => get(wires, x), carrier: C, port: P, value: V, action: x=>get(actions,x), dim: D, back: <T>(x: T) => back(x) as T };
 }

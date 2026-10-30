@@ -1,3 +1,5 @@
+import { sameDimension, type SI } from "./act-dimensions.js";
+import type { TypedEffect } from "./act-effects.js";
 /**
  * Pure TRIZ knowledge core with an injectable data provider.
  *
@@ -31,6 +33,12 @@ export interface TrizEffect {
   function: string;
   statement: string;
   hints: string[];
+  input?: TypedEffect["input"];
+  output?: TypedEffect["output"];
+  field?: TypedEffect["field"];
+  conditions?: string[];
+  source?: string;
+  typed_from?: "source" | "statement";
 }
 
 export type DataFile =
@@ -219,9 +227,10 @@ export function resolve(improving: number, worsening: number) {
   };
 }
 
-export function effects(query?: string, category?: TrizEffect["category"]) {
+export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI} = {}) {
   const all = effectsAll();
   let list = category ? all.filter((e) => e.category === category) : all;
+  list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
   if (query) {
     const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
     list = list
@@ -240,3 +249,6 @@ export function effects(query?: string, category?: TrizEffect["category"]) {
   }
   return { total: all.length, matched: list.length, query: query ?? null, category: category ?? null, effects: list };
 }
+
+/** Only explicit complete typings enter chain search. */
+export function typedEffects(): TypedEffect[] { return effectsAll().filter((e): e is TrizEffect & TypedEffect => !!(e.input && e.output && e.field && e.conditions && e.source && e.typed_from)); }

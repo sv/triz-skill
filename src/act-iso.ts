@@ -13,6 +13,7 @@
  *                       `decided: false`, never "not isomorphic".
  */
 import { checkModel, type FunctionModel } from "./act.js";
+import { dimensionKey, sameDimension } from "./act-dimensions.js";
 import type { Theorem } from "./act-basis.js";
 
 export interface ModelMapping {
@@ -63,6 +64,10 @@ export function checkIsomorphism(a: FunctionModel, b: FunctionModel, map: ModelM
     ...bijection("dims", map.dims, dimsA, dimsB),
   );
   if (errors.length) return { ok: false, errors };
+  for (const c of a.carriers) {
+    const d = b.carriers.find(d => d.id === map.carriers[c.id])!;
+    if (!sameDimension(c.si, d.si)) errors.push(`carrier dimension-mismatch: ${c.id}`);
+  }
   const dim = (d: string) => map.dims[d];
   for (const x of a.boxes) {
     const y = boxesB.get(map.boxes[x.id])!;
@@ -114,7 +119,7 @@ function incidence(m: FunctionModel): Incidence {
   const g: Incidence = { colour: [], out: [], inc: [], ref: [] };
   const node = (colour: string, ref: Incidence["ref"][number]) => { g.colour.push(colour); g.out.push([]); g.inc.push([]); g.ref.push(ref); return g.colour.length - 1; };
   const edge = (x: number, label: string, y: number) => { g.out[x].push([label, y]); g.inc[y].push([label, x]); };
-  const carrier = new Map(m.carriers.map((c) => [c.id, node("carrier", { kind: "carrier", id: c.id })]));
+  const carrier = new Map(m.carriers.map((c) => [c.id, node(`carrier si=${dimensionKey(c.si)}`, { kind: "carrier", id: c.id })]));
   const dim = new Map(dimsOf(m).map((d) => [d, node(`dim budget=${val(m.budget, d) ?? "-"} weight=${val(m.weights, d) ?? "-"}`, { kind: "dim", id: d })]));
   const port = new Map<string, number>();
   for (const b of m.boxes) {

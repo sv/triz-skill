@@ -537,6 +537,9 @@ test("ill-typed behaviour fails closed in every tool that takes a model", async 
   const bad = bearing();
   box(bad, "motor").behavior![0].out["shaft-out"] = "stalled";
   const args: Record<string, unknown> = {
+    triz_bond_graph: { model: bad },
+    triz_lifecycle: { model: bad },
+    triz_effect_chains: { model: bad, output:{quantity:"synthetic"} },
     triz_function_model: { model: bad },
     triz_trim: { model: bad, trim: ["bearing"] },
     triz_export: { model: bad, format: "hypergraph" },

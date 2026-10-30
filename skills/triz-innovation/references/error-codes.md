@@ -197,3 +197,15 @@ that type-checks, with a `severity`. A lint never changes a verdict. Only
 | `unwired-port` | lint (info) | A port has no wire |
 | `unbacked-producible-row` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | A producible row's output level is reached by no feasibility row of its box, read through the carriers' levels |
 | `extensive-fan-out` | lint: `triz_function_model`, `triz_trim`, `triz_behavior` | An output port of an extensive carrier feeds several functions: `triz_feasibility` makes it supply their sum, while behaviour and dynamics give each function the port's one value |
+
+
+## Dimensions, lifecycle and energy structure
+
+| Code | Raised by | Meaning |
+|---|---|---|
+| `dimension-mismatch` | builder; SI/level/map lints; bond typing | Explicit declarations disagree on SI dimensions; use matching dimensions or distinct carriers |
+| `invalid-probability` | lifecycle | An enabled action lacks outcomes, or per-state/action probabilities are missing or do not sum exactly to one |
+| `invalid-bond` | bond graph | Invalid energy pair, information bond, element arity, thermal approximation, or repeated/unconnected port |
+| `causality-conflict` | bond graph findings | Exhaustive bounded assignment found no source/junction-compatible causality; not a physical impossibility proof |
+| `derivative-causality` | bond graph findings | Storage needs derivative causality in the returned structural assignment |
+| `algebraic-loop` | bond graph findings | Direct constitutive dependencies form a cycle requiring a simultaneous solve |

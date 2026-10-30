@@ -1,24 +1,26 @@
+import MeanCost
+import Lifecycle
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.Pi
 import Mathlib.CategoryTheory.ComposableArrows.Basic
 import Mathlib.CategoryTheory.Functor.Currying
 import Mathlib.CategoryTheory.Subfunctor.Basic
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 import Mathlib.Data.Fin.VecNotation
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.Fintype.Pigeonhole
 import Mathlib.Data.Fintype.Prod
-import Mathlib.Data.Finite.Prod
+import Mathlib.Basic.Finite.Prod
 import Mathlib.Data.Quot
 import Mathlib.Data.Set.Piecewise
-import Mathlib.Data.Setoid.Basic
+import Mathlib.Order.Setoid.Basic
 import Mathlib.Data.List.Destutter
 import Mathlib.Data.Set.Prod
 import Mathlib.Logic.Equiv.Basic
 import Mathlib.Logic.Relation
 import Mathlib.Order.BooleanAlgebra.Basic
 import Mathlib.Order.Comparable
-import Mathlib.Data.Rel
+import Mathlib.Basic.Rel
 import Mathlib.Data.Finset.Card
 import Mathlib.Order.GaloisConnection.Basic
 import Mathlib.Order.FixedPoints
@@ -180,7 +182,7 @@ to a step of the merged flow or into the merged box (`reach_quotient`). -/
 theorem flow_merge_reach (G : Set β) [DecidablePred (· ∈ G)] (m : β) {r : β → β → Prop} {u v : β}
     (hu : u ∉ G) (hv : v ∉ G) (h : Relation.ReflTransGen r u v) :
     Relation.ReflTransGen (mergedStep (mergeInto G m) r) u v := by
-  have e : ∀ {b}, b ∉ G → mergeInto G m b = b := fun hb => if_neg hb
+  have e : ∀ {b}, b ∉ G → mergeInto G m b = b := fun hb => ite_eq_right hb
   have := reach_quotient (mergeInto G m) (s := mergedStep (mergeInto G m) r)
     (fun a b hab => by
       by_cases hq : mergeInto G m a = mergeInto G m b
@@ -367,7 +369,7 @@ theorem typed_restrict (h : d.Typed) (A : Set B) : (d.restrict A).Typed := by
 theorem restrict_restrict (A A' : Set B) : (d.restrict A).restrict A' = d.restrict (A ∩ A') := by
   simp only [restrict, mk.injEq, Set.inter_assoc, true_and, and_true]
   ext w
-  simp only [Set.mem_setOf_eq, Set.mem_inter_iff]
+  simp only [Set.mem_ofPred_eq, Set.mem_inter_iff]
   tauto
 
 /-- Zooming into `A'` inside `A` is zooming into `A'` directly (the property the tests check). -/
@@ -413,13 +415,13 @@ theorem typed_overlay {R : Wiring B P W C} (h : d.Typed) (hR : R.Typed)
   rintro w (hw | hw)
   · by_cases hwR : w ∈ R.wires
     · obtain ⟨hs, ht, ho, hi⟩ := hR w hwR
-      simp only [overlay, if_pos hwR]
+      simp only [overlay, ite_eq_left hwR]
       exact ⟨Or.inr hs, Or.inr ht, by simp [ho], by simp [hi]⟩
     · obtain ⟨hs, ht, ho, hi⟩ := h w hw
-      simp only [overlay, if_neg hwR]
+      simp only [overlay, ite_eq_right hwR]
       exact ⟨Or.inl hs, Or.inl ht, keep _ _ _ ho (hout _ _), keep _ _ _ hi (hinp _ _)⟩
   · obtain ⟨hs, ht, ho, hi⟩ := hR w hw
-    simp only [overlay, if_pos hw]
+    simp only [overlay, ite_eq_left hw]
     exact ⟨Or.inr hs, Or.inr ht, by simp [ho], by simp [hi]⟩
 
 /-- A typed rule applied under the no-dangling condition keeps typing. `D` and `E` are the boxes
@@ -436,7 +438,7 @@ theorem typed_dpo {R : Wiring B P W C} {D : Set B} {E : Set W} (h : d.Typed) (hR
 
 /-- Every diagram is supported on all boxes. -/
 theorem restrict_univ : d.restrict Set.univ = d := by
-  simp only [restrict, Set.inter_univ, Set.mem_univ, and_self, and_true, Set.setOf_mem_eq]
+  simp only [restrict, Set.inter_univ, Set.mem_univ, and_self, and_true, Set.ofPred_mem_eq]
 
 /-- A typed diagram whose boxes lie in `A` is its own restriction to `A`. Typing is needed: an
 untyped wire may leave the boxes, and restriction drops it. -/
@@ -482,7 +484,7 @@ theorem restrict_delete (D : Set B) (E : Set W) (A : Set B) :
     simp only [Set.mem_inter_iff, Set.mem_sdiff]
     tauto
   · ext w
-    simp only [Set.mem_setOf_eq, Set.mem_sdiff]
+    simp only [Set.mem_ofPred_eq, Set.mem_sdiff]
     tauto
 
 theorem restrict_glue (N : Set B) (F : Set W) (A : Set B) :
@@ -492,7 +494,7 @@ theorem restrict_glue (N : Set B) (F : Set W) (A : Set B) :
   constructor
   · exact Set.union_inter_distrib_right _ _ _
   · ext w
-    simp only [Set.mem_setOf_eq, Set.mem_union]
+    simp only [Set.mem_ofPred_eq, Set.mem_union]
     tauto
 
 /-- The commuting square: restricting after a step is stepping the restriction by the step's
@@ -505,7 +507,7 @@ theorem restrict_rewrite (r : Rule B W) (A : Set B) :
     simp only [Set.mem_union, Set.mem_sdiff, Set.mem_inter_iff]
     tauto
   · ext w
-    simp only [Set.mem_union, Set.mem_sdiff, Set.mem_setOf_eq]
+    simp only [Set.mem_union, Set.mem_sdiff, Set.mem_ofPred_eq]
     tauto
 
 /-- A step whose additions lie inside `A` applies verbatim to the subsystem. -/
@@ -525,7 +527,7 @@ theorem boundary_rewrite (r : Rule B W) (A : Set B) :
     (d.rewrite r).boundary A =
       d.boundary A \ r.cut ∪ {w | w ∈ r.add ∧ ¬((d.src w).1 ∈ A ↔ (d.tgt w).1 ∈ A)} := by
   ext w
-  simp only [boundary, rewrite, glue, delete, Set.mem_setOf_eq, Set.mem_union, Set.mem_sdiff]
+  simp only [boundary, rewrite, glue, delete, Set.mem_ofPred_eq, Set.mem_union, Set.mem_sdiff]
   tauto
 
 /-- Box `a` acts on box `b`: some wire runs from `a` to `b`. `harmLoops` searches this graph. -/
@@ -925,18 +927,18 @@ theorem Factors.inf {R : Set (∀ i, X i)} {s t : Setoid ι} (hs : Factors R s) 
   have glue : ∀ j₀, (fun j => if s i j then c j₀ j else c i j) ∈ R := fun j₀ =>
     factors_iff.mp hs fun p => by
       by_cases hp : s i p
-      · exact ⟨c j₀, hc j₀, fun j hpj => by rw [if_pos (s.trans' hp hpj)]⟩
-      · exact ⟨c i, hc i, fun j hpj => by rw [if_neg fun hij => hp (s.trans' hij (s.symm' hpj))]⟩
+      · exact ⟨c j₀, hc j₀, fun j hpj => by rw [ite_eq_left (s.trans' hp hpj)]⟩
+      · exact ⟨c i, hc i, fun j hpj => by rw [ite_eq_right fun hij => hp (s.trans' hij (s.symm' hpj))]⟩
   refine ⟨fun j => if s i j then g j else c i j, factors_iff.mp ht fun m => ?_,
-    fun j hij => by simp only [if_pos hij]⟩
+    fun j hij => by simp only [ite_eq_left hij]⟩
   by_cases hm : ∃ j₀, t m j₀ ∧ s i j₀
   · obtain ⟨j₀, hmj₀, hij₀⟩ := hm
     refine ⟨_, glue j₀, fun j hmj => ?_⟩
     by_cases hij : s i j
-    · simp only [if_pos hij]
+    · simp only [ite_eq_left hij]
       exact hcg j₀ j (Setoid.inf_iff_and.mpr ⟨s.trans' (s.symm' hij₀) hij, t.trans' (t.symm' hmj₀) hmj⟩)
-    · simp only [if_neg hij]
-  · exact ⟨c i, hc i, fun j hmj => by simp only [if_neg fun hij => hm ⟨j, hmj, hij⟩]⟩
+    · simp only [ite_eq_right hij]
+  · exact ⟨c i, hc i, fun j hmj => by simp only [ite_eq_right fun hij => hm ⟨j, hmj, hij⟩]⟩
 
 /-- Over two blocks, `S` and the rest, factoring is the rectangle condition: the valuation that
 reads one row on `S` and another off `S` is a row. This is the test the kernel runs on each block. -/
@@ -975,7 +977,7 @@ theorem factors_split_iff [Nonempty ι] {R : Set (∀ i, X i)} {S : Set ι} [Dec
 among the finitely many partitions `R` factors over, which is below each of them since their
 common refinement factors too. -/
 theorem exists_isFinest [Finite ι] [Nonempty ι] (R : Set (∀ i, X i)) : ∃ s, IsFinest R s := by
-  haveI : Finite (Setoid ι) := Finite.of_injective (fun s : Setoid ι => (⇑s : ι → ι → Prop))
+  have : Finite (Setoid ι) := Finite.of_injective (fun s : Setoid ι => (⇑s : ι → ι → Prop))
     fun _ _ h => Setoid.eq_iff_rel_eq.mpr h
   obtain ⟨s, hs⟩ := exists_minimal_of_wellFoundedLT (Factors R) ⟨⊤, factors_top R⟩
   exact ⟨s, hs.prop, fun t ht => (hs.eq_of_le (hs.prop.inf ht) inf_le_left).symm.le.trans inf_le_right⟩
@@ -1065,7 +1067,7 @@ theorem IsFinest.addPort [Finite ι] {R : Set (∀ i, X i)} {T : Set ι} {x : ι
     IsFinest (onPorts (insert x T) R) (mergeBlock P (insert x
       {a | a ∈ T ∧ ¬ Factors (onPorts (insert x T) R) (split {b | P a b})})) := by
   classical
-  haveI : Nonempty ι := ⟨x⟩
+  have : Nonempty ι := ⟨x⟩
   set S' := onPorts (insert x T) R
   set M := insert x {a | a ∈ T ∧ ¬ Factors S' (split {b | P a b})}
   -- every partition the projection onto `insert x T` factors over merges blocks of `P`
@@ -1565,9 +1567,9 @@ theorem reachIn_iff_trace {n : ℕ} {a b : σ} :
       obtain ⟨τ, h0, hn, hτ⟩ := ih.mp hac
       refine ⟨fun i => if i ≤ n then τ i else b, by simp [h0], by simp, fun i hi => ?_⟩
       rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hi | rfl
-      · simp only [hi.le, Nat.succ_le_of_lt hi, if_true]
+      · simp only [hi.le, Nat.succ_le_of_lt hi, ite_true]
         exact hτ i hi
-      · simp only [le_refl, if_true, Nat.not_succ_le_self, if_false]
+      · simp only [le_refl, ite_true, Nat.not_succ_le_self, ite_false]
         exact hn ▸ hcb
     · rintro ⟨τ, h0, hn, hτ⟩
       exact ⟨τ n, ih.mpr ⟨τ, h0, rfl, fun i hi => hτ i (Nat.lt_succ_of_lt hi)⟩, hn ▸ hτ n (Nat.lt_succ_self n)⟩
@@ -1787,7 +1789,7 @@ theorem kleeneStep_upperClosure {h : P → P → Prop}
     (hmono : ∀ ⦃s s' x⦄, s ≤ s' → h s' x → ∃ y ≤ x, h s y) (A : Set P) :
     kleeneStep h (upperClosure A) = upperClosure {y | ∃ s ∈ A, ∃ x, h s x ∧ y = x ⊔ s} := by
   ext t
-  simp only [SetLike.mem_coe, mem_kleeneStep, mem_upperClosure, Set.mem_setOf_eq]
+  simp only [SetLike.mem_coe, mem_kleeneStep, mem_upperClosure, Set.mem_ofPred_eq]
   constructor
   · rintro ⟨s, ⟨a, ha, has⟩, x, hx, hle⟩
     obtain ⟨y, hyx, hy⟩ := hmono has hx
@@ -1812,7 +1814,7 @@ the minimal feasible configurations. -/
 theorem codesign_lfp [Finite P] (h : P → P → Prop) :
     ((kleeneStep h).lfp : Set P) = upperClosure {s | ∃ x, h s x ∧ x ≤ s} := by
   ext t
-  simp only [SetLike.mem_coe, mem_upperClosure, Set.mem_setOf_eq]
+  simp only [SetLike.mem_coe, mem_upperClosure, Set.mem_ofPred_eq]
   constructor
   · -- A minimal element of a fixpoint is reached from itself, so it is feasible.
     intro ht

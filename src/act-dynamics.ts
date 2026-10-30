@@ -40,6 +40,8 @@
  * rows as declared. Continuous time, convergence rates, and control are outside the kernel.
  */
 import { z } from "zod";
+import { rational, add as addQ, show as showQ } from "./act-rational.js";
+import { meanCosts, CostCap, type CostEdge } from "./act-mean-cost.js";
 import { checkModel, harmLoops, type FunctionModel } from "./act.js";
 import { MAX_STATES, bindRow, joinRows, portVariables, type Binding, type Box, type PortVariables, type Typed } from "./act-behavior.js";
 import type { Theorem } from "./act-basis.js";
@@ -76,6 +78,7 @@ export interface DynamicsSpec {
   safe?: Condition[];
   separation?: TimedDemand[];
   maxStates?: number;
+  maxCostWork?: number;
 }
 
 /** A trace whose every step is admitted, ending in the set, makes the set reachable. */
@@ -743,7 +746,41 @@ function classify(model: FunctionModel, s: System, spec: DynamicsSpec, memo: Map
   });
 
   const listed = (vs: number[]) => vs.slice(0, LISTED).map((v) => vertices[v].state);
+  const costReport = (members: number[]) => {
+    if (!s.machines.some(b => b.transition?.some(r => r.cost))) return {};
+    if (!complete) return { meanCost: { verdict: "undecided" as const, reason: "state-cap" } };
+    const local = new Map(members.map((v,i) => [v,i])), edges: CostEdge[] = [];
+    let work = 0;
+    const cap = spec.maxCostWork ?? 100_000;
+    try {
+      for (const v of members) for (const st of vertices[v].steps ?? []) {
+        const choices = s.machines.map((b, k) => b.transition!.flatMap((r, row) => {
+          if (++work > cap) throw new CostCap();
+          if (r.state !== vertices[v].state[k]) return [];
+          const binding = bindRow(b, r, s.vars.at);
+          return binding.every(([slot, value]) => st.values[slot] === value) ? [{ r, row, box: b.id }] : [];
+        }));
+        const pick = (k: number, next: string[], cost: Record<string,number|string>, rows: CostEdge["rows"]) => {
+          if (++work > cap) throw new CostCap();
+          if (k === choices.length) {
+            const target = index.get(tupleKey(next));
+            if (target !== undefined && local.has(target)) edges.push({ from: local.get(v)!, to: local.get(target)!, cost, rows });
+            return;
+          }
+          for (const c of choices[k]) {
+            const total = new Map(Object.entries(cost));
+            for (const [d,n] of Object.entries(c.r.cost ?? {})) total.set(d, showQ(addQ(rational(total.get(d) ?? 0),rational(n))));
+            pick(k+1, [...next,c.r.next], Object.fromEntries(total), [...rows,{box:c.box,row:c.row}]);
+          }
+        };
+        pick(0, [], {}, []);
+      }
+      if (!edges.length) return { meanCost: { verdict: "undecided" as const, reason: "no-cycle" } };
+      return { meanCost: meanCosts(members.map(v => vertices[v].state), edges, Math.max(0,cap-work)) };
+    } catch(e) { if(e instanceof CostCap) return {meanCost:{verdict:"undecided" as const,reason:"mean-cost-cap"}}; throw e; }
+  };
   const report = closed.slice(0, LISTED).map((x) => ({
+    ...costReport(x.c),
     size: x.c.length, states: listed(x.c), kind: x.kind, fixedPoints: listed(x.fixedPoints),
     ...(x.cycle ? { cycle: x.cycle.map((v) => vertices[v].state), period: x.period } : {}),
     ...(unsafe && x.kind !== "blocked" ? { unsafe: x.entry !== undefined, allUnsafe: x.allUnsafe } : {}),

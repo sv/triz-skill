@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add explicit SI carrier dimensions and base-unit parsing, shared declaration equality, and dimension mismatch lints.
+- Add exact per-dimension recurrent cycle-cost ranges, rational potentials, checked cycle witnesses and local Lean certificates.
+- Add typed effect filters, bounded effect-chain wiring diagrams, weakest-spec hints, and six statement-derived catalogue typings.
+- Add finite rational lifecycle policy iteration, stationary occupancy/availability, certified optimality equations, and opt-in concept-specific weakness priors.
+- Add the bond-graph design and structural energy typing, causality checks and equation-structure export.
+- Upgrade Lean and Mathlib together to 4.35.0; migrate proof APIs and regenerate certificate pins without changing the npm package version.
+
+
 ## [0.5.1] - 2026-10-30
 
 ### Added

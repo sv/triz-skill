@@ -17,7 +17,7 @@ universe u v w
 /-- Unique forward lifts in Mathlib's category of elements, over a fixed base arrow and source. -/
 theorem elements_unique_forward_lift {C : Type u} [Category.{v} C] (F : C ⥤ Type w)
     (x : F.Elements) {Y : C} (f : x.1 ⟶ Y) :
-    ∃! lift : Σ y : F.obj Y, x ⟶ F.elementsMk Y y, lift.2.val = f := by
+    ∃! lift : Σ y : F.obj Y, x ⟶ F.elementsMk Y y, lift.2.hom = f := by
   refine ⟨⟨F.map f x.2, ⟨f, rfl⟩⟩, rfl, ?_⟩
   rintro ⟨y, ⟨g, hg⟩⟩ h
   dsimp at h
@@ -32,14 +32,14 @@ theorem restrictionGrid_unique_forward_lift {B : Type u} {P W C : Type u}
     {Y : Fin 3 × (Set B)ᵒᵖ} (f : x.1 ⟶ Y) :
     ∃! lift : Σ y : (Wiring.restrictionGrid (P := P) (C := C) r₁ r₂).obj Y,
       x ⟶ (Wiring.restrictionGrid (P := P) (C := C) r₁ r₂).elementsMk Y y,
-      lift.2.val = f :=
+      lift.2.hom = f :=
   elements_unique_forward_lift _ x f
 
 /-- In the opposite category, the same lifts have the discrete fibration orientation. -/
 theorem elements_unique_opposite_lift {C : Type u} [Category.{v} C] (F : C ⥤ Type w)
     (x : F.Elements) {Y : C} (f : x.1 ⟶ Y) :
     ∃! lift : Σ y : F.obj Y,
-      op (F.elementsMk Y y) ⟶ op x, lift.2.unop.val = f := by
+      op (F.elementsMk Y y) ⟶ op x, lift.2.unop.hom = f := by
   refine ⟨⟨F.map f x.2, (show x ⟶ F.elementsMk Y (F.map f x.2) from ⟨f, rfl⟩).op⟩, rfl, ?_⟩
   rintro ⟨y, g⟩ h
   have huniq : (⟨y, g.unop⟩ : Σ y : F.obj Y, x ⟶ F.elementsMk Y y) =
@@ -54,7 +54,7 @@ theorem restrictionGrid_unique_opposite_lift {B : Type u} {P W C : Type u}
     {Y : Fin 3 × (Set B)ᵒᵖ} (f : x.1 ⟶ Y) :
     ∃! lift : Σ y : (Wiring.restrictionGrid (P := P) (C := C) r₁ r₂).obj Y,
       op ((Wiring.restrictionGrid (P := P) (C := C) r₁ r₂).elementsMk Y y) ⟶ op x,
-      lift.2.unop.val = f :=
+      lift.2.unop.hom = f :=
   elements_unique_opposite_lift _ x f
 
 section Descent

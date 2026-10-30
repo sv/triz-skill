@@ -686,3 +686,53 @@ J. Hofmeister, J. Siegmund and D. V. Holt, *Shorter identifier names take longer
 D. Zahner, J. V. Nickerson, B. Tversky, J. E. Corter and J. Ma, *A fix for fixation? Rerepresenting and abstracting as creative processes in the design of information systems*, Artificial Intelligence for Engineering Design, Analysis and Manufacturing 24(2), 231–244 (2010). [DOI:10.1017/S0890060410000077](https://doi.org/10.1017/S0890060410000077).
 
 **Future work / evidence.** Per the abstract, re-representing and abstracting both raised originality, but not all the added ideas fit the problem's constraints; the authors propose generating first and pruning later. It motivates keeping constraints concrete and re-concretising (FUTURE-PLANS N2, N4).
+
+## R110 — Explicit SI base dimensions
+
+NIST, *Guide to the SI*, SP 811, chapter 4, table 1.
+[Source](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes),
+[redistribution terms](https://www.nist.gov/copyrights-disclaimers), checked 2026-10-30.
+Only the seven base-unit symbol facts enter the parser. NIST public information may be copied
+unless marked copyrighted. No conversion factors, derived units, or domain defaults are imported.
+
+## R111 — Statement-derived effect typings
+
+This repository, `skills/triz-innovation/data/effects.json`, existing statements of entries
+3, 7, 8, 12, 15 and 34, MIT license. Input/output quantities and conditions are derived only
+from those statements, marked `typed_from: statement`. No additional physics data is added.
+A Koller/Roth-style catalogue search did not verify redistribution terms for any external
+catalogue, so there is no such data import.
+
+## R112 — Exact cycle mean and potential certificates
+
+P. Pilarczyk, M. Palczewski and S. Luzzatto, *Rigorous computation of expansion in one-dimensional
+dynamics*, [arXiv:2505.20495v1](https://arxiv.org/html/2505.20495v1), §§2.3, 3.4, CC BY 4.0.
+Found through TheoremSearch and checked at the source. Reference only; the finite rational
+algorithm and generic telescoping proofs are independent implementations. No case-study data
+or text is imported. Karp algorithm correctness is tested against elementary-cycle enumeration;
+Lean certificates check potentials and achieving cycles rather than proving that algorithm.
+
+## R113 — Stationary gain/bias equations
+
+A. Gupta, R. Jain and P. Glynn, *Probabilistic Contraction Analysis of Iterated Random Operators*,
+[arXiv:1804.01195v6](https://arxiv.org/html/1804.01195v6), Example 2 gain/bias equation. TheoremSearch returned a Lemma 12 label not corroborated in this version; the source equation was checked directly. TheoremSearch lead and
+reference only; no text or data is redistributed. `Lifecycle.lean` independently proves finite
+stationary comparison and attainment, with an explicit conditional `Kernel.Invariant` bridge.
+No ergodic theorem or general multichain solver is claimed.
+
+## R114 — Bond graphs and power-preserving composition
+
+M. Akbarpour Ghazani et al., *A review of the diverse applications of bond graphs in biology and
+physiology*, Proc. R. Soc. A 480 (2024), 20230807,
+[DOI](https://doi.org/10.1098/rspa.2023.0807), §2. Reference for causality terminology; no
+figures, domain tables, text or material data are redistributed.
+N. Kumar, J. J. W. van der Vegt and H. J. Zwart, *Port-Hamiltonian Discontinuous Galerkin
+Finite Element Methods*, [arXiv:2212.07041](https://arxiv.org/abs/2212.07041), a TheoremSearch
+lead for future Dirac-structure composition. Not a proof dependency or an implemented PDE model.
+
+## R115 — Compatible formal libraries
+
+[Physlib](https://github.com/leanprover-community/physlib), Apache-2.0, current 4.35.0 dimension
+algebra; [CSLib v4.35.0](https://github.com/leanprover/cslib/tree/v4.35.0), Apache-2.0, commit
+`5b56df99362532c46e1175381fbbdd755bd56030`, matching Lean/Mathlib 4.35.0 pins. Checked
+2026-10-30. Candidate adapter foundations only; neither is an installed dependency.
