@@ -139,7 +139,7 @@ the table-read cap refuses, and that limit is documented, not worked around.
 
 ## 4. Canonical dynamics tie-breaks, then their label-blindness tests
 
-**Status.** Partly landed, on `claude/label-neutral-mode` (stacked on #42). Every tie between
+**Status.** Partly landed in #43. Every tie between
 witnesses that the wiring checks break now follows declaration order, as dynamics traces already
 did: a harm loop's witness cycle among equally short ones (`actsOn` in `src/act.ts`, also read by
 `rerate`, `feedback`, and `triz_abstraction`), and the absorbers within one trim rule, whose first
@@ -671,7 +671,7 @@ The kernel already separates a structural core (ids, roles, ports typed by carri
 ratings, costs) from a label layer (box `name` and `action`, wire `verb`, port `label`, flow
 `name`, the model's `domain` and `system`), and its verdicts read only the core. What is missing
 is discipline in the label layer and in the agent. The kernel half has started on
-`claude/label-neutral-mode`: a declared `Carrier.loss` keeps the `defect-on-loss-carrier` lint
+#43: a declared `Carrier.loss` keeps the `defect-on-loss-carrier` lint
 through a renaming, and witness tie-breaks follow declaration order (item 4). N1–N6 are the
 rest.
 
