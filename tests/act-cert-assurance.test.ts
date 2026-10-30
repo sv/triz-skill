@@ -101,4 +101,4 @@ test("request binding regenerates the certificate and refuses a stale one before
 });
 
 // The Lean-backed checks of these certificates are in tests/act-cert.test.ts, which runs every
-// Lean test of the suite in one file, one Lean process per test.
+// Lean test of the suite in one file, TRIZ_LEAN_JOBS tests at a time (default 1).
