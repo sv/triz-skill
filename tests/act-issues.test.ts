@@ -153,7 +153,7 @@ const cases: Case[] = [
   { code: "hierarchy-interface", tool: "triz_function_model", args: { model: hierarchyEdit((m) => { m.boxes[0].inner.inputs = []; }) }, path: "$.model.boxes[0].inner.inputs", hint: /unique, total/ },
   { code: "hierarchy-binding", tool: "triz_function_model", args: { model: hierarchyEdit((m) => { m.boxes[0].inner.inputs[0].inner.port = "missing"; }) }, path: "$.model.boxes[0].inner.inputs[0]", hint: /same side and carrier/ },
   { code: "hierarchy-substitution", tool: "triz_trim", args: { model: hierarchical(), trim: ["h"] }, path: "$.model", hint: /Expand nested boxes/ },
-  { code: "invalid-joint-boxes", tool: "triz_behavior", args: { model: beh(), joint_boxes: ["bearing"] }, path: "$.joint_boxes" },
+  { code: "invalid-joint-boxes", tool: "triz_behavior", args: { model: beh(), joint_boxes: ["bearing"] }, path: "$.joint_boxes", hint: /weakest_spec/ },
   { code: "invalid-row-costs", kernel: () => weakestSpec(beh(), beh(), { maxCostSearch: 10 }), input: { model: beh(), compare_to: beh(), max_cost_search: 10 }, path: "$.max_cost_search", hint: /Supply row_costs/ },
   { code: "row-costs-without-weakest-spec", tool: "triz_behavior", args: { model: beh(), row_costs: [] }, path: "$.row_costs", hint: /weakest_spec/ },
   // Flows, the working-field rule, and the uneven-development detector

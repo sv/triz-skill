@@ -650,8 +650,12 @@ stay undecided.
 With `weakest_spec: true` and `compare_to` or `trim`, pass `joint_boxes` naming every composed
 box without behavior exactly once. The selected boxes form one relation over their combined
 ports; keep the existing wiring, including wires between holes. Declared boxes, duplicates,
-unknown ids, out-of-scope boxes and omitted holes fail with `invalid-joint-boxes`. The default
-one/two-box modes below remain unchanged. `row_costs` is unsupported for a joint relation.
+unknown ids, out-of-scope boxes and omitted holes fail with `invalid-joint-boxes`, each at its
+`joint_boxes[i]` (an omitted hole at `joint_boxes`), with the expected ids in the hint. An empty
+selection, a duplicate, an unknown id or a declared box fails before any verdict. Out-of-scope
+and omitted boxes fail once the scope is known, which is before missing baseline behaviour is
+reported; only a lost deliverable (`impossible`) is decided first. The default one/two-box modes
+below remain unchanged. `row_costs` is unsupported for a joint relation.
 
 `joint.endpoints` identifies each port by box, side, port and carrier. Each `joint.rows` entry is
 a map from box id to that box's `{in, out}` row, and denotes **one joint tuple**. `joint.residual`

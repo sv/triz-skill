@@ -699,6 +699,26 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
   ({ ...m, boxes: m.boxes.map((b) => (Object.hasOwn(behavior, b.id) ? { ...b, behavior: behavior[b.id] } : b)) });
 
 /**
+ * The part of a joint_boxes selection that needs no scope: at least one id, each once, each a box
+ * of `concept` that declares no behaviour. Checked before any verdict, so a lost deliverable or
+ * missing baseline behaviour never hides a malformed selection.
+ */
+function jointShape(concept: FunctionModel, selected: string[], what: string): Issue[] {
+  const open = concept.boxes.filter((b) => !b.behavior).map((b) => b.id);
+  const use = `Name each box of the ${what} without behaviour that the scope composes, once: candidates ${quoted(open)}.`;
+  if (!selected.length) return [issue("invalid-joint-boxes", "$.joint_boxes", "joint_boxes is empty: it must name every composed box without behaviour", `${use} Or omit joint_boxes.`)];
+  const seen = new Set<string>();
+  return selected.flatMap((id, i) => {
+    const path = jp("$.joint_boxes", i), box = concept.boxes.find((b) => b.id === id);
+    if (seen.has(id)) return [issue("invalid-joint-boxes", path, `box '${id}' is selected twice`, "Name each box once.")];
+    seen.add(id);
+    if (!box) return [issue("invalid-joint-boxes", path, `'${id}' is not a box of the ${what}`, use)];
+    if (box.behavior) return [issue("invalid-joint-boxes", path, `box '${id}' declares behaviour, so it is not a box to specify`, `Drop its behaviour to specify it jointly, or remove it from joint_boxes. ${use}`)];
+    return [];
+  });
+}
+
+/**
  * The weakest box specification (residual in Rel) for the one box of `concept` that can reach a
  * deliverable and declares no behaviour, against the target relation of `baseline`. With two such
  * boxes, pairSpec gives the maximal pairs of relations instead.
@@ -715,11 +735,18 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
  * Fails closed: a concept that loses a deliverable is `impossible` before any search (deliverables
  * only the concept has are listed and not compared, as in compareBehavior); three or more
  * boxes without behaviour need explicit jointBoxes or are `undecided` (several-holes); a target with no steady state anywhere
- * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap).
+ * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap). A jointBoxes selection
+ * is refused (invalid-joint-boxes) before any of these: its shape first, then, once the concept's
+ * scope is known, unless a deliverable is lost, whether it is exactly the composed boxes without behaviour.
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
   if (opts.jointBoxes !== undefined && opts.rowCosts !== undefined) return fail([issue("invalid-row-costs", "$.row_costs", "row costs do not support joint boxes", "Remove row_costs for a joint residual.")]);
   if (opts.maxCostSearch !== undefined && opts.rowCosts === undefined) return fail([issue("invalid-row-costs", "$.max_cost_search", "a cost search cap requires row costs", "Supply row_costs with the cap.")]);
+  const what = of === "compare_to" ? "model" : "trimmed model";
+  if (opts.jointBoxes !== undefined) {
+    const shape = jointShape(concept, opts.jointBoxes, what);
+    if (shape.length) return fail(shape);
+  }
   // row_costs price the residual of one unknown box. Where none is computed, refuse them, as the
   // two-box path does, rather than return a result that silently drops them.
   const unpriced = (outcome: string) => fail([issue("invalid-row-costs", "$.row_costs", `row costs price the residual of one unknown box, and none is computed here: ${outcome}`,
@@ -747,6 +774,17 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const observe = target.map((d) => byKey.get(deliverableKey(d))!);
   const before = plan(baseline, target, opts);
   if (before.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.compare_to", "weakest specification cannot evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
+  const p = plan(concept, observe, opts);
+  // The selection must be exactly the composed boxes without behaviour, decided before missing
+  // baseline behaviour returns undecided, so an omitted or out-of-scope box is never accepted.
+  if (opts.jointBoxes !== undefined) {
+    const selected = opts.jointBoxes, use = `Select exactly the composed boxes without behaviour in ${p.scope} scope: ${quoted(p.missing)}.`;
+    const outside = selected.flatMap((id, i) => (p.missing.includes(id) ? [] : [issue("invalid-joint-boxes", jp("$.joint_boxes", i),
+      `box '${id}' is not composed in ${p.scope} scope, so it is not a box to specify`, `${use}${p.scope === "upstream" ? " Use scope whole to include boxes that cannot reach a deliverable." : ""}`)]));
+    const omitted = p.missing.filter((id) => !selected.includes(id));
+    if (outside.length || omitted.length) return fail([...outside, ...(omitted.length ? [issue("invalid-joint-boxes", "$.joint_boxes",
+      `joint_boxes omits ${quoted(omitted)}: composed boxes without behaviour that the joint relation must include`, use)] : [])]);
+  }
   if (before.missing.length) {
     if (opts.rowCosts !== undefined) return unpriced(`the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"} declares no behaviour for ${quoted(before.missing)} (undecided, missing-behavior)`);
     return {
@@ -754,13 +792,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
       note: `Declare behavior for ${before.missing.map((id) => `'${id}'`).join(", ")} in the ${of === "compare_to" ? "baseline (compare_to)" : "baseline"}: the target relation depends on them.`,
     };
   }
-  const p = plan(concept, observe, opts);
   if (p.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "weakest specification cannot specify or evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
-  if (opts.jointBoxes !== undefined) {
-    const selected = opts.jointBoxes;
-    if (!selected.length || new Set(selected).size !== selected.length || selected.length !== p.missing.length || selected.some((id) => !p.missing.includes(id)))
-      return fail([issue("invalid-joint-boxes", "$.joint_boxes", "joint_boxes must name every composed box without behavior exactly once", "Select exactly the missing boxes in the chosen scope.")]);
-  }
   if (p.missing.length > 2 && opts.jointBoxes === undefined) {
     if (opts.rowCosts !== undefined) return unpriced(`${p.missing.length} composed boxes declare no behaviour (undecided, several-holes)`);
     return {
