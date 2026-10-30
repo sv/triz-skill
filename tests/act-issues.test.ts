@@ -13,6 +13,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { FunctionModel, analyseModel, checkModel, trimCandidates } from "../src/act.js";
+import { weakestSpec } from "../src/act-behavior.js";
 import { ISSUE_CODES, type Issue, type IssueCode } from "../src/act-issues.js";
 import { analysisBasis, trimBasis } from "../src/act-basis.js";
 import { matchRule, TREND_RULES, type Rule } from "../src/act-rule.js";
@@ -125,7 +126,34 @@ const T = (transformation: Record<string, unknown>, model = bh()) => ({ tool: "t
 /** The bearing with a flow of radial load from the housing through the bearing to the shaft. */
 const flowing = (path = ["housing", "bearing", "shaft"]): FunctionModel => ({ ...bh(), flows: [{ id: "load", carrier: "radial-load", path }] });
 
+/** One box exposes the ports of its nested model, with a matching typed interface. */
+function hierarchical(): FunctionModel {
+  const c = { id: "c", layer: "information" as const, dimension: "bit" };
+  return { domain: "software", carriers: [c], boxes: [{ id: "h", name: "H", role: "tool",
+    inputs: [{ id: "x", carrier: "c" }], outputs: [{ id: "y", carrier: "c" }], inner: {
+      model: { domain: "software", carriers: [c], boxes: [{ id: "a", name: "A", role: "tool", inputs: [{ id: "i", carrier: "c" }], outputs: [{ id: "o", carrier: "c" }] }], wires: [] },
+      inputs: [{ outer: "x", inner: { box: "a", port: "i" } }], outputs: [{ outer: "y", inner: { box: "a", port: "o" } }],
+    } }], wires: [] };
+}
+const hierarchyEdit = (change: (m: FunctionModel) => void) => { const m = hierarchical(); change(m); return m; };
+const deepHierarchy = () => {
+  let nested = hierarchical();
+  for (let i = 0; i < 9; i++) { const outer = hierarchical(); outer.boxes[0].inner.model = nested; nested = outer; }
+  return nested;
+};
+const invalidInner = hierarchyEdit((m) => { m.boxes[0].inner.model = { boxes: [] }; });
+const deep = deepHierarchy();
+
 const cases: Case[] = [
+  // Hierarchical inputs and costed residual argument validation.
+  { code: "hierarchy-depth", kernel: () => checkModel(deep), input: deep, hint: /reduce nesting/ },
+  { code: "invalid-inner-model", kernel: () => checkModel(invalidInner), input: invalidInner, path: "$.boxes[0].inner.model", hint: /complete function model/ },
+  { code: "hierarchy-summary", tool: "triz_function_model", args: { model: hierarchyEdit((m) => { m.boxes[0].cost = { dollars: 1 }; }) }, path: "$.model.boxes[0].inner", hint: /Remove outer behavior/ },
+  { code: "hierarchy-interface", tool: "triz_function_model", args: { model: hierarchyEdit((m) => { m.boxes[0].inner.inputs = []; }) }, path: "$.model.boxes[0].inner.inputs", hint: /unique, total/ },
+  { code: "hierarchy-binding", tool: "triz_function_model", args: { model: hierarchyEdit((m) => { m.boxes[0].inner.inputs[0].inner.port = "missing"; }) }, path: "$.model.boxes[0].inner.inputs[0]", hint: /same side and carrier/ },
+  { code: "hierarchy-substitution", tool: "triz_trim", args: { model: hierarchical(), trim: ["h"] }, path: "$.model", hint: /Expand nested boxes/ },
+  { code: "invalid-row-costs", kernel: () => weakestSpec(beh(), beh(), { maxCostSearch: 10 }), input: { model: beh(), compare_to: beh(), max_cost_search: 10 }, path: "$.max_cost_search", hint: /Supply row_costs/ },
+  { code: "row-costs-without-weakest-spec", tool: "triz_behavior", args: { model: beh(), row_costs: [] }, path: "$.row_costs", hint: /weakest_spec/ },
   // Flows, the working-field rule, and the uneven-development detector
   { code: "flow-repeats-box", tool: "triz_function_model", args: { model: flowing(["housing", "bearing", "bearing", "shaft"]) }, path: "$.model.flows[0].path[2]", hint: /Drop the repeated 'bearing'/ },
   { code: "unknown-box", tool: "triz_flow", args: { model: flowing(["housing", "ghost"]) }, path: "$.model.flows[0].path[1]" },

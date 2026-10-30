@@ -619,6 +619,19 @@ the original.
 A test checks this table against `data/principles.json`: all 40 rows, each with the looked-up
 name and text, and each structural row naming a `triz_transform` operation.
 
+## Graded contexts, hierarchy, restriction, and semantic transport
+
+| Module | Main proved statements | Scope |
+|---|---|---|
+| `Graded.lean` | `context_le_iff`, `prop_gradedResidual`, `singleton_context_residual`, `cost_context_le_iff`, `costResidual_eq_tsub` | Generic graded relation residual; Boolean and min-plus ℕ∞ instances. Finite row-acquisition set cover is a separate tested algorithm. |
+| `Hierarchy.lean` | `external_substituteWired`, `hierarchy_glue_substitution` | Physically glue an inner diagram to both input and output context ports, including feedback, and recover composition through its external relation. No cost or dynamic substitution theorem. |
+| `Restriction.lean` | `restrictionGrid_unique_forward_lift`, `restrictionGrid_unique_opposite_lift`, `residual_descends`, `external_sub_project_of_extends` | Covariant element projection is an opfibration; its opposite is a fibration. Residual descent requires a uniform context square and a saturated target, not extension alone. Checked positive and negative witnesses. |
+| `Naturality.lean` | `steady_rename`, `external_rename`, `hole_context_transport`, `hole_residual_rename`, `hole_adequate_rename`, `reachability_rename` | Explicit index bijections transport mathematical relations and their witnesses. Hole coordinates and value type stay fixed in concrete hole results; target realization here means relation equality, not the full operational adequacy tool. |
+
+All four modules are default targets of `lake build --wfail`. None proves that the TypeScript
+searches are extracted from Lean, that selected tied witnesses are canonical, or that supplied
+rows describe physical reality.
+
 ## What is not claimed
 
 The implemented guarantees are separated from future work in
@@ -643,13 +656,12 @@ The implemented guarantees are separated from future work in
     depends on its absorber, and rules B and C are still not inclusions.
   - `triz_trim_rewrite` returns an applied trim as explicit deletion and gluing data with its
     absorbers, and replays it. The replay is checked; it supplies no universal property.
-- Nothing computes a Grothendieck fibration. The one optic computed is a lens with a residual
-  read as a Mealy machine: its bounded runs ([Declared dynamics](../skills/triz-innovation/references/categorical-model.md#declared-dynamics)), and
-  nothing else about optics.
-  - The system operator is not claimed to be a fibration. What is proved is a functor from the
-    time chain times the opposite poset of box sets to sets (`Wiring.restrictionGrid`). It
-    covers the subsystem and system rows, not the supersystem collapse, and no Grothendieck
-    construction is built.
+- The system operator’s category of elements is now packaged by unique lifts in
+  `Restriction.lean`: forward lifts for the covariant grid and incoming lifts for its opposite.
+  This covers subsystem restriction and time, not the supersystem collapse. Residual descent
+  needs a uniform projection square and a saturated target; extension alone is insufficient.
+  No general monoidal Grothendieck structure or unrestricted descent is claimed. The existing
+  Mealy-machine dynamics results make no additional claims about optics.
 - Sheaf cohomology is not computed, and none is needed on the base the separation check uses.
   That base is a finite set of cells with no further structure. On it, a global assignment
   exists exactly when every cell admits a value (`exists_section_iff`). So the only obstruction
@@ -715,8 +727,9 @@ The implemented guarantees are separated from future work in
     feasibility rows reach that no producible row lists is not flagged, and producible rows are
     never derived from feasibility rows. Ports on carriers without levels, values without a level,
     and ports no feasibility row provides at are not read. `requiredInfeasible` names the rows the
-    target needs that the declaration excludes; it does not say which of them is cheapest to make
-    producible.
+    target needs that the declaration excludes. With explicit `row_costs`, the one-hole advisor
+    now computes a cheapest covering set, or reports an undecided capped search; it does not
+    infer physical acquisition costs or certify the finite optimization.
 - Lean proves the residual's properties for every context that preserves unions, and that
   composition and the trace preserve unions. The semantics of `theory/Semantics.lean`, with one
   box left open as a hole, is such a context for every diagram and every box declared by rows

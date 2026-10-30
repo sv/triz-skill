@@ -91,10 +91,31 @@ export const FeasibilityRow = z.strictObject({
     .describe("Operating resources per cost dimension, added to the box's fixed cost; an omitted dimension needs nothing"),
 }).meta({ id: "FeasibilityRow", description: "One minimal (functionality provided, resources required) pair of the box's monotone feasibility relation" });
 
+/** Bound recursive parsing before Zod descends. Reject cycles and more than eight levels. */
+function safeHierarchy(value: unknown): boolean {
+  const pending: Array<{ inner: unknown; depth: number; ancestors: Set<object> }> = [{ inner: value, depth: 1, ancestors: new Set() }];
+  while (pending.length) {
+    const { inner, depth, ancestors } = pending.pop()!;
+    if (!inner || typeof inner !== "object") continue; // ordinary schema validation reports malformed input
+    if (depth > 8 || ancestors.has(inner)) return false;
+    const model = (inner as { model?: unknown }).model;
+    if (!model || typeof model !== "object") continue;
+    if (ancestors.has(model)) return false;
+    const next = new Set(ancestors).add(inner).add(model);
+    const boxes = (model as { boxes?: unknown }).boxes;
+    if (Array.isArray(boxes)) for (const box of boxes) {
+      if (box && typeof box === "object" && "inner" in box && box.inner !== undefined)
+        pending.push({ inner: box.inner, depth: depth + 1, ancestors: next });
+    }
+  }
+  return true;
+}
+
 export const Box = z.strictObject({
   id: Id,
   name: z.string().min(1),
   role: Role,
+  inner: z.preprocess((value) => safeHierarchy(value) ? value : null, z.lazy((): z.ZodType<any> => Inner)).optional().describe("Nested model and explicit one-to-one outer-to-inner interface bindings"),
   action: z.string().optional().describe("Main action verb, e.g. 'support', 'route', 'monetize'"),
   inputs: z.array(Port).optional(),
   outputs: z.array(Port).optional(),
@@ -191,6 +212,13 @@ export const FunctionModel = z.strictObject({
     components: "components are boxes", nodes: "components are boxes", elements: "components are boxes",
   }),
 });
+
+/** A hierarchy interface binds outer port ids to ports on the inner diagram. */
+export const Inner = z.strictObject({
+  model: FunctionModel,
+  inputs: z.array(z.strictObject({ outer: Id, inner: Endpoint })),
+  outputs: z.array(z.strictObject({ outer: Id, inner: Endpoint })),
+}).meta({ id: "Inner" });
 
 export type FunctionModel = z.infer<typeof FunctionModel>;
 export type PhysicalContradiction = z.infer<typeof PhysicalContradiction>;
@@ -359,8 +387,13 @@ export interface CheckResult { ok: boolean; errors: string[]; issues: Issue[]; }
  * Typing of the wiring: every reference resolves, wires run out→in, and carriers agree. Fail
  * closed. Issue paths start at `root` (default `$`, the model itself).
  */
-export function checkModel(model: FunctionModel, root = "$"): CheckResult {
+export function checkModel(model: FunctionModel, root = "$", depth = 0, ancestors = new Set<object>()): CheckResult {
   const issues: Issue[] = [];
+  if (depth > 8 || ancestors.has(model)) {
+    const problem = issue("hierarchy-depth", root, "hierarchy is cyclic or exceeds eight nested levels", "Remove the cycle or reduce nesting to eight levels.");
+    return { ok: false, errors: [problem.message], issues: [problem] };
+  }
+  const nextAncestors = new Set(ancestors).add(model);
   const carriers = new Set(model.carriers.map((c) => c.id));
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
   const carrierIds = model.carriers.map((c) => c.id), boxIds = model.boxes.map((b) => b.id), wireIds = model.wires.map((w) => w.id);
@@ -387,6 +420,47 @@ export function checkModel(model: FunctionModel, root = "$"): CheckResult {
       }
     }
     issues.push(...rowIssues(b, bi, model.carriers, root), ...feasibilityIssues(b, bi, root));
+    if (b.inner) {
+      const path = at(root, "boxes", bi, "inner");
+      const shape = z.strictObject({ model: z.record(z.string(), z.unknown()), inputs: z.array(z.strictObject({ outer: Id, inner: Endpoint })), outputs: z.array(z.strictObject({ outer: Id, inner: Endpoint })) }).safeParse(b.inner);
+      if (!shape.success) {
+        issues.push(issue("invalid-inner-model", path, `box '${b.id}': invalid inner declaration`, "Provide a model and input/output binding arrays."));
+        return;
+      }
+      if (depth >= 8 || nextAncestors.has(b.inner.model)) {
+        issues.push(issue("hierarchy-depth", path, "hierarchy is cyclic or exceeds eight nested levels", "Remove the cycle or reduce nesting to eight levels."));
+        return;
+      }
+      const parsed = FunctionModel.omit({ boxes: true }).safeParse(Object.fromEntries(Object.entries(b.inner.model).filter(([key]) => key !== "boxes")));
+      if (!parsed.success || !Array.isArray(b.inner.model.boxes) || b.inner.model.boxes.some((box: unknown) => !box || typeof box !== "object" || !Box.omit({ inner: true }).safeParse(Object.fromEntries(Object.entries(box).filter(([key]) => key !== "inner"))).success)) {
+        issues.push(issue("invalid-inner-model", at(path, "model"), `box '${b.id}': invalid inner model`, "Provide a complete function model inside inner.model."));
+        return;
+      }
+      const inner = b.inner.model as FunctionModel;
+      issues.push(...checkModel(inner, at(path, "model"), depth + 1, nextAncestors).issues);
+      if (b.behavior || b.producible || b.state || b.initial || b.transition || b.feasibility || b.cost) {
+        issues.push(issue("hierarchy-summary", path, `box '${b.id}': inner model cannot be combined with an unchecked outer summary`, "Remove outer behavior, producible, state, initial, transition, feasibility, and cost; analyze the inner model explicitly."));
+      }
+      for (const side of ["inputs", "outputs"] as const) {
+        const bindings: { outer: string; inner: { box: string; port: string } }[] = b.inner[side];
+        const outerPorts = b[side] ?? [];
+        const ids = bindings.map(x => x.outer);
+        const ends = bindings.map(x => JSON.stringify([x.inner.box, x.inner.port]));
+        const boundary = inner.boxes.flatMap(box => (box[side] ?? []).filter(port => !inner.wires.some(w => side === "inputs" ? w.to.box === box.id && w.to.port === port.id : w.from.box === box.id && w.from.port === port.id)).map(port => JSON.stringify([box.id, port.id])));
+        if (duplicates(ids).length || duplicates(ends).length || outerPorts.some(p => !ids.includes(p.id)) || boundary.some(x => !ends.includes(x)))
+          issues.push(issue("hierarchy-interface", at(path, side), `box '${b.id}': ${side} interface must bind each outer port and each exposed inner port exactly once`, "Supply unique, total interface bindings."));
+        bindings.forEach((binding, i) => {
+          const op = outerPorts.find(p => p.id === binding.outer);
+          const ib = inner.boxes.find(box => box.id === binding.inner.box);
+          const ip = ib?.[side]?.find(p => p.id === binding.inner.port);
+          const boundInput = side === "inputs" && inner.wires.some(w => w.to.box === binding.inner.box && w.to.port === binding.inner.port);
+          const oc = model.carriers.find(c => c.id === op?.carrier), ic = inner.carriers.find(c => c.id === ip?.carrier);
+          const equalCarrier = oc && ic && oc.id === ic.id && oc.layer === ic.layer && oc.dimension === ic.dimension && (oc.quantity ?? "intensive") === (ic.quantity ?? "intensive") && JSON.stringify([...(oc.values ?? [])].sort()) === JSON.stringify([...(ic.values ?? [])].sort()) && JSON.stringify(oc.levels ?? []) === JSON.stringify(ic.levels ?? []);
+          if (!op || !ip || boundInput || !equalCarrier)
+            issues.push(issue("hierarchy-binding", at(path, side, i), `box '${b.id}': invalid ${side} binding for '${binding.outer}'`, "Bind the correct outer side to an inner port of the same side and carrier declaration; inner inputs must be unwired."));
+        });
+      }
+    }
   });
   model.wires.forEach((w, wi) => {
     if (!carriers.has(w.carrier)) issues.push(issue("unknown-carrier", at(root, "wires", wi, "carrier"), `wire '${w.id}': unknown carrier '${w.carrier}'`, `Declare carrier '${w.carrier}' in carriers, or use one of ${quoted(carrierIds)}.`));
@@ -528,6 +602,7 @@ export function harmLoops(model: FunctionModel): HarmLoop[] {
 const deliverableKey = (w: Wire) => JSON.stringify([w.to.box, w.to.port, w.carrier]);
 
 export interface IdealityProfile {
+  incompleteHierarchy?: string[];
   functions: Record<Polarity, number>;
   deliverables: Array<{ key: string; box: string; port: string; carrier: string; polarity: Polarity }>;
   costs: Record<string, number>;
@@ -553,6 +628,12 @@ export function idealityProfile(model: FunctionModel): IdealityProfile {
   const dims = Object.keys(costs).sort();
 
   const profile: IdealityProfile = { functions, deliverables, costs, ratio: { computable: false, reason: "" } };
+  const nested = model.boxes.filter(b => b.inner).map(b => b.id);
+  if (nested.length) {
+    profile.incompleteHierarchy = nested;
+    profile.ratio = { computable: false, reason: "Inner models hide functions and costs; expand hierarchy before comparing ideality or checking budgets. Listed counts and costs describe only the outer wiring." };
+    return profile;
+  }
   if (model.budget) {
     const overBudget = dims.filter((d) => (own(model.budget, d) ?? Infinity) < costs[d]);
     const unbudgeted = dims.filter((d) => own(model.budget, d) === undefined);
@@ -596,13 +677,14 @@ export function compareIdeality(baseline: FunctionModel, concept: FunctionModel,
   axis("defective", a.functions.insufficient + a.functions.excessive, b.functions.insufficient + b.functions.excessive);
   for (const d of [...new Set([...Object.keys(a.costs), ...Object.keys(b.costs)])].sort()) axis(`cost:${d}`, own(a.costs, d) ?? 0, own(b.costs, d) ?? 0);
   if (gainedDeliverables.length) better.push("deliverables");
-  const verdict: Verdict = !before.size ? "indeterminate"
+  const incomplete = !!(a.incompleteHierarchy?.length || b.incompleteHierarchy?.length);
+  const verdict: Verdict = incomplete || !before.size ? "indeterminate"
     : lostDeliverables.length ? "concept-loses-functions"
     : !worse.length && !better.length ? "equal"
     : !worse.length ? "concept-dominates"
     : !better.length ? "baseline-dominates"
     : "trade-off";
-  const reason = !before.size
+  const reason = incomplete ? "Expand hierarchy before comparing ideality; inner functions and costs are not included." : !before.size
     ? "baseline has no deliverables: mark the box the main function acts on as role 'product'"
     : undefined;
   const mpv = opts.mpvWeights ? mpvComparison(a, b, opts.mpvWeights, { verdict, better, worse }) : undefined;
@@ -620,6 +702,7 @@ export function compareIdeality(baseline: FunctionModel, concept: FunctionModel,
  * needs `weights` on the model.
  */
 export function mpvComparison(a: IdealityProfile, b: IdealityProfile, weights: Record<string, number>, full: { verdict: Verdict; better: string[]; worse: string[] }) {
+  if (a.incompleteHierarchy?.length || b.incompleteHierarchy?.length) return fail([issue("hierarchy-substitution", "$.model", "MPV comparison requires expanded hierarchy", "Expand nested boxes before comparing costs or function counts.")]);
   const dims = new Set([...Object.keys(a.costs), ...Object.keys(b.costs)]);
   const names = Object.keys(weights).sort();
   const known = quoted([...[...dims].sort(), "harmful"]);
@@ -664,6 +747,7 @@ export interface Absorber { box: string; port: string; rule: "B" | "C"; supersys
  * condition only: each absorber is a trimming problem to solve and substantiate, not a result.
  */
 export function trimCandidates(model: FunctionModel, trim: string[]) {
+  if (model.boxes.some(b => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "Trimming and cost relief require expanded hierarchy", "Expand nested boxes before screening trims.")]);
   const check = checkModel(model, "$.model");
   const boxes = new Map(model.boxes.map((b) => [b.id, b]));
   const unknown = trim.flatMap((id, k) => (boxes.has(id) ? [] : [issue("unknown-box", at("$.trim", k), `unknown box '${id}' in trim set`, `Trim boxes of the model: ${quoted(boxes.keys())}.`)]));

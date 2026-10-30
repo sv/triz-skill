@@ -22,6 +22,7 @@
  * sets. The supersystem collapse is outside that functor and is not checked against transitions;
  * nothing here is a fibration (docs/theory-map.md, What is not claimed).
  */
+import { zoomIn } from "./act-hierarchy.js";
 import { checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
 import { internal, rewrite, type RewriteStep } from "./act-rewrite.js";
 import { flowAnalysis, flowsThrough, mapFlows, restrictFlows } from "./act-flow.js";
@@ -506,7 +507,9 @@ export function nineWindows<T extends { op: string }>(spec: {
     if (!check.ok) return invalid(fail(check.issues));
     const present = new Set(m.boxes.map((b) => b.id));
     const zoom = spec.subsystem.filter((b) => present.has(b));
-    const sub = zoom.length ? restrict(m, zoom) : null;
+    const nested = zoom.length === 1 && m.boxes.find(b => b.id === zoom[0])?.inner ? zoomIn(m, zoom[0]) : null;
+    if (nested && !nested.ok) return invalid(nested);
+    const sub = !nested && zoom.length ? restrict(m, zoom) : null;
     const group = groupOf(m);
     const sup = group.length ? collapse(m, group, { id, name: spec.system?.name ?? m.system ?? "System", role: "tool" }) : null;
     if (sub && !sub.ok) return invalid(sub);
@@ -514,7 +517,9 @@ export function nineWindows<T extends { op: string }>(spec: {
     return {
       time,
       status: "ok" as const,
-      subsystem: sub?.ok
+      subsystem: nested?.ok
+        ? { ...summary(nested.model), model: nested.model, interface: nested.interface, parentBox: nested.box, absent: spec.subsystem.filter((b) => !present.has(b)) }
+        : sub?.ok
         ? { ...summary(sub.model), boundary: sub.boundary, absent: spec.subsystem.filter((b) => !present.has(b)), basis: sub.basis }
         : { empty: true, absent: spec.subsystem },
       system: { ...summary(m), ...(any ? { verdicts: verdictsAt(m, time) } : {}) },

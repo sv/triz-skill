@@ -304,6 +304,7 @@ export function splitBehavior(box: Box, parts: Array<{ id: string; ports: string
 export function segment(model: FunctionModel, spec: { box: string; parts: PartSpec[]; costTo?: Record<string, string> }) {
   const box = model.boxes.find((b) => b.id === spec.box);
   if (!box) return fail([unknownBox(model, spec.box, "$.box")]);
+  if (box.inner) return fail([issue("hierarchy-substitution", "$.box", `cannot segment hierarchical box '${box.id}'`, "Substitute its inner model first.")]);
   const issues: Issue[] = [];
   if (spec.parts.length < 2) issues.push(issue("too-few-members", "$.parts", "segmentation needs at least two parts", `List two or more parts, each with some of '${box.id}''s ports.`));
   const ports = [...(box.inputs ?? []).map((p) => p.id), ...(box.outputs ?? []).map((p) => p.id)];

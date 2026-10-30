@@ -34,6 +34,13 @@ export const ISSUE_CODES = {
   "producible-with-rows": "A box declares producible together with behavior or transition",
   "invalid-levels": "A carrier's levels do not start at 0 or do not strictly increase",
   "flow-repeats-box": "A flow path lists a box directly after itself",
+  // Hierarchical models
+  "hierarchy-depth": "A nested model exceeds the supported hierarchy depth",
+  "invalid-inner-model": "A box's inner model is not a valid function model",
+  "hierarchy-summary": "An inner model is combined with an unchecked outer semantic or cost summary",
+  "hierarchy-interface": "An inner model's interface does not match its enclosing box",
+  "hierarchy-binding": "An inner interface binding is missing, duplicated, or invalid",
+  "hierarchy-substitution": "A hierarchy operation cannot preserve the declared structure or annotations",
   // Sets and arguments
   "listed-twice": "An id appears twice in a set argument",
   "empty-set": "A set argument names nothing",
@@ -46,6 +53,8 @@ export const ISSUE_CODES = {
   "box-map-without-compare-to": "box_map was passed without compare_to",
   "absorb-without-trim": "absorb was passed without trim",
   "trim-with-compare-to": "trim and compare_to were passed together",
+  "invalid-row-costs": "Row extension costs are missing, repeated, malformed, or unsupported for this residual",
+  "row-costs-without-weakest-spec": "Row costs or their search cap were passed outside a costed weakest specification",
   "weakest-spec-without-target": "weakest_spec was passed without compare_to or trim",
   "rule-or-rule-id": "Neither or both of rule and rule_id were passed",
   "unknown-rule-id": "rule_id names no built-in rule or detector",

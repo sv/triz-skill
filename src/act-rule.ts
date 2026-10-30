@@ -659,6 +659,12 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
   const boxIds = new Set(model.boxes.map((b) => b.id)), wireIds = new Set(model.wires.map((w) => w.id));
   const portIds = new Map(model.boxes.map((b) => [b.id, new Set(portsOf(b).map((p) => p.id))]));
   const gBox = new Map(model.boxes.map((b) => [b.id, b])), gWire = new Map(model.wires.map((w) => [w.id, w]));
+  // `like` copies only shallow fields and ports. It cannot silently discard a nested model.
+  for (const b of R.boxes.values()) {
+    if (K.boxes.has(b.id) || b.like === undefined) continue;
+    const source = gBox.get(get(match.boxes, b.like)!);
+    if (source?.inner) return fail([issue("hierarchy-substitution", "$.rule.right", `rule copy of '${source.id}' would discard its inner model`, "Substitute the inner model first or avoid copying this box with like.")]);
+  }
   const claim = (taken: Set<string>, wanted: string | undefined, base: string, what: string, path = "$.ids") => {
     if (wanted !== undefined && taken.has(wanted)) {
       issues.push(issue("id-not-fresh", path, `ids: ${what} id '${wanted}' is not fresh`, `Pick an id nothing there uses, e.g. '${freshId(wanted, taken)}', or omit it for a fresh default.`));

@@ -126,6 +126,7 @@ export function merge(model: FunctionModel, spec: {
   if (issues.length) return fail(issues);
   const reading = spec.reading ?? "adjacent";
   const group = spec.boxes.map((id) => byId.get(id)!);
+  if (group.some(b => b.inner)) return one("hierarchy-substitution", "$.boxes", "cannot merge a hierarchical box without retaining its inner model", "Substitute each hierarchical box first.");
   if (reading === "identical") {
     const carriers = (ports: Box["inputs"]) => (ports ?? []).map((p) => p.carrier).sort();
     const shape = (b: Box) => JSON.stringify([b.role, carriers(b.inputs), carriers(b.outputs)]);
@@ -471,6 +472,7 @@ export function cheapCopy(model: FunctionModel, spec: { box: string; copy: { id?
   if (bad) return bad;
   const box = model.boxes.find((b) => b.id === spec.box);
   if (!box) return fail([unknownBox(model, spec.box, "$.box")]);
+  if (box.inner) return one("hierarchy-substitution", "$.box", "cannot cost a copy of a hierarchical box", "Substitute the inner model and model its costs explicitly.");
   const was = box.cost ?? {}, now = spec.copy.cost;
   const costAt = (c: Record<string, number>, d: string) => (Object.hasOwn(c, d) ? c[d] : 0);
   const dims = [...new Set([...Object.keys(was), ...Object.keys(now)])].sort();

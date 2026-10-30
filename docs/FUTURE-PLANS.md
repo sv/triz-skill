@@ -30,9 +30,9 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
 | 3 | Incomparability witnesses in weakness certificates | **Landed in #35** (equal pairs too) | Closed | — |
 | 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Open; #35's metamorphic tests cover dynamics up to tied witnesses | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
-| 5 | Naturality of the verdicts in Lean | Open; **rank 4**, build 5th | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
+| 5 | Naturality of the verdicts in Lean | Partly implemented: semantic transport; all-verdict naturality remains open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
-| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35; **rank 1** (the fibration and conditional descent), build 4th | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
+| 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly implemented: two boxes, whole-model search, grid lifting and conditional residual descent; other closures open | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
 | C1 | Quotient the row-table certificates by wires | **Landed** in #42 | Adds: certificates for larger models within the same table-read cap | — |
 | C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** in #42; cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
@@ -41,13 +41,13 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | C6 | Functional behaviour rows and a feedback cut | Open | Adds: smaller certificate exponents; a classified cause for no steady state | M |
 | C7 | Acyclic overlaps in `triz_global_separation` | Open | Adds: polynomial decision and localised conflicts on join trees | M |
 | C8 | Totality and input-enabledness lint | Open; overlaps #35's §4 deadlock-freedom ([categorical-future-plan.md](categorical-future-plan.md)) | Adds: a static condition under which no run blocks | S–M |
-| Q1 | Graded relations over a commutative quantale, staged | Open; **rank 3** (stage 1), build 1st | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
+| Q1 | Graded relations over a commutative quantale, staged | Stage 1 implemented in this checkout; stage 2 open | "`requiredInfeasible` … does not say which of them is cheapest to make producible"; the general form of item 7's joint residual | M (stage 1); L (stage 2) |
 | Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
 | Q3 | Cross-check `triz_feasibility` against an independent co-design solver | Open; dev only | Adds: a second oracle beside the brute-force tests | S–M |
 | Q4 | Supersystem constraints as design problems | Open; docs | Adds: workflow guidance | S |
-| Q5 | Hierarchical boxes through operad substitution | Open; **rank 2**, build 3rd | Adds: checked zoom in and out between box and inner model | M–L |
+| Q5 | Hierarchical boxes through operad substitution | Initial stateless scope implemented in this checkout; wider annotations open | Adds: checked zoom in and out between box and inner model | M–L |
 | Q6 | Minimal base refinement when no global section exists | Open | Adds: a concrete next move after `irreducible` | M |
-| B1 | A model builder from an interaction table | Open; build 2nd, right after Q1 | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
+| B1 | A model builder from an interaction table | Implemented in this checkout | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
 | B2 | Pluggable importers that draft B1's interaction table | Open; after B1 | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
 | S1 | Steady states by variable elimination along a tree decomposition | Open; needs C1 (landed) | Adds: behaviour cost exponential in treewidth, not in the boundary inputs | M–L |
 | S2 | Generalized arc consistency before enumeration | Open; independent, can come early | Adds: values and rows pruned before the steady-state search | S–M |
@@ -55,19 +55,49 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
 
+## Current implementation batch
+
+Implemented in this checkout, with the remaining scope kept explicit:
+
+- **Q1 stage 1:** `theory/Graded.lean` defines graded relation contexts and proves their residual
+  adjunction over a commutative quantale, recovers the Boolean residual, and gives min-plus ℕ∞
+  context instances. The separate finite `row_costs` advisor searches exactly for the cheapest
+  set of additional producible rows. Default Boolean verdicts are unchanged; caps refuse an
+  optimum claim. This cover optimizer is tested, not proved by the quantale theorem. Stage 2
+  concepts and graded weakness remain open.
+- **B1:** `triz_build_model` builds typed models from explicit interaction tables, with stable
+  ids, lints, and bounded completeness reporting. B2 importers remain open.
+- **Q5 initial stateless scope:** checked `inner` interfaces, explicit `triz_expand_hierarchy`,
+  and inner subsystem windows. `external_substituteWired` proves arbitrary-context wired
+  substitution, including feedback. The TypeScript translation is tested, not extracted.
+  Product-identity changes, flows, costs, feasibility and dynamics are refused by expansion.
+- **Item 7, restriction part:** `theory/Restriction.lean` proves unique forward lifts for
+  Mathlib’s category of elements of `restrictionGrid` (a discrete opfibration), with incoming
+  lifts in the opposite categories (the discrete fibration orientation). `residual_descends`
+  needs a context projection square uniform in the hole relation **and target saturation**.
+  `external_sub_project_of_extends` supplies each instance of the square under extension.
+  A counterexample proves extension without target saturation insufficient. Concept lattices
+  and the other larger closures remain open.
+- **Item 5, first semantic transport theorems:** `theory/Naturality.lean` transports steady
+  valuations, external relations, hole contexts, residuals, exact target realization, and
+  reachability under explicit equivalences. Concrete hole theorems keep the hole coordinates
+  and value type fixed. This does not prove every kernel verdict natural, capped TypeScript
+  search correct, or a selected tied witness invariant.
+
 ## Next priorities
 
 Ranked by leverage: what each item adds to the verdicts an analysis can rest on, against its
 cost. The build order differs from the ranking, because Q1 and Q5 do not depend on item 7.
 
 1. **Item 7: the 9 windows as a discrete fibration, and descent for residuals.**
-   - Packaging the restriction grid (`Wiring.restrictionGrid`) as a discrete fibration is S, in
-     Lean only.
+   - The restriction grid (`Wiring.restrictionGrid`) has unique forward lifts in Lean (a discrete opfibration); the reversed projection has
+     the discrete fibration orientation. This restriction part is implemented.
    - Descent of weakest specifications along restriction is conditional. Restriction and residual
      do not commute in general, so descent needs an exchange condition of Beck–Chevalley type.
      #41 supplies one for a single case: `external_sub_iff_of_extends`, with `extends_of_accepts`
-     as a sufficient condition. Prove descent under that hypothesis, and document it as
-     conditional.
+     as a sufficient condition for extension. Descent additionally needs a context square
+     uniform in the hole relation and a saturated target; the conditional theorem and a
+     counterexample without saturation are implemented in `Restriction.lean`.
    - Concept lattices descend less cleanly. Leave them out of the first version.
 2. **Q5: hierarchical boxes through operad substitution.** The optional `inner` model and the
    substitution lemma. It gives the "zoom in" half of the 9 windows, complementary to item 7's
@@ -78,12 +108,12 @@ cost. The build order differs from the ranking, because Q1 and Q5 do not depend 
 4. **Item 5: naturality of the verdicts in Lean.** It hardens trust rather than adding
    capability: #35 and #37 already test label-blindness thoroughly.
 
-**Build order.**
+**Original build order (initial scopes now implemented above).**
 
 1. Q1 stage 1: the smallest, and useful at once.
 2. B1, the model builder; B2's importers follow it.
 3. Q5.
-4. Item 7, with descent under extension. It builds on Q5, so zooming in and restricting share one
+4. Item 7, with descent under uniform extension and target saturation. It builds on Q5, so zooming in and restricting share one
    structure.
 5. Item 5.
 
@@ -168,9 +198,9 @@ feasibility solver is.
   non-factorization is itself a witness for theory/Witnesses.lean. Kernel: `weakest_spec` over a
   set of boxes as one merged hole, with a coupling warning when the per-box projection is unsafe
   alone.
-- **9 windows as a discrete fibration.** Mathlib has `CategoryTheory.Functor.Elements` with a
-  faithful projection but no discrete-fibration predicate; define it (short proof) and apply it
-  to `Wiring.restrictionGrid`. The supersystem collapse enters as a left Kan extension along the
+- **9 windows as a discrete fibration.** Mathlib’s `CategoryTheory.Functor.Elements` now supplies the
+  category used by the proved unique-lifting results. Covariant `Wiring.restrictionGrid` gives
+  an opfibration; reversing total and base categories gives the fibration orientation. The supersystem collapse enters as a left Kan extension along the
   collapse map of posets, following the pattern of `Mathlib/Topology/Sheaves/Alexandrov.lean`.
 - **Trim as controlled embedding.** The removed Kan-extension trimming (AGREE, PBPO⁺:
   Corradini et al., TCS 2021) reframed as it should be: a trim is a rewrite whose re-attachment
@@ -446,21 +476,21 @@ to exist; the entries say how far each check went. Corrections that shape the en
 
 ### Q1. Graded relations over a commutative quantale, staged
 
-- **Status.** Open. **Effort:** M for stage 1; L for stage 2.
+- **Status.** Stage 1 implemented in this checkout; stage 2 open. **Effort:** M for stage 1; L for stage 2.
 - **Change.** In Lean, relations valued in a commutative quantale (Mathlib's `Quantale`,
   [R49](../theory/REFERENCES.md#r49)), with series, parallel, trace, and residual; the Boolean
   case (`Prop`) recovers today's theorems as instances.
   - **Stage 1.** A generic residual, instantiated at `Prop` (today) and at the cost quantale
-    ([0, ∞], min, +), used only for `weakest_spec`'s cheapest producible extension: the cheapest
-    set of rows to make producible.
+    (ℕ∞, min, +). The one-hole `weakest_spec` cheapest producible extension uses a separate
+    exact finite cover search: rows have one-time acquisition costs, not min-plus path costs.
   - **Stage 2**, only if a use case appears: graded two-box concepts over residuated lattices, and
     graded weakness.
 - **Closes or adds.** "`requiredInfeasible` names the rows the target needs that the declaration
   excludes; it does not say which of them is cheapest to make producible." It is the general form
   of item 7's joint residual (Rel as a residuated quantale). Heterogeneous change of base would
   couple Boolean behaviour with cost feasibility, which #35's coupled contracts do by search today.
-- **Risks.** Boolean stays the default and the certified core, recovered as the support of any
-  graded result. Certificates never use real-valued weights, since `decide` needs finite or
+- **Risks.** Boolean stays the default and the certified core, recovered by the `Prop` instance.
+  A support map needs its own preservation theorem; it need not preserve residuals. Certificates never use real-valued weights, since `decide` needs finite or
   discrete carriers. Probabilities stay with `priors` and `joint_prior`: summing probabilities is
   not an idempotent join, so they are not a quantale of this kind. Graded weakness overlaps
   `priors` and `joint_prior`: unify, do not duplicate.
@@ -509,7 +539,7 @@ to exist; the entries say how far each check went. Corrections that shape the en
 
 ### Q5. Hierarchical boxes through operad substitution
 
-- **Status.** Open. **Effort:** M–L.
+- **Status.** Initial stateless scope implemented in this checkout; wider annotations open. **Effort:** M–L.
 - **Change.** Schema: an optional `inner` model on a box, with matching interface ports. Lean: a
   substitution lemma, that the external relation of the substituted diagram equals the composite
   through the box's external relation. It builds on `glueAlong`, `seq`, `par`, and `feedback` in
@@ -543,7 +573,7 @@ documents the project already has. Neither decides a rating: those stay the anal
 
 ### B1. A model builder from an interaction table
 
-- **Status.** Open; build order right after Q1 stage 1. **Effort:** S–M.
+- **Status.** Implemented in this checkout. **Effort:** S–M.
 - **Change.** A new tool, for example `triz_build_model`, takes:
   - components: id, name, and role;
   - interactions as triples: subject, action, object, a carrier with its layer and dimension, and
