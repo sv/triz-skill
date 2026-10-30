@@ -74,10 +74,11 @@ export function provenanceProblems(value: unknown): string[] {
 type Sourced = { provenance?: unknown; boxes: ReadonlyArray<{ id: string }>; wires: ReadonlyArray<{ id: string }> };
 /**
  * The provenance of a model a construction derived from a reviewed one: the source entries and
- * containment links of the boxes and wires that survive. Elements the construction adds stay
- * unsourced (sources are never invented); removed elements lose theirs, so no entry can later
- * describe a different element that reuses the id. Pending items and decisions are kept. A draft,
- * an invalid envelope or a model without provenance is returned unchanged, to fail as before.
+ * containment links of the boxes and wires whose ids remain. Elements the construction adds under
+ * new ids stay unsourced (sources are never invented), and removed ids lose theirs. Matching is by
+ * id: a step that deletes and re-adds an id (a segment part named after its box) keeps that id's
+ * source. Pending items and decisions are kept. A draft, an invalid envelope or a model without
+ * provenance is returned unchanged, to fail as before.
  */
 export function deriveProvenance<T extends Sourced>(model: T): T {
   if (model.provenance === undefined) return model;
