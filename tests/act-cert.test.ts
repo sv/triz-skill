@@ -10,11 +10,13 @@
  * certificates and tampered copies in one Lean process (runLocalBatch), and one test checks that a
  * batch gives every file the messages it gets alone. Without Lean, or with TRIZ_SKIP_LEAN=1, those
  * tests skip; TRIZ_REQUIRE_LEAN=1 makes them run, and fail without Lean, whatever TRIZ_SKIP_LEAN
- * says. Nothing here calls AXLE, and without local Lean the checker refuses rather than falling
- * back to it.
+ * says. The Lean tests run together at the end of the file, TRIZ_LEAN_JOBS at a time (default 1:
+ * one Lean process at a time), after theory/ is built once, so the tests themselves only run
+ * `lake env lean`, never `lake build`. Nothing here calls AXLE, and without local Lean the checker
+ * refuses rather than falling back to it.
  * Regenerate the fixtures with UPDATE_GOLDEN=1 pnpm test, then review the diff.
  */
-import { test } from "node:test";
+import { before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -30,7 +32,7 @@ import { supportConcept, supportConcepts, SUPPORT_ACCEPTABLE } from "./support/c
 import { toolSpecs } from "../src/tools.js";
 // triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
 import "../src/data.js";
-import { accept, batchFile, bindRequest, check, checkAll, checkCorrespondence, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
+import { accept, batchFile, bindRequest, check, checkAll, checkCorrespondence, ensureBuilt, lint, localLeanAvailable, runLocal, runLocalBatch, splitBatch, tamperVariants, theorems, withAxioms } from "../scripts/certify.mjs";
 import { rng, genModel } from "./support/gen.js";
 import { clock } from "./support/clock.js";
 
@@ -63,10 +65,18 @@ const specs = Object.fromEntries(toolSpecs().map((s) => [s.name, s]));
 const call = async (name: string, args: unknown) => JSON.parse((await specs[name].handler(args)).content[0].text);
 
 const lean = localLeanAvailable();
-const leanTest = (name: string, fn: () => Promise<void>) =>
-  process.env.TRIZ_REQUIRE_LEAN ? test(name, lean ? fn : () => assert.fail("TRIZ_REQUIRE_LEAN is set, but theory/ is not built"))
-  : process.env.TRIZ_SKIP_LEAN ? test(name, { skip: "TRIZ_SKIP_LEAN is set" }, fn)
-  : test(name, { skip: !lean && "theory/ is not built" }, fn);
+/** How many Lean tests run at once: TRIZ_LEAN_JOBS, a positive integer, default 1. */
+const LEAN_JOBS = (() => {
+  const jobs = process.env.TRIZ_LEAN_JOBS || "1";
+  if (!/^[1-9]\d*$/.test(jobs)) throw new Error(`TRIZ_LEAN_JOBS must be a positive integer, not ${JSON.stringify(jobs)}`);
+  return Number(jobs);
+})();
+/** The Lean tests, declared where they stand and run together by the describe at the end of the file.
+ *  A slow test starts first, so with several jobs it does not set the floor by starting last. */
+const leanTests: Array<[string, () => Promise<void>]> = [];
+const leanTest = (name: string, fn: () => Promise<void>, slow = false) => {
+  if (slow) leanTests.unshift([name, fn]); else leanTests.push([name, fn]);
+};
 
 /** The text outside string literals, where model ids must never appear. */
 const outsideStrings = (lean: string) => lean.replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
@@ -372,7 +382,7 @@ leanTest("a tampered certificate fails to check where it was tampered", async ()
   assert.ok(!native.ok && native.problems.some((p) => /SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), native.problems.join("\n"));
   // Without the grammar, the axiom audit alone still finds the verdict behind the decoy.
   const t = decoy();
-  const audit = accept(t, runLocal(`${t}\n${theorems(t).map((x) => `#print axioms ${x.name}`).join("\n")}\n`));
+  const audit = accept(t, await runLocal(`${t}\n${theorems(t).map((x) => `#print axioms ${x.name}`).join("\n")}\n`));
   assert.ok(!audit.ok && audit.problems.some((p) => /^SoftwareCache\.typed: depends on non-standard axioms .*native_decide/.test(p)), audit.problems.join("\n"));
   assert.ok(audit.certified.includes("SoftwareCache.Separation0.typed"));
 });
@@ -382,11 +392,11 @@ leanTest("a batch gives each file the messages Lean gives it alone", async () =>
   const d = fs.readFileSync(fixturePath("BearingDamped"), "utf8");
   // A certificate, a copy of it under the same names, and another certificate's data tamper.
   const jobs = [{ content: c, audit: true }, { content: tamperVariants(c)[0].content, audit: false }, { content: tamperVariants(d)[1].content, audit: false }];
-  const batch = runLocalBatch(jobs);
+  const batch = await runLocalBatch(jobs);
   assert.ok(batch.every((r) => r.batched), "every job shared the process");
   const sorted = (ms: typeof batch[number]["messages"]) => [...ms].sort((x, y) => x.line - y.line || x.text.localeCompare(y.text));
   for (const [k, j] of jobs.entries()) {
-    const alone = runLocal(j.audit ? withAxioms(j.content) : j.content);
+    const alone = await runLocal(j.audit ? withAxioms(j.content) : j.content);
     assert.deepEqual(sorted(batch[k].messages), sorted(alone.messages), `job ${k}`);
   }
 });
@@ -905,7 +915,7 @@ leanTest("the blocked-state conjunct rejects runs that block in the unsafe state
     .replace(/^(theorem unreachable : )\((.*)\) ∧ .* :=$/m, "$1$2 :=")
     .replace(/^ {2}system\.unreachable_of_holding_classes .*$/m, "  unreachable_of_invariant (system.starts_subset_holding (inv := invariant) (by decide +kernel)) (system.closed_holding (inv := invariant) (by decide +kernel)) (system.disjoint_holding_target (inv := invariant) (by decide +kernel))");
   assert.notEqual(firstOnly, v.content);
-  const [both, first] = runLocalBatch([{ content: v.content, audit: false }, { content: firstOnly, audit: false }]);
+  const [both, first] = await runLocalBatch([{ content: v.content, audit: false }, { content: firstOnly, audit: false }]);
   const errors = (r: typeof both) => r.messages.filter((m) => m.severity === "error");
   assert.ok(errors(both).length, "the blocked-state conjunct fails on the tampered tables");
   assert.deepEqual(errors(first), [], "without the conjunct, the tampered tables still check");
@@ -1016,7 +1026,7 @@ leanTest("Lean accepts the mediator chain over its classes, and rejects a class 
   assert.ok(r.ok, r.problems.join("\n"));
   assert.deepEqual(r.certified, ["MediatorChain.preserved", "MediatorChain.nonempty"]);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
-});
+}, true);
 
 test("a horizon-free verdict is certified: a trace past the horizon, or an invariant that saturates past it", () => {
   // Reached first at step 25: the bounded verdict at the default horizon is unreachable-within-horizon.
@@ -1048,4 +1058,15 @@ leanTest("Lean accepts the horizon-free certificates, and rejects their tampered
   for (const r of certificates) assert.ok(r.ok, r.problems.join("\n"));
   assert.deepEqual(certificates.map((r) => r.certified), [["LateEscalation.escalation"], ["NeverHigh.unreachable"], ["NeverBad.invariantInitial", "NeverBad.invariantClosed", "NeverBad.invariantDisjoint", "NeverBad.unreachable"]]);
   for (const [k, v] of variants.entries()) assert.ok(tampered[k].ok, `${v.name}: ${tampered[k].problems.join("\n")}`);
+});
+
+// Every Lean test, LEAN_JOBS at a time. theory/ is built once before them (ensureBuilt), so the
+// tests only start `lake env lean` processes, and no two `lake build`s contend for Lake's lock.
+describe("with local Lean", { concurrency: LEAN_JOBS }, () => {
+  if (lean && (process.env.TRIZ_REQUIRE_LEAN || !process.env.TRIZ_SKIP_LEAN)) before(() => ensureBuilt());
+  for (const [name, fn] of leanTests) {
+    if (process.env.TRIZ_REQUIRE_LEAN) test(name, lean ? fn : () => assert.fail("TRIZ_REQUIRE_LEAN is set, but theory/ is not built"));
+    else if (process.env.TRIZ_SKIP_LEAN) test(name, { skip: "TRIZ_SKIP_LEAN is set" }, fn);
+    else test(name, { skip: !lean && "theory/ is not built" }, fn);
+  }
 });

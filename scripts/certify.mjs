@@ -6,9 +6,9 @@
  *   node scripts/certify.mjs [--local | --remote] [--tamper] [--request request.json] <file.lean>...
  *
  * Local (the default; --local says so explicitly): `lake env lean` against theory/, so the
- * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Build it once
- * with `cd theory && lake exe cache get && lake build`. Without a built theory/, the script stops
- * and says so; it never falls back to the network.
+ * certificate's `import CategoricalTriz` is this repo's theory at its Mathlib pin. Set it up once
+ * with `pnpm lean:setup` (scripts/lean-setup.mjs), then `cd theory && lake build`. Without a built
+ * theory/, the script stops and says so; it never falls back to the network.
  *
  * Remote (--remote only, an explicit opt-in): the certificate, which holds the model's ids and
  * tables, leaves this machine. It is POSTed with theory/CategoricalTriz.lean inlined ahead of it
@@ -48,7 +48,7 @@
  * negatives use finite state invariants against consistent target configurations. Time-varying
  * inputs and negatives supported only to a horizon remain unsupported.
  */
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import os from "node:os";
@@ -331,29 +331,69 @@ export function localLeanAvailable() {
 }
 
 /** Why there is no verdict without local Lean: the two ways to get one, and what the second sends where. */
-export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off. Either build theory/ (install elan, then "
-  + "`cd theory && lake exe cache get && lake build`), or pass --remote (mode \"remote\") to send the certificate, which "
+export const NO_LOCAL_LEAN = "local Lean unavailable, and remote checking is off. Either build theory/ (install elan, run "
+  + "`pnpm lean:setup`, then `cd theory && lake build`), or pass --remote (mode \"remote\") to send the certificate, which "
   + `holds the model's ids and tables, with theory/CategoricalTriz.lean to AXLE at ${AXLE_URL}.`;
 
-let rebuilt = false;
+const MAX_OUTPUT = 64 << 20;
+/**
+ * `bin args` in theory/, without blocking: what spawnSync returns (status, signal, error, stdout,
+ * stderr), so several Lean processes can run at once. Output past MAX_OUTPUT kills the process
+ * and sets `error`, as spawnSync's maxBuffer does.
+ */
+function lakeRun(bin, args) {
+  return new Promise((resolve) => {
+    const child = spawn(bin, args, { cwd: THEORY_DIR, stdio: ["ignore", "pipe", "pipe"] });
+    const out = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 };
+    let error;
+    for (const stream of ["stdout", "stderr"]) {
+      child[stream].on("data", (chunk) => {
+        size[stream] += chunk.length;
+        if (size[stream] > MAX_OUTPUT && !error) { error = new Error(`${stream} exceeded ${MAX_OUTPUT} bytes`); child.kill(); }
+        else out[stream].push(chunk);
+      });
+    }
+    const done = (status, signal) => resolve({
+      status, signal, error, stdout: Buffer.concat(out.stdout).toString("utf8"), stderr: Buffer.concat(out.stderr).toString("utf8"),
+    });
+    // A process that never started has no 'close' to wait for.
+    child.on("error", (e) => { error ??= e; if (child.pid === undefined) done(null, null); });
+    // 'close': the process exited and its output streams ended, so the output is complete.
+    child.on("close", done);
+  });
+}
+
+let building;
+/**
+ * Bring the theory olean up to date with the source, with `lake build CategoricalTriz` (fast when
+ * it already is), once per process: concurrent callers share one build, so two `lake build`s never
+ * contend for Lake's lock. A failed build is retried by the next call.
+ */
+export function ensureBuilt() {
+  const bin = lakeBin();
+  if (!bin || !fs.existsSync(OLEAN)) return Promise.reject(new Error(NO_LOCAL_LEAN));
+  building ??= lakeRun(bin, ["build", "CategoricalTriz"]).then((b) => {
+    if (b.status !== 0) {
+      building = undefined;
+      throw new Error(`lake build CategoricalTriz failed:\n${b.stdout}${b.stderr}${b.error ?? ""}`);
+    }
+  });
+  return building;
+}
+
 /**
  * One `lake env lean --json` on `text` against theory/: its messages, at 1-based lines of `text`,
  * and whether Lean ran cleanly (every output line a message, exit 0, or 1 with an error reported).
+ * Each run writes its own temporary directory, so runs may overlap.
  */
-function runLean(text) {
+async function runLean(text) {
+  await ensureBuilt();
   const bin = lakeBin();
-  if (!bin || !fs.existsSync(OLEAN)) throw new Error(NO_LOCAL_LEAN);
-  if (!rebuilt) {
-    // Bring the theory olean up to date with the source (fast when it already is).
-    const b = spawnSync(bin, ["build", "CategoricalTriz"], { cwd: THEORY_DIR, encoding: "utf8" });
-    if (b.status !== 0) throw new Error(`lake build CategoricalTriz failed:\n${b.stdout}${b.stderr}`);
-    rebuilt = true;
-  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "triz-cert-"));
   const file = path.join(dir, "Certificate.lean");
   try {
     fs.writeFileSync(file, text);
-    const r = spawnSync(bin, ["env", "lean", "--json", file], { cwd: THEORY_DIR, encoding: "utf8", maxBuffer: 64 << 20 });
+    const r = await lakeRun(bin, ["env", "lean", "--json", file]);
     const messages = [];
     let clean = !r.error && !r.signal;
     for (const line of (r.stdout ?? "").split("\n")) {
@@ -371,8 +411,8 @@ function runLean(text) {
 }
 
 /** Run Lean on `content` against theory/; messages carry 1-based lines of `content`. */
-export function runLocal(content) {
-  return { mode: "local", messages: runLean(content).messages, toolProblems: [] };
+export async function runLocal(content) {
+  return { mode: "local", messages: (await runLean(content)).messages, toolProblems: [] };
 }
 
 const BATCH = "TrizBatch";
@@ -429,18 +469,20 @@ const leanText = (job) => (job.audit ? withAxioms(job.content) : job.content);
 /**
  * Run Lean on several jobs against theory/, as runLocal would one by one: every shareable job in
  * one process, the rest alone, and alone again any job the batch's messages cannot be placed for.
+ * The processes run one after another, so a call never has more than one Lean process.
  */
-export function runLocalBatch(jobs) {
+export async function runLocalBatch(jobs) {
   const runs = [];
   const shared = jobs.flatMap((j, i) => (shareable(j.content) ? [i] : []));
   if (shared.length > 1) {
     const layout = batchFile(shared.map((i) => leanText(jobs[i])));
-    const r = runLean(layout.text);
+    const r = await runLean(layout.text);
     splitBatch(layout, r.messages, r.clean).forEach((messages, n) => {
       if (messages) runs[shared[n]] = { mode: "local", messages, toolProblems: [], batched: true };
     });
   }
-  return jobs.map((j, i) => runs[i] ?? runLocal(leanText(j)));
+  for (const [i, j] of jobs.entries()) runs[i] ??= await runLocal(leanText(j));
+  return runs;
 }
 
 /** Run Lean on `content` through AXLE, with the theory inlined; lines are mapped back to `content`. */
@@ -525,7 +567,7 @@ export async function checkAll({ certificates = [], tampered = [] }, { mode } = 
   ];
   const runs = [];
   if (mode === "remote") for (const j of jobs) runs.push(await runRemote(leanText(j)));
-  else runs.push(...runLocalBatch(jobs));
+  else runs.push(...(await runLocalBatch(jobs)));
   let n = 0;
   return {
     certificates: certificates.map((content, i) => {

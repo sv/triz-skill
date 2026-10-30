@@ -19,10 +19,12 @@ export function code(src: string): string | null;
 export function lint(content: string, opts?: { pinned?: boolean }): string[];
 export function withAxioms(content: string): string;
 export function localLeanAvailable(): boolean;
-export function runLocal(content: string): Run;
+/** Builds theory/'s CategoricalTriz once per process; concurrent callers share the build. */
+export function ensureBuilt(): Promise<void>;
+export function runLocal(content: string): Promise<Run>;
 export function batchFile(texts: string[]): BatchLayout;
 export function splitBatch(layout: BatchLayout, messages: Message[], clean?: boolean): Array<Message[] | null>;
-export function runLocalBatch(jobs: Job[]): Run[];
+export function runLocalBatch(jobs: Job[]): Promise<Run[]>;
 export function runRemote(content: string): Promise<Run>;
 export function accept(content: string, run: Run): Verdict;
 export function check(content: string, opts?: Mode): Promise<Verdict>;

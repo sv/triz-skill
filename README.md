@@ -348,16 +348,32 @@ trimming as a Kan extension; the theory map says why.
 
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
-(cd theory && lake exe cache get && lake build --wfail)
+pnpm lean:setup                   # theory/.lake/packages: cloned from another checkout, or fetched
+(cd theory && lake build --wfail)
 node scripts/certify.mjs --local --tamper theory/Certificates/*.lean   # tampered copies must fail
 TRIZ_SKIP_LEAN=1 pnpm test        # skip the Lean-backed tests even where theory/ is built
+TRIZ_REQUIRE_LEAN=1 TRIZ_LEAN_JOBS=3 node --import tsx --test tests/act-cert.test.ts   # as Lean CI runs them
 ```
 
-Once `theory/` is built, `pnpm test` also runs the Lean-backed certificate tests. Each such test
-starts one Lean process, which loads the theory's whole import closure (about 2.5 GiB of Lean and
-Mathlib). `TRIZ_SKIP_LEAN=1` skips them. CI runs them with `TRIZ_REQUIRE_LEAN=1`, which fails when
-Lean is missing, whatever `TRIZ_SKIP_LEAN` says. `certify.mjs` checks all its files and their
-tampered copies in one Lean process.
+`pnpm lean:setup` (`scripts/lean-setup.mjs`) sets up `theory/.lake/packages`: Mathlib and the
+packages it requires, with the prebuilt oleans of the Mathlib modules the theory imports. When the
+directory is missing, it looks for another worktree or the main checkout of this repository
+(`git worktree list`) whose `theory/lake-manifest.json` and `theory/lean-toolchain` are
+byte-identical, and clones its packages copy-on-write (`cp -cpR` on macOS APFS, `cp -pR
+--reflink=auto` on Linux), so a new worktree downloads nothing and shares the blocks on disk.
+Without one, or when an imported module still has no olean, it runs `lake exe cache get` with the
+theory's Mathlib imports, the same list as Lean CI (`node scripts/lean-setup.mjs
+--print-imports`). That command is its only network access. It prints what it did; then build.
+
+Once `theory/` is built, `pnpm test` also runs the Lean-backed certificate tests. Each Lean process
+they start loads the theory's whole import closure (about 2.5 GiB of Lean and Mathlib, about
+1.5 GB resident). The tests run one at a time, and a test starts its processes one after another;
+`TRIZ_LEAN_JOBS=N` runs N tests at once. The theory is built once before them (`lake build
+CategoricalTriz`), and the tests only run `lake env lean`, so no two builds contend for Lake's
+lock. `TRIZ_SKIP_LEAN=1` skips them.
+Lean CI runs only the test files that declare a `leanTest`, with `TRIZ_REQUIRE_LEAN=1`, which fails
+when Lean is missing, whatever `TRIZ_SKIP_LEAN` says, and `TRIZ_LEAN_JOBS=3`; the CI workflow runs
+every other test. `certify.mjs` checks all its files and their tampered copies in one Lean process.
 
 ## Optional: your own network of problems
 
