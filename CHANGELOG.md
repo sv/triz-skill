@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add a runnable synthetic hardware/software/provider analysis and discovery example; clarify that budgets are hard constraints, costs may be vectors, and joint Pareto assembly/policy optimization remains an extension.
 - Integrate theorem-search results: bounded overlap-aware behavior pruning, replayable source-grounding activation order, and Lean laws for target residuals, least source closure, acyclic table gluing and randomized stationary occupation bounds. Document the capability map, graph endpoint audit and remaining adapter prerequisites.
 - Make optimal-policy ambiguity explicit, rank lifecycle priors with exact masses, guard effect hints/provenance/flow edits, and report only justified bond causality findings. Add the edge-walk cost theorem and shared complete certificate source pins.
 - Share resource source-support checks with hierarchical subsystem contracts and isolate box-local lifecycle availability from global acceptable states.

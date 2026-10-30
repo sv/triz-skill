@@ -333,6 +333,8 @@ trims can be decided and their heat loop's escalation classified.
 Behavior contracts prune incompatible multi-port correlations before enumeration, and resource
 support witnesses expose their activation order. The [mathematical integration map](docs/math-connections.md#integrated-theorem-search-results)
 explains the checked foundations for general component synthesis and the remaining adapters.
+The [mixed-system guide](docs/mixed-system-analysis.md) includes a runnable hardware, software
+and service-provider example and explains multidimensional constraints and optimization scope.
 
 `theory/` is a Lean 4 / Mathlib package that states and proves the facts the checks rely on,
 with no `sorry`:

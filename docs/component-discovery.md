@@ -31,6 +31,13 @@ Supply both `contract` and `implementation` for property checks. Without them th
 meets the finite behavior, adequacy, harm and resource contract. Missing behavior or unbound
 resource modes remain `undecided`. Resource and behavior modes cannot be chosen independently.
 
+A budget is one of the hard properties of the complete assembly. Its separate API field
+makes resource dimensions explicit; it is not a separate mathematical kind of requirement.
+Costs can be multidimensional, and feasibility retains Pareto-minimal resource vectors.
+Discovery currently ranks satisfying assemblies by component count. See
+[mixed-system analysis](mixed-system-analysis.md) for the constraint/objective distinction
+and a runnable hardware/software/provider example.
+
 ## Search and editing
 
 ### General, reusable catalogues

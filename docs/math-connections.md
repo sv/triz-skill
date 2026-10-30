@@ -154,6 +154,13 @@ proofs need Mathlib only, and adapters deserve explicit scope and compatibility 
 
 ## Improvements to prioritize
 
+Budgets belong to the hard part of one joint specification, and costs may be multidimensional.
+A future optimizer should order complete assembly/mode/policy choices by a declared property
+vector, retaining the Pareto frontier without implicit weights. Current resource antichains,
+per-dimension lifecycle solves and component-count ranking do not yet provide that joint
+optimizer. The [mixed-system guide](mixed-system-analysis.md) explains the distinction and
+demonstrates current analysis and discovery on synthetic hardware/software/provider declarations.
+
 Bounded component/topology discovery and chain insertion are also implemented in this PR;
 [component discovery](component-discovery.md) describes their scope. Generic serial laws use
 simp/grind locally; generated networks reuse finite certificates. The enumerator is not verified.
