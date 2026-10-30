@@ -50,6 +50,7 @@
  */
 import { z } from "zod";
 import { Box, Endpoint, Polarity, Role, checkModel, harmLoops, idealityProfile, type FunctionModel } from "./act.js";
+import { deriveProvenance } from "./act-provenance.js";
 import { feasibility } from "./act-feasibility.js";
 import { Budget } from "./act-iso.js";
 import type { Theorem } from "./act-basis.js";
@@ -770,7 +771,7 @@ export function applyRule(model: FunctionModel, rule: Rule, match: RuleMatch, op
       ...(verb !== undefined ? { verb } : {}),
     };
   });
-  const result: FunctionModel = { ...model, boxes: [...kept, ...created], wires: [...model.wires.filter((w) => !gone.wires.has(w.id)), ...glued] };
+  const result: FunctionModel = deriveProvenance({ ...model, boxes: [...kept, ...created], wires: [...model.wires.filter((w) => !gone.wires.has(w.id)), ...glued] });
   const after = checkModel(result);
   if (!after.ok) {
     return fail(after.issues.map((x) => issue("ill-typed-result", "$.rule.right", `result: ${x.message}`,

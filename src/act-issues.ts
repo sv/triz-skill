@@ -41,6 +41,9 @@ export const ISSUE_CODES = {
   "hierarchy-interface": "An inner model's interface does not match its enclosing box",
   "hierarchy-binding": "An inner interface binding is missing, duplicated, or invalid",
   "hierarchy-substitution": "A hierarchy operation cannot preserve the declared structure or annotations",
+  // Import review
+  "invalid-import-provenance": "Imported source mappings or review decisions are malformed or incomplete",
+  "draft-model": "Imported model still contains unconfirmed ratings or assumptions",
   // Sets and arguments
   "listed-twice": "An id appears twice in a set argument",
   "empty-set": "A set argument names nothing",

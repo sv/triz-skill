@@ -95,11 +95,12 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | Stage | Tools | What they do |
 |---|---|---|
 | Lookup | `triz_parameter`, `triz_principle`, `triz_matrix`, `triz_matrix_multi`, `triz_resolve`, `triz_effects`, `triz_route`, `triz_tool_catalog`, `triz_evals` | Read the canonical data: parameters, principles, matrix cells, effects, the method router, and the eval suites |
-| Model | `triz_build_model`, `triz_expand_hierarchy`, `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export`, `triz_isomorphism`, `triz_behavior_refinement`, `triz_subsystem_summary` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
+| Model | `triz_build_model`, `triz_expand_hierarchy`, `triz_subsystem_contract`, `triz_function_model`, `triz_nine_windows`, `triz_abstraction`, `triz_export`, `triz_isomorphism`, `triz_behavior_refinement`, `triz_subsystem_summary` | Write the system as a typed function model, view it per level and time, relate coarse and detailed models, draw it |
 | Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow`, `triz_global_separation`, `triz_queue`, `triz_conservation` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
 | Transform | `triz_transform`, `triz_rule_apply`, `triz_trim_rewrite`, `triz_rewrite_pair`, `triz_rule_set` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
 | Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, `triz_adequacy`, `triz_implementations`, `triz_absorber_assignments`, `triz_synthesize` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
 | Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_behavior`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Local | `triz_import_source`, `triz_review_import` | Draft models from local sources, then record explicit analyst confirmation |
 | Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
 
 ### Tools
@@ -116,7 +117,10 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_build_model` | Build a typed model from explicitly rated component interactions, with stable ids, lints, and a bounded completeness report |
-| `triz_expand_hierarchy` | Substitute a box’s checked inner model into its parent and return fresh box/wire/flow maps; preserve local cost, feasibility, state and flow declarations |
+| `triz_expand_hierarchy` | Expand an inner model with explicit checked flow routes, media mappings, and opt-in budget, weight and contradiction policies |
+| `triz_subsystem_contract` | Distinguish a declared interface summary from one checked against complete inner behavior and a supported resource mode |
+| `triz_import_source` | Local only (stdio server and `triz` CLI): draft BOM, OpenAPI, Quint, Lean or Julia inputs with embedded source locations and pending review |
+| `triz_review_import` | Local only (stdio server and `triz` CLI): confirm every pending rating and assumption while retaining source provenance |
 | `triz_function_model` | Type-check a TRIZ function model (typed wiring diagram); harm loops, ideality per dimension, separation, baseline comparison with an isomorphism check; `mpv_weights` for a comparison over the main parameters of value |
 | `triz_trim` | Screen trimming by MATRIZ rules A/B/C; carrier-typed absorbers, trimming problems, and level problems for excessive or insufficient functions |
 | `triz_separate` | Decide whether a physical contradiction separates over space, time, condition, direction, or system level; optionally index it by one axis (Principle 15 along time); each separated pair gets suggested operations that could build the separation (hints, not verdicts) |
@@ -145,6 +149,10 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_rewrite_pair` | Check whether two named rewrites commute in their two orders |
 | `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
+
+For local source import, including exports from instantiated ModelingToolkit and Agents.jl models,
+see [Importing models](docs/importing-models.md). Imported models remain drafts through the builder
+and are refused by analysis until explicitly reviewed.
 
 `triz_behavior` can specify several unknown boxes jointly: use `weakest_spec` with `joint_boxes`
 and a target. The result keeps coupling explicit and checks whether its per-box projections are

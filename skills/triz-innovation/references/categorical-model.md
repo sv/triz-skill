@@ -99,22 +99,63 @@ must be unwired. Nesting is capped at eight levels. The box cannot also declare 
 outer behavior, producible, state, transition, feasibility or cost summary.
 
 `triz_nine_windows` displays the inner model and its interface when one selected box declares
-one. `triz_expand_hierarchy(model, box)` explicitly substitutes it into the parent and returns
-fresh box/wire/flow maps. It preserves each inner box’s fixed cost, feasibility rows, states,
-initial states and transition rows, and rewrites standalone inner flow paths and media to the fresh
-box ids. Parent budgets and weights stay on the parent. An outer flow that passes through the
-replaced box or names it as medium is refused: the interface does not determine a unique inner
-route. Declare that route explicitly rather than guessing. Inner budgets, weights, contradictions,
-different domains, and product deliverable identity changes are still refused. Expand further
-nested boxes one at a time. Resource and dynamic declarations are preserved and tested against
-manually flattened models; the static substitution theorem does not prove those semantics. Until expanded, semantic tools do not infer inner rows; residual
-synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
-and costs incomplete. `triz_function_model` reads harm loops and separation over the outer wiring
-and the model's own contradictions only: with nested boxes it returns `incompleteHierarchy` (their
-ids) beside them, and its isomorphism check carries `incompleteHierarchy: true`. An empty
-`harmLoops` there is not a clean verdict, since a loop inside an inner model is not reported:
-expand first. Generic explicit deletes may remove a whole nested box; they are structural
-edits, not behavior-preservation claims.
+one. `triz_expand_hierarchy(model, box, routes?, media?, policies?)` substitutes it into the parent
+and returns fresh box/wire/flow/contradiction maps. It retains inner costs, feasibility, states,
+initial states, transitions, standalone flows and reviewed provenance.
+
+For each occurrence of the shell in an outer flow, supply
+`{flow, occurrence, path, entry?, exit?}` in `routes`. `occurrence` counts that shell's occurrences
+within that flow, starting at zero; `path` names inner boxes. Each inner step must have a directed
+same-carrier wire or a declared inner flow step. If the outer occurrence has a predecessor or
+successor, `entry`/`exit` name outer ports bound to the first/last inner box, with matching
+same-carrier parent crossing wires. A flow without those boundary wires is outside this route
+checker's supported subset, even when its path is valid as a standalone flow. A shell used as a
+medium also needs `media: [{flow, box}]` naming an inner box with that carrier.
+
+Inner policies require explicit opt-in: `policies.budget: "global-intersection"` applies the
+inner bound to the whole expanded model (minimum on shared dimensions), which can be stronger
+than a local bound. `policies.weights: "global-merge"` unions weights and rejects conflicting
+shared values. `policies.contradictions: "append-renamed"` keeps independent declarations under
+fresh ids; it does not solve a joint constraint on repeated parameters. `policyEffects` reports
+the chosen scope. Containment provenance inside the inner model is renamed; outer containment
+that mentions the removed shell requires a separately reviewed flat mapping and is refused.
+Product identity changes and different domains remain unsupported. Expand
+nested boxes one at a time. Resource and dynamic preservation is tested against manual flattening;
+the static substitution theorem does not prove those semantics. Until expanded, semantic tools do
+not infer inner rows; synthesis and semantic isomorphism refuse nested shells, and ideality marks
+its outer-only counts and costs incomplete. `triz_function_model` returns harm loops and the
+model's own contradictions for outer wiring only: `incompleteHierarchy` lists unread nested boxes,
+and its isomorphism result carries `incompleteHierarchy: true`. An empty outer harm-loop list does
+not clear an inner model; expand first. Generic explicit deletes can remove a nested box but
+make no behavior-preservation claim.
+
+`triz_subsystem_contract` takes `mode: "declared" | "verify"`, a nested `box`, and a `contract`.
+Declare `behavior` rows over the outer port ids, explicit nonempty input `assumptions`, numeric
+`resources: {inputs, outputs, budget}`, and an `operating_envelope` label. Declared mode returns
+`declared-unverified` without an executable summary. Verify mode checks the complete inner
+stateless relation over those assumptions, including disconnected constraints and nonblocking;
+it reports exact, over-, under-, or incomparable behavior. Only exact behavior and checked
+resources yield `status: "checked"`. `hiddenHarms` lists the harmful or excessive inner functions
+the interface hides; a checked contract does not clear them.
+
+Resource verification currently requires one feasibility row per inner box, carrier levels,
+behavior rows, and `resource_binding: "all-behavior-rows"`. That binding remains a declared
+empirical assertion (`coupling: "declared-unverified"`). Checks include level bands, extensive
+sums or intensive maxima, boundary amounts, costs, the contract budget and any inner budget.
+Multiple modes, deeper nesting, missing evidence or search caps give `undecided`. Checking does
+not install or cache a summary on the shell; declared rows do not become verified by copying a
+status field. Dynamic contracts and local residual synthesis remain future work.
+
+The local-only tools `triz_import_source` and `triz_review_import` (stdio server and `triz` CLI) support source drafting. Every
+imported model embeds `provenance` with component, interaction and containment locations plus
+pending role/carrier/polarity/assumption decisions. B1 preserves it. Analysis refuses `draft-model`
+even if the caller extracts only the model from the response. Edit proposed meanings, then confirm
+each pending id exactly once using `{id, decision: "confirm", note?}`. Review retains sources and
+asserts analyst judgment; it is not proof of the source or physical truth. Transformations, rule
+applications and window views of a reviewed model keep the sources of surviving elements only;
+added elements stay unsourced, and a reviewed model's provenance may not name a removed id. These tools do not fetch
+references or execute supplied code. The hosted endpoint does not register them. See
+[the import guide](../../../docs/importing-models.md) for formats and the Julia export workflow.
 
 For a one-hole `weakest_spec` with an infeasible producible bound, `extensionCandidates.rows`
 lists the safe nonproducible rows that cover missing target pairs. The default lists 50;

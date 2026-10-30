@@ -47,13 +47,13 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | Q2 | Complexity estimate before the feasibility search | Open | Adds: predicted cost and pointed `cap-exceeded` hints | S |
 | Q3 | Cross-check `triz_feasibility` against an independent co-design solver | Open; dev only | Adds: a second oracle beside the brute-force tests | S–M |
 | Q4 | Supersystem constraints as design problems | Open; docs | Adds: workflow guidance | S |
-| Q5 | Hierarchical boxes through operad substitution | Wiring, local cost/resource/state declarations and standalone flows implemented; route/policy composition open | Adds: checked zoom in and out between box and inner model | M–L |
+| Q5 | Hierarchical boxes through operad substitution | Explicit checked routes and opt-in policy composition implemented; resource/dynamic theorem scope remains limited | Adds: checked zoom in and out between box and inner model | M–L |
 | Q6 | Minimal base refinement when no global section exists | Open | Adds: a concrete next move after `irreducible` | M |
 | B1 | A model builder from an interaction table | Implemented in this checkout | Adds: a typed `FunctionModel` from components and interaction triples, with a completeness report | S–M |
-| B2 | Pluggable importers that draft B1's interaction table | Open; after B1 | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
+| B2 | Pluggable importers that draft B1's interaction table | Local BOM/OpenAPI/code and Julia export adapters implemented; broader formats open | Adds: draft tables with provenance from a BOM, OpenAPI, SysML v2, or a document | M per importer |
 | S1 | Steady states by variable elimination along a tree decomposition | Open; needs C1 (landed) | Adds: behaviour cost exponential in treewidth, not in the boundary inputs | M–L |
 | S2 | Generalized arc consistency before enumeration | Implemented in this checkout, bounded preprocessing with safe fallback | Adds: values and rows pruned before the steady-state search | S–M |
-| S3 | Per-subsystem interface contracts | Open; needs Q5 | Adds: residuals and weakest specifications against local targets | M–L |
+| S3 | Per-subsystem interface contracts | Declared/checked stateless single-mode contracts implemented; local residual synthesis open | Adds: residuals and weakest specifications against local targets | M–L |
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
 | N1 | Three registers per element: structural ids, a plain gloss, domain labels | Open | Adds: an ideation register free of use words, beside the names that checks read | S; M with N6 |
@@ -74,14 +74,25 @@ Implemented in this checkout, with the remaining scope kept explicit:
   optimum claim. This cover optimizer is tested, not proved by the quantale theorem. Stage 2
   concepts and graded weakness remain open.
 - **B1:** `triz_build_model` builds typed models from explicit interaction tables, with stable
-  ids, lints, and bounded completeness reporting. B2 importers remain open.
+  ids, lints, and bounded completeness reporting. B2 adds local BOM CSV/JSON, OpenAPI JSON,
+  partial Quint/Lean/Julia source outlines and versioned ModelingToolkit/Agents exports. Source
+  locations and containment survive B1 and explicit review inside the model; unconfirmed drafts
+  cannot enter analysis by dropping an output envelope. SysML and free text remain open. See
+  [importing models](importing-models.md).
 - **Q5:** checked `inner` interfaces, explicit `triz_expand_hierarchy`, and inner subsystem
   windows. Expansion now retains box costs, feasibility, states, initial states and transitions,
   standalone inner flows, and parent budgets/weights; fresh box/wire/flow maps are returned.
-  Parent flow crossings need a declared inner route; product identity changes and inner policies
-  (budget, weights, contradictions) remain refused. `external_substituteWired` proves static
+  Parent flow crossings now require caller-supplied occurrence routes, checked same-carrier steps
+  and boundary wires; media need explicit mappings. Inner policies require opt-in global budget
+  intersection, compatible weight merge or independently renamed contradictions. Global budget
+  hoisting may strengthen a local bound. Product identity changes remain refused. `external_substituteWired` proves static
   arbitrary-context wired substitution including feedback; resource/dynamic preservation is
   tested against manually flattened models, not claimed by that theorem.
+- **S3 stage 1:** `triz_subsystem_contract` distinguishes declared summaries from checked exact,
+  nonblocking whole-inner stateless behavior over explicit assumptions. A single declared resource
+  mode is checked against carrier levels, consumption and both contract and inner budgets.
+  Resource/behavior coupling remains an empirical declaration. Missing data, multiple modes,
+  nested inners and caps remain undecided; dynamic contracts and local residual synthesis are open.
 - **Item 7, restriction part:** `theory/Restriction.lean` proves unique forward lifts for
   Mathlib’s category of elements of `restrictionGrid` (a discrete opfibration), with incoming
   lifts in the opposite categories (the discrete fibration orientation). `residual_descends`
@@ -113,29 +124,32 @@ Implemented in this checkout, with the remaining scope kept explicit:
 
 ## Next priorities
 
-The initial Q1, B1, Q5 and restriction/descent scopes are implemented above; S2 and the value/
-hole-coordinate portion of item 5 are implemented as well. The next useful slices are:
+The initial Q1, B1, Q5 and restriction/descent scopes are implemented above, as are S2,
+the value/hole-coordinate portion of item 5, B2's local input foundation and S3's first contract
+checker. The next useful slices are:
 
-1. **Q5 and S3: explicit flow routes and subsystem contracts.** Let callers declare how an
-   outer flow passes through an inner model, and check the route instead of inferring one.
-   Interface contracts should distinguish a declared summary from one checked against the inner
-   behavior and resources. Inner budget/weight/contradiction policies need an explicit composition
-   rule before expansion accepts them.
-2. **B2: local importers with draft provenance.** Start with one BOM importer and a pluggable
-   interface. Preserve source locations and unconfirmed ratings through B1; a draft must not be
-   usable as an analyst-confirmed model merely by dropping an output envelope.
-3. **Item 5: remaining verdict naturality.** Extend the current concrete diagram, residual,
+1. **Item 7: the remaining categorical closures.** Joint residuals for three or more holes,
+   controlled trim embeddings and the whole-model greatest-fixpoint characterization landed in
+   #49; the restriction-grid lifting and target-saturated conditional descent are proved. Concept
+   lattices and unrestricted descent remain outside these results.
+2. **Item 5: remaining verdict naturality.** Extend the current concrete diagram, residual,
    weakness and operational-adequacy transport to finite counts, resource dimensions and the
    remaining dynamic verdict families. Capped TypeScript search and identity of selected tied
    witnesses are separate obligations; symmetric ties do not supply a canonical single witness.
-4. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates, then S1 variable
-   elimination, S3 interface contracts and S5 compositional dynamics as their prerequisites are
-   met. S2 unary-domain propagation is implemented and does not replace global consistency.
+3. **Q2 and the scaling path.** Add pointed feasibility-complexity estimates, then S1 variable
+   elimination, S3 local residual synthesis and S5 compositional dynamics as their prerequisites
+   are met. S2 unary-domain propagation is implemented and does not replace global consistency.
+   S3's current contract checker (#46) supports stateless single-mode contracts; multiple resource
+   modes need an explicit coupling.
+4. **B2 breadth and hierarchy follow-through.** Add requested source formats beyond the current
+   adapters (SysML/free text), richer compiler-backed Quint/Lean extraction, and explicitly
+   reviewed mappings from source containment to typed nested interfaces. Julia export metadata
+   is preferred to source parsing; Agents snapshots do not export imperative step behavior.
 
-The first two entries have a separate implementation in [PR #46](https://github.com/sv/triz-skill/pull/46),
-which this independent batch does not include. Item 7's merged-hole, controlled-trim and whole-model
-gfp slice is implemented above; general concept lattices, unrestricted descent and a universal
-Kan characterization of supersystem collapse remain outside it.
+Explicit flow routes, subsystem contracts and local importers with draft provenance landed in
+#46. Item 7's merged-hole, controlled-trim and whole-model gfp slice landed in #49; general concept
+lattices, unrestricted descent and a universal Kan characterization of supersystem collapse remain
+outside it.
 
 Q4 remains documentation-only. Dynamic simulation relations are tracked separately in
 [categorical-future-plan.md](categorical-future-plan.md) §6. Q1 stage 2 remains conditional on
@@ -580,7 +594,7 @@ to exist; the entries say how far each check went. Corrections that shape the en
 
 ### Q5. Hierarchical boxes through operad substitution
 
-- **Status.** Wiring, local cost/resource/state declarations and standalone flows implemented; route/policy composition open. **Effort:** M–L.
+- **Status.** Explicit checked routes and opt-in policy composition implemented; resource/dynamic theorem scope remains limited. **Effort:** M–L.
 - **Change.** Schema: an optional `inner` model on a box, with matching interface ports. Lean: a
   substitution lemma, that the external relation of the substituted diagram equals the composite
   through the box's external relation. It builds on `glueAlong`, `seq`, `par`, and `feedback` in
@@ -633,7 +647,7 @@ documents the project already has. Neither decides a rating: those stay the anal
 
 ### B2. Pluggable importers
 
-- **Status.** Open; depends on B1. **Effort:** M per importer.
+- **Status.** Local import foundation and adapters implemented; SysML and free text open. **Effort:** M per importer.
 - **Change.** An `Importer` interface: a source document goes in, and a draft interaction table
   comes out for B1, never a finished model. Every triple carries its provenance: the source file
   and the location in it.
@@ -641,11 +655,15 @@ documents the project already has. Neither decides a rating: those stay the anal
   the network by default. They parse the data they are given and never recall facts, following
   the repository's no-recall rule. Polarity defaults to useful and is flagged for the analyst to
   confirm.
-- **Planned plugins.**
-  - **BOM** (CSV or JSON, parent and child): components and their hierarchy. The hierarchy feeds
-    Q5's `inner` models.
-  - **OpenAPI:** services or endpoints as boxes, request and response schemas as carriers, and
-    calls as useful functions.
+- **Implemented inputs and remaining plugins.**
+  - **BOM** (CSV or JSON, parent and child): components and reviewed containment metadata; constructing Q5's typed `inner` interface remains explicit.
+  - **OpenAPI JSON 3.0/3.1:** operations and explicit client/payload references; no inferred
+    interservice calls. External references are diagnosed, never fetched.
+  - **Quint/Lean/Julia source:** partial static declarations and references with pending meaning;
+    no compiler or source execution. Julia covers FLOP's explicit ModelingToolkit-style syntax.
+  - **Julia exports:** versioned JSON from instantiated ModelingToolkit systems or Agents
+    snapshots. Symbolic metadata and current structure remain drafts; no full behavior extraction.
+    [Importing models](importing-models.md) documents the trusted exporter and review path.
   - **SysML v2:** parts and blocks as boxes; ports, connectors, and item flows as wires. The
     mapping is close to one-to-one, but SysML has no harmful or insufficient ratings, so those
     stay the analyst's. SysML v2 was formally adopted by the OMG in 2025, with a textual notation
@@ -689,7 +707,7 @@ feasibility. The route is hierarchy plus contracts.
 
 ### S3. Per-subsystem interface contracts
 
-- **Status.** Open; needs Q5. **Effort:** M–L.
+- **Status.** Declared/checked stateless single-mode contracts implemented; local residual and dynamic scope open. **Effort:** M–L.
 - **Change.** Each subsystem gets an assume/guarantee contract, so residuals and weakest
   specifications can be computed against local targets instead of the global deliverables. A
   global target pushed down to a neighbourhood is otherwise itself a residual of the rest.

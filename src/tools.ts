@@ -10,8 +10,11 @@
 import { z } from "zod";
 import * as triz from "./core.js";
 import * as act from "./act.js";
-import { BuildModelRequest, buildModel } from "./act-builder.js";
-import { substitute } from "./act-hierarchy.js";
+import { BuildModelRequest, buildModel, reviewImportedModel } from "./act-builder.js";
+import { ImportSourceRequest, importSource } from "./act-import-registry.js";
+import { Decision } from "./act-provenance.js";
+import { SubsystemContractRequest, checkSubsystemContract } from "./act-subsystem-contract.js";
+import { substitute, SubstitutionOptions } from "./act-hierarchy.js";
 import { exportModel, exportSvg, CERTIFICATE_NOTE, type LayoutLoader } from "./act-export.js";
 import { behaviorCertificate, dynamicsCertificate, separationCertificate, weaknessCertificate, type Certificate } from "./act-cert.js";
 import { withSuggestions } from "./act-suggest.js";
@@ -300,7 +303,7 @@ export function withIssues<T>(payload: T): T {
   return { ...payload, issues: (p.errors as string[]).map((e) => issue("internal-error", "$", e, "This failure carries no structured issue: report it with the input.")) };
 }
 
-export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } = {}): ToolSpec[] {
+export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; localImports?: boolean } = {}): ToolSpec[] {
   const { graph, layout } = opts;
   const specs: ToolSpec[] = [
     {
@@ -376,9 +379,9 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
     },
     {
       name: "triz_expand_hierarchy",
-      description: "Substitute one box's declared inner model into its parent through its checked input/output interface. Returns a typed model and fresh box, wire and flow id maps. Preserves inner box costs, feasibility, states and transitions, and standalone inner flows. Parent flows through the replaced box require an explicit inner route and fail closed, as do inner budgets, weights, contradictions and product-identity changes. Expand nested boxes one at a time before requesting flat behavior, dynamics or resource verdicts. triz_nine_windows reads a selected box's inner model as its subsystem view.",
-      shape: { model: act.FunctionModel, box: Id.describe("Box whose inner model is substituted into the parent") },
-      handler: async ({ model, box }: { model: act.FunctionModel; box: string }) => text(substitute(model, box)),
+      description: "Substitute one box's declared inner model into its parent through its checked input/output interface. Returns a typed model and fresh box, wire and flow id maps. Preserves inner box costs, feasibility, states and transitions, and standalone inner flows. Parent flow occurrences require explicit routes and checked boundary connections; media need explicit mappings. Inner budgets, weights and contradictions require opt-in global-intersection, global-merge and append-renamed policies. Product-identity changes fail closed. Expand nested boxes one at a time before requesting flat behavior, dynamics or resource verdicts. triz_nine_windows reads a selected box's inner model as its subsystem view.",
+      shape: { model: act.FunctionModel, box: Id.describe("Box whose inner model is substituted into the parent"), ...SubstitutionOptions.shape },
+      handler: async ({ model, box, ...options }: { model: act.FunctionModel; box: string } & SubstitutionOptions) => text(substitute(model, box, options)),
     },
     {
       name: "triz_function_model",
@@ -604,6 +607,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
   ];
 
   const finiteTools: Array<[string, string, z.ZodObject<any>, (args: any) => unknown]> = [
+    ["triz_subsystem_contract", "Distinguish a declared subsystem summary from one checked against the complete inner steady-state relation and a single declared resource mode. Verification checks exact behavior over explicit assumptions, nonblocking, levels, demands and budgets; missing data or unsupported modes are undecided. Resource/behavior coupling remains a declared empirical assertion. Caller-supplied checked status is never trusted.", SubsystemContractRequest, checkSubsystemContract],
     ["triz_adequacy", "Check nonblocking and acceptable outputs over required operating situations under an explicit scope. Equality of two partial relations does not establish adequacy.", z.strictObject({ model: act.FunctionModel, acceptable: z.array(AcceptableEntry).min(1), required_inputs: z.array(OperatingSituation).min(1).optional(), scope: z.enum(["upstream", "whole"]).default("whole"), max_states: z.number().int().min(1).max(MAX_STATES).optional() }), ({ model, acceptable, required_inputs, scope, max_states }: { model: act.FunctionModel; acceptable: Acceptable[]; required_inputs?: Situation[]; scope: BehaviorScope; max_states?: number }) => operationalAdequacy(model, acceptable, { requiredInputs: required_inputs, scope, maxStates: max_states })],
     ["triz_isomorphism", "Verify or search a bijection preserving wiring and declared semantic annotations; search continues past incompatible automorphisms and returns undecided on its global budget.", SemanticIsomorphismRequest, semanticIsomorphism],
     ["triz_behavior_refinement", "Compose two WHOLE models and check exact equality or directional inclusion under explicit boundary and deliverable value maps. Complete relations are checked; no physical transfer is inferred.", RefinementRequest, behaviorRefinement],
@@ -619,6 +623,20 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
     ["triz_trim_rewrite", "Return an applied trim as explicit deletion/gluing data with its declared absorbers, interface, and checked replay. No Kan-extension claim is made.", TrimRewriteRequest, trimRewrite],
   ];
   for (const [name, description, schema, run] of finiteTools) specs.push({ name, description, shape: schema.shape, handler: async (args) => text(run(schema.parse(args))) });
+
+  if (opts.localImports) {
+    specs.push({
+      name: "triz_import_source",
+      description: "Local-only import of supplied BOM, OpenAPI, Quint, Lean or Julia inputs. Prefer modelingtoolkit-json and agents-json exports from instantiated Julia models; raw julia is a partial static fallback. Does not fetch references, execute source or load checkpoints. Returns a draft interaction table and model with embedded unconfirmed provenance; review all ratings and assumptions before analysis. Source-code outlines are partial syntactic references, not verified causal or finite behavior models.",
+      shape: ImportSourceRequest.shape,
+      handler: async (args: ImportSourceRequest) => text(importSource(args)),
+    }, {
+      name: "triz_review_import",
+      description: "Local-only explicit analyst confirmation of an imported model. Edit the draft first, then confirm every pending id exactly once with decision confirm and optional note. Source locations remain embedded; review asserts the supplied ratings and assumptions, without proving source correctness or physical truth.",
+      shape: { model: act.FunctionModel, decisions: z.array(Decision) },
+      handler: async ({ model, decisions }: { model: act.FunctionModel; decisions: Array<z.infer<typeof Decision>> }) => text(reviewImportedModel(model, decisions)),
+    });
+  }
 
   if (graph) {
     specs.push(

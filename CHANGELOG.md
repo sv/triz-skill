@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Explicit checked occurrence routes and media for hierarchy expansion, with opt-in global budget
+  intersection, compatible weight merge and independently renamed contradiction policies.
+- Subsystem interface contracts that distinguish declared summaries from exact, nonblocking
+  stateless behavior and single-mode resource checks; incomplete evidence remains undecided.
+  Verify results list `hiddenHarms`, the harmful or excessive inner functions the interface hides.
+- Local BOM/OpenAPI and partial Quint/Lean/Julia importers, plus versioned metadata exports from
+  instantiated ModelingToolkit and Agents.jl models. Draft source and containment provenance
+  survives B1 and explicit analyst review; analysis refuses unconfirmed models. The import and
+  review tools are local only: the stdio server and the `triz` command line list them, the hosted
+  Worker does not. A reviewed model works with every transformation, rule application and
+  nine-windows view: derived models keep the sources of surviving elements, added elements stay
+  unsourced, and no stale source entry is accepted. Every refusal of `dist/import-source.js`
+  carries a code, path and hint. CSV import skips a byte order mark and blank lines; Quint `x'`
+  writes reference `x`; Lean binder groups, lambda and match binders no longer yield edges to
+  same-named globals.
 - Opt-in `joint_boxes` weakest specifications over one coupled multi-box relation, with exact
   coverage, producibility, projection-safety witnesses, bounded display and search caps.
 - Lean proofs for joint residual coverage and a three-hole nonfactorization witness, controlled
