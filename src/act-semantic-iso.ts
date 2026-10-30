@@ -36,6 +36,7 @@ const resources = (m: Model) => [...new Set([...m.boxes.flatMap(b => [...Object.
 export function checkSemanticIsomorphism(source: Model, target: Model, mapping: SemanticMapping, profile: SemanticProfile = "all") {
   const a = checkModel(source), b = checkModel(target);
   if (!a.ok || !b.ok) return fail([...(!a.ok ? a.issues : []), ...(!b.ok ? b.issues : [])]);
+  if (source.boxes.some(b => b.inner) || target.boxes.some(b => b.inner)) return fail([issue("hierarchy-substitution", "$.source", "Semantic isomorphism requires expanded hierarchy", "Expand nested boxes in both models before checking semantic annotations.")]);
   const errors: string[] = [];
   // Extra feasibility-only dimensions are irrelevant to the structural checker.
   const structuralDims = new Set([...source.boxes.flatMap(x => Object.keys(x.cost ?? {})), ...Object.keys(source.budget ?? {}), ...Object.keys(source.weights ?? {}).filter(k => k !== "harmful")]);
@@ -98,6 +99,7 @@ export function semanticIsomorphism(input: z.input<typeof SemanticIsomorphismReq
   const parsed = SemanticIsomorphismRequest.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues.map(e => issue("invalid-argument", `$.${e.path.join(".")}`, e.message, "Use the semantic-isomorphism request schema.")));
   const { source, target, mapping, profile, max_steps } = parsed.data;
+  if (source.boxes.some(b => b.inner) || target.boxes.some(b => b.inner)) return fail([issue("hierarchy-substitution", source.boxes.some(b => b.inner) ? "$.source" : "$.target", "Semantic isomorphism requires expanded hierarchy", "Expand nested boxes in both models before checking semantic annotations.")]);
   if (mapping) return checkSemanticIsomorphism(source, target, normalizeMapping(mapping), profile);
   let found: SemanticMapping | undefined;
   const extraA = resources(source), extraB = resources(target);

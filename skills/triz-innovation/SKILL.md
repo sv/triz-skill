@@ -93,7 +93,8 @@ Read only what the task needs:
   [tool-selection.md](references/tool-selection.md);
 - exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
-- function models as typed data, harm loops, trimming screens, trims and transform results
+- interaction tables built with `triz_build_model`, nested boxes expanded with
+  `triz_expand_hierarchy`, function models as typed data, harm loops, trimming screens, trims and transform results
   decided under declared behaviour, an unknown box's weakest specification, weakness rankings of
   modelled concepts, bounded dynamics, separation checks, typed transformations, 9-windows views
   and transitions, and exports:

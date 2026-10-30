@@ -1,3 +1,4 @@
+import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
  *
@@ -656,7 +657,7 @@ const capped = (f: Failure, prefix = "", rules: Reroot = []) => {
 /** Cap on the formal concepts enumerated for two boxes to specify. */
 export const MAX_CONCEPTS = 10_000;
 
-type SpecOptions = BehaviorOptions & { boxMap?: Record<string, string>; maxConcepts?: number };
+export type SpecOptions = BehaviorOptions & { boxMap?: Record<string, string>; maxConcepts?: number; rowCosts?: Array<{ row: SpecRow; cost: number }>; maxCostSearch?: number };
 type SpecRow = { in: Record<string, string>; out: Record<string, string> };
 
 /** A box's ports, inputs first, each with its side. */
@@ -700,6 +701,7 @@ const declare = (m: FunctionModel, behavior: Record<string, SpecRow[]>): Functio
  * is `undecided` (no-steady-state); past the cap, `undecided` (state-cap).
  */
 function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: SpecOptions, of: string) {
+  if (opts.maxCostSearch !== undefined && opts.rowCosts === undefined) return fail([issue("invalid-row-costs", "$.max_cost_search", "a cost search cap requires row costs", "Supply row_costs with the cap.")]);
   // Paths as with compare_to: the baseline is compare_to, the concept is model.
   const checked = checkModel(baseline, "$.compare_to");
   if (!checked.ok) return rebase(fail(checked.issues), [], `${of}: `);
@@ -721,6 +723,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   }
   const observe = target.map((d) => byKey.get(deliverableKey(d))!);
   const before = plan(baseline, target, opts);
+  if (before.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.compare_to", "weakest specification cannot evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (before.missing.length) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, deliverables: target, missingBehavior: before.missing, missingIn: of,
@@ -728,6 +731,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
     };
   }
   const p = plan(concept, observe, opts);
+  if (p.composed.some((b) => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "weakest specification cannot specify or evaluate a nested box directly", "Substitute each composed nested box before computing the specification.")]);
   if (p.missing.length > 2) {
     return {
       ok: true as const, verdict: "undecided" as const, reason: "several-holes" as const, deliverables: target, missingBehavior: p.missing,
@@ -760,6 +764,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
     };
   }
   if (boxes.length === 2) {
+    if (opts.rowCosts !== undefined) return fail([issue("invalid-row-costs", "$.row_costs", "row costs apply only to a single unknown box", "Specify one box at a time.")]);
     return pairSpec(concept, baseline, boxes, { t, target, observe, rename, gainedDeliverables, composed: p.composed.map((b) => b.id), max, maxConcepts: opts.maxConcepts ?? MAX_CONCEPTS, scope: opts.scope });
   }
   const [{ hole, ports, rows, asRow, producible, probe }] = boxes;
@@ -813,6 +818,7 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   // The residual covers the target and the producible spec does not: for each target pair it misses, the rows of W \ F that deliver it.
   const requiredInfeasible: Array<{ input: Array<Endpoint & { value: string }>; outputs: string[]; rows: ReturnType<typeof asRow>[] }> = [];
   const required = new Set<string>();
+  const covering: string[][] = [];
   if (producible && !ofResidual.uncovered && ofSpec.uncovered) {
     const cannot = new Set(infeasible.map(tupleKey));
     for (const u of valuationsOf(space.typed, space.domain)) {
@@ -824,8 +830,30 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
         // The residual covers this pair and no producible row of it does, so a row of W \ F must.
         if (!by.length) throw new Error(`invariant: no row of the residual delivers [${outputs.join(", ")}] at input [${u.join(", ")}]`);
         for (const r of by) required.add(tupleKey(r));
+        covering.push([...new Set(by.map(tupleKey))]);
         if (requiredInfeasible.length < LISTED) requiredInfeasible.push({ input: situation(u), outputs, rows: by.map(asRow) });
       }
+    }
+  }
+  const candidates = new Map(infeasible.filter(r => required.has(tupleKey(r))).map(r => [tupleKey(r), asRow(r)]));
+  const candidateRows = [...candidates.values()];
+  let cheapestExtension: unknown;
+  if (opts.rowCosts !== undefined) {
+    if (boxes.length !== 1 || !producible) return fail([issue("invalid-row-costs", "$.row_costs", "row costs require one unknown box with producible rows", "Supply producible rows for the unknown box.")]);
+    const costs = new Map<string, number>();
+    for (const [i, entry] of opts.rowCosts.entries()) {
+      const row = entry?.row;
+      const validKeys = row && row.in && row.out && Object.keys(row.in).length === ports.filter(p => p.side === "in").length && Object.keys(row.out).length === ports.filter(p => p.side === "out").length && ports.every(p => Object.hasOwn(p.side === "in" ? row.in : row.out, p.id));
+      const key = validKeys ? tupleKey(ports.map(p => (p.side === "in" ? row.in : row.out)[p.id])) : "";
+      if (!validKeys || !candidates.has(key) || costs.has(key) || !Number.isSafeInteger(entry.cost) || entry.cost < 0) return fail([issue("invalid-row-costs", `$.row_costs[${i}]`, "each cost must uniquely name a relevant safe nonproducible row with a nonnegative safe integer cost", "List each relevant row once with its cost.")]);
+      costs.set(key, entry.cost);
+    }
+    if (costs.size !== candidates.size) return fail([issue("invalid-row-costs", "$.row_costs", "costs are missing for relevant rows", "Request weakest_spec with full_relation: true and list every row in extensionCandidates with an explicit cost.")]);
+    if (opts.maxCostSearch !== undefined && (!Number.isSafeInteger(opts.maxCostSearch) || (opts.maxCostSearch < 1 || opts.maxCostSearch > 100_000))) return fail([issue("invalid-row-costs", "$.max_cost_search", "the cost search cap must be an integer from 1 to 100000", "Give a positive integer.")]);
+    if (ofResidual.uncovered) cheapestExtension = { status: "not-applicable", reason: "target-not-covered-by-residual" };
+    else {
+      const result = cheapestCover(covering.length, [...candidates].map(([key, row]) => ({ row, cost: costs.get(key)!, covers: covering.flatMap((set, i) => set.includes(key) ? [i] : []) })), opts.maxCostSearch);
+      cheapestExtension = result;
     }
   }
   const { uncovered, uncoveredInputs } = ofResidual.uncovered ? ofResidual : ofSpec;
@@ -848,6 +876,8 @@ function residualSpec(concept: FunctionModel, baseline: FunctionModel, opts: Spe
   const blocked = inputTuples.filter((x) => !byIn.has(tupleKey(x)));
   const inputsOf = (x: string[]) => Object.fromEntries(ports.filter((q) => q.side === "in").map((q, i) => [q.id, x[i]]));
   const common = {
+    ...(opts.rowCosts !== undefined ? { cheapestExtension } : {}),
+    ...(candidateRows.length ? { extensionCandidates: { rows: opts.fullRelation ? candidateRows : candidateRows.slice(0, LISTED), rowCount: candidateRows.length, truncated: !opts.fullRelation && candidateRows.length > LISTED } } : {}),
     box: hole.id,
     ports: { inputs: (hole.inputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })), outputs: (hole.outputs ?? []).map((q) => ({ port: q.id, carrier: q.carrier })) },
     spec: spec.slice(0, LISTED_ROWS).map(asRow), specRows: spec.length, specTruncated: spec.length > LISTED_ROWS, candidateRows: rows.length,
@@ -1097,10 +1127,10 @@ export function weakestSpec(concept: FunctionModel, baseline: FunctionModel, opt
 }
 
 /** Perform a trim and give the weakest specification for the one or two boxes without behaviour, against the untrimmed model. */
-export function weakestTrimSpec(model: FunctionModel, spec: BehaviorOptions & { trim: string[]; absorb?: Record<string, Endpoint>; maxConcepts?: number }) {
+export function weakestTrimSpec(model: FunctionModel, spec: SpecOptions & { trim: string[]; absorb?: Record<string, Endpoint> }) {
   const applied = applyTrim(model, { trim: spec.trim, absorb: spec.absorb });
   if (!applied.ok) return applied;
-  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, maxConcepts: spec.maxConcepts, scope: spec.scope }, "baseline"), spec.scope ?? "upstream");
+  const r = scoped(residualSpec(applied.model, model, { maxStates: spec.maxStates, maxConcepts: spec.maxConcepts, scope: spec.scope, fullRelation: spec.fullRelation, rowCosts: spec.rowCosts, maxCostSearch: spec.maxCostSearch }, "baseline"), spec.scope ?? "upstream");
   return r.ok ? { trim: spec.trim, chosen: applied.chosen, ...r } : rebase(r, TRIMMED);
 }
 

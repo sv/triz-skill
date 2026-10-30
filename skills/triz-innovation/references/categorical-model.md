@@ -66,6 +66,43 @@ means the TRIZ reading of a verdict is proved. A verdict that needs no theorem, 
 compatible pair, cites none. The lemmas no verdict cites, and which verdict cites which theorem,
 are in the [theory map](../../../docs/theory-map.md#theorem-inventory).
 
+## Build and expand models
+
+`triz_build_model` accepts a domain, components (`id`, `name`, `role`), and interactions
+(`subject`, `action`, `object`, `carrier`, `polarity`). Each carrier supplies its id, layer and
+dimension. Optional flows reference those component and carrier ids. It generates one port per
+box/carrier/side and stable wire ids; renaming a component’s display name changes no ids. It
+validates the result and returns lints and a completeness report. Unrecorded component pairs
+are prompts to review, not claims that every pair should interact. Product reach counts any
+incoming interaction, including harm; it does not establish a useful deliverable. Ratings and
+behavior rows are never invented.
+
+A box can declare `inner: { model, inputs, outputs }`. Each binding is
+`{ outer: "port-id", inner: { box: "inner-box", port: "inner-port" } }`. Bind every outer and
+exposed inner port once, on matching sides with matching carrier declarations; inner inputs
+must be unwired. Nesting is capped at eight levels. The box cannot also declare an unchecked
+outer behavior, producible, state, transition, feasibility or cost summary.
+
+`triz_nine_windows` displays the inner model and its interface when one selected box declares
+one. `triz_expand_hierarchy(model, box)` explicitly substitutes it into the parent and returns
+fresh box/wire maps. It supports stateless wiring and rejects changes of product deliverable
+identity, flows, costs, feasibility, dynamics and other unsupported inner metadata. Expand further
+nested boxes one at a time. Until expanded, semantic tools do not infer inner rows; residual
+synthesis and semantic isomorphism refuse nested shells, and ideality marks its outer-only counts
+and costs incomplete. Generic explicit deletes may remove a whole nested box; they are structural
+edits, not behavior-preservation claims.
+
+For a one-hole `weakest_spec` with an infeasible producible bound, `extensionCandidates.rows`
+lists the safe nonproducible rows that cover missing target pairs. The default lists 50;
+`full_relation: true` returns every candidate within the existing state cap. Supply each listed
+candidate exactly once in `row_costs: [{ row: { in, out }, cost }]`, with nonnegative safe-integer
+prices in one common caller-chosen unit. `cheapestExtension` finds the least total cost set,
+paying once per added row even when it covers several target pairs. It changes no Boolean
+verdict and adds no rows to the model. `max_cost_search` caps the exact search at up to 100,000
+nodes; cap or integer overflow gives `undecided`, with no optimality claim. Two-hole costs are
+unsupported. The finite cover algorithm is tested against exhaustive subsets; its optimality is
+not certified by the graded-residual theorem.
+
 ## Fields and tool dependencies
 
 Declare the fields a question needs, on the boxes that matter. Missing rows give `undecided`,

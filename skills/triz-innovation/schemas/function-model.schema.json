@@ -185,6 +185,10 @@
           ],
           "description": "Function-analysis role; environment and supersystem boxes are resources outside the engineered system"
         },
+        "inner": {
+          "description": "Nested model and explicit one-to-one outer-to-inner interface bindings",
+          "$ref": "#/$defs/Inner"
+        },
         "action": {
           "description": "Main action verb, e.g. 'support', 'route', 'monetize'",
           "type": "string"
@@ -269,6 +273,78 @@
         "id",
         "name",
         "role"
+      ],
+      "additionalProperties": false
+    },
+    "Inner": {
+      "type": "object",
+      "properties": {
+        "model": {
+          "$ref": "#"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "outer": {
+                "type": "string",
+                "minLength": 1
+              },
+              "inner": {
+                "$ref": "#/$defs/Endpoint"
+              }
+            },
+            "required": [
+              "outer",
+              "inner"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "outer": {
+                "type": "string",
+                "minLength": 1
+              },
+              "inner": {
+                "$ref": "#/$defs/Endpoint"
+              }
+            },
+            "required": [
+              "outer",
+              "inner"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "model",
+        "inputs",
+        "outputs"
+      ],
+      "additionalProperties": false
+    },
+    "Endpoint": {
+      "type": "object",
+      "properties": {
+        "box": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "box",
+        "port"
       ],
       "additionalProperties": false
     },
@@ -459,24 +535,6 @@
       ],
       "additionalProperties": false,
       "description": "A TRIZ function: a typed wire from an output port of the performing box to an input port of the box acted on"
-    },
-    "Endpoint": {
-      "type": "object",
-      "properties": {
-        "box": {
-          "type": "string",
-          "minLength": 1
-        },
-        "port": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "box",
-        "port"
-      ],
-      "additionalProperties": false
     },
     "Flow": {
       "type": "object",

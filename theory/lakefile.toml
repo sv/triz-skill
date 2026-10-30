@@ -1,5 +1,5 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality"]
 
 # Mathlib tag must match lean-toolchain; bump both together. `lake exe cache get` then
 # fetches prebuilt oleans for this exact revision.
@@ -29,3 +29,19 @@ name = "Semantics"
 # Non-vacuity witnesses and counterexamples for Semantics.
 [[lean_lib]]
 name = "SemanticsWitnesses"
+
+# Graded residuals and the Boolean/min-plus instances.
+[[lean_lib]]
+name = "Graded"
+
+# Arbitrary-wiring substitution semantics and witnesses.
+[[lean_lib]]
+name = "Hierarchy"
+
+# Restriction-grid lifting and conditional residual descent.
+[[lean_lib]]
+name = "Restriction"
+
+# Semantic transport under explicit equivalences.
+[[lean_lib]]
+name = "Naturality"

@@ -577,7 +577,7 @@ D. Mann, *Hands on Systematic Innovation for Business & Management*, first publi
 
 H. Riess, Y. Huang, M. Klawonn, G. Zardini and M. Hale, *Quantale-Enriched Co-Design: Toward a Framework for Quantitative Heterogeneous System Design* (2026). [arXiv:2603.29921](https://arxiv.org/abs/2603.29921).
 
-**Future work.** As its abstract states, monotone co-design ([R5](#r5)) generalised to quantales, covering cost, confidence and implementation sets as well as Boolean feasibility, with heterogeneous composition by change of base. Only the abstract has been read. It motivates the staged graded relations of [FUTURE-PLANS.md](../docs/FUTURE-PLANS.md) Q1; nothing in the kernel implements it.
+**Future work.** As its abstract states, monotone co-design ([R5](#r5)) generalised to quantales, covering cost, confidence and implementation sets as well as Boolean feasibility, with heterogeneous composition by change of base. Only the abstract has been read. It motivates the staged graded relations of [FUTURE-PLANS.md](../docs/FUTURE-PLANS.md) Q1. Stage 1 now proves generic, Boolean and min-plus residual adjunctions; heterogeneous change of base remains unimplemented. The finite row-acquisition advisor is a separate tested cover search, not a consequence of that paper’s abstract.
 
 ## R92
 

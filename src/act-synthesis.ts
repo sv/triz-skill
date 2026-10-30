@@ -30,6 +30,7 @@ export function synthesizeFinite(input: unknown) {
   if (!budget.spend(modelWork(s.model) + s.holes.reduce((n, h) => n + h.alternatives.reduce((k, a) => k + a.behavior.length, 0), 0))) return { ...engineeringCap(budget), candidateSpace: { size: null, enumerated: 0, complete: false, scope: "Declared finite libraries on fixed wiring; cap reached before search." } };
   const checked = checkModel(s.model, "$.model");
   if (!checked.ok) return fail(checked.issues);
+  if (s.model.boxes.some(b => b.inner)) return fail([issue("hierarchy-substitution", "$.model", "Finite synthesis requires expanded hierarchy", "Expand nested boxes before replacing hole behaviors or checking joint contracts.")]);
   const ids = s.holes.map((h) => h.box);
   if (new Set(ids).size !== ids.length) return fail([issue("invalid-argument", "$.holes", "a synthesis hole is listed twice", "List each hole once with all of its alternatives.")]);
   for (const [i, h] of s.holes.entries()) {

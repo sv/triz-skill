@@ -11,6 +11,19 @@ the lints, and the slips agents make most often are in
 Branch on `code`, never on `message`. A test keeps this file equal to the codes the kernel
 registers (`src/act-issues.ts`), each listed once.
 
+## Model building, hierarchy, and row costs
+
+| Code | Raised by | Meaning |
+|---|---|---|
+| `hierarchy-depth` | model checks | A cycle or more than eight nested levels; remove the cycle or flatten a level |
+| `invalid-inner-model` | model checks | The inner declaration or model has an invalid shape |
+| `hierarchy-summary` | model checks | A nested box also declares an unchecked outer behavior, producible, state, feasibility, or cost summary |
+| `hierarchy-interface` | model checks | The interface omits or repeats an outer or exposed inner port |
+| `hierarchy-binding` | model checks | A binding names the wrong side, carrier, or a wired inner input |
+| `hierarchy-substitution` | expansion, transformations, semantic tools | The operation cannot preserve nested structure or annotations; expand supported nested boxes first |
+| `invalid-row-costs` | weakest specification | Prices are missing, duplicated, malformed, irrelevant, or unsupported in the selected mode; use full_relation to discover extensionCandidates |
+| `row-costs-without-weakest-spec` | behavior tool | row_costs needs weakest_spec; max_cost_search also needs row_costs |
+
 ## Model and row typing
 
 Raised when a model is type-checked, by every tool that takes a model, and where noted by the

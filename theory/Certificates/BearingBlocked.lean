@@ -16,7 +16,7 @@ namespace BearingBlocked
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingBlocked\",\"source\":\"d2e338a020420bd0c9d79b1e930bdcc1edba2b48b41bbec7fcac18ba6892a6dd\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"8b64b39f4dd8226ff2dd5886e55e29c676898fca8d9de64c0334dadd3eb57336\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"dynamics\",\"namespace\":\"BearingBlocked\",\"source\":\"d2e338a020420bd0c9d79b1e930bdcc1edba2b48b41bbec7fcac18ba6892a6dd\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"cb5380f0074bacbc87d42a4925a5d242c55a32a23593a56e2ce76043d43560c8\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"dynamics-upstream\"}"
 
 /-! ## The composed boxes as finite data -/
 

@@ -540,6 +540,7 @@ test("ill-typed behaviour fails closed in every tool that takes a model", async 
     triz_function_model: { model: bad },
     triz_trim: { model: bad, trim: ["bearing"] },
     triz_export: { model: bad, format: "hypergraph" },
+    triz_expand_hierarchy: { model: bad, box: "housing" },
     triz_transform: { model: bad, transformation: { op: "trim", trim: ["bearing"] } },
     triz_nine_windows: { present: bad, subsystem: ["bearing"] },
     triz_behavior: { model: bad },
