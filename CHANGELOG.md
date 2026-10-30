@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-30
+
 ### Added
 
 - Explicit checked occurrence routes and media for hierarchy expansion, with opt-in global budget
@@ -180,7 +182,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - FLOP-specific benchmark, registry, problem graph, and reconciler CLI.
 
-[unreleased]: https://github.com/sv/triz-skill/compare/v0.5.0...HEAD
+[unreleased]: https://github.com/sv/triz-skill/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/sv/triz-skill/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/sv/triz-skill/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/sv/triz-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/sv/triz-skill/compare/v0.2.0...v0.3.0

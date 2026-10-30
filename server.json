@@ -3,7 +3,7 @@
   "name": "io.github.sv/triz",
   "title": "TRIZ",
   "description": "Deterministic, read-only TRIZ: matrix, principles, effects, routing, type-checked function models.",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "repository": {
     "url": "https://github.com/sv/triz-skill.git",
     "source": "github"
@@ -13,7 +13,7 @@
     {
       "registryType": "npm",
       "identifier": "triz-mcp",
-      "version": "0.5.0",
+      "version": "0.5.1",
       "runtimeHint": "npx",
       "transport": {
         "type": "stdio"
