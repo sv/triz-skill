@@ -19,6 +19,10 @@
  *                                 producible row's output level, read through the carriers'
  *                                 levels, is reached by no feasibility row of the box at its
  *                                 inputs (src/act-levels.ts, unbackedProducible).
+ *  - extensive-fan-out            (warning) an output port of a carrier declared extensive feeds
+ *                                 several functions. triz_feasibility makes it supply their sum;
+ *                                 triz_behavior and triz_dynamics give every function the port's
+ *                                 one value, as if each received the whole amount.
  *
  * The loss lexicon is a heuristic over carrier ids, dimensions, and function verbs; a match is a
  * prompt to check the rating, not a finding.
@@ -70,6 +74,15 @@ export function lintModel(model: FunctionModel, root = "$.model"): Warning[] {
       });
     }
   });
+  const extensive = new Set(model.carriers.filter((c) => c.quantity === "extensive").map((c) => c.id));
+  model.boxes.forEach((b, i) => (b.outputs ?? []).forEach((p, j) => {
+    if (!extensive.has(p.carrier)) return;
+    const fns = model.wires.filter((w) => w.from.box === b.id && w.from.port === p.id);
+    if (fns.length < 2) return;
+    out.push(lint("extensive-fan-out", "warning", at(root, "boxes", i, "outputs", j),
+      `output port '${b.id}.${p.id}' of extensive carrier '${p.carrier}' feeds ${fns.length} functions (${quoted(fns.map((w) => w.id))}): the amount divides among them, but triz_behavior and triz_dynamics give each the port's one value`,
+      `If the shares matter, insert a splitter box with one output per function and rows that say how the amount divides; triz_feasibility already makes '${b.id}.${p.id}' supply the sum of the demands. If every function receives the same level, mark carrier '${p.carrier}' intensive.`));
+  }));
   for (const u of unbackedProducible(model)) {
     const b = model.boxes[u.box];
     out.push(lint("unbacked-producible-row", "warning", at(root, "boxes", u.box, "producible", u.row),

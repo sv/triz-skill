@@ -31,7 +31,7 @@ ids (R…) refer to [theory/REFERENCES.md](../theory/REFERENCES.md).
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly landed: two boxes in #32, whole-model composition in #35 | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
 | C1 | Quotient the row-table certificates by wires | **Landed** (`claude/constraints-batch-1`) | Adds: certificates for larger models within the same table-read cap | — |
-| C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Open; next batch | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
+| C2 | Quantity kind: extensive or intensive carriers, and how cost dimensions aggregate | Carriers **landed** (`claude/constraints-batch-1`); cost `aggregate` (sum, max, path) open | Adds: no false `feasible` when one output feeds several consumers of an extensive quantity; peak and path costs | S (sum/max); M (path) |
 | C3 | Level-monotone behaviour: signed loops and the least steady state | Open | Narrows "does not apply the monotone reading to behaviour rows" for declared orders; better `noSteadyState` notes | M; L with lattice reporting |
 | C4 | Product structure of the composed diagram | Open | Adds: caps on the sum over components, not the product; `noSteadyState` per component | S–M |
 | C5 | Decide time-invariant dynamics without a horizon | Open; next batch | "Unreachability within the horizon only … not certified", for time-invariant inputs | S |
@@ -172,7 +172,16 @@ implementation batch. Evidence names symbols rather than line numbers.
 
 ### C2. Quantity kind: extensive or intensive carriers, and cost aggregation
 
-- **Status.** Open; next batch. **Effort:** S for sum and max; M for path costs.
+- **Status.** The carrier half landed on `claude/constraints-batch-1`: `Carrier.quantity`, summed
+  demands on extensive outputs, `extensive-fan-in` (an extensive input fed by several functions
+  fails closed), the `extensive-fan-out` lint, and in Lean `selection_mono` and
+  `extensive_demand_mono`. The test case reads as planned: 5 feeding 4 + 4 is `feasible` intensive
+  and `infeasible` (`unprovidable`, 8 demanded) extensive, and the brute-force comparison also runs
+  with every carrier extensive. Open: `FunctionModel.aggregate` (`"sum"` / `"max"`, then
+  `"path"`), `trim_lowers_peak`, and the conservation lint. `aggregate` was left whole rather than
+  half done: it must reach `sumCosts` (ideality, trim cost relief), the feasibility fixed and
+  operating costs and their total, `act-windows.ts`, `act-refinement.ts`, and the dimension maps
+  of both isomorphism checks. **Effort:** S for sum and max; M for path costs.
 - **Constraint.** Each carrier and each cost dimension declares how amounts combine: extensive
   (they sum) or intensive and shared (the max). A cost dimension can later also be path-wise: a sum
   along a flow, the max across flows.

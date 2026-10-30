@@ -1576,6 +1576,24 @@ example : true ∈ kleeneStep (fun (s x : Bool) => s = true ∧ x = true) (upper
   refine ⟨⟨true, mem_upperClosure.mpr ⟨false, rfl, by decide⟩, true, ⟨rfl, rfl⟩, le_rfl⟩, ?_⟩
   simp
 
+/-! ### `selection_mono`, `extensive_demand_mono`
+
+A selection admitted at every demand up to 5 meets `kleeneStep_upperClosure`'s hypothesis,
+whatever it places. Admitted only at demand 3 (no `hok`), it is not admitted at the smaller demand
+0, and the hypothesis fails. Two consumers' summed demand grows with either of them. -/
+
+example : ∀ ⦃s s' x : ℕ⦄, s ≤ s' → (∃ σ : Bool, s' ≤ 5 ∧ (if σ then 2 else 1) = x) →
+    ∃ y ≤ x, ∃ σ : Bool, s ≤ 5 ∧ (if σ then 2 else 1) = y :=
+  selection_mono (fun σ : Bool => if σ then 2 else 1) fun _ _ _ h h' => h.trans h'
+
+example : ¬ ∀ ⦃s s' x : ℕ⦄, s ≤ s' → (∃ _ : Unit, s' = 3 ∧ (2 : ℕ) = x) →
+    ∃ y ≤ x, ∃ _ : Unit, s = 3 ∧ (2 : ℕ) = y := fun h => by
+  obtain ⟨_, _, _, h0, _⟩ := h (Nat.zero_le 3) ⟨(), rfl, rfl⟩
+  exact absurd h0 (by decide)
+
+example (d : Fin 2 → ℝ) : ∑ i, d i ≤ ∑ i, (d i + 1) :=
+  extensive_demand_mono _ fun _ _ => le_add_of_nonneg_right zero_le_one
+
 /-! ### `codesign_lfp`
 
 On `Fin 3`, where every configuration requires `1`, the least fixpoint holds `1` and not `0`. On

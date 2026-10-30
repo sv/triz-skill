@@ -79,6 +79,7 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance, separation in time, `loops`; dynamics certificates; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
 | `feasibility`, `cost`, `budget` | box; box; model | `triz_feasibility` (with `trim`, each absorber's added resources), `uneven-development`, `triz_nine_windows` `system.verdicts.feasibility`, resource modes in `triz_implementations` and `triz_synthesize` | `undecided`: `missing-feasibility`, or `no-budget`, or `unbudgeted`; a box outside the solve adds only its `cost` |
 | `levels` | carrier with `values` | amounts read as values: `levels` in `triz_feasibility` and `triz_abstraction`; `at_least`/`below` in every `acceptable` | no reading between amounts and values; a threshold fails (`invalid-threshold`) |
+| `quantity` | carrier | `extensive`: in `triz_feasibility` an output's demands add up, an input fed by several functions fails closed (`extensive-fan-in`), and the `extensive-fan-out` lint; `triz_isomorphism` maps it unchanged | `intensive`: one shared level, so an output meets the largest demand |
 | `flows` | model | `triz_flow`; adjacency for `merge`; `flows` in `triz_abstraction`; `flowsChanged` in `triz_nine_windows` | functions say only who acts on whom, not series order |
 | `priors` or `joint_prior` | `triz_weakness` argument | `weightedAdmitted` and `byWeight`, or `jointAdmittedWeight`, `jointAdmittedProbability`, and `byJointPrior` | the uniform count, `byCount` |
 | `weights`; `mpv_weights` | model; `triz_function_model` argument | a scalar ideality ratio; `comparison.mpv` | costs per dimension, never summed |
@@ -363,6 +364,7 @@ The lints:
 | `unused-carrier` (info) | a carrier that types nothing | Delete it, or type the port or wire meant to carry it |
 | `unwired-port` (info) | a port with no wire | Nothing, if meant: an unwired input is a boundary input, the operating condition `triz_behavior` and `triz_dynamics` read; an unwired output is capacity `triz_trim` may offer as an absorber |
 | `unbacked-producible-row` | a box declares `producible` and `feasibility`, and a producible row's output level is reached by no feasibility row of the box, read through the carriers' `levels` | Fix whichever is wrong: the producible row, the feasibility rows, or the levels |
+| `extensive-fan-out` | an output port of a carrier declared `quantity: "extensive"` feeds several functions: `triz_feasibility` makes it supply their sum, but `triz_behavior` and `triz_dynamics` give each function the port's one value | If the shares matter, insert a splitter box with one output per function; if every function gets the same level, the carrier is intensive |
 
 The ten slips agents make most often:
 
@@ -809,11 +811,20 @@ another row of the box dominates.
 
 - **Demand.** The product boxes' rows state what they require at their input ports.
 - **Wires.** A non-harmful wire turns its input port's requirement into a demand on the output
-  port that feeds it. An output port feeding several functions must meet the largest demand: a
-  port has one level, like a voltage. An input port fed by several functions needs each of them
-  to meet the requirement. Additive sharing, such as a current split between two consumers, is
-  not modelled; model the split as a box. Harmful functions carry no demand, and a requirement
-  on a port that only harmful functions feed fails closed.
+  port that feeds it. How several demands on one output combine depends on the carrier's
+  `quantity`:
+  - `intensive`, the default: the port has one level, like a voltage or a temperature, and must
+    meet the largest demand. An input port fed by several functions needs each of them to meet
+    the requirement.
+  - `extensive`: the amount divides, like a flow of water or a current, so the port must supply
+    the sum of the demands. A pump providing 5 cannot feed two beds that need 4 each: the verdict
+    is `infeasible`, `unprovidable`, with 8 demanded. An input port fed by several functions
+    fails closed (`extensive-fan-in`): what each supplies is not declared, so model a merge box
+    with one input per function. The `extensive-fan-out` lint flags the fan-out, because
+    `triz_behavior` and `triz_dynamics` still give every function the port's one value.
+
+  Declare `quantity` explicitly; it is never inferred from the layer. Harmful functions carry no
+  demand, and a requirement on a port that only harmful functions feed fails closed.
 - **Composed boxes.** The product boxes, the boxes that declare feasibility, and every box
   upstream of them along non-harmful wires are composed, and each must declare feasibility.
   So a box that declares feasibility joins the solve wherever it sits, even off the product's
@@ -1166,8 +1177,9 @@ map.
 - **Steady states.** Behaviour rows are never read as transitions, and nothing is claimed about
   convergence or which steady state the system reaches.
 - **Feasibility.** Holds for the rows as declared, under a monotone reading. Losses and
-  conservation must be in the rows; shared levels take the max, so a split of an extensive
-  quantity must be modelled as a box.
+  conservation must be in the rows. Shared levels take the max unless the carrier is declared
+  `extensive`, where one output's demands add up; a mislabelled carrier gives the wrong sum, and
+  a merge into an extensive input must be modelled as a box.
 - **Levels.** They read amounts into values; they do not say the values mean what the behaviour
   rows assume.
 - **Abstraction.** A verdict about the two models and the map as data. That a detailed loop is

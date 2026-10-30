@@ -122,6 +122,14 @@
           "items": {
             "$ref": "#/$defs/CarrierLevel"
           }
+        },
+        "quantity": {
+          "description": "How amounts on this carrier combine where one output port feeds several functions. 'intensive' (the default) is one shared level, such as a voltage, a temperature, or a copied message: the port meets the largest demand. 'extensive' is an amount that divides, such as a flow of water or a current: triz_feasibility makes the port supply the sum of the demands, and refuses an extensive input fed by several functions (model a merge box). Declare it explicitly; it is never inferred from the layer",
+          "type": "string",
+          "enum": [
+            "intensive",
+            "extensive"
+          ]
         }
       },
       "required": [
@@ -245,7 +253,7 @@
           }
         },
         "feasibility": {
-          "description": "Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. A port has one level shared by every function on it, so additive sharing of a flow needs a splitter box. Omit when unknown",
+          "description": "Monotone co-design feasibility: the minimal rows the box can work at, each a level provided per output port against the levels it requires per input port and its operating cost. Read monotonically: providing less never needs more, and more resources never hurt. No row may be dominated by another. An output port of an intensive carrier has one level shared by every function on it; on an extensive carrier (`quantity`) the demands of its functions add up. Omit when unknown",
           "minItems": 1,
           "type": "array",
           "items": {

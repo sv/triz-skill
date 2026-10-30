@@ -704,6 +704,14 @@ theorem trim_lowers_cost (cost : ι → D → ℝ) (hc : ∀ i, 0 ≤ cost i) {k
     (h : kept ⊆ all) : ∑ i ∈ kept, cost i ≤ ∑ i ∈ all, cost i :=
   Finset.sum_le_sum_of_subset_of_nonneg h fun i _ _ => hc i
 
+/-- The demand on an extensive output is the sum of its consumers' demands, and that sum is
+monotone in each of them, as their maximum is on an intensive output. So a partial selection that
+demands no more than another still demands no more after both add the same row, and the solver
+may drop the dominated one (`expand`, `src/act-feasibility.ts`). -/
+theorem extensive_demand_mono (s : Finset ι) {d d' : ι → ℝ} (h : ∀ i ∈ s, d i ≤ d' i) :
+    ∑ i ∈ s, d i ≤ ∑ i ∈ s, d' i :=
+  Finset.sum_le_sum h
+
 /-- Replacing one part's cost vector by a componentwise lower one raises no dimension of the
 total (`cheap_copy`, Principles 26 and 27). -/
 theorem cheaper_part_lowers_cost [DecidableEq ι] (cost : ι → D → ℝ) (s : Finset ι) {i₀ : ι}
@@ -1786,6 +1794,17 @@ theorem kleeneStep_upperClosure {h : P → P → Prop}
     exact ⟨y ⊔ a, ⟨a, ha, y, hy, rfl⟩, (sup_le_sup hyx has).trans hle⟩
   · rintro ⟨_, ⟨a, ha, x, hx, rfl⟩, hle⟩
     exact ⟨a, ⟨a, ha, le_rfl⟩, x, hx, hle⟩
+
+/-- The kernel's step has the selection shape: `ok s σ` says the row selection `σ` provides what
+`s` demands, and `place σ` is the demand and cost it places upstream. That demand depends on the
+rows chosen, not on `s`, whether the demands on one output take their maximum (an intensive
+carrier) or their sum (an extensive one, `extensive_demand_mono`). So the step meets
+`kleeneStep_upperClosure`'s hypothesis as soon as a smaller demand admits every selection a larger
+one does. -/
+theorem selection_mono {S : Type*} {ok : P → S → Prop} (place : S → P)
+    (hok : ∀ ⦃s s' σ⦄, s ≤ s' → ok s' σ → ok s σ) :
+    ∀ ⦃s s' x⦄, s ≤ s' → (∃ σ, ok s' σ ∧ place σ = x) → ∃ y ≤ x, ∃ σ, ok s σ ∧ place σ = y :=
+  fun _ _ _ hss ⟨σ, hσ, hx⟩ => ⟨_, hx.le, σ, hok hss hσ, rfl⟩
 
 /-- On a finite set of configurations, the least fixpoint of the step is the upward closure of the
 feasible configurations: those with a requirement below themselves. Its minimal elements are

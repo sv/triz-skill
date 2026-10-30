@@ -267,6 +267,11 @@ const cases: Case[] = [
   { code: "absorb-without-trim", tool: "triz_feasibility", args: { model: fea(), absorb: { "w-support": { box: "housing", port: "bore" } } }, path: "$.absorb" },
   { code: "no-product", tool: "triz_feasibility", args: { model: edit("bearing-heat-feasibility", (m) => { box(m, "shaft").role = "mediator"; }) }, path: "$.model.boxes" },
   { code: "unsupplied-requirement", tool: "triz_feasibility", args: { model: edit("bearing-heat-feasibility", (m) => { m.wires = m.wires.filter((w) => w.id !== "w-support"); }) }, path: "$.model.boxes[1].feasibility[0].requires.support" },
+  // The radial load declared extensive, and the housing also feeding the shaft's support: the split is undeclared.
+  { code: "extensive-fan-in", tool: "triz_feasibility", args: { model: edit("bearing-heat-feasibility", (m) => {
+    m.carriers.find((c) => c.id === "radial-load")!.quantity = "extensive";
+    m.wires.push({ id: "w-hold", from: { box: "housing", port: "bore" }, to: { box: "shaft", port: "support" }, carrier: "radial-load", polarity: "useful" });
+  }) }, path: "$.model.boxes[1].inputs[1]", hint: /merge box/ },
   { code: "cap-exceeded", tool: "triz_feasibility", args: { model: fea(), max_iterations: 1 }, path: "$.max_iterations" },
   { code: "unknown-box", tool: "triz_feasibility", args: { model: fea(), trim: ["ghost"] }, path: "$.trim[0]" },
   // triz_function_model guards
@@ -363,7 +368,7 @@ const cases: Case[] = [
 ];
 
 const KEBAB = /^[a-z]+(-[a-z]+)*$/;
-const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row"];
+const LINTS: IssueCode[] = ["defect-on-loss-carrier", "trim-level-functions", "product-without-deliverable", "unused-carrier", "unwired-port", "unbacked-producible-row", "extensive-fan-out"];
 
 test("every failure carries issues: one per error, a registered code, a path into the input, and a hint", async () => {
   const covered = new Set<IssueCode>();
@@ -469,6 +474,17 @@ test("lints: each warning or info, never changing the verdict", async () => {
   assert.ok(info.some((w: Issue) => w.code === "unused-carrier" && w.path === "$.model.carriers[4]"));
   assert.ok(info.some((w: Issue) => w.code === "unwired-port" && w.path === "$.model.boxes[4].inputs[0]" && /boundary input/.test(w.hint)), "air's sink");
   assert.ok(info.some((w: Issue) => w.code === "unwired-port" && w.path === "$.model.boxes[3].outputs[0]" && /absorber/.test(w.hint)), "housing's bore");
+
+  // An extensive carrier fanned out from one output: behaviour still reads one shared value there.
+  const fanned = edit("bearing-heat", (m) => {
+    m.carriers.find((c) => c.id === "radial-load")!.quantity = "extensive";
+    m.wires.push({ id: "w-hold", from: { box: "bearing", port: "race" }, to: { box: "housing", port: "bore-in" }, carrier: "radial-load", polarity: "useful" });
+    box(m, "housing").inputs = [...(box(m, "housing").inputs ?? []), { id: "bore-in", carrier: "radial-load" }];
+  });
+  const fan = (await call("triz_function_model", { model: fanned })).warnings.filter((w: Issue) => w.code === "extensive-fan-out");
+  assert.deepEqual(fan.map((w: Issue & { severity: string }) => w.severity), ["warning"]);
+  assert.match(fan[0].message, /output port 'bearing\.race' of extensive carrier 'radial-load' feeds 2 functions/);
+  assert.equal((await call("triz_function_model", { model: edit("bearing-heat", () => {}) })).warnings.filter((w: Issue) => w.code === "extensive-fan-out").length, 0);
 
   // Verdicts are the kernel's, lints or not.
   const { warnings, ...analysed } = lossy;

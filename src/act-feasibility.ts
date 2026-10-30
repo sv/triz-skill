@@ -18,9 +18,11 @@
  *                      solved only to report each absorber's added resources.
  *
  * Composition. A non-harmful wire turns its input port's requirement into a demand on the output
- * port that feeds it. An output port feeding several functions must meet the largest demand (a
- * port has one level); an input port fed by several functions needs each of them to meet it.
- * Harmful functions carry no demand. The composed boxes are the product boxes, the boxes that
+ * port that feeds it. An output port feeding several functions must meet the largest demand when
+ * its carrier is intensive (the default: a port has one level), and their sum when the carrier is
+ * extensive (`quantity`: the amount divides among the functions). An input port fed by several
+ * functions needs each of them to meet it; on an extensive carrier that split is undeclared, so the
+ * call fails closed (`extensive-fan-in`) and asks for a merge box. Harmful functions carry no demand. The composed boxes are the product boxes, the boxes that
  * declare feasibility, and every box upstream of those along non-harmful wires; the other boxes
  * contribute only their fixed cost.
  *
@@ -29,8 +31,11 @@
  * where h(s) ranges over the row selections (one row per composed box) that provide what s
  * demands, and x is the demand those rows place upstream with their summed operating cost
  * (Censi 2015, Def. 22, eq. 26). Iterating from ⊥, nothing demanded and no cost, is Kleene's
- * ascent. Every coordinate takes values in a finite set (declared levels; sums of one row per box,
- * closed under max), so the ascent reaches the least fixpoint in finitely many steps. Its minimal
+ * ascent. Every coordinate takes values in a finite set (declared levels, or on an extensive port
+ * their sums over the consumers; sums of one row per box; closed under max), so the ascent
+ * reaches the least fixpoint in finitely many steps. The demand x depends on the rows chosen, not
+ * on s, so a smaller s admits every selection a larger one does, whether demands sum or take the
+ * max (selection_mono). Its minimal
  * elements are exactly the minimal feasible configurations (theory/: kleene_lfp,
  * kleeneStep_upperClosure, codesign_lfp). Feedback loops need no special case: requirements only
  * grow along the ascent, so the least fixpoint is the answer. triz_behavior's steady states
@@ -69,7 +74,8 @@ const portKey = (e: Endpoint) => JSON.stringify([e.box, e.port]);
 const own = (dict: Record<string, number> | undefined, key: string) => (dict && Object.hasOwn(dict, key) ? dict[key] : undefined);
 
 interface Row { index: number; provide: Array<[number, number]>; demand: Array<[number, number]>; cost: number[] }
-interface Problem { composed: Box[]; ports: Endpoint[]; dims: string[]; fixed: number[]; rows: Row[][] }
+/** `extensive[i]`: output port i's carrier is extensive, so the demands on it add up. */
+interface Problem { composed: Box[]; ports: Endpoint[]; extensive: boolean[]; dims: string[]; fixed: number[]; rows: Row[][] }
 interface Config { f: number[]; c: number[]; rows: number[] }
 
 /** Composed boxes, the boxes among them without feasibility, and the compiled rows; fails closed on unsupplied requirements. */
@@ -95,8 +101,19 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
   }
   const composed = model.boxes.filter((b) => reached.has(b.id));
   const missing = composed.filter((b) => !b.feasibility).map((b) => b.id);
+  const extensiveCarrier = new Set(model.carriers.filter((c) => c.quantity === "extensive").map((c) => c.id));
   const ports = composed.flatMap((b) => (b.outputs ?? []).map((p) => ({ box: b.id, port: p.id })));
+  const extensive = composed.flatMap((b) => (b.outputs ?? []).map((p) => extensiveCarrier.has(p.carrier)));
   const index = new Map(ports.map((e, i) => [portKey(e), i]));
+  // An extensive input fed by several functions: how the amount divides among them is undeclared.
+  const fanIn = composed.flatMap((b) => (b.inputs ?? []).flatMap((p, j) => {
+    const wires = feeding.get(portKey({ box: b.id, port: p.id })) ?? [];
+    return extensiveCarrier.has(p.carrier) && wires.length > 1
+      ? [issue("extensive-fan-in", at(where.box(model, b.id, "$.model"), "inputs", j), `input port '${b.id}.${p.id}' of extensive carrier '${p.carrier}' is fed by ${wires.length} functions (${wires.map((w) => `'${w.id}'`).join(", ")}): what each supplies of the amount is not declared`,
+        `Model a merge box: give it one input per function and an output wired into '${b.id}.${p.id}', with feasibility rows that say what it provides from what it receives. If every function delivers the same shared level, mark carrier '${p.carrier}' intensive.`)]
+      : [];
+  }));
+  if (fanIn.length) return fail(fanIn);
   const dims = [...new Set([
     ...model.boxes.flatMap((b) => Object.keys(b.cost ?? {})),
     ...composed.flatMap((b) => (b.feasibility ?? []).flatMap((r) => Object.keys(r.cost ?? {}))),
@@ -119,7 +136,7 @@ function setup(model: FunctionModel): ({ ok: true; missing: string[] } & Problem
     cost: dims.map((d) => own(r.cost, d) ?? 0),
   })));
   if (issues.length) return fail(issues);
-  return { ok: true, missing, composed, ports, dims, fixed, rows };
+  return { ok: true, missing, composed, ports, extensive, dims, fixed, rows };
 }
 
 const leq = (a: Config, b: Config) => a.f.every((x, i) => x <= b.f[i]) && a.c.every((x, i) => x <= b.c[i]);
@@ -145,7 +162,8 @@ type Expansion = { ok: true; xs: Config[] } | { ok: true; blocked: Blocked } | F
 /**
  * h(s): the minimal (upstream demand, operating cost) pairs over the row selections that provide
  * what `s` demands, folded box by box. Dominated partial selections are dropped after each box,
- * which is sound because demands combine by max and costs by sum, both monotone.
+ * which is sound because demands combine by max (an intensive port) or by sum (an extensive one)
+ * and costs by sum, all monotone.
  */
 function expand(p: Problem, s: Config, caps: Required<Caps>, work: { candidates: number }): Expansion {
   let acc: Config[] = [{ f: p.ports.map(() => 0), c: p.dims.map(() => 0), rows: [] }];
@@ -164,7 +182,7 @@ function expand(p: Problem, s: Config, caps: Required<Caps>, work: { candidates:
     for (const a of acc) for (const r of eligible) {
       if (++work.candidates > caps.maxCandidates) return capExceeded(`the search tried more than ${caps.maxCandidates} row selections. Declare fewer rows or split the model`, "$.model");
       const f = [...a.f];
-      for (const [i, level] of r.demand) f[i] = Math.max(f[i], level);
+      for (const [i, level] of r.demand) f[i] = p.extensive[i] ? f[i] + level : Math.max(f[i], level);
       next = insertMin(next, { f, c: a.c.map((x, i) => x + r.cost[i]), rows: [...a.rows, r.index] });
       if (next.length > caps.maxAntichain) return capExceeded(`the antichain passed ${caps.maxAntichain} partial selections while composing box '${box.id}'. Declare fewer rows or split the model`, "$.max_antichain");
     }

@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FunctionModel, checkModel, type FeasibilityRow } from "../src/act.js";
 import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "../src/act-feasibility.js";
+import { lintModel } from "../src/act-lint.js";
 import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
 import { rng, int, genModel } from "./support/gen.js";
@@ -389,4 +390,111 @@ test("triz_feasibility answers over the shared tool spec and fails closed", asyn
   assert.match((await call({ model: pumpLoop(18), max_iterations: 2 })).errors.join(), /no fixpoint after 2 steps/);
   assert.equal(spec.shape.max_antichain.safeParse(MAX_ANTICHAIN + 1).success, false);
   assert.equal(spec.shape.max_iterations.safeParse(MAX_ITERATIONS + 1).success, false);
+});
+
+/** A pump providing 5 that feeds two products, each requiring 4: intensive by default, or as declared. */
+function sharedSupply(quantity?: "intensive" | "extensive"): FunctionModel {
+  return {
+    domain: "physical",
+    carriers: [{ id: "water", layer: "material", dimension: "L/min", ...(quantity ? { quantity } : {}) }],
+    boxes: [
+      { id: "pump", name: "Pump", role: "tool", outputs: [{ id: "out", carrier: "water" }], feasibility: [{ provides: { out: 5 }, cost: { usd: 10 } }] },
+      { id: "a", name: "Bed A", role: "product", inputs: [{ id: "in", carrier: "water" }], feasibility: [{ requires: { in: 4 } }] },
+      { id: "b", name: "Bed B", role: "product", inputs: [{ id: "in", carrier: "water" }], feasibility: [{ requires: { in: 4 } }] },
+    ],
+    wires: [
+      { id: "wa", from: { box: "pump", port: "out" }, to: { box: "a", port: "in" }, carrier: "water", polarity: "useful" },
+      { id: "wb", from: { box: "pump", port: "out" }, to: { box: "b", port: "in" }, carrier: "water", polarity: "useful" },
+    ],
+    budget: { usd: 100 },
+  };
+}
+
+test("an extensive carrier sums the demands one output feeds; an intensive one, the default, takes the largest", () => {
+  const shared = feasibility(sharedSupply());
+  assert.ok(shared.ok && shared.verdict === "feasible");
+  assert.deepEqual(shared.minimal[0].levels, [{ box: "pump", port: "out", level: 4 }]);
+  assert.deepEqual(feasibility(sharedSupply("intensive")), shared, "intensive is the default");
+  const split = feasibility(sharedSupply("extensive"));
+  assert.ok(split.ok && split.verdict === "infeasible" && split.reason === "unprovidable");
+  assert.deepEqual(split.unprovidable, { box: "pump", demanded: [{ port: "out", level: 8 }], ports: [{ port: "out", demanded: 8, provided: 5 }] });
+  assert.match(split.note, /'out': 8 demanded, at most 5 provided/);
+  // A pump that provides 8 meets the sum.
+  const bigger = sharedSupply("extensive");
+  bigger.boxes[0].feasibility = [{ provides: { out: 8 }, cost: { usd: 10 } }];
+  const met = feasibility(bigger);
+  assert.ok(met.ok && met.verdict === "feasible");
+  assert.deepEqual(met.minimal[0].levels, [{ box: "pump", port: "out", level: 8 }]);
+  // A harmful function carries no demand, extensive or not: a leak adds nothing to the sum.
+  const leak = structuredClone(bigger);
+  leak.boxes.push({ id: "drain", name: "Drain", role: "environment", inputs: [{ id: "in", carrier: "water" }] });
+  leak.wires.push({ id: "wl", from: { box: "pump", port: "out" }, to: { box: "drain", port: "in" }, carrier: "water", polarity: "harmful" });
+  const leaking = feasibility(leak);
+  assert.ok(leaking.ok && leaking.verdict === "feasible");
+  assert.deepEqual(leaking.minimal[0].levels, [{ box: "pump", port: "out", level: 8 }]);
+});
+
+test("an extensive input fed by several functions fails closed: the split is a merge box to model", () => {
+  const m = sharedSupply("extensive");
+  m.boxes.push({ id: "tank", name: "Tank", role: "tool", outputs: [{ id: "out", carrier: "water" }], feasibility: [{ provides: { out: 5 } }] });
+  m.wires.push({ id: "wt", from: { box: "tank", port: "out" }, to: { box: "a", port: "in" }, carrier: "water", polarity: "useful" });
+  const r = feasibility(m);
+  assert.ok(!r.ok);
+  assert.deepEqual(r.issues.map((i) => [i.code, i.path]), [["extensive-fan-in", "$.model.boxes[1].inputs[0]"]]);
+  assert.match(r.errors[0], /input port 'a\.in' of extensive carrier 'water' is fed by 2 functions \('wa', 'wt'\)/);
+  assert.match(r.issues[0].hint, /merge box/);
+  // The same fan-in on an intensive carrier needs each feeder to meet the level, as before.
+  const shared = structuredClone(m);
+  delete shared.carriers[0].quantity;
+  const s = feasibility(shared);
+  assert.ok(s.ok && s.verdict === "feasible");
+});
+
+test("lint extensive-fan-out: an extensive output feeding several functions, which behaviour reads as one shared value", () => {
+  const warnings = lintModel(sharedSupply("extensive"));
+  const fan = warnings.filter((w) => w.code === "extensive-fan-out");
+  assert.deepEqual(fan.map((w) => [w.severity, w.path]), [["warning", "$.model.boxes[0].outputs[0]"]]);
+  assert.match(fan[0].message, /output port 'pump\.out' of extensive carrier 'water' feeds 2 functions \('wa', 'wb'\)/);
+  assert.match(fan[0].hint, /splitter box/);
+  assert.deepEqual(lintModel(sharedSupply()).filter((w) => w.code === "extensive-fan-out"), [], "intensive fan-out is a shared level");
+  assert.deepEqual(lintModel(sharedSupply("intensive")).filter((w) => w.code === "extensive-fan-out"), []);
+});
+
+test("extensive carriers: the least fixpoint's minimal vectors are the minimal selections whose outputs supply the sum of their demands (brute force)", () => {
+  let decided = 0, fanIn = 0, summed = 0;
+  for (let seed = 1; seed <= 300; seed++) {
+    const r = rng(seed);
+    const m = decorate(r, genModel(r, { contradictions: false }));
+    for (const c of m.carriers) c.quantity = "extensive";
+    const res = feasibility(m);
+    if (!res.ok) { assert.deepEqual([...new Set(res.issues.map((i) => i.code))], ["extensive-fan-in"], `seed ${seed}`); fanIn++; continue; }
+    if (res.verdict === "undecided" && res.reason === "missing-feasibility") continue;
+    const composed = res.composed.map((id) => box(m, id));
+    if (composed.reduce((n, b) => n * b.feasibility!.length, 1) > 5000) continue;
+    const dims = Object.keys(res.fixed);
+    const own = (d: Record<string, number> | undefined, k: string) => (d && Object.hasOwn(d, k) ? d[k] : 0);
+    const ids = new Set(composed.map((b) => b.id));
+    // Each output port of a composed box must provide the sum of what its functions' targets require.
+    const supplied = (sel: Map<string, FeasibilityRow>) => composed.every((b) => (b.outputs ?? []).every((p) =>
+      own(sel.get(b.id)!.provides, p.id) >= m.wires.filter((w) => w.polarity !== "harmful" && w.from.box === b.id && w.from.port === p.id && ids.has(w.to.box))
+        .reduce((n, w) => n + own(sel.get(w.to.box)!.requires, w.to.port), 0)));
+    const costs: number[][] = [];
+    const visit = (k: number, sel: Map<string, FeasibilityRow>) => {
+      if (k === composed.length) { if (supplied(sel)) costs.push(dims.map((d) => own(res.fixed, d) + composed.reduce((s, b) => s + own(sel.get(b.id)!.cost, d), 0))); return; }
+      for (const row of composed[k].feasibility!) visit(k + 1, new Map(sel).set(composed[k].id, row));
+    };
+    visit(0, new Map());
+    const minimal = costs.filter((c) => !costs.some((d) => d.every((x, i) => x <= c[i]) && d.some((x, i) => x < c[i])));
+    const expected = [...new Set(minimal.map((c) => JSON.stringify(c)))].sort();
+    if ("minimal" in res) {
+      decided++;
+      assert.deepEqual(res.minimal.map((v) => JSON.stringify(dims.map((d) => own(v.resources, d)))).sort(), expected, `seed ${seed}`);
+      for (const v of res.minimal) assert.ok(supplied(new Map(v.rows.map((x) => [x.box, box(m, x.box).feasibility![x.row]]))), `seed ${seed}: witness misses a sum`);
+      if (m.wires.some((w, i) => w.polarity !== "harmful" && m.wires.some((x, j) => j !== i && x.polarity !== "harmful" && x.from.box === w.from.box && x.from.port === w.from.port))) summed++;
+    } else {
+      assert.ok(res.verdict === "infeasible" && res.reason === "unprovidable", `seed ${seed}`);
+      assert.deepEqual(expected, [], `seed ${seed}: brute force found a feasible selection`);
+    }
+  }
+  assert.ok(decided >= 60 && fanIn >= 10 && summed >= 10, `decided ${decided}, fan-in ${fanIn}, with fan-out ${summed}`);
 });

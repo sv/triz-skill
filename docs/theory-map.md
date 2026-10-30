@@ -74,7 +74,7 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 | Weakness of a concept | `triz_weakness` | `incomparable_of_witnesses`, `card_lt_of_strictly_weaker`; `level_gc` for a threshold | `admits_incomparable`, `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` | `admits`, `AtLeastAsWeak` |
 | Dynamics: escalation, invariance, separation in time | `triz_dynamics` | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `unreachable_of_invariant` | `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono`; dynamics read as behaviour, which the kernel does not compute: `relTrace_mealyRel_iff`, `relTrace_mealyRel_fixed` | `mealyStep`, `reachIn`, `reachWithin` |
 | Loop behaviour | `triz_dynamics` `loops` | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `recurrent_reach`, `return_ge_two` | — | `Closed` |
-| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` | `feasibility_comp`, `feasibility_par`, `feasibility_trace` | — |
+| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` | `feasibility_comp`, `feasibility_par`, `feasibility_trace`; for extensive carriers, `selection_mono`, `extensive_demand_mono` | — |
 | Levels | `triz_feasibility`, `triz_abstraction`, `triz_weakness` | `level_monotone`, `level_gc`, `level_band` | — | — |
 | Abstraction | `triz_abstraction` | `typed_restrict` and `typed_map` (typed), `reach_map`, `cycle_map`, `reach_quotient` (flows) | — | `Wiring.map` |
 | Ideality comparison | `triz_function_model`, `triz_trim` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` | — | — |
@@ -355,8 +355,21 @@ test checks the result against every row selection of 300 random models. Lean al
 series, parallel, and feedback composition keep monotonicity (`feasibility_comp`,
 `feasibility_par`, `feasibility_trace`); no verdict cites these.
 
+**Extensive and intensive carriers.** Several demands on one output port take their maximum on an
+intensive carrier (the default: one shared level) and their sum on a carrier declared
+`quantity: "extensive"` (an amount that divides). The step keeps its selection shape either way:
+the demand a selection places depends on the rows chosen, not on the configuration it serves, so
+`kleeneStep_upperClosure`'s hypothesis holds as soon as a smaller demand admits every selection a
+larger one does (`selection_mono`). The sum is monotone in each consumer's demand, as the maximum
+is (`extensive_demand_mono`), so dropping a dominated partial selection after each box stays
+sound. Neither lemma is cited in `basis`, which is unchanged. The brute-force test runs again with
+every carrier extensive: each output must supply the sum of what its functions' targets require.
+An extensive input fed by several functions fails closed (`extensive-fan-in`): how the amount
+divides among the feeders is not declared, and the solver does not choose a split.
+
 The ascent always ends, because every coordinate takes values in a finite set: the declared
-levels, and the sums of one row per box closed under max. The antichains can still grow
+levels and, on an extensive port, their sums over the consumers, and the sums of one row per box,
+closed under max. The antichains can still grow
 exponentially with the number of boxes and rows. No polynomial bound is claimed. Censi (2015,
 Prop. 5) bounds the work by the width of the loop's resource poset, the height of its lattice of
 antichains, and the cost of one evaluation, not by the size of the model.
@@ -808,7 +821,9 @@ The implemented guarantees are separated from future work in
     antichain when requirements are monotone, and that the least fixpoint is the upward closure
     of the feasible configurations. The solver is checked against these by tests, including the
     brute-force comparison, not extracted from them.
-  - Shared intensive levels use max; extensive consumption needs an explicit split or balance.
+  - Shared intensive levels use max, and a carrier declared extensive sums the demands on one
+    output. The kind is declared, not checked: a mislabelled carrier gives the wrong sum, and
+    an extensive merge (several functions into one input) needs an explicit merge box.
     `triz_conservation` checks the declared arithmetic of such a balance, not constitutive
     physics, and infers no units or mixing laws.
   - Feasibility verdicts are label-blind under the same property tests as the wiring verdicts

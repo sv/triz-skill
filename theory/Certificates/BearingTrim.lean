@@ -16,7 +16,7 @@ namespace BearingTrim
 
 open CategoricalTriz
 
-def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"behavior\",\"namespace\":\"BearingTrim\",\"source\":\"e8fe1f9bdc6ea13f0494b33ff999e74c5e89b258ac0c0ab02fe9bb0f819db4e4\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"83c19029ccea80086236697f6361cf498ec300f60b93b5737dcbdb6d84e482fd\",\"schemaSource\":\"c03fa5c1ed1c426bea0a087c839fbc7184d84f3484f3d43234ad7c484b8769eb\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
+def certificateManifest : String := "{\"format\":\"triz-certificate-v2\",\"kind\":\"behavior\",\"namespace\":\"BearingTrim\",\"source\":\"e8fe1f9bdc6ea13f0494b33ff999e74c5e89b258ac0c0ab02fe9bb0f819db4e4\",\"schema\":\"function-model-v1\",\"generator\":\"triz-cert-2\",\"theory\":\"CategoricalTriz/v2\",\"theorySource\":\"6a0f13a7e53d82ca19236844245f6efbf757e89c89613f4d0828d3df38a78576\",\"schemaSource\":\"355f62e1cbced2d0d4dddeb1ce906f730434befd8a2c23ba9caebe167860b0de\",\"lean\":\"4.32.2\",\"mathlib\":\"v4.32.2\",\"scope\":\"upstream\"}"
 
 /-! ## The situations and the deliverables -/
 
