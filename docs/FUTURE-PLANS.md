@@ -604,8 +604,9 @@ documents the project already has. Neither decides a rating: those stay the anal
     a polarity (useful, insufficient, excessive, or harmful);
   - optional flows.
 
-  It returns a typed `FunctionModel`: the carriers, ports generated per box and carrier on each
-  side, and the wires.
+  It returns a typed `FunctionModel`: the carriers, the ports (an input port per interaction on
+  its object, so no input port is fed twice, and an output port per subject and carrier), and
+  the wires.
 - **Deterministic.** Ids are stable, so re-running after an edit gives the same ids. The result
   goes through the existing typing and lints, and errors carry a code, a path, and a hint.
 - **Completeness report.** Pairs of components that touch through no interaction (gaps in the

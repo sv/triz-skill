@@ -364,7 +364,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader } =
     },
     {
       name: "triz_build_model",
-      description: "Build a typed function model from an interaction table: components with stable ids, names and roles, and subject/action/object interactions with explicit carrier descriptors and polarities. Generates stable ports and wire ids, validates the result, runs lints, and returns a bounded completeness report of unrecorded component pairs, isolation and product reach. Ratings and behavior are never inferred. Optional flows reference component and carrier ids from the table.",
+      description: "Build a typed function model from an interaction table: components with stable ids, names and roles, and subject/action/object interactions with explicit carrier descriptors and polarities. Generates readable, stable ports and wire ids: each interaction gets its own input port on its object, `in:<carrier>:<subject>:<action>`, so no input port is fed by two functions (no fan-in, no extensive-fan-in); each subject gets one output port per carrier it sends, `out:<carrier>`, shared by its functions on that carrier (fan-out: one shared level when intensive, the sum of the demands when extensive); each function is the wire `wire:<subject>:<action>:<object>:<carrier>`. Each part is percent-escaped (':' as %3A, '%' as %25), so distinct tuples never share an id. Validates the result, runs lints, and returns a bounded completeness report of unrecorded component pairs, isolation and product reach. Ratings and behavior are never inferred. Optional flows reference component and carrier ids from the table.",
       shape: BuildModelRequest.shape,
       handler: async (args: BuildModelRequest) => text(buildModel(args)),
     },

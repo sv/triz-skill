@@ -70,8 +70,23 @@ are in the [theory map](../../../docs/theory-map.md#theorem-inventory).
 
 `triz_build_model` accepts a domain, components (`id`, `name`, `role`), and interactions
 (`subject`, `action`, `object`, `carrier`, `polarity`). Each carrier supplies its id, layer and
-dimension. Optional flows reference those component and carrier ids. It generates one port per
-box/carrier/side and stable wire ids; renaming a component’s display name changes no ids. It
+dimension. Optional flows reference those component and carrier ids. It generates the ports and
+wires by one fixed scheme, and the same table always gives the same ids; renaming a component’s
+display name changes none:
+
+| Generated | Id | One per |
+|---|---|---|
+| Input port on the object | `in:<carrier>:<subject>:<action>` | interaction |
+| Output port on the subject | `out:<carrier>` | subject and carrier |
+| Wire | `wire:<subject>:<action>:<object>:<carrier>` | interaction |
+
+So two interactions bringing the same carrier into one object reach two input ports, and no
+input port is fed by two functions: no source has to agree with another under behaviour, and an
+extensive carrier never fails with `extensive-fan-in`. Declare the object's behavior or
+feasibility rows per port. An output port is shared by the subject's functions on that carrier
+and fans out: one shared level on an intensive carrier, the sum of the demands on an extensive
+one. Each part is percent-escaped (`:` as `%3A`, `%` as `%25`), so ids containing `:` never
+collide: `wire:a%3Ab:…` is subject `a:b`. Quote the generated ids back exactly. It
 validates the result and returns lints and a completeness report. Unrecorded component pairs
 are prompts to review, not claims that every pair should interact. Product reach counts any
 incoming interaction, including harm; it does not establish a useful deliverable. Ratings and
