@@ -1,6 +1,6 @@
 {
   "name": "triz-mcp",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "mcpName": "io.github.sv/triz",
   "description": "The triz-innovation agent skill plus a deterministic, read-only MCP server for TRIZ parameters, principles, the contradiction matrix, stage routing, and type-checked function models.",
   "type": "module",
