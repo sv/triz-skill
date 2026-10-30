@@ -13,9 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   intersection, compatible weight merge and independently renamed contradiction policies.
 - Subsystem interface contracts that distinguish declared summaries from exact, nonblocking
   stateless behavior and single-mode resource checks; incomplete evidence remains undecided.
+  Verify results list `hiddenHarms`, the harmful or excessive inner functions the interface hides.
 - Local BOM/OpenAPI and partial Quint/Lean/Julia importers, plus versioned metadata exports from
   instantiated ModelingToolkit and Agents.jl models. Draft source and containment provenance
-  survives B1 and explicit analyst review; analysis refuses unconfirmed models.
+  survives B1 and explicit analyst review; analysis refuses unconfirmed models. The import and
+  review tools are local only: the stdio server and the `triz` command line list them, the hosted
+  Worker does not. A reviewed model works with every transformation, rule application and
+  nine-windows view: derived models keep the sources of surviving elements, added elements stay
+  unsourced, and no stale source entry is accepted. Every refusal of `dist/import-source.js`
+  carries a code, path and hint. CSV import skips a byte order mark and blank lines; Quint `x'`
+  writes reference `x`; Lean binder groups, lambda and match binders no longer yield edges to
+  same-named globals.
 - `triz` command line (`src/cli.ts`, bin `dist/cli.js`): the kernel's tools without MCP, for scripts and agents. `triz list` gives one line per tool (`--json`: an array of `{name, description}`); `triz schema <tool>` the description and the input JSON Schema an MCP client lists; `triz call <tool> [args.json | -]` (or `--args '<json>'`) validates the arguments as the stdio server does and prints the JSON result (`--pretty` indents it). Exit 0 for a result, 1 for `ok: false` (issues still on stdout), 2 for a usage or argument-schema error (issues as JSON on stderr); an unknown tool suggests the closest names. It passes the server's options, so `triz_export` `svg` lays out with elkjs and `triz_graph`/`triz_purpose` read `TRIZ_GRAPH` and `TRIZ_REGISTRY`. No new dependencies. `SKILL.md` and `tool-selection.md` tell agents to use MCP when connected and otherwise `triz schema` then `triz call`, never `src/`.
 - `triz_rule_apply` rules take `forbid`: negative application conditions (Habel–Pennemann). Each pattern extends `left` by id and may add elements; a match that extends to an occurrence of one is not applicable (listed as a violation, and refused on application), and a condition its own step budget cannot decide also refuses it.
 - `triz_weakness` `priors`: a real prior over the operating situations (weakness.md) — per situation input, or per carrier, a nonnegative weight per declared value; each concept carries the total admitted mass (`weightedAdmitted`, ranked in `byWeight`). Inclusions, pairs, and `weakest` never move under weights; the uniform count stays the default.
