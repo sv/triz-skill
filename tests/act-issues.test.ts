@@ -22,6 +22,7 @@ import { modelCertificate } from "../src/act-cert.js";
 import { globalSeparation } from "../src/act-global.js";
 import { toolSpecs } from "../src/tools.js";
 import { supportConcepts, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
+import { renamedTwin } from "./support/twin.js";
 // triz_separate looks up principle texts for its suggestions: install the fs-backed data provider.
 import "../src/data.js";
 
@@ -524,6 +525,61 @@ test("lints: each warning or info, never changing the verdict", async () => {
   assert.deepEqual(screen, JSON.parse(JSON.stringify(trimBasis(trimCandidates(pipe("excessive"), ["valve"])))));
   // An ill-typed model is not linted.
   assert.deepEqual((await call("triz_function_model", { model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) })).warnings, []);
+});
+
+/**
+ * A result without its prose (any string with a space: notes, hints, problems, and the labels the
+ * twin replaces) and in canonical order. Renaming touches the names that only prose reads.
+ */
+function verdictsOf(x: unknown): unknown {
+  if (typeof x === "string") return x.includes(" ") ? "<prose>" : x;
+  if (Array.isArray(x)) return x.map(verdictsOf).map((v) => JSON.stringify(v)).sort();
+  if (x && typeof x === "object") {
+    return Object.fromEntries(Object.entries(x).filter(([k]) => k !== "warnings")
+      .map(([k, v]): [string, unknown] => [k, verdictsOf(v)]).sort(([a], [b]) => a.localeCompare(b)));
+  }
+  return x;
+}
+const lintsOf = (ws: Array<Issue & { severity: string }>) => ws.map((w) => [w.code, w.path, w.severity]);
+
+test("defect-on-loss-carrier: a declared loss decides; without one, renaming moves only this lint and never a verdict", async () => {
+  const calls: Array<[string, FunctionModel, (m: FunctionModel, t: ReturnType<typeof renamedTwin> | null) => Record<string, unknown>]> = [
+    ...["bearing-heat", "bearing-heat-behavior", "bearing-heat-dynamics", "bearing-heat-feasibility", "connection-pool", "marketplace-take-rate", "software-cache"]
+      .map((n): [string, FunctionModel, () => Record<string, unknown>] => ["triz_function_model", example(n), () => ({})]),
+    ["triz_function_model", pipe("excessive"), () => ({})],
+    ["triz_trim", pipe("excessive"), (_, t) => ({ trim: [t ? t.box("valve") : "valve"] })],
+    ["triz_trim", pipe("insufficient"), (_, t) => ({ trim: [t ? t.box("valve") : "valve"] })],
+    ["triz_trim", example("bearing-heat"), (_, t) => ({ trim: [t ? t.box("bearing") : "bearing"] })],
+    ["triz_behavior", example("bearing-heat-behavior"), () => ({})],
+  ];
+  let silenced = 0;
+  for (const [tool, m, args] of calls) {
+    const t = renamedTwin(m);
+    const original = await call(tool, { model: m, ...args(m, null) });
+    const renamed = t.back(await call(tool, { model: t.model, ...args(t.model, t) }));
+    assert.ok(original.ok, `${tool}: ${JSON.stringify(original.errors)}`);
+    assert.deepEqual(verdictsOf(renamed), verdictsOf(original), `${tool}: renaming moved a verdict`);
+    // The twin renames carrier ids, dimensions, and verbs: the word list loses its words, and no other lint moves.
+    const kept = original.warnings.filter((w: Issue) => w.code !== "defect-on-loss-carrier");
+    silenced += original.warnings.length - kept.length;
+    assert.deepEqual(lintsOf(renamed.warnings), lintsOf(kept), `${tool}: renaming moved a lint other than defect-on-loss-carrier`);
+  }
+  assert.equal(silenced, 3, "the pipe's pressure drop is linted by its words in each excessive or insufficient call");
+
+  // Declared, the lint reads no words: it fires on the twin as on the original, and loss: false silences both.
+  for (const loss of [true, false]) {
+    const m = pipe("excessive");
+    m.carriers[1].loss = loss;
+    const t = renamedTwin(m);
+    const [a, b] = [await call("triz_function_model", { model: m }), t.back(await call("triz_function_model", { model: t.model }))];
+    assert.deepEqual(lintsOf(b.warnings), lintsOf(a.warnings));
+    assert.deepEqual(a.warnings.filter((w: Issue) => w.code === "defect-on-loss-carrier").map((w: Issue) => w.path), loss ? ["$.model.wires[2].polarity"] : []);
+    if (loss) assert.match(b.warnings.find((w: Issue) => w.code === "defect-on-loss-carrier").message, /declared a loss \(loss: true\)/);
+    // The declaration moves no verdict either.
+    assert.deepEqual(verdictsOf(a), verdictsOf(await call("triz_function_model", { model: pipe("excessive") })));
+  }
+  const guessed = (await call("triz_function_model", { model: pipe("excessive") })).warnings.find((w: Issue) => w.code === "defect-on-loss-carrier");
+  assert.match(guessed.hint, /The word 'drop' is a guess: declare loss: false on carrier 'pressure-drop'/);
 });
 
 test("triz_trim poses excessive and insufficient functions as level problems, not absorber hand-overs", async () => {

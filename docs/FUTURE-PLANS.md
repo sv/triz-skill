@@ -20,7 +20,9 @@ objects: properties the objects already have, or could declare, that the kernel 
 and the carrier half of C2 have landed in #42. Q1–Q6 come from applied
 category theory. Their sources were checked, and the notes below keep the corrections and
 cautions from that check. B1–B2 build models from interaction tables and source documents, and
-S1–S5 take the semantic analyses to large models. [Next priorities](#next-priorities) ranks the
+S1–S5 take the semantic analyses to large models. N1–N6 propose a
+[neutral mode for models](#neutral-mode-for-models), so the agent reasons less from domain
+names. [Next priorities](#next-priorities) ranks the
 open items by leverage and gives the build order. Literature ids (R…) refer to
 [theory/REFERENCES.md](../theory/REFERENCES.md).
 
@@ -29,7 +31,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | 1 | Certify unreachability and invariance | **Landed in #39** | Closed | — |
 | 2 | Certify `triz_behavior` `preserved`/`changed` | **Landed in #39** (`preserved`; `changed` keeps its counterexample and needs no proof) | Closed | — |
 | 3 | Incomparability witnesses in weakness certificates | **Landed in #35** (equal pairs too) | Closed | — |
-| 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Open; #35's metamorphic tests cover dynamics up to tied witnesses | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
+| 4 | Canonical dynamics tie-breaks, then their label-blindness tests | Partly landed: witnesses of the wiring checks now break ties in declaration order, as dynamics traces do, and renamed-twin tests cover them; canonical witnesses under permutation and symmetry stay open | "Dynamics verdicts are not covered by the label-blindness property tests, and traces break ties in declaration order" | S–M |
 | 5 | Naturality of the verdicts in Lean | Partly implemented: semantic transport; all-verdict naturality remains open | Nothing is claimed today; upgrades every label-blindness property test to a theorem | M, Lean |
 | 6 | The grouping/join lemma for steady states | **Landed in #32** (`holeContext_preservesUnions`) | Closed for the Lean semantics; the TypeScript join stays tested | — |
 | 7 | Joint residuals, the discrete fibration, trim as controlled embedding, whole-model gfp | Partly implemented: two boxes, whole-model search, grid lifting and conditional residual descent; other closures open | Bullets 5 (first part), 2 (system operator), 1 (reframed), 13 (downstream composition) | L |
@@ -54,6 +56,12 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | S3 | Per-subsystem interface contracts | Open; needs Q5 | Adds: residuals and weakest specifications against local targets | M–L |
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
+| N1 | Three registers per element: structural ids, a plain gloss, domain labels | Open | Adds: an ideation register free of use words, beside the names that checks read | S; M with N6 |
+| N2 | What to gloss and what to keep, by role | Open | Adds: glossed tool, mediator, environment, and supersystem names; verbs as parameter changes; constraints untouched | S |
+| N3 | The kernel computes; the LLM translates, never reasoning over bare ids | Open | Adds: a rule for the skill | S |
+| N4 | Re-concretise at ARIZ's checkpoints (4.1(в), 6.1, Part 7) | Open | Adds: labelled checks with declared behaviour, feasibility, and dynamics rows before any claim | S |
+| N5 | Renamed-twin tests and an agent comprehension check | Kernel half landed (`tests/support/twin.ts`); agent half open | Adds: metamorphic tests of the agent | M |
+| N6 | `triz_neutralize`: the neutral register with a stable mapping | Open | Adds: an order-preserving renaming and the map back | M |
 
 ## Current implementation batch
 
@@ -161,10 +169,26 @@ the table-read cap refuses, and that limit is documented, not worked around.
 
 ## 4. Canonical dynamics tie-breaks, then their label-blindness tests
 
-Traces break ties in declaration order, which is a label, so dynamics verdicts are excluded from
-the label-blindness tests. Fix the tie-break (canonical id order after normalization), update
-the golden files, then extend tests/act-invariance-rows.test.ts to `triz_dynamics` as the wiring
-verdicts are covered.
+**Status.** Partly landed in #43. Every tie between
+witnesses that the wiring checks break now follows declaration order, as dynamics traces already
+did: a harm loop's witness cycle among equally short ones (`actsOn` in `src/act.ts`, also read by
+`rerate`, `feedback`, and `triz_abstraction`), and the absorbers within one trim rule, whose first
+is an applied trim's default. Before, both followed id order. A renaming that keeps every
+array's order therefore shows the same witnesses, mapped back. `tests/act-invariance.test.ts`
+checks this with renamed twins (`tests/support/twin.ts`) of the examples and 200 generated
+models, whose new ids sort the other way, and for the bearing's escalation trace. No certificate
+theorem changed.
+
+**Open.** Declaration order is not canonical. Permuting the declarations can change the witness
+shown, and a symmetric model has no canonical witness: two equally short cycles that an
+automorphism swaps cannot be told apart by structure. Sorting by id, the old tie-break, is no
+fix: it moves under renaming. A canonical tie-break needs a canonical labelling up to
+automorphism, for example the individualisation-refinement order `findIsomorphism` already
+computes, with a fixed choice within each orbit. Then extend
+tests/act-invariance-rows.test.ts to `triz_dynamics` as the wiring verdicts are covered, and drop
+the validity-and-length comparison of tied witnesses. Other id-ordered choices stay: rule
+matching (`matchRule` tries elements in id order), the truncated conflict-cell list, and the
+coupling witness, which reads value names and port order.
 
 ## 5. Naturality of the verdicts in Lean
 
@@ -669,6 +693,154 @@ feasibility. The route is hierarchy plus contracts.
   refinement) before forming the product, then compose hierarchically with Q5.
 - **Adds.** Smaller products for C5's horizon-free verdicts.
 - **Risks.** Minimisation must keep the states and ports the targets name observable.
+
+## Neutral mode for models
+
+A proposal from a literature review of how domain terms affect reasoning over abstract models.
+The kernel already separates a structural core (ids, roles, ports typed by carrier, wiring,
+ratings, costs) from a label layer (box `name` and `action`, wire `verb`, port `label`, flow
+`name`, the model's `domain` and `system`), and its verdicts read only the core. What is missing
+is discipline in the label layer and in the agent. The kernel half has started on
+#43: a declared `Carrier.loss` keeps the `defect-on-loss-carrier` lint
+through a renaming, and witness tie-breaks follow declaration order (item 4). N1–N6 are the
+rest.
+
+**The limit.** No study tests neutral renaming inside TRIZ or function modelling, and TRIZ's own
+support for plain words is practice wisdom ([R97](../theory/REFERENCES.md#r97)). Every rule
+below is an inference from neighbouring evidence: design fixation, analogical transfer, program
+comprehension, and LLM planning over renamed symbols. Most of the LLM numbers come from
+2023–2024 models. Whether a neutral mode gives better solutions is untested; N5 names the
+experiment that would decide it.
+
+### N1. Three registers per element
+
+- **Status.** Open. **Effort:** S for the schema; M with N6.
+- **Change.** Each element carries three registers, never merged:
+  - the structural ids the kernel computes on;
+  - a plain gloss for the agent's ideation: what the element is made of, its shape and state,
+    and the parameter it acts on, with no word that states a use or a mechanism;
+  - the domain labels, for people, lints, and checks.
+
+  An optional `gloss` on boxes, wires, ports, and flows, or a separate mapping file. In neutral
+  mode the agent sees glosses in place of `name`, `action`, `verb`, and `label`, and `domain`
+  and `system` are hidden while it generates ideas.
+- **Adds.** Ideas come from words that do not cue the domain's usual answer, while people and
+  lints keep the names.
+- **Evidence.** Describing parts by material and shape instead of by use raised the
+  functional-fixedness problems solved by 67% on average in one study
+  ([R101](../theory/REFERENCES.md#r101); abstract only, no independent replication found). Names
+  help checking: identifiers written as words were comprehended 19% faster than letters or
+  abbreviations by 72 professional developers finding defects
+  ([R108](../theory/REFERENCES.md#r108)). So discovery and checking may need different
+  registers.
+- **Risks.** A gloss that drops a property misleads. ARIZ's formwork example adds one, an iron
+  wall ([R97](../theory/REFERENCES.md#r97)). A lint can check that a gloss repeats neither the
+  name nor the action it replaces.
+
+### N2. What to gloss and what to keep
+
+- **Status.** Open; skill text and a lint. **Effort:** S.
+- **Rule.** `role` selects what to gloss:
+  - Gloss the names of `tool`, `mediator`, `environment`, and `supersystem` boxes, and port
+    labels and flow names. ARIZ note 4 names only the tool's and the external environment's
+    terms ([R97](../theory/REFERENCES.md#r97)); the other two roles follow by this proposal's
+    reading.
+  - Keep the product's name, adding any property the term hides.
+  - Write every `action` and `verb` as a change, or a hold, of one named parameter of the
+    target, as MATRIZ defines a function ([R61](../theory/REFERENCES.md#r61)). Never delete one,
+    and never name a mechanism.
+  - Never neutralise units, values, `levels`, costs, budgets, feasibility rows, contradiction
+    parameters, or any other constraint.
+  - Keep carrier ids that name a quantity. Rename, keeping their order, those that name a
+    mechanism or tell the harm's story.
+- **Evidence.** Gloss hardest where a name cues a familiar answer that is good enough: chess
+  masters shown a familiar but longer mate performed like players about three standard
+  deviations weaker ([R102](../theory/REFERENCES.md#r102)). Keep constraints concrete:
+  abstracting and re-representing raised originality, but not all the added ideas fit the
+  problem's constraints ([R109](../theory/REFERENCES.md#r109)). Keep relations named: LLM
+  planning collapsed when action and predicate names were replaced (N3).
+- **Risks.** Socio-technical models stretch the gloss furthest, since relations between people
+  are intentional; the skill already declines conflicts between people.
+
+### N3. The kernel computes; the LLM translates
+
+- **Status.** Open; skill text. **Effort:** S.
+- **Rule.** The kernel computes every structural verdict. The LLM translates into the model and
+  out of it, and never reasons over bare ids: a model shown to it carries glosses, and it cites
+  each verdict's `basis` instead of re-deriving loops or reachability by eye.
+- **Evidence.**
+  - With Blocksworld's actions and predicates renamed, GPT-4's zero-shot plans fell from 210
+    valid of 600 to 1 ([R104](../theory/REFERENCES.md#r104)).
+  - With the translation back to Blocksworld supplied in the prompt, GPT-4 still reached only
+    10% ([R105](../theory/REFERENCES.md#r105)).
+  - 2025–26 reasoning models solved about 6–41% fewer planning tasks when every name was
+    replaced by a random string, and the strongest often recognised the domain from structure
+    alone ([R106](../theory/REFERENCES.md#r106); venue not confirmed).
+  - An LLM that writes a formulation for a symbolic solver gained 39.2% on average over standard
+    prompting ([R107](../theory/REFERENCES.md#r107); abstract only).
+- **Risks.** Renaming hides vocabulary, not structure. A model that recognises a memorised
+  problem shape still recalls its answer, so neutral mode can lower fixation on the domain's
+  default solution but cannot prevent recall.
+
+### N4. Re-concretise at ARIZ's checkpoints
+
+- **Status.** Open; skill text. **Effort:** S.
+- **Rule.** Restore the domain labels after a candidate is picked, before any feasibility or
+  constraint claim, and before the report. ARIZ comes back down at fixed steps
+  ([R97](../theory/REFERENCES.md#r97)):
+  - step 4.1(в) turns the little-people picture into a technical scheme;
+  - step 6.1 turns the physical answer into a technical one;
+  - Part 7 checks the answer against the resources, and asks whether a solution found for one
+    cycle survives many.
+
+  Check each candidate on the labelled target with declared rows: `triz_behavior` for behaviour,
+  `triz_feasibility` for resources, and `triz_dynamics` for Part 7's multi-cycle question. The
+  Substantiate step reads only re-concretised models, and a new solution gets a new name, not
+  the name of the component it replaces.
+- **Evidence.** Abstraction on its own goes unused: given only a diagram of the principle, 7% of
+  subjects solved the problem before a hint, while two compared analogues plus the principle or
+  the diagram lifted unprompted transfer to 57–62% ([R103](../theory/REFERENCES.md#r103)).
+  Abstraction can break constraints, so generate first and prune against the concrete problem
+  ([R109](../theory/REFERENCES.md#r109)).
+- **Risks.** Isomorphic wiring can still get different behaviour, feasibility, and dynamics
+  verdicts, so a cross-domain idea stays a hypothesis until the target declares those rows.
+
+### N5. Testing
+
+- **Status.** The kernel half landed with the renamed-twin tests (`tests/support/twin.ts`); the
+  agent half is open. **Effort:** M.
+- **Kernel.** A model and its renamed twin, every id mapped to a neutral token in declaration
+  order, get the same verdicts after mapping back, and the same lints except
+  `defect-on-loss-carrier` on a carrier without a declared `loss`. They show the same harm-loop
+  cycles, absorbers in order, default trim, `rerate` cycles, and the bearing's escalation trace.
+  Rule matches and the truncated conflict-cell list still follow id order and are not covered.
+- **Agent.**
+  - Before ideation, a comprehension check on the renamed model: simple questions, such as which
+    box a wire leaves or which carrier a port takes, answered correctly before the agent
+    reasons.
+  - A metamorphic test of the agent: give it a model and its renamed twin, and compare the
+    structural claims it makes (loops, absorbers, the verdicts it cites), ignoring free text.
+  - The deciding experiment: run the skill on fresh problems in both modes, and score solution
+    quality and constraint violations, not idea counts.
+- **Risks.** Frontier models recognise renamed structure ([R106](../theory/REFERENCES.md#r106)),
+  so a passing twin test shows consistency, not freedom from recall.
+
+### N6. `triz_neutralize`: the neutral register as a tool
+
+- **Status.** Open. **Effort:** M.
+- **Change.** A tool, or a `triz_export` option, that produces the neutral register with a
+  stable mapping and maps results back:
+  - ids map to tokens that keep declaration order, so witnesses map back (item 4);
+  - while rule matching and the conflict-cell list stay id-ordered, the tokens must also sort
+    like the originals;
+  - lints run on the labelled model first and their warnings carry across, or every carrier
+    declares `loss`;
+  - glosses come from the caller (N1), and the tool never invents one.
+- **Note.** The example ids are themselves domain words (`motor`, `bearing`, `w-drive`), so an
+  LLM reading only the structural core still reads the domain. Renaming ids is part of the job,
+  not only names and verbs.
+- **Risks.** A mapping that is not a bijection, or that reorders declarations, changes what
+  comes back; the tool checks both and fails closed.
 
 ## Deliberately not planned
 

@@ -177,7 +177,8 @@ Every `ok: false` result keeps its `errors` and adds `issues`: per error a stabl
 `hint` with a concrete fix, so an agent can correct its input from the output alone. Common
 slips get a pointed hint, such as a whole `triz_rule_apply` listing entry passed as `match`.
 `triz_function_model`, `triz_trim`, and `triz_behavior` also return `warnings`: lints such as an
-excessive rating on a loss like a pressure drop, which never change a verdict.
+excessive rating on a loss like a pressure drop, which never change a verdict. That lint guesses
+a loss from words unless the carrier declares `loss`, so a renaming can move it.
 [error-codes.md](skills/triz-innovation/references/error-codes.md) tabulates every code.
 
 Every loop and absorber they return is a hypothesis to substantiate. `triz_transform` applies
