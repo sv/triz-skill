@@ -3,7 +3,7 @@ name: triz-innovation
 description: "Apply TRIZ to identify, model, solve, and validate contradictions in artificial systems. Use for product, service, process, organizational, demand, supply, engagement, public-relations, and technical problems where improving one outcome worsens another, a harmful effect persists, or incremental optimization has stalled."
 license: MIT
 metadata:
-  version: 0.5.0
+  version: 0.5.1
   source: https://github.com/sv/triz-skill
 ---
 
