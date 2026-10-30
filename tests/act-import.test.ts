@@ -6,6 +6,7 @@ import { DraftTable } from "../src/act-import.js";
 import { buildModel, BuildModelRequest, reviewImportedModel } from "../src/act-builder.js";
 import { ModelProvenance, provenanceProblems } from "../src/act-provenance.js";
 import { checkModel, type FunctionModel } from "../src/act.js";
+import { ImportSourceRequest, importSource } from "../src/act-import-registry.js";
 
 const source = (text:string) => ({id:"local.json",text});
 
@@ -129,4 +130,34 @@ test("embedded containment rejects missing boxes, duplicate parents and cycles b
     const fakeReviewed = {...edited,provenance:{...p,hierarchy,status:"reviewed" as const,review:{decisions}}};
     assert.equal(checkModel(fakeReviewed).ok,false);
   }
+});
+
+test("CSV ignores a leading byte order mark and blank lines, keeping physical line numbers", () => {
+  const bom = importBom({id:"bom.csv",text:'﻿id,name,parent_id\r\np,Pump,\r\n\r\nc,"Valve, A",p\r\n\r\n\n'},"csv");
+  assert.ok(bom.ok, JSON.stringify(!bom.ok && bom.errors));
+  assert.deepEqual(bom.draft.components.map(c => [c.id,c.name,c.source.line]), [["p","Pump",2],["c","Valve, A",4]]);
+  assert.deepEqual(bom.draft.hierarchy, [{parent:"p",child:"c",source:{source:"bom.csv",line:4}}]);
+  // An explicit empty quoted field is a value, not a blank line; a BOM is only skipped at the start.
+  assert.equal(importBom({id:"bom.csv",text:'id,name\n""\n'},"csv").ok,false);
+  const inner = importBom({id:"bom.csv",text:'id,name\n﻿a,A\n'},"csv"); assert.ok(inner.ok);
+  assert.equal(inner.draft.components[0].id,"﻿a");
+});
+
+test("a malformed percent escape in a path or operation reference is diagnosed, not fatal", () => {
+  const doc = {openapi:"3.0.3",paths:{"/bad":{$ref:"#/components/pathItems/%E0"},"/op":{get:{$ref:"#/x%"}},"/ok":{get:{operationId:"ok",responses:{"200":{content:{"application/json":{}}}}}}}};
+  const r = importOpenApi(source(JSON.stringify(doc))); assert.ok(r.ok, JSON.stringify(!r.ok && r.errors));
+  assert.ok(r.draft.components.some(c => c.name === "ok"));
+  assert.ok(r.diagnostics.some(d => d.code === "unsupported-path" && d.source.pointer === "/paths/~1bad"));
+  assert.ok(r.diagnostics.some(d => d.code === "unsupported-operation" && d.source.pointer === "/paths/~1op/get"));
+  assert.ok(r.diagnostics.filter(d => d.code === "unresolved-ref").length >= 2);
+});
+
+test("the import request schema bounds source text by the byte limit", () => {
+  const ok = ImportSourceRequest.safeParse({format:"bom-csv",source:{id:"x",text:"a".repeat(1_000_000)}});
+  assert.equal(ok.success,true);
+  const big = ImportSourceRequest.safeParse({format:"bom-csv",source:{id:"x",text:"a".repeat(1_000_001)}});
+  assert.equal(big.success,false);
+  if (!big.success) assert.deepEqual(big.error.issues[0].path,["source","text"]);
+  const r = importSource({format:"bom-csv",source:{id:"x",text:"a".repeat(1_000_001)}});
+  assert.equal(r.ok,false); if (!r.ok) assert.equal(r.issues[0].path,"$.source.text");
 });

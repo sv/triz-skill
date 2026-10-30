@@ -38,26 +38,46 @@ function mask(text: string, lang: Lang): { text: string; unclosed: boolean } {
 }
 const braces = (line: string) => { let n = 0; for (const c of line) if (c === "{") n++; else if (c === "}") n--; return n; };
 const names = (s: string) => [...s.matchAll(token)].map(m => m[0]);
-const excludedNames = (header: string, body: string) => {
+const excludedNames = (header: string, body: string, lang: Lang) => {
   const excluded = new Set<string>();
   // Parameter binders and local definitions shadow a global name. Ambiguous references are
   // suppressed instead of reporting a spurious edge to a global declaration.
   for (const m of header.matchAll(/\b([A-Za-z_]\w*)\s*:/g)) excluded.add(m[1]);
   for (const m of body.matchAll(/\b(?:let|nondet|val|var|have|fun)\s+([A-Za-z_]\w*)/g)) excluded.add(m[1]);
+  // Lean binder groups name several variables before one type: (x y : T), {a b : T}, [i : C].
+  if (lang === "lean") for (const text of [header, body])
+    for (const m of text.matchAll(/[({[]\s*((?:[A-Za-z_][\w']*\s+)*[A-Za-z_][\w']*)\s*:(?!=)/g)) for (const n of m[1].split(/\s+/)) excluded.add(n);
+  // Lambda and match-arm binders precede => (or Lean's ↦), back to the nearest opening bracket
+  // or arm bar on that line: x => …, (a, b) => …, | some v => …, fun x y => …. Julia's => is a pair.
+  if (lang !== "julia") for (const text of [header, body]) for (const m of text.matchAll(/=>|↦/g)) {
+    const before = text.slice(0, m.index), cut = Math.max(...["(", "|", "{", "[", "\n"].map(c => before.lastIndexOf(c)));
+    for (const n of names(before.slice(cut + 1))) excluded.add(n);
+  }
   return excluded;
+};
+/** The first '=' that defines, not one inside ==, =>, <=, >= or !=. */
+const definitionEquals = (l: string, from: number) => {
+  const re = /(?<![=<>!])=(?![=>])/g; re.lastIndex = from;
+  return re.exec(l)?.index ?? -1;
 };
 
 type RawDiagnostic = { code: string; line: number; message: string };
 function quint(lines: string[], ds: Decl[], diags: RawDiagnostic[]) {
-  let module = "", depth = 0, current: Decl | undefined;
+  let module = "", depth = 0, current: Decl | undefined, headerOpen = false;
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i], m = l.match(/^\s*module\s+([A-Za-z_]\w*)\s*\{/);
     if (m && !module) { module = m[1]; depth = braces(l); current = undefined; if (/\{\s*\S/.test(l)) diags.push({code:"same-line-module",line:i+1,message:"Declarations on the module header line are not scanned."}); continue; }
     if (!module) continue;
     const d = depth === 1 ? l.match(/^\s*(?:(?:pure|temporal)\s+)?(var|const|type|val|def|action|run)\s+([A-Za-z_]\w*)\b/) : null;
     if (d) {
-      const eq = l.indexOf("=", d[0].length); const header = eq < 0 ? l : l.slice(0, eq);
-      current = {scope:module,name:d[2],kind:d[1],line:i+1,body:eq < 0 ? "" : l.slice(eq + 1),parts:eq < 0 ? [] : [{text:l.slice(eq + 1),line:i+1}],excluded:excludedNames(header, "")}; ds.push(current);
+      const eq = definitionEquals(l, d[0].length); const header = eq < 0 ? l : l.slice(0, eq);
+      current = {scope:module,name:d[2],kind:d[1],line:i+1,body:eq < 0 ? "" : l.slice(eq + 1),parts:eq < 0 ? [] : [{text:l.slice(eq + 1),line:i+1}],excluded:excludedNames(header, "", "quint")}; ds.push(current);
+      // A parameter list may continue on later lines; it is a header until the defining '='.
+      headerOpen = eq < 0 && !["var", "const", "type"].includes(d[1]);
+    } else if (current && depth >= 1 && headerOpen) {
+      const eq = definitionEquals(l, 0);
+      for (const name of excludedNames(eq < 0 ? l : l.slice(0, eq), "", "quint")) current.excluded.add(name);
+      if (eq >= 0) { headerOpen = false; current.body += `\n${l.slice(eq + 1)}`; current.parts.push({text:l.slice(eq + 1),line:i+1}); }
     } else if (current && depth >= 1) { current.body += `\n${l}`; current.parts.push({text:l,line:i+1}); }
     depth += braces(l);
     if (depth <= 0) { module = ""; current = undefined; depth = 0; }
@@ -68,15 +88,17 @@ function quint(lines: string[], ds: Decl[], diags: RawDiagnostic[]) {
 function lean(lines: string[], ds: Decl[], diags: RawDiagnostic[]) {
   const scopes: Array<{kind:string;name:string}> = []; let current: Decl | undefined, indent = 0;
   for (let i = 0; i < lines.length; i++) {
-    const l = lines[i], scope = l.match(/^\s*(namespace|section)\s*([A-Za-z_][\w.]*)?\s*$/);
+    // A mutual block is closed by its own `end`; it must not pop the enclosing namespace.
+    const l = lines[i], scope = l.match(/^\s*(namespace|section|mutual)\s*([A-Za-z_][\w.]*)?\s*$/);
     if (scope) { scopes.push({kind:scope[1], name:scope[2] ?? ""}); current = undefined; continue; }
     if (/^\s*end(?:\s+[A-Za-z_][\w.]*)?\s*$/.test(l)) { if (scopes.length) scopes.pop(); current = undefined; continue; }
-    const d = l.match(/^(\s*)(?:(?:private|protected|noncomputable|unsafe)\s+)*(def|abbrev|theorem|lemma|structure|inductive|class|opaque)\s+([A-Za-z_][\w']*)\b/);
+    // A dotted name (def Foo.bar) is one declaration, not a second declaration of Foo.
+    const d = l.match(/^(\s*)(?:(?:private|protected|noncomputable|unsafe)\s+)*(def|abbrev|theorem|lemma|structure|inductive|class|opaque)\s+([A-Za-z_][\w']*(?:\.[A-Za-z_][\w']*)*)(?![\w'.])/);
     if (d) {
       if (current && d[1].length > indent) { diags.push({code:"nested-declaration",line:i+1,message:"An indented declaration inside another declaration was omitted."}); continue; }
       const eq = l.indexOf(":=", d[0].length); const header = eq < 0 ? l : l.slice(0, eq);
       const body = header.slice(d[0].length) + (eq < 0 ? "" : l.slice(eq+2));
-      current = {scope:scopes.filter(s => s.kind === "namespace").map(s => s.name).filter(Boolean).join("."),name:d[3],kind:d[2],line:i+1,body,parts:[{text:body,line:i+1}],excluded:excludedNames(header, "")};
+      current = {scope:scopes.filter(s => s.kind === "namespace").map(s => s.name).filter(Boolean).join("."),name:d[3],kind:d[2],line:i+1,body,parts:[{text:body,line:i+1}],excluded:excludedNames(header, "", "lean")};
       ds.push(current); indent = d[1].length;
     } else if (current) { current.body += `\n${l}`; current.parts.push({text:l,line:i+1}); }
   }
@@ -200,8 +222,10 @@ function importCode(source: ImportSource, lang: Lang): ImportResult {
     for (const d of declarations) {
       if (ambiguous.has(key(d))) continue;
       const scope = byScope.get(d.scope)!;
-      const excluded = new Set([...d.excluded,...excludedNames("",d.body)]);
-      for (const part of d.parts) for (const symbol of names(part.text)) {
+      const excluded = new Set([...d.excluded,...excludedNames("",d.body,lang)]);
+      for (const part of d.parts) for (const token of names(part.text)) {
+        // Quint's prime is the next-state operator: x' = … writes the state variable x.
+        const symbol = lang === "quint" ? token.replace(/'+$/, "") : token;
         const dependency = scope.get(symbol);
         if (!dependency || symbol === d.name || excluded.has(symbol) || ambiguous.has(key(dependency)) || (d.kind === "helper" && dependency.kind !== "helper")) continue;
         const edgeKey = JSON.stringify([id(d),id(dependency)]);

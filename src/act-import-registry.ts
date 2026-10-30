@@ -5,11 +5,14 @@ import { importBom } from "./act-import-bom.js";
 import { importOpenApi } from "./act-import-openapi.js";
 import { importQuint, importLean, importJulia } from "./act-import-code.js";
 import { importModelingToolkitJson, importAgentsJson } from "./act-import-julia-export.js";
+import { MAX_SOURCE_BYTES } from "./act-import.js";
 
 export const ImportFormat = z.enum(["bom-csv", "bom-json", "openapi-json", "modelingtoolkit-json", "agents-json", "quint", "lean", "julia"]);
 export const ImportSourceRequest = z.strictObject({
   format: ImportFormat,
-  source: z.strictObject({id:z.string().min(1),text:z.string()}),
+  // Every UTF-16 code unit takes at least one UTF-8 byte, so a longer string is over the byte
+  // limit too; the importers still measure the exact UTF-8 length.
+  source: z.strictObject({id:z.string().min(1),text:z.string().max(MAX_SOURCE_BYTES).describe(`Source text, at most ${MAX_SOURCE_BYTES} UTF-8 bytes`)}),
 });
 export type ImportSourceRequest = z.infer<typeof ImportSourceRequest>;
 

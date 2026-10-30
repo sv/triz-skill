@@ -59,7 +59,9 @@ export function importOpenApi(source: ImportSource): ImportResult {
         if (seen.has(value)) {diag("cyclic-ref",p,"Cyclic reference cannot be expanded.");return undefined;}
         seen.add(value);
         if (typeof value.$ref !== "string" || (value.$ref !== "#" && !value.$ref.startsWith("#/"))) return undefined;
-        path = value.$ref === "#" ? "" : decodeURIComponent(value.$ref.slice(1));
+        // A malformed percent escape cannot be resolved: the traversal above already diagnosed it
+        // as unresolved, and the caller omits this element with its own diagnostic.
+        try { path = value.$ref === "#" ? "" : decodeURIComponent(value.$ref.slice(1)); } catch { return undefined; }
         value = lookup(value.$ref);
       }
       return object(value) ? {value,path} : undefined;

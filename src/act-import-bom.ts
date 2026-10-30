@@ -3,13 +3,19 @@ import type { SourceLocation } from "./act-provenance.js";
 
 type Item = {id:string;name:string;parent?:string;source:SourceLocation};
 
-/** RFC 4180-style CSV fields, including escaped quotes and embedded newlines. */
+/** RFC 4180-style CSV fields, including escaped quotes and embedded newlines. A leading UTF-8
+ * byte order mark (as spreadsheet exports write it) is not data, and a blank line is no record:
+ * a BOM row needs at least the id and name columns. Line numbers count every physical line. */
 function csvRows(text: string): Array<{fields:string[];line:number}> {
   const rows: Array<{fields:string[];line:number}> = [];
   let fields:string[] = [], field = "", line = 1, start = 1, quoted = false, closed = false;
   const fieldEnd = () => { fields.push(field); field = ""; closed = false; };
-  const rowEnd = () => { fieldEnd(); rows.push({fields,line:start}); if (rows.length > MAX_DRAFT_ITEMS + 1) throw new Error("Too many BOM items."); fields = []; start = line; };
-  for (let i = 0; i < text.length; i++) {
+  const rowEnd = () => {
+    const blank = !fields.length && !field && !closed;
+    fieldEnd(); if (!blank) rows.push({fields,line:start});
+    if (rows.length > MAX_DRAFT_ITEMS + 1) throw new Error("Too many BOM items."); fields = []; start = line;
+  };
+  for (let i = text.startsWith("﻿") ? 1 : 0; i < text.length; i++) {
     const c = text[i];
     if (quoted) {
       if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else { quoted = false; closed = true; } }

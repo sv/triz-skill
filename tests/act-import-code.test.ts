@@ -111,3 +111,30 @@ test("unsupported agents, absent declarations and caps fail safely", () => {
   const many = `module M {\n${Array.from({length:2001},(_,i)=>`var x${i}: int`).join("\n")}\n}`;
   assert.equal(importQuint(source(many)).ok,false);
 });
+
+test("a Quint next-state write x' references the state variable x", () => {
+  const r = importQuint(source(`module M {\n var count: int\n action reset = {\n  count' = 0\n }\n}\n`)); assert.ok(r.ok);
+  assert.ok(edge(r,"reset","count"));
+  assert.equal(r.draft.interactions[0].source.line,4);
+  // Lean's prime is part of a name: foo' and foo are different declarations.
+  const l = importLean(source(`def foo : Nat := 1\ndef foo' : Nat := 2\ndef use : Nat := foo'\n`)); assert.ok(l.ok);
+  assert.deepEqual(l.draft.components.map(c=>c.name),["foo","foo'","use"]);
+  assert.ok(edge(l,"use","foo'") && !edge(l,"use","foo"));
+});
+
+test("multi-line headers, binder groups and lambda or match binders shadow globals", () => {
+  const q = importQuint(source(`module M {\n var x: int\n var f: int\n var y: int\n def g(\n  x: int\n ): int = x + 1\n def apply(f: int => int, x: int): int = f(x) + y\n pure def h(s: Set[int]): Set[int] = s.map(v => v + y)\n val w = Set(1).map(x => x)\n}\n`)); assert.ok(q.ok);
+  assert.ok(!edge(q,"g","x") && !edge(q,"apply","x") && !edge(q,"apply","f") && !edge(q,"w","x"));
+  assert.ok(edge(q,"apply","y") && edge(q,"h","y"), "genuine references remain");
+  const l = importLean(source(`def x : Nat := 1\ndef y : Nat := 2\ndef f (x y : Nat) : Nat := x + y\ndef g : Nat → Nat\n  | x => x\ndef k : Nat → Nat := fun y => y + x\n`)); assert.ok(l.ok);
+  assert.ok(!edge(l,"f","x") && !edge(l,"f","y") && !edge(l,"g","x") && !edge(l,"k","y"));
+  assert.ok(edge(l,"k","x"), "a global used beside a binder is still referenced");
+});
+
+test("Lean mutual blocks keep their namespace and dotted names are whole declarations", () => {
+  const r = importLean(source(`namespace A\nmutual\ndef f : Nat := g\ndef g : Nat := 1\nend\ndef h : Nat := f\nend A\n`)); assert.ok(r.ok);
+  assert.ok(edge(r,"f","g") && edge(r,"h","f"));
+  const dotted = importLean(source(`def Foo.bar : Nat := 1\ndef Foo.baz : Nat := 2\n`)); assert.ok(dotted.ok);
+  assert.deepEqual(dotted.draft.components.map(c=>c.name),["Foo.bar","Foo.baz"]);
+  assert.ok(!dotted.diagnostics.some(d=>d.code === "ambiguous-declaration"));
+});
