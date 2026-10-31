@@ -496,6 +496,10 @@ construction.
   default. Expert contributions add versioned JSON packs with attributed review status;
   `pnpm knowledge` validates their union and updates hosted imports. Canonical matrix parameters
   remain the original 39.
+- Shared interface families factor 12 named cases into seven signatures, giving 69 independently
+  declared interfaces while retaining all 74 searchable entries and their case-specific evidence.
+  Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
+  no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.
 - The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
   every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
   wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.

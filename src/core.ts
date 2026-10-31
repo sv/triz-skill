@@ -91,7 +91,10 @@ export function knowledgeCatalog(query?: string, domain?: string) {
     tokens.every(t => `${p.id} ${p.name} ${p.quantity} ${p.description}`.toLowerCase().includes(t)));
   return {
     packs: all.packs.filter(p => !domain || p.domain === "universal" || p.domain === domain)
-      .map(({ parameters, effects, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length })),
+      .map(({ parameters, effects, families, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length })),
+    families: all.families.filter(f => !domain || f.domain === "universal" || f.domain === domain),
+    counts: all.counts,
+    counts_scope: "all-installed-packs",
     parameters,
     total: all.parameters.length,
     matched: parameters.length,
@@ -242,11 +245,12 @@ export function resolve(improving: number, worsening: number) {
   };
 }
 
-export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string} = {}) {
+export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite"} = {}) {
   const all = effectsAll();
   let list = category ? all.filter((e) => e.category === category) : all;
   list = list.filter(e => (!typed.domain || e.domain === "universal" || e.domain === typed.domain) && (!typed.pack || e.pack === typed.pack));
-  list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
+  list = list.filter(e => (!typed.kind || e.kind === typed.kind) && (!typed.form || e.definition.form === typed.form));
+  list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field || e.fields?.includes(typed.field)) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
   if (query) {
     const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
     list = list

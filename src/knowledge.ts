@@ -32,13 +32,25 @@ export const KnowledgeParameter = z.strictObject({
     rationale: Text,
   })).default([]).describe("Explicit hypotheses; never extend or automatically query the canonical matrix"),
 });
-export const KnowledgeEffect = z.strictObject({
-  id: z.union([QualifiedId, z.number().int().positive()]),
+const EffectId = z.union([QualifiedId, z.number().int().positive()]);
+const Description = {
+  id: EffectId,
   name: Text,
   category: Text,
   function: Text,
   statement: Text,
   hints: z.array(Text),
+  provenance: KnowledgeSource.optional(),
+  review: KnowledgeReview.optional(),
+  limitations: z.array(Text).optional(),
+  related_effects: z.array(z.strictObject({
+    id: EffectId,
+    relation: z.enum(["specializes", "uses", "related"]),
+  })).optional(),
+};
+export const KnowledgeEffect = z.strictObject({
+  ...Description,
+  kind: z.enum(["response", "mechanism"]).optional().describe("Declared modeling role; not scientific novelty or irreducibility"),
   input: EffectPort.optional(),
   output: EffectPort.optional(),
   input_parameter: QualifiedId.optional(),
@@ -47,19 +59,41 @@ export const KnowledgeEffect = z.strictObject({
   conditions: z.array(Text).optional(),
   source: Text.optional(),
   typed_from: z.enum(["source", "statement"]).optional(),
-  provenance: KnowledgeSource.optional(),
-  review: KnowledgeReview.optional(),
-  limitations: z.array(Text).optional(),
-  related_effects: z.array(z.strictObject({
-    id: z.union([QualifiedId, z.number().int().positive()]),
-    relation: z.enum(["specializes", "uses", "related"]),
-  })).optional(),
 }).superRefine((e, ctx) => {
   const fields = ["input", "output", "input_parameter", "output_parameter", "field", "conditions", "source", "typed_from"] as const;
   const typing = ["input", "output", "input_parameter", "output_parameter", "field", "typed_from"] as const;
   if (typing.some(k => e[k] !== undefined) && !fields.every(k => e[k] !== undefined))
     ctx.addIssue({ code: "custom", message: "Typing is all-or-none: include both ports, parameter references, field, conditions, source and typed_from" });
 });
+
+/** Families share explicit interfaces; every specialization retains its own physical evidence. */
+export const KnowledgeFamily = z.strictObject({
+  id: QualifiedId,
+  name: Text,
+  kind: z.enum(["response", "mechanism"]),
+  description: Text,
+  signatures: z.array(z.strictObject({ id: Slug, input_parameter: QualifiedId, output_parameter: QualifiedId, field: EffectField })).min(1).max(100),
+  provenance: KnowledgeSource,
+  review: KnowledgeReview.optional(),
+  limitations: z.array(Text).min(1),
+});
+const KnowledgeSpecialization = z.strictObject({
+  ...Description,
+  kind: z.literal("specialization"),
+  family: QualifiedId,
+  signature: Slug,
+  conditions: z.array(Text),
+  source: Text,
+  typed_from: z.enum(["source", "statement"]),
+});
+const KnowledgeComposite = z.strictObject({
+  ...Description,
+  kind: z.literal("composite"),
+  steps: z.array(EffectId).min(1).max(12),
+  conditions: z.array(Text).default([]).describe("Additional assumptions; constituent assumptions are always retained"),
+  source: Text,
+});
+export const KnowledgeEntry = z.union([KnowledgeEffect, KnowledgeSpecialization, KnowledgeComposite]);
 export const KnowledgePack = z.strictObject({
   format: z.literal("triz-knowledge-pack-v1"),
   id: Slug,
@@ -69,7 +103,8 @@ export const KnowledgePack = z.strictObject({
   review: KnowledgeReview,
   limitations: z.array(Text).min(1),
   parameters: z.array(KnowledgeParameter).max(10_000),
-  effects: z.array(KnowledgeEffect).max(10_000),
+  families: z.array(KnowledgeFamily).max(10_000).default([]),
+  effects: z.array(KnowledgeEntry).max(10_000),
   _meta: z.record(z.string(), z.unknown()).optional(),
 });
 export const KnowledgeManifest = z.strictObject({
@@ -82,11 +117,18 @@ export const KnowledgeManifest = z.strictObject({
 
 export type KnowledgePack = z.infer<typeof KnowledgePack>;
 export type RegisteredParameter = z.infer<typeof KnowledgeParameter> & { pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview> };
-export type RegisteredEffect = z.infer<typeof KnowledgeEffect> & { pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview>; limitations: string[] };
+export type EffectDefinition = { form: "direct" } | { form: "specialization"; family: string; signature: string } | { form: "composite"; steps: Array<string | number> };
+export type RegisteredEffect = Omit<z.infer<typeof KnowledgeEffect>, "kind"> & {
+  kind?: "response" | "mechanism" | "composite";
+  definition: EffectDefinition;
+  components?: Array<string | number>;
+  fields?: z.infer<typeof EffectField>[];
+  pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview>; limitations: string[];
+};
 
 /** Project only complete declarations onto the existing typed-effect kernel schema. */
 export function typedKnowledgeEffects(effects: RegisteredEffect[]): import("./act-effects.js").TypedEffect[] {
-  return effects.filter(e => e.input && e.output && e.field && e.conditions && e.source && e.typed_from)
+  return effects.filter(e => e.kind !== "composite" && e.input && e.output && e.field && e.conditions && e.source && e.typed_from)
     .map(({ id, name, input, output, field, conditions, source, typed_from }) => ({ id, name, input: input!, output: output!, field: field!, conditions: conditions!, source: source!, typed_from: typed_from! }));
 }
 
@@ -95,6 +137,7 @@ export function compileKnowledge(raw: unknown[]) {
   const packs = raw.map(p => KnowledgePack.parse(p));
   const parameters: RegisteredParameter[] = [];
   const effects: RegisteredEffect[] = [];
+  const families: Array<z.infer<typeof KnowledgeFamily> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> }> = [];
   const packIds = new Set<string>(), parameterIds = new Map<string, RegisteredParameter>();
   const quantities = new Set<string>(), effectIds = new Set<string | number>();
   for (const pack of packs) {
@@ -110,12 +153,76 @@ export function compileKnowledge(raw: unknown[]) {
       quantities.add(p.quantity);
     }
   }
+  const familyIds = new Map<string, typeof families[number]>();
+  for (const pack of packs) for (const f of pack.families) {
+    if (!f.id.startsWith(`${pack.id}:`)) throw new Error(`Family ${f.id} must use pack namespace ${pack.id}`);
+    if (familyIds.has(f.id)) throw new Error(`Duplicate knowledge family id: ${f.id}`);
+    const signatures = new Set<string>();
+    for (const s of f.signatures) {
+      if (signatures.has(s.id)) throw new Error(`Duplicate signature ${s.id} in family ${f.id}`);
+      signatures.add(s.id);
+      for (const ref of [s.input_parameter, s.output_parameter])
+        if (!parameterIds.has(ref)) throw new Error(`Family ${f.id} references unknown parameter ${ref}`);
+    }
+    const registered = { ...f, pack: pack.id, domain: pack.domain, review: f.review ?? pack.review };
+    families.push(registered);
+    familyIds.set(f.id, registered);
+  }
+  const records = new Map<string | number, { pack: KnowledgePack; entry: z.infer<typeof KnowledgeEntry> }>();
   for (const pack of packs) for (const e of pack.effects) {
     // Preserve the original starter database's numeric ids; extensions use qualified ids.
     if (typeof e.id === "number" ? pack.id !== "physical" : !e.id.startsWith(`${pack.id}:`))
       throw new Error(`Effect ${e.id} must use pack namespace ${pack.id} (numeric ids are reserved for physical)`);
     if (effectIds.has(e.id)) throw new Error(`Duplicate knowledge effect id: ${e.id}`);
     effectIds.add(e.id);
+    records.set(e.id, { pack, entry: e });
+  }
+  const resolved = new Map<string | number, RegisteredEffect>(), visiting = new Set<string | number>(), heights = new Map<string | number, number>();
+  const port = (id: string) => {
+    const p = parameterIds.get(id)!;
+    return { quantity: p.quantity, ...(p.si === undefined ? {} : { si: p.si }) };
+  };
+  const resolve = (id: string | number, depth = 0): RegisteredEffect => {
+    if (visiting.has(id)) throw new Error(`Cyclic composite definition at ${id}`);
+    if (depth > 12) throw new Error(`Composite nesting exceeds 12 at ${id}`);
+    const cached = resolved.get(id);
+    if (cached) {
+      if (depth + heights.get(id)! > 12) throw new Error(`Composite nesting exceeds 12 at ${id}`);
+      return cached;
+    }
+    const record = records.get(id);
+    if (!record) throw new Error(`Unknown composite step ${id}`);
+    const { pack, entry } = record;
+    visiting.add(id);
+    const metadata = { pack: pack.id, domain: pack.domain,
+      provenance: entry.provenance ?? pack.source, review: entry.review ?? pack.review,
+      limitations: [...pack.limitations, ...(entry.limitations ?? [])] };
+    let e: RegisteredEffect, height = 0;
+    if (entry.kind === "specialization") {
+      const family = familyIds.get(entry.family);
+      if (!family) throw new Error(`Effect ${id} references unknown family ${entry.family}`);
+      const s = family.signatures.find(s => s.id === entry.signature);
+      if (!s) throw new Error(`Effect ${id} references unknown signature ${entry.signature}`);
+      const { kind, family: _, signature: __, ...description } = entry;
+      e = { ...description, ...metadata, kind: family.kind, input: port(s.input_parameter), output: port(s.output_parameter),
+        input_parameter: s.input_parameter, output_parameter: s.output_parameter, field: s.field,
+        definition: { form: "specialization", family: family.id, signature: s.id } };
+    } else if (entry.kind === "composite") {
+      const parts = entry.steps.map(step => resolve(step, depth + 1));
+      height = 1 + Math.max(...parts.map(p => heights.get(p.id)!));
+      if (parts.some(p => !p.input_parameter || !p.output_parameter)) throw new Error(`Composite ${id} contains an untyped step`);
+      for (let i = 1; i < parts.length; i++)
+        if (parts[i - 1].output_parameter !== parts[i].input_parameter) throw new Error(`Composite ${id} has incompatible adjacent quantity parameters`);
+      const components = parts.flatMap(p => p.components ?? [p.id]);
+      if (components.length > 12) throw new Error(`Composite ${id} expands beyond 12 effects`);
+      const { steps, ...description } = entry;
+      e = { ...description, ...metadata, input: parts[0].input!, output: parts.at(-1)!.output!,
+        input_parameter: parts[0].input_parameter, output_parameter: parts.at(-1)!.output_parameter,
+        conditions: [...new Set([...parts.flatMap(p => p.conditions ?? []), ...entry.conditions])],
+        limitations: [...new Set([...metadata.limitations, ...parts.flatMap(p => p.limitations)])],
+        fields: [...new Set(parts.flatMap(p => p.fields ?? (p.field ? [p.field] : [])))],
+        components, typed_from: "source", definition: { form: "composite", steps } };
+    } else e = { ...entry, ...metadata, definition: { form: "direct" } };
     for (const side of ["input", "output"] as const) {
       const ref = e[`${side}_parameter`];
       if (!ref) continue;
@@ -124,15 +231,21 @@ export function compileKnowledge(raw: unknown[]) {
       if (p.quantity !== port.quantity || !sameDimension(p.si, port.si))
         throw new Error(`Effect ${e.id} ${side} disagrees with parameter ${ref}`);
     }
-    effects.push({ ...e, pack: pack.id, domain: pack.domain,
-      provenance: e.provenance ?? pack.source, review: e.review ?? pack.review,
-      limitations: [...pack.limitations, ...(e.limitations ?? [])] });
-  }
+    visiting.delete(id);
+    heights.set(id, height);
+    resolved.set(id, e);
+    return e;
+  };
+  for (const id of records.keys()) effects.push(resolve(id));
   for (const e of effects) for (const ref of e.related_effects ?? []) {
     if (!effectIds.has(ref.id) || ref.id === e.id)
       throw new Error(`Effect ${e.id} has an unknown or self-referential related effect: ${ref.id}`);
   }
-  return { packs, parameters, effects };
+  const specializations = effects.filter(e => e.definition.form === "specialization").length;
+  const composites = effects.filter(e => e.definition.form === "composite").length;
+  const direct = effects.length - specializations - composites;
+  return { packs, parameters, effects, families, counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
+    independent_contracts: effects.filter(e => e.definition.form === "direct" && e.input && e.output).length + families.reduce((n, f) => n + f.signatures.length, 0), searchable: effects.length } };
 }
 
 export const knowledgePackJsonSchema = () => ({ ...z.toJSONSchema(KnowledgePack), title: "TRIZ knowledge pack" });

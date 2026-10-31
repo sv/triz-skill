@@ -91,3 +91,12 @@ Optical, current, force and rotational-speed endomorphisms remain explicit gener
 than identity arrows. `min_length` makes nonempty same-type chains discoverable. Stateful
 implementations can declare `state`, `initial` and `transition` through both setup and insertion;
 no hysteresis, persistence, kinetics or memory is inferred from these catalogue contracts.
+
+## Definition separation
+
+Twelve named cases now reference four shared interface families with seven signatures. Together
+with 62 direct declarations, these give 69 independently stated interfaces and the same 74 resolved
+search entries. Case-specific conditions, attribution, limitations and text are preserved by a
+frozen compatibility test. Conduction, convection and radiation, for example, retain their own
+constitutive laws and evidence while sharing a selected input/output interface. Serial recipes
+expand into their constituent effects before model checks; see [knowledge packs](knowledge-packs.md).

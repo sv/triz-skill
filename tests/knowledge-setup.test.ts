@@ -88,7 +88,7 @@ test("setup rejects untyped generators, unsupported composition, weakened types 
   const knowledge = data.knowledge();
   const untyped = structuredClone(knowledge);
   untyped.effects.push({ id: "physical:untyped-fixture", name: "Untyped fixture", category: "test", function: "test", statement: "No typing declared", hints: [],
-    pack: "physical", domain: "physical", provenance: knowledge.effects[0].provenance, review: knowledge.effects[0].review, limitations: [] });
+    pack: "physical", domain: "physical", definition: { form: "direct" }, provenance: knowledge.effects[0].provenance, review: knowledge.effects[0].review, limitations: [] });
   assert.equal(setupEffectModel({ chain: ["physical:untyped-fixture"], domain: "physical" }, untyped).ok, false);
   for (const args of [
     { chain: [999] },

@@ -22,4 +22,4 @@ if (process.argv.includes("--check")) {
   if (!fs.existsSync(target) || fs.readFileSync(target, "utf8") !== source)
     throw new Error("Hosted knowledge imports are stale; run pnpm knowledge");
 } else fs.writeFileSync(target, source);
-console.log(`Knowledge valid: ${canonical.parameters.length} canonical matrix parameters; ${knowledge.packs.length} packs, ${knowledge.parameters.length} quantity parameters, ${knowledge.effects.length} effects`);
+console.log(`Knowledge valid: ${canonical.parameters.length} canonical matrix parameters; ${knowledge.packs.length} packs, ${knowledge.parameters.length} quantity parameters, ${knowledge.effects.length} searchable effects; ${knowledge.counts.independent_contracts} independent interfaces, ${knowledge.counts.specializations} specializations, ${knowledge.counts.composites} recipes`);

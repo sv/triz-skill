@@ -31,7 +31,7 @@ run `npx -y -p triz-mcp triz …`. Do not read `src/` to learn a tool's argument
 | `triz_effect_insert(model, from, to, chain, replace_wire?)` | Insert a discovered chain, retain sources/conditions and return a checked replayable rewrite |
 | `triz_knowledge(query?, domain?)` | Inspect installed universal/domain quantity definitions, provenance and reviews |
 | `triz_effects(query?, category?, domain?, pack?)` | Search all installed effects packs by required function; optional domain filtering includes universal effects |
-| `triz_effect_setup(chain, domain, bindings?, boundary?, declarations?, certificate?)` | Instantiate registered effects as a typed model; finite behavior, state/initial/transition and resources remain explicit declarations |
+| `triz_effect_setup(chain, domain, bindings?, boundary?, declarations?, certificate?)` | Instantiate registered effects or expanded recipes as a typed model; per-step behavior, state/initial/transition and resources remain explicit declarations |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
 | `triz_build_model(domain, components[], interactions[], flows?)` | Build stable typed ports and functions from subject/action/object interactions; every carrier and polarity must be supplied; reports unrecorded pairs, isolated components, and product reach |

@@ -37,11 +37,16 @@ const json = async (name, args) => {
 const knowledge = await json("triz_knowledge", {});
 if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 66) fail("knowledge packs or quantity definitions missing");
 if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
+if (knowledge.families.length !== 4 || knowledge.counts.independent_contracts !== 69 || knowledge.counts.searchable !== 74) fail("shared interface separation/counts missing");
+const specialized = await json("triz_effects", { form: "specialization" });
+if (specialized.matched !== 12 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
+const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
+if (!familySetup.ok || familySetup.certificate?.format !== "lean" || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
 const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
 if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");
-const typed = await json("triz_effects", { typed: true });
-if (typed.matched !== 74) fail("incomplete shipped effect typing coverage");
+const typed = await json("triz_effects", {});
+if (typed.matched !== 74 || typed.effects.some(e => !e.input || !e.output || !e.field)) fail("incomplete shipped effect typing coverage");
 const optical = await json("triz_effect_chains", { resources: [{ quantity: "light" }], output: { quantity: "light" }, min_length: 1, k: 1 });
 if (optical.verdict !== "chains" || optical.chains.some(c => c.effects.length !== 1) || !optical.chains.some(c => c.effects[0].id === 17)) fail("nonempty same-type effect discovery failed");
 const memory = await json("triz_effect_setup", {

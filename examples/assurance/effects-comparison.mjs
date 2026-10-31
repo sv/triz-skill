@@ -6,6 +6,7 @@ import path from "node:path";
 import * as data from "../../src/data.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
+import { compileKnowledge } from "../../src/knowledge.ts";
 import { checkModel } from "../../src/act.ts";
 import { externalBehavior, compareBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics, checkRun } from "../../src/act-dynamics.ts";
@@ -51,15 +52,32 @@ assert.ok(bare.ok);
 const withoutRows = externalBehavior(bare.model, { scope: "whole" });
 assert.ok(withoutRows.ok && !withoutRows.decided);
 const values = ["off", "on"];
-const finite = setupEffectModel({ chain, domain: "physical",
+const finiteArgs = { domain: "physical",
   bindings: Object.fromEntries(bare.setup.parameter_ids.map(id => [id, { values }])),
   boundary: { source_values: values, accepted_values: values },
   declarations: chain.map(() => ({ behavior: values.map(v => ({ in: { in: v }, out: { out: v } })) })),
-}, data.knowledge());
+};
+const finite = setupEffectModel({ ...finiteArgs, chain }, data.knowledge());
 assert.ok(finite.ok);
 const withRows = externalBehavior(finite.model, { scope: "whole", fullRelation: true });
 assert.ok(withRows.ok && withRows.decided);
 assert.equal(withRows.inputValuations, 1); // Environment supplies either value; there is no unwired source input.
+
+// A new serial mechanism is a recipe in an expert pack, not another opaque generator.
+const recipePacks = structuredClone(data.knowledge().packs);
+recipePacks.find(p => p.id === "physical").effects.push({
+  id: "physical:photovoltaic-heater", name: "Photovoltaic heater recipe", kind: "composite", category: "synthetic-example",
+  function: "Compose light-to-voltage, current and heat-transfer-rate clauses", statement: "A declared integration recipe, not measured device performance",
+  hints: [], steps: chain, conditions: ["declared optical/electrical/load integration"],
+  source: "examples/assurance/effects-comparison.mjs: repository-authored serial recipe",
+});
+const recipeKnowledge = compileKnowledge(recipePacks);
+const recipeSetup = setupEffectModel({ ...finiteArgs, chain: ["physical:photovoltaic-heater"] }, recipeKnowledge);
+assert.ok(recipeSetup.ok);
+assert.deepEqual(recipeSetup.model, finite.model);
+assert.deepEqual(recipeSetup.setup.expanded_effect_ids, chain);
+assert.ok(recipeSetup.unmetConditions.includes("declared optical/electrical/load integration"));
+assert.deepEqual(data.knowledge().counts, { direct: 62, signatures: 7, specializations: 12, composites: 0, independent_contracts: 69, searchable: 74 });
 
 const wire = (id, from, fp, to, tp, carrier) => ({ id, from: { box: from, port: fp }, to: { box: to, port: tp }, carrier, polarity: "useful" });
 const accept = (id, carrier, values) => ({ id, name: id, role: "product", inputs: [{ id: "in", carrier }], behavior: values.map(v => ({ in: { in: v }, out: {} })) });
@@ -201,6 +219,8 @@ assert.notDeepEqual(naiveFallback.map(show), target.map(show));
 assert.ok([...target, ...naiveFallback].every(p => cmp(p, Z) > 0));
 
 const certificates = {
+  RecipeTyping: modelCertificate(recipeSetup.model),
+  RecipeBehavior: behaviorCertificate(finite.model, recipeSetup.model, { scope: "whole" }),
   RedundancyTyping: modelCertificate(coded),
   RedundancyBehavior: behaviorCertificate(reference, coded, { scope: "whole" }),
   HysteresisTyping: modelCertificate(deadband),
@@ -219,6 +239,10 @@ console.log(JSON.stringify({
   method: "Selected finite examples; fixed current engine, catalogue sizes 6/37/74; no measured device data, no general benchmark accuracy or runtime claim.",
   snapshots: { before: snapshot.source_commit, first_pr: snapshot.first_pr_commit },
   discovery,
+  separation: { independent_interfaces_before: 74, independent_interfaces_after: data.knowledge().counts.independent_contracts,
+    installed_named_effects: data.knowledge().counts.searchable, specializations: data.knowledge().counts.specializations,
+    families: data.knowledge().families.length, example_recipe: recipeSetup.setup.effect_ids, expanded_steps: recipeSetup.setup.expanded_effect_ids,
+    same_model_as_explicit_steps: true },
   setup: { chain, registered_quantities: bare.model.carriers.length, generated_boxes: bare.model.boxes.length, generated_wires: bare.model.wires.length,
     behavior_without_rows: withoutRows.decided, behavior_with_explicit_rows: withRows.decided, unmet_conditions: bare.unmetConditions.length },
   hysteresis: { sequence, before: thresholdRuns[0], after: thresholdRuns[1], deadband_invariant: invariant.escalation.verdict,

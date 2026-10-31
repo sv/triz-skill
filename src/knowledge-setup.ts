@@ -7,14 +7,14 @@ import { compileKnowledge, typedKnowledgeEffects } from "./knowledge.js";
 
 const Text = z.string().min(1);
 export const EffectSetupRequest = z.strictObject({
-  chain: z.array(z.union([Text, z.number().int()])).min(1).max(12).describe("Registered effect ids in composition order"),
+  chain: z.array(z.union([Text, z.number().int()])).min(1).max(12).describe("Registered effect or recipe ids in composition order; recipes expand to at most 12 constituent effects in total"),
   domain: FunctionModel.shape.domain,
   system: Text.optional(),
   bindings: z.record(Text, Carrier.pick({ layer: true, values: true, levels: true, quantity: true }).partial())
     .default({}).describe("Parameter id to explicit finite values, levels, carrier layer or allocation semantics; registry quantity/SI types are retained"),
   boundary: z.strictObject({ source_values: z.array(Text).min(1), accepted_values: z.array(Text).min(1) }).optional()
     .describe("Explicit finite source availability and product acceptance; requires corresponding binding values"),
-  declarations: EffectInsertRequest.shape.declarations,
+  declarations: EffectInsertRequest.shape.declarations.describe("One implementation declaration per expanded constituent effect, in order; recipes never hide implementation rows"),
   conditions: z.array(Text).default([]),
   certificate: z.boolean().optional(),
 });
@@ -25,12 +25,16 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
   const a = parsed.data;
   const reject = (path: string, message: string, hint: string) => fail([issue("invalid-argument", path, message, hint)]);
   const library = typedKnowledgeEffects(knowledge.effects);
-  const selected = a.chain.map(id => knowledge.effects.find(e => e.id === id));
-  for (const [i, entry] of selected.entries()) {
+  const requested = a.chain.map(id => knowledge.effects.find(e => e.id === id));
+  for (const [i, entry] of requested.entries()) {
     if (!entry) return reject(`$.chain[${i}]`, `Unknown registered effect ${a.chain[i]}`, "Look up an installed effect with triz_effects.");
-    if (!library.some(e => e.id === entry.id)) return reject(`$.chain[${i}]`, `Effect ${entry.id} has no complete typing`, "Contribute an explicit sourced typing before using this generator in a model.");
   }
-  const entries = selected.map(e => e!);
+  const expanded = requested.flatMap(e => e!.components ?? [e!.id]);
+  if (expanded.length > 12) return reject("$.chain", "Recipes expand beyond the 12-effect setup limit", "Use a smaller composition; expansion never silently truncates a recipe.");
+  const entries = expanded.map(id => knowledge.effects.find(e => e.id === id)!);
+  for (const [i, entry] of entries.entries()) {
+    if (!library.some(e => e.id === entry.id)) return reject(`$.chain`, `Expanded effect ${entry.id} at position ${i} has no complete typing`, "Contribute an explicit sourced typing before using this generator in a model.");
+  }
   for (let i = 1; i < entries.length; i++) {
     if (entries[i - 1].output_parameter !== entries[i].input_parameter)
       return reject(`$.chain[${i}]`, "Adjacent effects reference different quantity parameters", "Use triz_effect_chains to discover a compatible chain; equal SI dimensions alone do not establish compatibility.");
@@ -58,10 +62,19 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
         ...(a.boundary ? { behavior: a.boundary.accepted_values.map(v => ({ in: { in: v }, out: {} })) } : {}) },
     ], wires: [],
   };
-  const chain = a.chain.map(id => library.find(e => e.id === id)!);
+  const chain = expanded.map(id => library.find(e => e.id === id)!);
   const result = insertEffectChain({ model, from: { box: "resource", port: "out" }, to: { box: "required", port: "in" },
     chain, intermediate_carriers: path.slice(1, -1), declarations: a.declarations, conditions: a.conditions }, library);
   if (!result.ok) return result;
-  return { ...result, setup: { parameter_ids: path, effect_ids: a.chain,
-    sources: entries.map(e => ({ id: e.id, provenance: e.provenance, review: e.review, limitations: e.limitations })) } };
+  const conditions = [...new Set([...result.unmetConditions, ...requested.flatMap(e => e!.conditions ?? []).filter(c => !a.conditions.includes(c))])];
+  const sourceMap = new Map<string | number, typeof entries[number]>();
+  const collect = (entry: typeof entries[number]) => {
+    if (sourceMap.has(entry.id)) return;
+    sourceMap.set(entry.id, entry);
+    if (entry.definition.form === "composite") for (const id of entry.definition.steps)
+      collect(knowledge.effects.find(e => e.id === id)!);
+  };
+  requested.forEach(e => collect(e!));
+  return { ...result, unmetConditions: conditions, setup: { parameter_ids: path, effect_ids: a.chain, expanded_effect_ids: expanded,
+    sources: [...sourceMap.values()].map(e => ({ id: e.id, definition: e.definition, provenance: e.provenance, review: e.review, limitations: e.limitations })) } };
 }

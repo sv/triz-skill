@@ -290,213 +290,74 @@
         "additionalProperties": false
       }
     },
-    "effects": {
+    "families": {
+      "default": [],
       "maxItems": 10000,
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-              },
-              {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991
-              }
-            ]
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
           },
           "name": {
             "type": "string",
             "minLength": 1
           },
-          "category": {
-            "type": "string",
-            "minLength": 1
-          },
-          "function": {
-            "type": "string",
-            "minLength": 1
-          },
-          "statement": {
-            "type": "string",
-            "minLength": 1
-          },
-          "hints": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "input": {
-            "type": "object",
-            "properties": {
-              "quantity": {
-                "type": "string",
-                "minLength": 1
-              },
-              "si": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "L": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "M": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "T": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "I": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "Θ": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "N": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "J": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  }
-                ]
-              }
-            },
-            "required": [
-              "quantity"
-            ],
-            "additionalProperties": false
-          },
-          "output": {
-            "type": "object",
-            "properties": {
-              "quantity": {
-                "type": "string",
-                "minLength": 1
-              },
-              "si": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "L": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "M": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "T": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "I": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "Θ": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "N": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "J": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      }
-                    },
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 512
-                  }
-                ]
-              }
-            },
-            "required": [
-              "quantity"
-            ],
-            "additionalProperties": false
-          },
-          "input_parameter": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-          },
-          "output_parameter": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-          },
-          "field": {
+          "kind": {
             "type": "string",
             "enum": [
-              "mechanical",
-              "acoustic",
-              "thermal",
-              "chemical",
-              "electric",
-              "magnetic",
-              "optical",
-              "gravitational",
-              "information"
+              "response",
+              "mechanism"
             ]
           },
-          "conditions": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "source": {
+          "description": {
             "type": "string",
             "minLength": 1
           },
-          "typed_from": {
-            "type": "string",
-            "enum": [
-              "source",
-              "statement"
-            ]
+          "signatures": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "input_parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                },
+                "output_parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                },
+                "field": {
+                  "type": "string",
+                  "enum": [
+                    "mechanical",
+                    "acoustic",
+                    "thermal",
+                    "chemical",
+                    "electric",
+                    "magnetic",
+                    "optical",
+                    "gravitational",
+                    "information"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "input_parameter",
+                "output_parameter",
+                "field"
+              ],
+              "additionalProperties": false
+            }
           },
           "provenance": {
             "type": "object",
@@ -567,18 +428,716 @@
             "additionalProperties": false
           },
           "limitations": {
+            "minItems": 1,
             "type": "array",
             "items": {
               "type": "string",
               "minLength": 1
             }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "description",
+          "signatures",
+          "provenance",
+          "limitations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "effects": {
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "function": {
+                "type": "string",
+                "minLength": 1
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "hints": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "license": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "citation",
+                  "license"
+                ],
+                "additionalProperties": false
+              },
+              "review": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "curated",
+                      "expert-reviewed"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reviewers": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expertise": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "expertise"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "reviewed_on": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "note",
+                  "reviewers"
+                ],
+                "additionalProperties": false
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "related_effects": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      ]
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "specializes",
+                        "uses",
+                        "related"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "relation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "kind": {
+                "description": "Declared modeling role; not scientific novelty or irreducibility",
+                "type": "string",
+                "enum": [
+                  "response",
+                  "mechanism"
+                ]
+              },
+              "input": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "si": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "L": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "M": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "T": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "I": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "Θ": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "N": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "J": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "quantity"
+                ],
+                "additionalProperties": false
+              },
+              "output": {
+                "type": "object",
+                "properties": {
+                  "quantity": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "si": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "L": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "M": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "T": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "I": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "Θ": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "N": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          },
+                          "J": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 512
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "quantity"
+                ],
+                "additionalProperties": false
+              },
+              "input_parameter": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+              },
+              "output_parameter": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+              },
+              "field": {
+                "type": "string",
+                "enum": [
+                  "mechanical",
+                  "acoustic",
+                  "thermal",
+                  "chemical",
+                  "electric",
+                  "magnetic",
+                  "optical",
+                  "gravitational",
+                  "information"
+                ]
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "typed_from": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "statement"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "category",
+              "function",
+              "statement",
+              "hints"
+            ],
+            "additionalProperties": false
           },
-          "related_effects": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "function": {
+                "type": "string",
+                "minLength": 1
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "hints": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "license": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "citation",
+                  "license"
+                ],
+                "additionalProperties": false
+              },
+              "review": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "curated",
+                      "expert-reviewed"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reviewers": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expertise": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "expertise"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "reviewed_on": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "note",
+                  "reviewers"
+                ],
+                "additionalProperties": false
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "related_effects": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      ]
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "specializes",
+                        "uses",
+                        "related"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "relation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "kind": {
+                "type": "string",
+                "const": "specialization"
+              },
+              "family": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]*$"
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "typed_from": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "statement"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "category",
+              "function",
+              "statement",
+              "hints",
+              "kind",
+              "family",
+              "signature",
+              "conditions",
+              "source",
+              "typed_from"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "function": {
+                "type": "string",
+                "minLength": 1
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "hints": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "license": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "citation",
+                  "license"
+                ],
+                "additionalProperties": false
+              },
+              "review": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "curated",
+                      "expert-reviewed"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reviewers": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expertise": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "expertise"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "reviewed_on": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "note",
+                  "reviewers"
+                ],
+                "additionalProperties": false
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "related_effects": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      ]
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "specializes",
+                        "uses",
+                        "related"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "relation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "kind": {
+                "type": "string",
+                "const": "composite"
+              },
+              "steps": {
+                "minItems": 1,
+                "maxItems": 12,
+                "type": "array",
+                "items": {
                   "anyOf": [
                     {
                       "type": "string",
@@ -590,33 +1149,37 @@
                       "maximum": 9007199254740991
                     }
                   ]
-                },
-                "relation": {
-                  "type": "string",
-                  "enum": [
-                    "specializes",
-                    "uses",
-                    "related"
-                  ]
                 }
               },
-              "required": [
-                "id",
-                "relation"
-              ],
-              "additionalProperties": false
-            }
+              "conditions": {
+                "default": [],
+                "description": "Additional assumptions; constituent assumptions are always retained",
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "category",
+              "function",
+              "statement",
+              "hints",
+              "kind",
+              "steps",
+              "conditions",
+              "source"
+            ],
+            "additionalProperties": false
           }
-        },
-        "required": [
-          "id",
-          "name",
-          "category",
-          "function",
-          "statement",
-          "hints"
-        ],
-        "additionalProperties": false
+        ]
       }
     },
     "_meta": {
@@ -636,6 +1199,7 @@
     "review",
     "limitations",
     "parameters",
+    "families",
     "effects"
   ],
   "additionalProperties": false,

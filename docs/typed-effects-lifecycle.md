@@ -66,10 +66,16 @@ universal and domain quantity parameters, provenance, review status and effect r
 `triz_knowledge` lists these definitions; every installed pack feeds effect lookup and chain
 discovery by default. Optional domain filtering includes universal entries. Canonical matrix
 parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
-records the 74-entry physical starter set and remaining evidence gaps.
+records the 74-entry physical starter set and remaining evidence gaps. Four shared families
+now supply seven signatures for 12 named specializations, alongside 62 direct definitions.
+All 74 resolved contracts and their case-specific assumptions/evidence are preserved. Kind
+and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
 
 `triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,
-and registry quantity/SI/layer declarations. Optional parameter `bindings` declare finite values,
+and registry quantity/SI/layer declarations. Recipe ids expand into their typed constituent
+steps before construction, retaining nested hypotheses and source metadata; cycles, incompatible
+ports and oversized expansions fail closed. Recipes are not opaque atomic chain-search entries.
+Optional parameter `bindings` declare finite values,
 levels and resource allocation; `boundary` declares available source values and accepted product
 values; `declarations` supplies per-effect behavior or state/initial/transition rows, optionally
 with resource declarations. Setup and direct effect insertion share this schema; invalid states,

@@ -6,7 +6,8 @@ The registry is [data/knowledge.json](../data/knowledge.json). It lists every in
 lookup and typed-chain discovery use their complete union by default. A domain label never
 limits compatibility or establishes applicability. `triz_effects` accepts optional `domain`
 (that domain plus universal effects), `pack` (exact), category and typed filters.
-`triz_knowledge` lists pack provenance, review status and searchable quantity definitions.
+`triz_knowledge` lists pack provenance, review status, searchable quantity definitions, shared
+interface families and definition counts. Its counts describe all installed packs.
 
 ## Three distinct kinds of parameters
 
@@ -23,7 +24,10 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack currently has 63 quantity declarations and 74 typed effects out of 74 total.
+The physical pack has 63 quantity declarations and 74 searchable typed effects. It stores
+62 direct declarations and 12 named specializations of four families with seven signatures: 69
+independently declared interfaces in total. This reduces duplicate interface declarations;
+independent physical evidence and constitutive laws remain on each named case.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
 difference. Optical and nonuniform-field excitation tokens intentionally remain opaque where a
 single quantitative interpretation has not been selected. Typings select a specific clause of
@@ -171,6 +175,64 @@ Each parameter/effect id uses its pack's namespace. The original physical starte
 numeric effect ids for compatibility. Files, pack ids, parameter ids, quantity tokens and effect
 ids cannot collide. Manifest order determines deterministic declaration order; a later pack
 cannot override an earlier one. Missing or invalid installed packs fail the complete load.
+
+## Separate definitions, named cases and recipes
+
+Direct entries may declare `kind: "response"` or `kind: "mechanism"`. This is a modeling role,
+not a scientific novelty or irreducibility claim. Old inline entries remain accepted.
+
+A pack's optional `families` array defines explicit reusable interfaces. Each family has a
+namespaced id, name, kind, description, provenance, limitations, and `signatures` of this form:
+
+```json
+{"id": "release", "input_parameter": "physical:reaction-extent", "output_parameter": "physical:heat", "field": "chemical"}
+```
+
+A named effect can instead use `kind: "specialization"`, `family: "physical:reaction-enthalpy"`
+and `signature: "release"`. It retains its id, name, category, function, statement, hints,
+conditions, source, `typed_from`, provenance, review and limitations. Its ports are derived from
+the referenced parameter definitions. Inline port overrides and missing evidence fail closed.
+Family attribution/review is visible separately and does not upgrade a specialization's evidence.
+Sharing an interface does not establish equal behavior or a common quantitative implementation.
+
+A composite entry uses `kind: "composite"` and `steps` instead of restating a new input/output
+contract. For example, an expert may add this **integration hypothesis** to the physical pack:
+
+```json
+{
+  "id": "physical:photovoltaic-heater",
+  "name": "Photovoltaic heater recipe",
+  "kind": "composite",
+  "category": "integration",
+  "function": "deliver heat-transfer rate from illumination",
+  "statement": "Compose the selected photovoltaic, Ohmic and Joule clauses",
+  "hints": ["evaluate a specified illuminated device and load"],
+  "steps": [66, 74, 64],
+  "conditions": ["specified optical, electrical and load integration"],
+  "source": "Repository-authored serial integration hypothesis; constituent sources remain authoritative"
+}
+```
+
+Recipes derive their external types from the first and last steps and retain every constituent
+condition and limitation. They may reference other recipes and other installed packs. Missing
+references, untyped steps, incompatible quantity ids, cycles, excessive nesting and expansion
+beyond 12 steps fail closed. Equal SI dimensions are insufficient for a connection.
+
+`triz_effect_setup` accepts the recipe id and expands it before typed rewriting. Supply one
+implementation declaration per **expanded** effect, including any explicit state/transition rows.
+Returned metadata includes requested ids, expanded ids, and sources for nested recipes and leaves.
+No composite behavior, costs or resource feasibility is inferred. Chain search uses constituents,
+so recipes do not become opaque one-step shortcuts and `k` counts constituent effects.
+
+`triz_effects` can filter `kind` (`response`, `mechanism`, `composite`) and `form` (`direct`,
+`specialization`, `composite`). Raw pack entries may reference signatures or recipes: consumers
+must call `compileKnowledge` before reading their resolved port contracts. Filesystem and hosted
+runtimes both do this. Adding a new serial recipe requires no new independently asserted generator.
+Use the existing `ComponentCatalogue` for multiport or branching constructions.
+
+Compatibility tests snapshot all 74 previous contracts, text, assumptions, attribution, limitations
+and order. The runnable comparison also expands a recipe and checks the same model and nonempty
+behavior as its explicit chain; Lean checks both instances and rejects altered certificates.
 
 An effect can remain untyped and searchable. Complete typing requires both parameter references,
 both ports, field, conditions, source and `typed_from`; partial typing is rejected. Untyped effects
