@@ -98,6 +98,9 @@ test("multi-input/output contracts preserve correlations through swaps and fan-o
   const result = solved(input), reference = solved({ ...input, strategy: "exhaustive" });
   assert.equal(result.satisfyingCount, 2);
   assert.deepEqual(satisfying(result), satisfying(reference));
+  const symbolic = solved({ ...input, strategy: "symbolic" });
+  assert.equal(symbolic.searchStats.symbolic.status, "fallback");
+  assert.deepEqual(satisfying(symbolic), satisfying(reference));
 });
 
 test("a disconnected inconsistent loop is composed before projecting the target boundary", () => {
@@ -160,8 +163,8 @@ test("invalid alternatives cannot disappear behind a residual rejection", () => 
 test("indexed, factor and separator ablations preserve exhaustive synthesis results", () => {
   for (const kind of ["safety", "coverage", "coupled", "memoization"] as const) {
     const input = synthesisFixture(kind, 2), reference = solved({ ...input, strategy: "exhaustive" });
-    for (const indexed_relations of [false, true]) for (const connected_factors of [false, true]) for (const separator_elimination of [false, true]) {
-      const result = solved({ ...input, optimizations: { indexed_relations, connected_factors, separator_elimination } });
+    for (const strategy of ["optimized", "symbolic"] as const) for (const indexed_relations of [false, true]) for (const connected_factors of [false, true]) for (const separator_elimination of [false, true]) {
+      const result = solved({ ...input, strategy, include_symbolic_certificate: true, optimizations: { indexed_relations, connected_factors, separator_elimination } });
       assert.equal(result.verdict, reference.verdict);
       assert.equal(result.satisfyingCount, reference.satisfyingCount);
       assert.deepEqual(result.witness?.choices, reference.witness?.choices);
@@ -219,6 +222,13 @@ test("optimized search matches exhaustive choices on 80 seeded partial/nondeterm
     if (sample % 3 === 0) for (const m of [input.model, input.contract.target]) m.wires.push({ id: "feedback", from: { box: "h2", port: "out" }, to: { box: "h0", port: "in" }, carrier: "value", polarity: "useful" });
     const reference = synthesizeFinite({ ...input, strategy: "exhaustive" });
     const result = synthesizeFinite(input);
+    const symbolic = synthesizeFinite({ ...input, strategy: "symbolic" });
+    assert.ok(symbolic.ok && "searchStats" in symbolic && "searchStats" in reference, `symbolic sample ${sample}`);
+    assert.equal(symbolic.verdict, reference.verdict, `symbolic verdict ${sample}`);
+    assert.equal(symbolic.satisfyingCount, reference.satisfyingCount, `symbolic count ${sample}`);
+    assert.equal(symbolic.allDecided, reference.allDecided, `symbolic uncertainty ${sample}`);
+    assert.deepEqual(symbolic.witness?.choices, reference.witness?.choices, `symbolic witness ${sample}`);
+    assert.deepEqual(symbolic.results.filter(x => x.result.verdict === "satisfied").map(x => x.choices), reference.results.filter(x => x.result.verdict === "satisfied").map(x => x.choices), `symbolic choices ${sample}`);
     assert.ok(reference.ok && result.ok && "searchStats" in result && "searchStats" in reference, `sample ${sample}: ${JSON.stringify({ result, reference })}`);
     assert.equal(result.verdict, reference.verdict, `sample ${sample}`);
     assert.equal(result.satisfyingCount, reference.satisfyingCount, `sample ${sample}`);
@@ -238,5 +248,6 @@ test("optimized search matches exhaustive choices on 80 seeded partial/nondeterm
     // The independent oracle concerns relation equality/nonblocking. Resource grounding
     // can still be undecided on feedback; those behavior-compatible tuples must survive too.
     assert.deepEqual(result.results.filter(x => "adequacy" in x.result && x.result.adequacy?.ok && x.result.adequacy.verdict === "adequate").map(x => x.choices), expected, `independent oracle sample ${sample}`);
+    assert.deepEqual(symbolic.results.filter(x => "adequacy" in x.result && x.result.adequacy?.ok && x.result.adequacy.verdict === "adequate").map(x => x.choices), expected, `symbolic independent oracle sample ${sample}`);
   }
 });

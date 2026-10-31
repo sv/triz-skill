@@ -130,6 +130,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Symbolic laws and generated certificates (local kernel and axiom audit)
+        run: pnpm check:symbolic
+
       - name: Patent-inspired finite comparisons (acceptance + tamper)
         run: |
           node --import tsx examples/assurance/effects-comparison.mjs --cert-dir "$RUNNER_TEMP/effects-comparison"

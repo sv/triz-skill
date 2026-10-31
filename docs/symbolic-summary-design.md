@@ -1,10 +1,12 @@
 # Checked symbolic summaries: proposed engine changes
 
-Status: design proposal, checked against the local search implementation on 2026-10-31.
+Status: bounded stateless serial finite-map recognition/composition and choice-DAG synthesis
+are implemented; see [implementation, checks and remaining trust boundary](symbolic-synthesis.md).
+The broader expression language, affine/feedback summaries and later slices below remain proposals.
 This note develops roadmap S6 with C6/S1/S3/S4; priorities remain in the
 [roadmap](FUTURE-PLANS.md). The [shared finite relation foundation](shared-relations.md) is
-implemented in the local PR #52 changes; the symbolic compiler and equivalence-class search
-below remain proposals.
+implemented by merged PR #52. PR #54 integrates its bounded serial compiler and choice DAG
+with that shared kernel; this proposal describes a broader scope than the delivered slice.
 
 The strongest next step is a small, checked relation language with exact composition and
 search over equivalent boundary summaries. Dependency-based reuse and certified parameter
@@ -31,12 +33,14 @@ Full citations and reading limits are in the [research note](formal-triz-literat
 ## What the current engine still computes
 
 - [The residual compiler](../src/act-synthesis-pruning.ts) uses the shared relation adapter and
-  indexed join, unions library rows and enumerates
-  consistent internal traces before forming unsafe/coverage rectangles. This can be expensive
+  indexed join. The opt-in symbolic front end first replaces checked serial regions with exact
+  boundary maps; the residual compiler enumerates the reduced whole context before forming
+  unsafe/coverage rectangles. This can be expensive
   even when many implementations have simple, equivalent behavior.
 - [Synthesis](../src/act-synthesis.ts) still visits surviving concrete tuples. The
   [boundary cache](../src/act-behavior.ts) avoids repeated exact evaluation of identical models;
-  it does not quotient partial assemblies by their external semantics.
+  the serial choice DAG groups equal boundary maps without expanding their concrete supports.
+  General separator-based choice quotienting remains open.
 - [Subsystem summaries](../src/act-refinement.ts) are exact finite relations with maps back to
   ports. The current [contract checker](../src/act-subsystem-contract.ts) checks single-mode
   stateless declarations by recomputing their finite behavior.
@@ -45,7 +49,8 @@ Shared tuple indexes now reduce bound-input join candidates and replace quadrati
 overlap checks during correlation propagation. Connected-factor evaluation avoids materializing
 independent internal products. [Finite separator elimination](separator-elimination.md) now
 summarizes internal variables across connected separators with exact counts and bounded samples.
-These improvements do not merge equivalent component-choice prefixes or compile symbolic laws.
+The shared relation layer itself does not merge component-choice prefixes; the checked serial
+symbolic front end adds that separate synthesis step.
 
 The proposed gain is to avoid materializing internal traces and repeatedly exploring equivalent
 prefixes. It cannot eliminate the cost of reading input tables, distinct resource problems,
@@ -224,8 +229,8 @@ separate E1/E2 changes.
 
 | Slice | Proposed changes | Evidence needed before default use |
 |---|---|---|
-| A: recognize and compose | New `src/act-symbolic-summary.ts`; integrate a fast path into `act-behavior.ts`, `act-refinement.ts` and the residual compiler | Complete-row recognizer checks, domain-preserving composition, witness reconstruction; exhaustive differential tests and explicit fallback |
-| B: quotient search | New `src/act-synthesis-summary-dp.ts`; integrate partial-summary states into `act-synthesis.ts` | Separator completeness, member partition/count reconstruction and unchanged resource/harms results |
+| A: recognize and compose | Bounded serial finite maps implemented in `src/act-synthesis-symbolic.ts`, checked by `src/act-symbolic-certificate.ts`; broader expression language open | Complete-row recognizer checks, domain-preserving composition, witness reconstruction; exhaustive differential tests and explicit fallback |
+| B: quotient search | Serial choice DAG, exact support counts and backward pruning implemented; general separator-based choice quotienting open | Separator completeness, member partition/count reconstruction and unchanged resource/harms results |
 | C: dependency reuse | Shared footprints in the summary module; watched constraints in `act-synthesis-pruning.ts` | Frame/support checks, fresh-versus-incremental comparison including widened domains and hidden guards |
 | D: bounded parameter reasoning | Separate bound-summary type and finite parameter-domain adapter | Sound may/must or numeric enclosures, explicit property orders, applicability and objective semantics |
 | Later: discovery templates | Extend catalogue/discovery through reviewed typed generators | Declared search grammar, coverage scope and full validation of generated parts |
@@ -243,7 +248,9 @@ budget, or reports `undecided`; preprocessing has no free unbounded allowance.
 
 ## Proof and verification obligations
 
-A new `theory/SymbolicSummary.lean` should prove recognition soundness, expression normalization,
+The delivered `theory/Symbolic.lean` proves finite recognition, typed serial composition,
+substitution and grouped-support/backward-pruning laws; generated encodings are checked locally.
+The broader expression language still needs proofs of expression normalization,
 composition and projection correctness against the existing relational semantics. Add a frame
 lemma for footprints, a may/must pruning lemma, and a separate reconstruction/counting argument
 for merged choices. Proving the algebra does not prove its JSON encoder or the TypeScript
