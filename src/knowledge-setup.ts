@@ -30,14 +30,15 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
     if (!entry) return reject(`$.chain[${i}]`, `Unknown registered effect ${a.chain[i]}`, "Look up an installed effect with triz_effects.");
   }
   const expanded = requested.flatMap(e => e!.components ?? [e!.id]);
+  const origins = requested.flatMap((e, i) => (e!.components ?? [e!.id]).map(() => i));
   if (expanded.length > 12) return reject("$.chain", "Recipes expand beyond the 12-effect setup limit", "Use a smaller composition; expansion never silently truncates a recipe.");
   const entries = expanded.map(id => knowledge.effects.find(e => e.id === id)!);
   for (const [i, entry] of entries.entries()) {
-    if (!library.some(e => e.id === entry.id)) return reject(`$.chain`, `Expanded effect ${entry.id} at position ${i} has no complete typing`, "Contribute an explicit sourced typing before using this generator in a model.");
+    if (!library.some(e => e.id === entry.id)) return reject(`$.chain[${origins[i]}]`, `Expanded effect ${entry.id} at position ${i} has no complete typing`, "Contribute an explicit sourced typing before using this generator in a model.");
   }
   for (let i = 1; i < entries.length; i++) {
     if (entries[i - 1].output_parameter !== entries[i].input_parameter)
-      return reject(`$.chain[${i}]`, "Adjacent effects reference different quantity parameters", "Use triz_effect_chains to discover a compatible chain; equal SI dimensions alone do not establish compatibility.");
+      return reject(`$.chain[${origins[i]}]`, "Adjacent effects reference different quantity parameters", "Use triz_effect_chains to discover a compatible chain; equal SI dimensions alone do not establish compatibility.");
   }
   const path = [entries[0].input_parameter!, ...entries.map(e => e.output_parameter!)];
   const parameters = [...new Set(path)].map(id => knowledge.parameters.find(p => p.id === id)!);

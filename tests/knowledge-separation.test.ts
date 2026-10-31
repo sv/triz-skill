@@ -161,6 +161,9 @@ test("setup expands recipes before typed rewriting and preserves finite behavior
   assert.equal(c.content, d.content);
   assert.equal(setupEffectModel({ ...options, chain: ["physical:light-heater"], declarations: [{ behavior: rows }] }, knowledge).ok, false);
   assert.equal(setupEffectModel({ chain: Array(5).fill("physical:light-heater"), domain: "physical" }, knowledge).ok, false);
+  const mismatch = setupEffectModel({ chain: ["physical:light-heater", 12], domain: "physical" }, knowledge);
+  assert.ok(!mismatch.ok);
+  assert.equal(mismatch.issues[0].path, "$.chain[1]", "expanded errors point to the caller's requested step");
 });
 
 function leanTest(name: string, fn: () => Promise<void>) {
