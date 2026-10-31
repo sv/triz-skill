@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { knowledge } from "../../src/data.ts";
-import { compileKnowledge } from "../../src/knowledge.ts";
+import { reductionBaseline } from "./reduction-baseline.mjs";
 import { knowledgeModelCatalogue } from "../../src/knowledge-models.ts";
 import { searchComponents } from "../../src/act-component-search.ts";
 import { checkModel } from "../../src/act.ts";
@@ -25,7 +25,8 @@ export function boundary(resources, targets) {
   ], wires: [] };
 }
 export function discovery(c, after = true, k = knowledge()) {
-  const extra = knowledgeModelCatalogue({ source: "knowledge", ...(c.state_parameters ? { state_parameters: c.state_parameters } : {}) }, k);
+  const mappings = c.mappings_for_targets ? k.boundary_mappings.filter(m => c.targets.includes(m.output_parameter)).map(m => m.id) : [];
+  const extra = knowledgeModelCatalogue({ source: "knowledge", ...(mappings.length ? { mappings } : {}), ...(c.state_parameters ? { state_parameters: c.state_parameters } : {}) }, k);
   assert.ok(extra.ok, JSON.stringify(extra));
   const entries = k.effects.filter(e => e.input_parameter && e.output_parameter && e.kind !== "composite" && e.definition.form !== "configuration").map(e => ({ id: `effect-${e.id}`, original: e.id,
     component: { id: `effect-${e.id}`, name: e.name, role: "tool", inputs: [{ id: "in", carrier: e.input_parameter }], outputs: [{ id: "out", carrier: e.output_parameter }] }, source: e.provenance, conditions: e.conditions, limitations: e.limitations }));
@@ -52,18 +53,21 @@ export function discovery(c, after = true, k = knowledge()) {
   return { result, topologies, components: result.candidates.map(candidate => candidate.components.map(b => originals.get(b.catalogueOrigin.entry))) };
 }
 export function validateReduction() {
-  const baseline = JSON.parse(fs.readFileSync(new URL("../../tests/fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
-  const packs = structuredClone(k.packs);
-  const physical = packs.find(p => p.id === "physical");
-  physical.effects = physical.effects.map(e => e.id === baseline.effect.id ? baseline.effect : e);
-  const before = compileKnowledge(packs);
-  assert.equal(before.counts.independent_contracts, 70);
-  assert.equal(k.counts.independent_contracts, 69);
-  return { baseline: baseline.commit, independent_before: before.counts.independent_contracts, independent_after: k.counts.independent_contracts,
+  const { knowledge: before, commit } = reductionBaseline(k, "previous");
+  assert.equal(before.counts.independent_contracts, 69);
+  assert.equal(k.counts.independent_contracts, 66);
+  const converted = new Set(["20", "35", "59"]);
+  return { baseline: commit, independent_before: before.counts.independent_contracts, independent_after: k.counts.independent_contracts,
     cases: fixture.cases.map(c => {
       const old = discovery(c, true, before), current = discovery(c);
-      assert.deepEqual(current.topologies, old.topologies, `${c.id}: candidate wiring changed after removing the opaque generator`);
-      return { id: c.id, before_candidates: old.result.satisfyingCount, after_candidates: current.result.satisfyingCount, identical_topologies: true };
+      const unsupported = old.topologies.filter(t => JSON.parse(t).nodes.some(id => converted.has(id)));
+      const expressed = old.topologies.filter(t => !JSON.parse(t).nodes.some(id => converted.has(id)));
+      assert.deepEqual(current.topologies, expressed, `${c.id}: a fully expressed candidate wiring changed`);
+      const wanted = xs => [...xs].map(String).sort();
+      for (const result of [old, current]) assert.ok(result.components.some(ids => JSON.stringify(wanted(ids)) === JSON.stringify(wanted(c.expected))), `${c.id}: intended patent mechanism lost`);
+      return { id: c.id, before_candidates: old.result.satisfyingCount, after_candidates: current.result.satisfyingCount,
+        fully_expressed_topologies_preserved: true, removed_opaque_shortcuts: unsupported.length,
+        removed_shortcut_ids: [...new Set(unsupported.flatMap(t => JSON.parse(t).nodes.filter(id => converted.has(id))))] };
     }) };
 }
 export function validateConfigurations() {

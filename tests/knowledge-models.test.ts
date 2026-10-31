@@ -26,14 +26,15 @@ const packs = () => structuredClone(k.packs);
 const models = () => packs().find(pack => pack.id === "physical")!;
 test("multiport models preserve the 78 unary interfaces and validate all cross-references", () => {
   const old = packs();
-  for (const pack of old) { pack.models = []; for (const e of pack.effects) for (const f of e.model_assessment?.facets ?? []) delete f.models; }
-  const before = JSON.parse(fs.readFileSync(new URL("./fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
+  const first = JSON.parse(fs.readFileSync(new URL("./fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
+  const second = JSON.parse(fs.readFileSync(new URL("./fixtures/effects-before-boundary-mappings.json", import.meta.url), "utf8"));
+  const replacements = new Map([first.effect, ...second.effects].map((e: any) => [e.id, e]));
   const physical = old.find(p => p.id === "physical")!;
-  physical.effects = physical.effects.map(e => e.id === 33 ? before.effect : e);
-  for (const f of before.effect.model_assessment.facets) delete f.models;
+  physical.effects = physical.effects.map(e => replacements.get(e.id) ?? e);
+  for (const pack of old) { pack.models = []; pack.boundary_mappings = []; for (const e of pack.effects) for (const f of e.model_assessment?.facets ?? []) delete f.models; }
   const selected = (effects: ReturnType<typeof typedKnowledgeEffects>) => effects.map(({ realization, realization_conditions, ...e }) => e);
   assert.deepEqual(selected(typedKnowledgeEffects(k.effects)), selected(typedKnowledgeEffects(compileKnowledge(old).effects)));
-  assert.equal(k.models.length, 18);
+  assert.equal(k.models.length, 19);
   assert.equal(k.parameters.length, 91);
   const edits = [
     (m: any) => { m.id = "other:wrong"; },

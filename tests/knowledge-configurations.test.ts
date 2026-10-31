@@ -67,7 +67,7 @@ test("lookup retains a conditional summary but setup expands it; opaque insertio
   assert.equal(catalogue.named_configurations?.length, 1);
   assert.ok(catalogue.catalogue.entries.every(c => c.id.startsWith("physical:")));
   assert.equal(knowledgeModelCatalogue({ source: "knowledge", effects: [33], models: ["physical:corona-ionization"] }, k).ok, false);
-  assert.equal(knowledgeModelCatalogue({ source: "knowledge", effects: [20] }, k).ok, false);
+  assert.equal(knowledgeModelCatalogue({ source: "knowledge", effects: [18] }, k).ok, false);
 });
 
 test("a serial recipe containing a named configuration retains integration hypotheses and expands all components", () => {
@@ -85,11 +85,13 @@ test("a serial recipe containing a named configuration retains integration hypot
 test("reduction preserves every ranked lookup and all eight patent candidate topologies, with finite behavior and rejection controls", () => {
   const output = execFileSync(process.execPath, ["--import", "tsx", "examples/assurance/effects-reduction.mjs"], { encoding: "utf8", timeout: 30000 });
   const r = JSON.parse(output);
-  assert.deepEqual(r.independent_unary_interfaces, { before: 70, after: 69 });
-  assert.deepEqual(r.converted_ids, [33]);
+  assert.deepEqual(r.independent_unary_interfaces, { before: 70, previous: 69, after: 66 });
+  assert.deepEqual(r.converted_ids, [20, 33, 35, 59]);
   assert.ok(r.ranked_text_queries > 300); assert.equal(r.typed_chain_queries, 78);
   assert.equal(r.finite_boundary_behavior, "preserved");
   assert.equal(r.patent_comparison.cases.length, 8);
-  assert.ok(r.patent_comparison.cases.every((c: any) => c.identical_topologies && c.before_candidates === c.after_candidates));
-  assert.equal(r.certificate_count, 2);
+  assert.ok(r.patent_comparison.cases.every((c: any) => c.fully_expressed_topologies_preserved && c.before_candidates === c.after_candidates + c.removed_opaque_shortcuts));
+  assert.equal(r.certificate_count, 9);
+  assert.equal(r.boundary_validation.patent_cases.length, 3);
+  assert.ok(r.boundary_validation.finite_relations.every((r: any) => r.verdict === "preserved"));
 });

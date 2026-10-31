@@ -1,6 +1,6 @@
 /** Named multiport compositions; every connection uses one exact registered parameter. */
 import { z } from "zod";
-import type { RegisteredModel } from "./knowledge.js";
+import type { RegisteredModel, RegisteredBoundaryMapping } from "./knowledge.js";
 const Id = z.string().regex(/^[a-z][a-z0-9-]*$/);
 const Qualified = z.string().regex(/^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$/);
 const End = z.strictObject({ node: Id, port: Id });
@@ -8,15 +8,15 @@ export const ModelConfiguration = z.strictObject({
   nodes: z.array(z.strictObject({ id: Id, model: Qualified })).min(1).max(12),
   wires: z.array(z.strictObject({ from: End, to: End })).max(192),
   inputs: z.array(z.strictObject({ id: Id, targets: z.array(End).min(1).max(32), primary: z.boolean().default(false) })).min(1).max(32),
-  outputs: z.array(z.strictObject({ id: Id, from: End, primary: z.boolean().default(false) })).min(1).max(32),
+  outputs: z.array(z.strictObject({ id: Id, from: End, mapping: Qualified.optional().describe("Explicit forward observation of this output; never a cast on internal wires"), primary: z.boolean().default(false) })).min(1).max(32),
 });
 export type ModelConfiguration = z.infer<typeof ModelConfiguration>;
 export type ResolvedConfiguration = Omit<ModelConfiguration, "inputs" | "outputs"> & {
   inputs: Array<ModelConfiguration["inputs"][number] & { parameter: string }>;
-  outputs: Array<ModelConfiguration["outputs"][number] & { parameter: string }>;
+  outputs: Array<ModelConfiguration["outputs"][number] & { parameter: string; model_parameter: string }>;
   conditions: string[];
 };
-export function resolveConfiguration(config: ModelConfiguration, models: Map<string, RegisteredModel>): ResolvedConfiguration {
+export function resolveConfiguration(config: ModelConfiguration, models: Map<string, RegisteredModel>, mappings: Map<string, RegisteredBoundaryMapping> = new Map()): ResolvedConfiguration {
   const unique = (ids: string[], kind: string) => {
     if (new Set(ids).size !== ids.length) throw new Error(`Duplicate configuration ${kind}`);
   };
@@ -49,7 +49,16 @@ export function resolveConfiguration(config: ModelConfiguration, models: Map<str
   });
   for (const [id, m] of nodes) for (const p of m.inputs)
     if (!supplied.has(`${id}.${p.id}`)) throw new Error(`Configuration has unsupplied input ${id}.${p.id}`);
-  const outputs = config.outputs.map(p => ({ ...p, parameter: parameter(p.from, "outputs") }));
+  const usedMappings: RegisteredBoundaryMapping[] = [];
+  const outputs = config.outputs.map(p => {
+    const model_parameter = parameter(p.from, "outputs");
+    if (!p.mapping) return { ...p, parameter: model_parameter, model_parameter };
+    const mapping = mappings.get(p.mapping);
+    if (!mapping) throw new Error(`Configuration references unknown boundary mapping ${p.mapping}`);
+    if (mapping.input_parameter !== model_parameter) throw new Error(`Boundary mapping ${p.mapping} has the wrong source parameter`);
+    usedMappings.push(mapping);
+    return { ...p, parameter: mapping.output_parameter, model_parameter };
+  });
   const needed = new Set(outputs.map(p => p.from.node));
   for (let changed = true; changed;) {
     changed = false;
@@ -63,5 +72,5 @@ export function resolveConfiguration(config: ModelConfiguration, models: Map<str
   }
   if (!inputs.find(p => p.primary)!.targets.some(t => primaryNeeded.has(t.node)))
     throw new Error("Configuration primary input does not contribute to its primary output");
-  return { ...config, inputs, outputs, conditions: [...new Set([...nodes.values()].flatMap(m => m.conditions))] };
+  return { ...config, inputs, outputs, conditions: [...new Set([...nodes.values(), ...usedMappings].flatMap(m => m.conditions))] };
 }

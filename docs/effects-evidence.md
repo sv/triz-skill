@@ -337,3 +337,8 @@ source locators and formalization limits.
 The subsequent [named-composition reduction](effects-configurations.md#named-composition-reduction)
 converts entry 33 to an expanded model network, reducing the above historical count of 70
 independent unary declarations to 69 while preserving all 78 discovery names.
+
+Further justified observations and the lifted analyzer clause convert entries 20/35/59 too,
+reducing the independent unary count to 66. The [expanded comparison](effects-configurations.md#additional-patent-boundary-cases)
+retains all fully expressed original candidates and adds three resource-complete boundary cases;
+three former opaque superconductivity shortcuts are reported separately.

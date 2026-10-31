@@ -11,12 +11,13 @@ import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { compareBehavior } from "../../src/act-behavior.ts";
 import { modelCertificate, behaviorCertificate } from "../../src/act-cert.ts";
 import { validateReduction } from "./effects-configurations.mjs";
+import { reductionBaseline } from "./reduction-baseline.mjs";
+import { validateBoundaryModels } from "./effects-boundaries.mjs";
 
 export function validateNamedReduction() {
-  const current = data.knowledge(), old = structuredClone(current.packs);
+  const current = data.knowledge(), baseline = reductionBaseline(current);
+  const before = baseline.knowledge, old = before.packs;
   const fixture = JSON.parse(fs.readFileSync(new URL("../../tests/fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
-  old.find(p => p.id === "physical").effects = old.find(p => p.id === "physical").effects.map(e => e.id === fixture.effect.id ? fixture.effect : e);
-  const before = compileKnowledge(old);
   const queries = [...new Set(before.effects.flatMap(e => [e.name, e.function, ...e.hints]))];
   const lookup = packs => {
     const files = { "knowledge.json": { format: "triz-knowledge-manifest-v1", packs: ["knowledge/universal.json", "effects.json"] },
@@ -66,10 +67,13 @@ export function validateNamedReduction() {
   const certificates = { IonicWindConfiguration: modelCertificate(model), IonicWindBoundaryBehavior: behaviorCertificate(reference, model, { scope: "whole" }) };
   for (const c of Object.values(certificates)) assert.ok(c.ok, JSON.stringify(c));
   const topology = validateReduction();
-  return { report: { independent_unary_interfaces: { before: 70, after: 69 }, named_effects: current.effects.length, model_templates: current.models.length,
-    converted_ids: [33], removed_discovery_names: [], ranked_text_queries: queries.length, typed_chain_queries: signatures.length,
+  const boundaries = validateBoundaryModels(current);
+  Object.assign(certificates, boundaries.certificates);
+  return { report: { independent_unary_interfaces: { before: 70, previous: 69, after: 66 }, named_effects: current.effects.length, model_templates: current.models.length, boundary_mapping_count: current.boundary_mappings.length,
+    implementation_declarations: { previous: 69 + 18, after: 66 + 19 },
+    converted_ids: [20, 33, 35, 59], removed_discovery_names: [], ranked_text_queries: queries.length, typed_chain_queries: signatures.length,
     finite_boundary_behavior: compared.verdict, invalid_calibration_rejected: true, missing_context_rejected: true,
-    patent_comparison: topology, certificate_count: Object.keys(certificates).length,
+    patent_comparison: topology, boundary_validation: boundaries.report, certificate_count: Object.keys(certificates).length,
     scope: "Selected conditional boundary behavior at explicitly declared finite points; not continuous physics or measured patent performance." }, certificates };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -31,8 +31,8 @@ entry ids. Counts and taxonomy have the documented all-installed-packs scope, in
 the parameter list is filtered. A field such as `magnetic` classifies responses; it does not
 supply a current-to-force contract or replace induction, Hall sensing or magnetostriction.
 The pack stores
-55 direct declarations and 22 named specializations of eight families with 14 signatures: 69
-independently declared unary interfaces, plus one derived named configuration (33). This reduces duplicate interface declarations;
+52 direct declarations and 22 named specializations of eight families with 14 signatures: 66
+independently declared unary interfaces, plus four derived named configurations (20/33/35/59). This reduces duplicate interface declarations;
 independent physical evidence and constitutive laws remain on each named case.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
 difference. Optical and nonuniform-field excitation tokens intentionally remain opaque where a
@@ -55,8 +55,8 @@ an inferred generator, executable recipe or physical equivalence proof.
 `name`, `description`, `parents`, named `inputs`/`outputs` referencing registered parameters,
 `conditions`, `provenance`, `limitations`, optional `review`, and optional `state_parameter`.
 The compiler checks namespaces, unique ids/ports and every parameter, parent and assessment
-reference. These 18 templates are separate from the 78 selected-clause lookups and 69 independently
-declared unary interfaces plus one derived named configuration; do not add them together as a count of physical laws.
+reference. These 19 templates are separate from the 78 selected-clause lookups and 66 independently
+declared unary interfaces plus four derived named configurations; do not add them together as a count of physical laws.
 `triz_knowledge.models` exposes templates; `model_count` has all-installed-packs scope.
 Pack metadata also reports its own model count.
 
@@ -114,7 +114,7 @@ so this does not introduce recursive recipe aliases.
 Ionic wind composes corona charge generation → ion-neutral force → gas flow. Voltage is primary;
 gas pressure and drift electric field are explicit context inputs. All 78 names, ids, hints,
 selected parameter pairs and historical evidence remain available. `triz_effects` can filter
-`form: "configuration"`; counts distinguish the 69 independent unary declarations from the view.
+`form: "configuration"`; counts distinguish 66 independent unary declarations from the four derived views.
 
 `triz_effect_chains` keeps this conditional discovery summary, marks `requiresExpansion`, and
 includes constituent model assumptions in unmet conditions. `triz_effect_insert` rejects it as an
@@ -138,14 +138,47 @@ availability. Context values must belong to their explicitly bound finite carrie
 Serial recipes can contain a named configuration, retain integration hypotheses/provenance,
 and expand to at most 12 actual model/effect boxes.
 
-Only entry 33 is converted with the current model set. Retardance does not replace analyzer-angle
-transmission, deposition does not replace sublimation, a bed does not replace a membrane, and
-the refined emitted-light/current/particle-force tokens do not automatically cast to old coarse
-boundaries. Additional reductions need exact boundary realizations or explicitly justified
-abstraction maps. Do not add a scalar adapter just to improve a reduction count.
+Entries **20, 35 and 59** also derive named views. Entry 20 lifts its existing analyzer law
+into `linear-analyzer-transmission`, with illumination explicit; the old scalar implementation
+is removed. Entry 35 shares the superconducting phase and DC transport models. Entry 59 uses
+the existing charged-particle force model. Neither adds a duplicate physical response model.
+
+`KnowledgePack.boundary_mappings` is optional. Each mapping has a qualified `id`, `name`,
+`description`, `input_parameter`, `output_parameter`, `relation: "forget-refinement"`, semantic
+`rationale`, conditions, limitations, provenance and optional review. The compiler requires a
+non-identity forward mapping between registered quantities with the same dimensions and layer.
+Dimensions alone never select a mapping; its semantic refinement is a sourced assertion.
+Current mappings observe **transmitted DC current as current** and **electric force on the
+specified particles as force**. They forget qualifiers, preserving the physical value, terminal
+or particle population, reference frame/component and observation interval. They supply no
+inverse, net-force calculation, unit conversion or constitutive-law equivalence.
+
+A configuration output may name `mapping`; its observed parameter is derived from the mapping.
+The original model parameter stays visible as `model_parameter`. Internal configuration wires
+still require exact parameter identity and accept no mapping field. Setup materializes a separate
+observation box at that named output. Mapping provenance, review and conditions appear in
+`setup.boundary_mappings`. This box is an observation, not a new physical response primitive.
+
+With finite bindings, both parameters must explicitly declare the same value encoding, level
+thresholds and intensive/extensive allocation semantics. Layer overrides must agree too. Only
+then is the value-preserving finite observation relation derived. A missing or differently
+encoded domain fails rather than guessing a label conversion. Without finite domains, the
+observation is available for typing and its behavior remains unknown.
+
+`triz_knowledge.boundary_mappings` lists definitions; `boundary_mapping_count` has the same
+all-installed-packs scope as model counts. `triz_component_catalogue` includes observations only
+when named configurations are explicitly selected with `effects`, or ids are requested through
+`mappings`. They are explicit directed components, never global aliases. Default catalogues keep
+refined internal quantities. `named_configurations[].catalogue_complete` reports whether required
+observation entries are present; select `effects:[35]` to obtain phase, transport and observation.
+
+Deposition still does not replace sublimation, a bed does not replace a membrane, and the
+emission umbrella still requires a temporal mechanism choice. No unrelated force or current can
+be promoted into a refined quantity. The expanded patent suite measures intended coverage and
+fully expressed wiring preservation, while separately reporting removed opaque shortcuts.
 
 `pnpm example:effects-reduction` compares ranked lookups, typed chains, all eight patent candidate
-sets and a declared finite boundary relation. It emits typing and behavior certificates with
+sets and a declared finite boundary relation. It emits typing, finite behavior and a retained-state trace certificate with
 `--cert-dir DIR`. The [validation report](../../../docs/effects-configurations.md#named-composition-reduction)
 records what this establishes and what remains unproved.
 

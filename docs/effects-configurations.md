@@ -1,10 +1,10 @@
 # Decomposed patent configurations
 
-The six split groups now expose 18 separate multiport/stateful model templates. The 78 named
-effect lookups retain their selected boundaries; 69 unary interfaces remain independent and
-entry 33 is now a derived named composition; the 15 assessed compound mechanisms
+The six split groups now expose 19 separate multiport/stateful model templates. The 78 named
+effect lookups retain their selected boundaries; 66 unary interfaces remain independent and
+entries 20/33/35/59 are derived named configurations; the 15 assessed compound mechanisms
 remain discovery targets. These additions provide explicit connections and state boundaries,
-not 18 new physical laws or a minimal basis. The physical pack has 88 quantity declarations;
+not a count of new physical laws or a minimal basis. The physical pack has 88 quantity declarations;
 with three universal quantities the registry has 91.
 
 Run `pnpm example:effects-configurations` for the eight-case comparison. The
@@ -22,7 +22,7 @@ component list is supplied. State-specific cases restrict permitted internal sta
 while stateless alternatives remain candidates. Expected components are checked only afterwards.
 
 Both runs use the current bounded configuration engine, the same vocabulary (including newly
-declared quantities), the unary implementation entries (77 after removal of the opaque entry 33), five components maximum, one instance per template,
+declared quantities), the unary implementation entries (74 after four named conversions), five components maximum, one instance per template,
 all listed resources required, a million work units and up to 100 results. The extended run
 also has the registered models. No search hit is a proof that the complete device works.
 
@@ -86,47 +86,81 @@ this configuration suite. Equal units or a shared field classification alone nev
 
 ## Named-composition reduction
 
-`pnpm example:effects-reduction` compares the catalogue immediately before this reduction
-(commit `d73b26887ce99d589a830d3dc062e4f918c7f0fd`) with the current version. The prior entry 33 is
-frozen as a reconstruction fixture; other pack contents are identical on both sides.
+The first conversion replaced entry 33 with ionization → momentum transfer → gas flow, reducing
+independently stored unary interfaces **70 → 69**. This update converts **20, 35 and 59** too,
+reducing that count **69 → 66**. Names, ids, original selected boundaries and evidence remain
+available for all **78** entries.
 
-**Entry 33, corona discharge and ionic wind, is converted from an independently declared unary
-implementation to a named composition:** corona ionization → ion-neutral momentum transfer → gas
-flow. The compiler derives voltage → fluid velocity from primary ports. Pressure and drift field
-are exposed context resources, and constituent assumptions/provenance remain visible. No new
-models or quantity definitions are added for this reduction. Named effect count stays **78**;
-direct unary definitions fall **56 → 55**, and independent unary interfaces **70 → 69**.
+| Named view | Implementation | What was added |
+|---|---|---|
+| 20, polarization | Analyzer angle + incident irradiance → transmitted irradiance | One multi-input lifting of the existing Malus-law clause; its old scalar implementation is removed. |
+| 33, ionic wind | Corona generation → ion-neutral force → gas flow | Existing three-model composition with explicit gas pressure and drift field. |
+| 35, superconductivity | Shared material phase → phase-qualified DC transport → current observation | Reuse of two existing models and a forward observation of the same terminal current. |
+| 59, electrostatic repulsion | Charged-particle force → force observation | Reuse of the existing qE model and a forward observation of the same force component. |
 
-The name remains a conditional summary for text and effect-chain discovery. Setup expands all
-three boxes; opaque insertion is rejected. No component-search catalogue contains a one-box
-entry 33 after the reduction. This is removal of an independent implementation, not removal of
-the named discovery target or a claim of physical equivalence without conditions.
+The two boundary observations forget qualifiers; they do not rescale values, add forces, reverse
+refinements or establish zero resistance from current transmission. Their source/target must
+identify the same path or particle population, frame/component and observation interval. Finite
+value domains, thresholds, layer and resource-allocation semantics must agree explicitly.
+Configuration internal wires still use exact parameter identity. Observation components enter a
+search catalogue only through an explicit request, never as global type aliases.
 
-Validation compares:
+There are **19 physical model templates**, up from 18, and two separately registered semantic
+observations. Independent unary declarations plus multi-input model templates fall **87 → 85**;
+this counts stored physical response interfaces, not irreducible laws. No quantity definitions
+are added. Copying all remaining scalar clauses into model wrappers would not provide this
+reduction and is not done.
 
-- **386 ranked text queries**, covering every effect name, function and hint: identical ordered ids.
-- **78 typed queries**, one/two-step chains at each old selected boundary: identical ordered paths.
-- **Eight modern-patent subsystems**, with the same bounds and component names blinded:
-  identical complete candidate wiring sets, **54 candidates before and 54 after**. The fixture
-  checks no truncation and compares canonical component/port connections, not just totals or one
-  expected path. Beam and photoelectron ion sources keep their shared downstream configurations.
-- A selected finite voltage-to-velocity relation with explicitly fixed pressure/field: composition
-  preserves the declared reference relation. Altering the force-to-flow relation is detected;
-  missing context availability is rejected. Two Lean certificates cover expanded typing and this
-  finite equivalence, with tampered copies rejected. These rows are example declarations, not
-  measured patent performance or a proof of continuous electrohydrodynamics.
+`pnpm example:effects-reduction` reconstructs the original pre-reduction effect records and the
+previous PR version from frozen fixtures. It compares **386 ranked text queries** covering every
+name/function/hint and **78 one/two-step typed-chain queries**. Ordered lookup ids and chain paths
+remain identical. Named configuration summaries are marked for expansion, and opaque insertion
+is rejected. Setup expands physical model nodes, context inputs and explicit observations.
 
-Further old clauses are retained because the installed models do not exactly realize them:
+For the original eight patent subsystems, all intended mechanisms and all **51 fully expressed
+candidate topologies** survive. The prior library also had three extra topologies containing the
+opaque current-to-current entry 35: one magnetic-readout candidate and two photoelectron-wind
+candidates. Those shortcuts are removed because transport now needs a shared phase and explicit
+material context. They are reported separately, rather than calling the total **54 → 51**
+universal retrieval preservation. No other former candidate wiring is lost under the same bounds.
 
-| Old clause | Why retained |
-|---|---|
-| 16, light → light | Temporal models emit the refined emitted-light type; alternatives also require mechanism/state selection. An automatic coarse projection would hide that choice. |
-| 20, analyzer angle → irradiance | Retardance readout varies a different optical input; it does not supply the analyzer-angle clause. |
-| 35, current → current | The new transport output is explicitly transmitted DC current and depends on shared phase. No unverified coarse-type projection or phase omission is introduced. |
-| 46, heat → sublimated mass | Cold-surface deposition has a different direction, rate boundary and heat-rejection resource. |
-| 47, feed → membrane permeate composition | A cyclic bed has different output, loading, feed interruption and regeneration requirements. |
-| 59, field → force | Charged-particle force has a refined parameter and explicit charge input. Equal newtons do not authorize retagging it as an arbitrary force. |
+## Additional patent boundary cases
 
-The [setup contract](../skills/triz-innovation/references/knowledge-packs.md#named-compositions-instead-of-redundant-effect-generators)
-explains how experts can contribute further exact realizations. Passing these regressions
-establishes bounded preservation on this chosen suite, not universal discovery quality.
+Three stronger, resource-complete boundary queries are tested with blinded component names.
+Observation selection follows the requested output parameter; the expected component list is
+only checked after search. A state-meaning restriction comes from the disclosed material mechanism.
+
+| Publication and locator | Validated selected clause | Before this update | After |
+|---|---|---|---|
+| [EP4370907B1](https://patents.google.com/patent/EP4370907B1/en), 2026-02-18, polarizer 43, Malus equation, Fig. 4 and claims 1/2/5/9 | Angle and incident irradiance to analyzer output | Absent | Found |
+| [US20250140461A1](https://patents.google.com/patent/US20250140461A1/en), 2025-05-01, persistent-mode wire/current description | Current, temperature and field through a shared superconducting phase to a current observation | Absent | Found |
+| [WO2026017232A1](https://patents.google.com/patent/WO2026017232A1/en), 2026-01-22, separate static electrode | Charge and field to the selected particle-force component observed as force | Absent | Found |
+
+This is **11 subsystem cases across 10 publications**, including the original eight. The three
+new queries require every listed resource to participate; their absence before the update does
+not mean the original broad names could not be retrieved. Scopes exclude defect-image analysis,
+complete superconducting switch design, net detachment force and empirical device performance.
+Recent publication dates do not imply newly discovered physics.
+
+Selected finite controls compare expanded views with declared legacy references:
+
+- Malus-law points at 0°, 45° and 90°, with explicit incident irradiance. Zero illumination yields
+  zero transmitted irradiance.
+- Signed qE force points at a selected charge, with the same force values across the observation.
+  A sign-changing observation fails comparison.
+- A superconducting DC branch with its phase explicitly fixed for the steady comparison. The
+  full configured model retains state and has a separately checked trace. Outside that selected
+  phase/temperature envelope the finite SC clause has no supported relation; this does not assert
+  that normal conductors cannot carry current. Zero loss is not inferred from I → I.
+
+The reduction runner emits **nine Lean certificates**: four typings, four selected finite
+boundary equivalences (including the original ionic wind), and a retained-state current trace.
+Lean acceptance and tamper checks cover these declared finite models. They do not prove
+continuous constitutive laws or patent-wide performance.
+
+Photoluminescence still needs explicit mechanism selection before its refined emission can be
+exposed through a broader optical interface. Sublimation and membrane permeation remain distinct
+from deposition and cyclic adsorption. Further conversions need independent boundary and regime
+justification, not same-dimensional casts or wrappers around copied primitives.
+
+See the [mapping/setup contract](../skills/triz-innovation/references/knowledge-packs.md#named-compositions-instead-of-redundant-effect-generators).

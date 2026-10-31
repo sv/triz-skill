@@ -35,9 +35,9 @@ const json = async (name, args) => {
 };
 
 const knowledge = await json("triz_knowledge", {});
-if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 91 || knowledge.model_count !== 18) fail("knowledge packs, quantity definitions or model templates missing");
+if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 91 || knowledge.model_count !== 19 || knowledge.boundary_mapping_count !== 2) fail("knowledge packs, quantity definitions or model templates missing");
 if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
-if (knowledge.families.length !== 8 || knowledge.counts.independent_contracts !== 69 || knowledge.counts.configurations !== 1 || knowledge.counts.searchable !== 78) fail("shared interface separation/counts missing");
+if (knowledge.families.length !== 8 || knowledge.counts.independent_contracts !== 66 || knowledge.counts.configurations !== 4 || knowledge.counts.searchable !== 78) fail("shared interface separation/counts missing");
 if (knowledge.taxonomy.roles.response !== 69 || knowledge.taxonomy.roles.mechanism !== 9) fail("response/mechanism taxonomy missing");
 if (!knowledge.taxonomy.field_groups.find(g => g.field === "magnetic")?.entry_ids.includes(65)) fail("magnetic response missing from its field group");
 const mechanisms = await json("triz_effects", { kind: "mechanism", field: "electric" });
@@ -47,7 +47,7 @@ if (JSON.stringify(splitModels.effects.map(e => e.id)) !== JSON.stringify([16, 2
 if (splitModels.effects.some(e => e.model_assessment.status !== "assessment-only")) fail("advisory assessments claimed stronger verification");
 const unregisteredFacet = await json("triz_effects", { output: "optical retardance" });
 if (unregisteredFacet.matched !== 0) fail("an unregistered assessment facet became an effect");
-const multiport = await json("triz_component_catalogue", { source: "knowledge", parent: 20 });
+const multiport = await json("triz_component_catalogue", { source: "knowledge", models: ["physical:photoelastic-retardance", "physical:retardance-analyzer"] });
 if (!multiport.ok || multiport.catalogue.entries.length !== 2 || multiport.models.some(m => m.configured || !m.unmetConditions.length)) fail("multiport catalogue lost its boundaries or assumptions");
 const sourceTypes = ["physical:principal-stress-difference", "physical:incident-irradiance"];
 const assembly = await json("triz_component_search", {
@@ -68,6 +68,10 @@ if (!windCatalogue.ok || windCatalogue.catalogue.entries.length !== 3 || windCat
 const wind = await json("triz_effect_setup", { chain: [33], domain: "physical", certificate: true });
 if (!wind.ok || wind.model.boxes.length !== 5 || wind.setup.context_inputs.length !== 2 || wind.certificate?.format !== "lean") fail("named configuration did not expand with explicit context and a typing certificate");
 if (wind.model.boxes.some(b => b.behavior || b.transition || b.feasibility)) fail("named configuration invented an implementation");
+const forceObservation = await json("triz_component_catalogue", { source: "knowledge", effects: [59] });
+if (!forceObservation.ok || forceObservation.catalogue.entries.length !== 2 || forceObservation.boundary_mappings?.length !== 1 || !forceObservation.named_configurations[0]?.catalogue_complete) fail("directed force observation did not enter the named catalogue");
+const observedForce = await json("triz_effect_setup", { chain: [59], domain: "physical", certificate: true });
+if (!observedForce.ok || observedForce.model.boxes.length !== 4 || observedForce.setup.boundary_mappings?.length !== 1 || observedForce.certificate?.format !== "lean") fail("named force view did not materialize its sourced output observation");
 const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
 if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");

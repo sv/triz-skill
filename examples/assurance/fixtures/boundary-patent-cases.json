@@ -1,0 +1,31 @@
+{
+  "checked_on": "2026-10-31",
+  "scope": "Selected source-backed clauses at named output boundaries, not complete patent implementations or measured performance.",
+  "cases": [
+    {
+      "id": "rotating-analyzer-observation", "patent": "EP4370907B1", "published_on": "2026-02-18", "priority_on": "2021-07-12",
+      "url": "https://patents.google.com/patent/EP4370907B1/en",
+      "locator": "Description of second polarizer 43, Malus transmission equation, Fig. 4 and claims 1/2/5/9",
+      "scope": "Selected linear analyzer transmission versus angle and incident irradiance. Excludes reflection/material calibration, grain identification, images and defect detection.",
+      "resources": ["physical:polarizer-angle", "physical:incident-irradiance"], "targets": ["physical:irradiance"],
+      "expected": ["physical:linear-analyzer-transmission"], "max_components": 1
+    },
+    {
+      "id": "phase-qualified-dc-observation", "patent": "US20250140461A1", "published_on": "2025-05-01", "priority_on": "2022-01-27",
+      "url": "https://patents.google.com/patent/US20250140461A1/en",
+      "locator": "Field/background: cooled superconducting wire carries the full magnet current; heating changes it to a resistive state",
+      "scope": "One selected DC path inside its superconducting envelope, with shared phase qualification and a current observation. Excludes LTS/HTS segment engineering, heater power, magnetic storage dynamics and switch performance.",
+      "resources": ["physical:current", "physical:temperature", "physical:magnetic-flux-density"], "targets": ["physical:current"],
+      "state_parameters": ["physical:superconducting-phase"], "mappings_for_targets": true,
+      "expected": ["physical:superconducting-phase", "physical:phase-qualified-dc-transport", "physical:dc-current-observation"], "max_components": 3
+    },
+    {
+      "id": "charged-particle-force-observation", "patent": "WO2026017232A1", "published_on": "2026-01-22", "priority_on": "2024-07-17",
+      "url": "https://patents.google.com/patent/WO2026017232A1/en",
+      "locator": "Separate static electrode applies electrostatic force to charged dust particles to assist detachment",
+      "scope": "Selected electric-force component on the specified particle population, observed as force. Excludes net force, adhesion, dust charging and complete removal performance.",
+      "resources": ["physical:particle-charge", "physical:electric-field"], "targets": ["physical:force"], "mappings_for_targets": true,
+      "expected": ["physical:particle-electric-force", "physical:particle-force-observation"], "max_components": 2
+    }
+  ]
+}

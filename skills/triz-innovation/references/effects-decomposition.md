@@ -4,7 +4,8 @@ Assessment date: 2026-10-31, following the merge of PR #53. The 78 names and sel
 contracts were screened for abstraction mismatches. Thirty-four nontrivial decisions are
 recorded in `effects.json`: 15 retain-compound, six split-models and 13 retain-response.
 The other 44 have no new detailed assessment. The original effect names, unary typings, assumptions and evidence records remain intact.
-The implementation adds 18 multiport/stateful templates and 23 quantity types for the six split groups.
+The implementation adds 19 multiport/stateful templates and 23 quantity types for the six split groups. Two sourced forward observations expose refined
+DC-current and particle-force signals at their broader current/force boundaries.
 
 These are architectural judgments at the current engineering resolution. Sources support
 the phenomena and distinctions; they do not prove our proposed decomposition. An effect's
@@ -39,7 +40,9 @@ The six groups now have separate templates in `effects.json.models`. These are e
 boundaries, not new independent physical primitives. Their source-backed conditions remain
 hypotheses until an implementation supplies calibration, state transitions and resource rows.
 The selected clauses remain discoverable. Entry 33 now expands into a registered named composition;
-its old independent unary implementation is removed. Fifteen assessed compounds remain named mechanisms.
+its old independent unary implementation is removed. Entries 20, 35 and 59 also become named
+realizations: one lifted analyzer model and two existing response models with explicit
+forward observations replace their independently stored scalar clauses. Fifteen assessed compounds remain named mechanisms.
 
 Use `triz_component_catalogue` with `source: "knowledge"`, then pass the returned catalogue to
 `triz_component_search`. This supports multi-input wiring, shared material state and explicit
@@ -108,6 +111,6 @@ Every assessment has `status: "assessment-only"`; no stronger verification statu
 
 Tests ensure that removing all assessments yields the same typed library and setup results,
 that assessment metadata never becomes a unary generator, and that the legacy compatibility snapshot still
-passes. All 78 named cases remain, with 69 independently declared unary interfaces and entry 33
-derived from its named composition. The separate model registry adds explicit boundaries and setup; it proves no physical
+passes. All 78 named cases remain, with 66 independently declared unary interfaces and four
+derived named configurations. The separate model registry adds explicit boundaries and setup; it proves no physical
 equivalence or minimal-basis claim.

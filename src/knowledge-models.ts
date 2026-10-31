@@ -4,6 +4,7 @@ import { Box, Carrier, checkModel } from "./act.js";
 import { ComponentCatalogue, GENERAL_CATALOGUE } from "./act-component-catalogue.js";
 import { fail, issue } from "./act-issues.js";
 import { compileKnowledge } from "./knowledge.js";
+import { boundaryMappingComponent } from "./knowledge-boundary-mappings.js";
 
 const Text = z.string().min(1);
 export const ModelImplementation = Box.pick({ behavior: true, producible: true, state: true, initial: true, transition: true,
@@ -13,6 +14,7 @@ export const KnowledgeCatalogueRequest = z.strictObject({
   models: z.array(Text).min(1).max(100).optional(),
   query: Text.optional(),
   parent: z.union([Text, z.number().int().positive()]).optional(),
+  mappings: z.array(Text).min(1).max(100).optional().describe("Explicit forward boundary-observation ids; no reverse mapping or automatic type alias"),
   effects: z.array(z.union([Text, z.number().int().positive()])).min(1).max(100).optional().describe("Named configuration effect ids; return their constituent models and wiring, never an opaque catalogue entry"),
   state_parameters: z.array(Text).max(100).optional().describe("Allowed internal state meanings; stateless models remain candidates. Never inferred from names"),
   bindings: z.record(Text, Carrier.pick({ layer: true, values: true, levels: true, quantity: true }).partial()).default({})
@@ -26,7 +28,7 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
   const a = parsed.data;
   const reject = (path: string, message: string) => fail([issue("invalid-argument", path, message, "Use registered model/parameter ids and explicit implementation declarations.")]);
   if (a.source === "general") {
-    if (a.models || a.effects || a.query || a.parent !== undefined || a.state_parameters || Object.keys(a.bindings).length || Object.keys(a.declarations).length || a.conditions.length)
+    if (a.models || a.mappings || a.effects || a.query || a.parent !== undefined || a.state_parameters || Object.keys(a.bindings).length || Object.keys(a.declarations).length || a.conditions.length)
       return reject("$.source", "Knowledge model options require source: knowledge");
     return { ok: true as const, catalogue: ComponentCatalogue.parse(GENERAL_CATALOGUE), models: [],
       note: "Abstract identity/fanout relations; no physical implementations or resource modes are asserted." };
@@ -50,7 +52,15 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
       return reject("$.effects", `Filters exclude a required constituent of named configuration ${id}`);
   }
   if (models.length > 100) return reject("$.models", "Select at most 100 models per portable catalogue");
+  const mappingIds = new Set(a.mappings ?? []);
+  for (const id of a.effects ?? []) {
+    const e = knowledge.effects.find(e => e.id === id)!;
+    if (e.definition.form === "configuration") for (const p of e.definition.configuration.outputs) if (p.mapping) mappingIds.add(p.mapping);
+  }
+  for (const id of mappingIds) if (!knowledge.boundary_mappings.some(m => m.id === id)) return reject("$.mappings", `Unknown boundary mapping ${id}`);
+  const mappings = knowledge.boundary_mappings.filter(m => mappingIds.has(m.id));
   const used = new Set(models.flatMap(m => [...m.inputs, ...m.outputs].map(p => p.parameter)));
+  for (const m of mappings) { used.add(m.input_parameter); used.add(m.output_parameter); }
   for (const id of Object.keys(a.bindings)) if (!used.has(id)) return reject(`$.bindings.${id}`, "Binding is unused by the selected models");
   for (const id of Object.keys(a.declarations)) if (!models.some(m => m.id === id)) return reject(`$.declarations.${id}`, "Declaration is unused by the selected models");
   const carriers: z.infer<typeof Carrier>[] = [];
@@ -78,11 +88,20 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
     entries.push({ id: m.id, component, source: m.provenance, conditions: m.conditions, limitations: m.limitations,
       tags: m.parents.map(String), domains: [m.domain], max_instances: 1 });
   }
+  for (const m of mappings) {
+    try {
+      const component = boundaryMappingComponent(m, carriers.find(c => c.id === m.input_parameter)!, carriers.find(c => c.id === m.output_parameter)!);
+      entries.push({ id: m.id, component, source: m.provenance, conditions: m.conditions, limitations: m.limitations,
+        tags: ["boundary-observation"], domains: [m.domain], max_instances: 1 });
+    } catch (error) { return reject("$.bindings", error instanceof Error ? error.message : "Invalid boundary mapping domains"); }
+  }
   const catalogue = ComponentCatalogue.safeParse({ format: "triz-component-catalogue-v1", id: "registered-knowledge-models", carriers, entries });
   if (!catalogue.success) return reject("$.models", "Selected models exceed the portable catalogue limits");
   return { ok: true as const, catalogue: catalogue.data,
+    boundary_mappings: mappings,
     named_configurations: knowledge.effects.filter(e => e.definition.form === "configuration" && (!a.effects || a.effects.includes(e.id)) &&
-      e.definition.configuration.nodes.every(n => models.some(m => m.id === n.model))).map(e => ({ id: e.id, name: e.name, definition: e.definition, conditions: e.conditions, provenance: e.provenance })),
+      e.definition.configuration.nodes.every(n => models.some(m => m.id === n.model))).map(e => ({ id: e.id, name: e.name, definition: e.definition, conditions: e.conditions, provenance: e.provenance,
+        catalogue_complete: e.definition.form === "configuration" && e.definition.configuration.outputs.every(p => !p.mapping || mappingIds.has(p.mapping)) })),
     models: models.map(m => ({ ...m,
     configured: !!(a.declarations[m.id]?.behavior || a.declarations[m.id]?.transition),
     unmetConditions: m.conditions.filter(c => !a.conditions.includes(c)) })),

@@ -4,6 +4,7 @@ import { EffectField, EffectPort } from "./act-effects.js";
 import { sameDimension, SI } from "./act-dimensions.js";
 import { Layer } from "./act.js";
 import { ModelConfiguration, resolveConfiguration, type ResolvedConfiguration } from "./knowledge-configurations.js";
+import { BoundaryMappingFields, validateBoundaryMapping } from "./knowledge-boundary-mappings.js";
 
 const Text = z.string().trim().min(1);
 const Slug = z.string().regex(/^[a-z][a-z0-9-]*$/);
@@ -33,6 +34,8 @@ export const KnowledgeParameter = z.strictObject({
     rationale: Text,
   })).default([]).describe("Explicit hypotheses; never extend or automatically query the canonical matrix"),
 });
+export const KnowledgeBoundaryMapping = z.strictObject({ ...BoundaryMappingFields, provenance: KnowledgeSource, review: KnowledgeReview.optional() });
+export type RegisteredBoundaryMapping = z.infer<typeof KnowledgeBoundaryMapping> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> };
 const EffectId = z.union([QualifiedId, z.number().int().positive()]);
 export const EffectAssessmentDecision = z.enum(["retain-response", "retain-compound", "split-models"]);
 export type EffectAssessmentDecision = z.infer<typeof EffectAssessmentDecision>;
@@ -153,6 +156,7 @@ export const KnowledgePack = z.strictObject({
   parameters: z.array(KnowledgeParameter).max(10_000),
   families: z.array(KnowledgeFamily).max(10_000).default([]),
   models: z.array(KnowledgeModel).max(10_000).default([]),
+  boundary_mappings: z.array(KnowledgeBoundaryMapping).max(10_000).default([]),
   effects: z.array(KnowledgeEntry).max(10_000),
   _meta: z.record(z.string(), z.unknown()).optional(),
 });
@@ -208,6 +212,7 @@ export function compileKnowledge(raw: unknown[]) {
   const parameters: RegisteredParameter[] = [];
   const effects: RegisteredEffect[] = [];
   const models: RegisteredModel[] = [];
+  const boundaryMappings: RegisteredBoundaryMapping[] = [];
   const families: Array<z.infer<typeof KnowledgeFamily> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> }> = [];
   const packIds = new Set<string>(), parameterIds = new Map<string, RegisteredParameter>();
   const quantities = new Set<string>(), effectIds = new Set<string | number>();
@@ -261,6 +266,16 @@ export function compileKnowledge(raw: unknown[]) {
     models.push(registered);
     modelIds.set(m.id, registered);
   }
+  const mappingIds = new Map<string, RegisteredBoundaryMapping>();
+  for (const pack of packs) for (const m of pack.boundary_mappings) {
+    if (!m.id.startsWith(`${pack.id}:`)) throw new Error(`Boundary mapping ${m.id} must use pack namespace ${pack.id}`);
+    if (mappingIds.has(m.id)) throw new Error(`Duplicate boundary mapping ${m.id}`);
+    const from = parameterIds.get(m.input_parameter), to = parameterIds.get(m.output_parameter);
+    if (!from || !to) throw new Error(`Boundary mapping ${m.id} references unknown parameter`);
+    validateBoundaryMapping(m, from, to);
+    const registered = { ...m, pack: pack.id, domain: pack.domain, review: m.review ?? pack.review };
+    boundaryMappings.push(registered); mappingIds.set(m.id, registered);
+  }
   const resolved = new Map<string | number, RegisteredEffect>(), visiting = new Set<string | number>(), heights = new Map<string | number, number>();
   const port = (id: string) => {
     const p = parameterIds.get(id)!;
@@ -292,7 +307,7 @@ export function compileKnowledge(raw: unknown[]) {
         input_parameter: s.input_parameter, output_parameter: s.output_parameter, field: s.field,
         definition: { form: "specialization", family: family.id, signature: s.id } };
     } else if (entry.kind === "configuration") {
-      const configuration = resolveConfiguration(entry.configuration, modelIds);
+      const configuration = resolveConfiguration(entry.configuration, modelIds, mappingIds);
       const input = configuration.inputs.find(p => p.primary)!.parameter;
       const output = configuration.outputs.find(p => p.primary)!.parameter;
       const { kind, role, configuration: _, ...description } = entry;
@@ -349,7 +364,7 @@ export function compileKnowledge(raw: unknown[]) {
   const composites = effects.filter(e => e.definition.form === "composite").length;
   const configurations = effects.filter(e => e.definition.form === "configuration").length;
   const direct = effects.length - specializations - composites - configurations;
-  return { packs, parameters, effects, families, models, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites, configurations,
+  return { packs, parameters, effects, families, models, boundary_mappings: boundaryMappings, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites, configurations,
     independent_contracts: effects.filter(e => e.definition.form === "direct" && e.input && e.output).length + families.reduce((n, f) => n + f.signatures.length, 0), searchable: effects.length } };
 }
 
