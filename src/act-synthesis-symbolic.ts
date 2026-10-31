@@ -125,25 +125,38 @@ export class SymbolicPruner {
     try {
       spend(1 + model.boxes.length + model.wires.length);
       const byId = new Map(model.boxes.map(b => [b.id, b])), incoming = new Map<string, FunctionModel["wires"]>(), outgoing = new Map<string, FunctionModel["wires"]>();
-      for (const w of model.wires) { incoming.set(w.to.box, [...(incoming.get(w.to.box) ?? []), w]); outgoing.set(w.from.box, [...(outgoing.get(w.from.box) ?? []), w]); }
-      const recognized = new Map<string, StageInput>();
-      for (const b of model.boxes) {
+      for (const w of model.wires) {
+        if (!incoming.has(w.to.box)) incoming.set(w.to.box, []);
+        if (!outgoing.has(w.from.box)) outgoing.set(w.from.box, []);
+        incoming.get(w.to.box)!.push(w); outgoing.get(w.from.box)!.push(w);
+      }
+      // Find possible serial bundles BEFORE constructing any carrier products. Boxes outside
+      // these bundles remain in the residual context; recognition cannot benefit from them.
+      const candidate = (b: Box | undefined): b is Box => !!b && b.role !== "product" && !b.inner && !b.state && !b.initial && !b.transition;
+      const next = new Map<string, string>(), prior = new Map<string, string>();
+      for (const s of model.boxes) {
+        if (!candidate(s)) continue;
+        const id = s.id, outputs = s.outputs ?? [];
+        const wires = outgoing.get(id) ?? [];
+        spend(1 + wires.length + outputs.length);
+        if (!outputs.length || wires.length !== outputs.length || new Set(wires.map(w => w.from.port)).size !== wires.length) continue;
+        const targetId = wires[0].to.box, t = byId.get(targetId);
+        if (!candidate(t)) continue;
+        const inputs = t.inputs ?? [];
+        if (wires.some(w => w.to.box !== targetId) || (incoming.get(targetId)?.length ?? 0) !== inputs.length
+          || wires.length !== inputs.length || new Set(wires.map(w => w.to.port)).size !== inputs.length
+          || outputs.some(p => !wires.some(w => w.from.port === p.id)) || inputs.some(p => !wires.some(w => w.to.port === p.id))) continue;
+        next.set(id, targetId); prior.set(targetId, id);
+      }
+      if (!next.size) throw new Stop("no-supported-serial-region");
+      const members = new Set([...next.keys(), ...next.values()]), recognized = new Map<string, StageInput>();
+      for (const b of model.boxes) if (members.has(b.id)) {
         const hole = holes.findIndex(h => h.box === b.id), h = holes[hole];
         const rows = h ? h.alternatives.map(a => a.behavior) : b.behavior ? [b.behavior] : [];
         const stage = recognize(model, b, hole, rows, spend);
         if (stage) recognized.set(b.id, stage);
       }
-      const next = new Map<string, string>(), prior = new Map<string, string>();
-      for (const [id, s] of recognized) {
-        const wires = outgoing.get(id) ?? [];
-        spend(1 + wires.length + s.outputPorts.length);
-        if (!s.outputPorts.length || wires.length !== s.outputPorts.length || new Set(wires.map(w => w.from.port)).size !== wires.length) continue;
-        const targetId = wires[0].to.box, t = recognized.get(targetId);
-        if (!t || wires.some(w => w.to.box !== targetId) || (incoming.get(targetId)?.length ?? 0) !== t.inputPorts.length
-          || wires.length !== t.inputPorts.length || new Set(wires.map(w => w.to.port)).size !== t.inputPorts.length
-          || s.outputPorts.some(p => !wires.some(w => w.from.port === p)) || t.inputPorts.some(p => !wires.some(w => w.to.port === p))) continue;
-        next.set(id, targetId); prior.set(targetId, id);
-      }
+      for (const [from, to] of next) if (!recognized.has(from) || !recognized.has(to)) { next.delete(from); prior.delete(to); }
       const regions: Region[] = [], covered = new Set<number>();
       for (const id of recognized.keys()) {
         if (prior.has(id)) continue; // Cycles have no head and remain in the ordinary solver.

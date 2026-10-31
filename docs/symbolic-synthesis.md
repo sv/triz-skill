@@ -5,6 +5,12 @@ and `"exhaustive"` (the reference). Symbolic compilation composes finite maps **
 the optimized solver enumerates union behavior traces. It is opt-in because preprocessing
 and checking can cost more than the enumeration they save.
 
+A cost guard sends requests with at most 32 concrete combinations and 512 input-encoding
+work units directly to optimized search, reporting `symbolic.reason: "small-context"`.
+This heuristic makes no semantic inference or pruning claim. Larger requests can still pay
+more than they save. `include_symbolic_certificate: true` explicitly attempts compilation
+even for small requests, so certificate audits exercise the full checked path.
+
 ```json
 {
   "strategy": "symbolic",
@@ -28,7 +34,8 @@ Completeness concerns joint tuples, not independent per-port projections.
 Types use ordered carrier-id lists and explicit value tuples. Names, tags, units and domain
 labels supply no semantics; equal cardinalities do not establish compatibility. A serial
 connection must explicitly wire every preceding output bijectively to every following input.
-The compiler reindexes the whole joint tuple by that wire permutation. A region contains at
+Wiring is screened before carrier products are built; boxes without a possible serial contact
+stay in the residual context. The compiler reindexes joint tuples by the wire permutation. A region contains at
 least two boxes and one hole, possibly including fixed boxes. Products remain outside.
 Fan-in, fan-out, feedback and disconnected constraints remain in the residual context;
 cycles without a serial head are not summarized. Existing hierarchy/stateful-hole rejection
@@ -51,6 +58,9 @@ Edge masks are precomputed. A request-local cache keys completed residual result
 region's reachable terminal-map set **and every uncovered choice domain**. Arrays are copied;
 backward propagation reruns on concrete domains. Capped passes are not cached. A full cache
 continues uncached; `optimizations.memoize_symbolic: false` disables it for comparison.
+When choosing an already-forced singleton leaves the entire domain vector unchanged, search
+inherits the parent's necessary constraints instead of filtering again. This also holds after
+rollback: inherited domains remain a sound superset. Every concrete leaf is still validated.
 
 Surviving concrete implementations receive the original behavior, adequacy, levels, harm and
 resource checks on their original wiring. Pruning supplies necessary conditions only. Counts
@@ -121,6 +131,7 @@ the residual cache also has a 128-entry cap. The existing evaluation cache has 1
 200,000 cells/key characters. These are logical bounds, not measured heap byte limits.
 `searchStats.symbolic` reports construction/check/backward times, work, fallbacks, states,
 transitions, prefix widths, support counts, primitive compositions and cache counters.
+`searchStats.unchangedDomainPasses` counts inherited passes skipped by search.
 `pruning.contextStates` counts emitted union traces, including discarded attempts; `targetStates`
 and `boundarySummaries.behaviorTraces` count target and validation traces. Failed scans/joins
 consume work even when no trace is emitted.
@@ -142,3 +153,9 @@ maps when both choices are available; a test retains `100^10` labeled supports w
 38 edges and 38 compositions instead of 1,900. Distinct maps and full engineering validation
 can still grow exponentially. No production-model speedup or universal polynomial bound is
 established. Lifetime objectives, physical calibration and continuous sizing remain separate.
+
+The suite also reads the existing synthesis request in `examples/assurance/requests.json`
+without changing its wiring, rows, library or resource contract. Pass
+`--baseline /path/to/baseline-checkout` to the benchmark for a repeated end-to-end comparison
+against another local version (1,000 warmups, 31 rotated batches of 20 requests per variant).
+This measures a shipped finite regression example, not a production system or calibrated device.

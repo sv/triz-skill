@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { synthesizeFinite } from "../src/act-synthesis.js";
 import { compileRegion, SymbolicPruner, symbolicStats } from "../src/act-synthesis-symbolic.js";
 import { checkRegionCertificate, checkRegionDeclarations, countSummarySupports, summaryForChoices, type RegionCertificate } from "../src/act-symbolic-certificate.js";
@@ -36,6 +37,47 @@ function differential(input: SynthesisInput) {
   }
   return solve(input);
 }
+
+test("small requests reuse optimized search, including the unchanged shipped synthesis example", () => {
+  const cases = JSON.parse(fs.readFileSync(new URL("../examples/assurance/requests.json", import.meta.url), "utf8"));
+  const input = cases.find((c: { tool: string }) => c.tool === "triz_synthesize").args;
+  for (const usd of [5, 0]) {
+    const request = { ...input, contract: { ...input.contract, budget: { usd } } };
+    const reference = solve(request, "exhaustive"), optimized = solve(request, "optimized");
+    const actual = synthesizeFinite({ ...request, strategy: "symbolic" });
+    assert.ok(actual.ok && "searchStats" in actual && actual.complete);
+    assert.equal(actual.searchStats.symbolic.reason, "small-context");
+    assert.equal(actual.searchStats.symbolic.work, 0);
+    assert.equal(actual.work, optimized.work);
+    assert.ok(actual.searchStats.unchangedDomainPasses > 0);
+    assert.equal(actual.satisfyingCount, reference.satisfyingCount);
+    assert.deepEqual(actual.witness?.choices, reference.witness?.choices);
+    assert.deepEqual(actual.results.map(x => x.result.reason), optimized.results.map(x => x.result.reason));
+    assert.deepEqual(successes(actual), successes(reference));
+  }
+});
+
+test("the small-context guard does not bypass expensive declarations or explicit certificates", () => {
+  const input = synthesisFixture("coupled", 2);
+  assert.equal(solve(input).searchStats.symbolic.status, "ready");
+  input.holes.forEach(h => h.alternatives.forEach(a => { a.behavior = a.behavior.flatMap(row => Array.from({ length: 100 }, () => row)); }));
+  const actual = synthesizeFinite({ ...input, strategy: "symbolic" });
+  assert.ok(actual.ok && "searchStats" in actual && actual.complete);
+  assert.equal(actual.searchStats.symbolic.status, "ready");
+  assert.equal(actual.satisfyingCount, solve(input, "exhaustive").satisfyingCount);
+});
+
+test("recognition skips unrelated Cartesian products while preserving their whole-model costs", () => {
+  for (const usd of [0, 1001]) {
+    const input = synthesisFixture("coupled", 2), outputs = Array.from({ length: 70 }, (_, i) => ({ id: `p${i}`, carrier: "value" }));
+    for (const m of [input.model, input.contract.target]) m.boxes.push({ id: "outside", name: "Unobserved fixed constraint", role: "tool", outputs,
+      behavior: [{ in: {}, out: Object.fromEntries(outputs.map(p => [p.id, "0"])) }], feasibility: [{}], cost: { usd } });
+    const r = differential(input);
+    assert.equal(r.searchStats.symbolic.status, "ready");
+    assert.equal(r.satisfyingCount, usd ? 0 : 2);
+    assert.ok(r.symbolicCertificates!.every(c => c.stages.every(s => s.box !== "outside")));
+  }
+});
 
 test("symbolic compilation reduces union traces BEFORE residual enumeration, keeping two maps at each prefix", () => {
   for (const length of [2, 4, 6, 8]) {
