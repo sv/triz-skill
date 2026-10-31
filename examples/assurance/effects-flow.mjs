@@ -38,6 +38,37 @@ const compared = await call("triz_behavior", { model: configured.model, compare_
 assert.equal(compared.verdict, "preserved");
 assert.equal(compared.certificate.format, "lean");
 
+// A same-type mechanism remains a generator; request a nonempty optical chain.
+const optical = await call("triz_effect_chains", {
+  resources: [{ quantity: "light" }], output: { quantity: "light" }, min_length: 1, k: 1,
+});
+assert.equal(optical.verdict, "chains");
+assert.ok(optical.chains.every(c => c.effects.length === 1));
+assert.ok(optical.chains.some(c => c.effects[0].id === 17));
+
+// Explicit synthetic excitation memory, then TIR guidance and photovoltaic conversion.
+// One synchronous tick is an abstract step, not a measured phosphor lifetime.
+const delayed = await call("triz_effect_setup", {
+  chain: [16, 17, 66], domain: "physical", certificate: true,
+  bindings: { "physical:light": { values }, "physical:voltage": { values: ["low", "high"] } },
+  boundary: { source_values: ["on"], accepted_values: ["low", "high"] },
+  declarations: [
+    { state: ["dark", "charged"], initial: ["dark"], transition: [
+      { state: "dark", in: { in: "on" }, next: "charged", out: { out: "off" } },
+      { state: "charged", in: { in: "on" }, next: "charged", out: { out: "on" } },
+    ] },
+    { behavior: rows },
+    { behavior: [{ in: { in: "off" }, out: { out: "low" } }, { in: { in: "on" }, out: { out: "high" } }] },
+  ],
+});
+assert.equal(delayed.verdict, "inserted");
+const dynamics = await call("triz_dynamics", {
+  model: delayed.model, unsafe: [{ box: delayed.effects[0].box, state: ["charged"] }], horizon: 2, certificate: true,
+});
+assert.equal(dynamics.escalation.verdict, "reachable");
+assert.equal(dynamics.escalation.time, 1);
+assert.equal(dynamics.certificate.format, "lean");
+
 const dirIndex = process.argv.indexOf("--cert-dir");
 if (dirIndex >= 0) {
   assert.ok(process.argv[dirIndex + 1], "--cert-dir needs a directory");
@@ -45,12 +76,16 @@ if (dirIndex >= 0) {
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "EffectsTyping.lean"), configured.certificate.content);
   fs.writeFileSync(path.join(dir, "EffectsBehavior.lean"), compared.certificate.content);
+  fs.writeFileSync(path.join(dir, "DelayedLightTyping.lean"), delayed.certificate.content);
+  fs.writeFileSync(path.join(dir, "DelayedLightDynamics.lean"), dynamics.certificate.content);
 }
 console.log(JSON.stringify({
   chain, quantities: structural.setup.parameter_ids,
   wiring: structural.verdict, behavior_without_rows: unknown.decided,
   declared_finite_behavior: compared.verdict,
-  certificates: [configured.certificate.certifies, compared.certificate.certifies],
+  nonempty_optical_generators: optical.chains.map(c => c.effects[0].id),
+  declared_memory: { chain: [16, 17, 66], target: "charged", reachable_at_tick: dynamics.escalation.time },
+  certificates: [configured.certificate.certifies, compared.certificate.certifies, delayed.certificate.certifies, dynamics.certificate.certifies],
   unmet_conditions: configured.unmetConditions,
   scope: "Synthetic off/on rows demonstrate compositional semantics. No quantitative performance, resource feasibility or physical sufficiency is inferred.",
 }, null, 2));

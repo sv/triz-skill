@@ -23,7 +23,7 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack currently has 35 quantity declarations and 37 typed effects out of 74 total.
+The physical pack currently has 63 quantity declarations and 74 typed effects out of 74 total.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
 difference. Optical and nonuniform-field excitation tokens intentionally remain opaque where a
 single quantitative interpretation has not been selected. Typings select a specific clause of
@@ -48,8 +48,12 @@ SI dimension is used to guess one. Unsupported type composition fails even when 
 `bindings[parameter_id]` may also supply `values`, `levels` and intensive/extensive allocation
 semantics. `boundary: {source_values, accepted_values}` declares finite resource availability
 and product acceptance; these values must already belong to the corresponding carrier bindings.
-`declarations` is one optional behavior/producible/feasibility/cost declaration per effect, using
-ports `in` and `out`. No rows, resource amounts or thresholds are inferred from an effect description.
+`declarations` is one optional implementation declaration per effect, using ports `in` and `out`.
+Choose finite `behavior` rows or explicit `state`, `initial` and `transition` rows, optionally with
+`producible`, `feasibility` and `cost`. The same declaration schema is used by `triz_effect_insert`.
+Stateful rows are checked by the existing model validator, retained in the replayable rewrite,
+and compose synchronously through `triz_dynamics`; behavior rows are never read as transitions.
+No rows, memory, resource amounts or thresholds are inferred from an effect description.
 Without those declarations, model typing can succeed while behavior remains undecided.
 
 | Data | Categorical use | Existing checks |
@@ -58,6 +62,7 @@ Without those declarations, model typing can succeed while behavior remains unde
 | Completely typed effect | Generator between its declared input/output types | Chain compatibility and model typing |
 | Selected chain | Serial wiring composition | `typed_delete`, `typed_glue` and the finite Lean typing certificate |
 | Explicit finite values and behavior rows | A relation interpreting each generator | `triz_behavior` composition/comparison and finite behavior certificates |
+| Explicit state, initial states and transitions | Stateful generator interpretation | `triz_dynamics`, trace rechecking and supported finite dynamics certificates |
 | Explicit feasibility rows | Resource/functionality interpretation | Existing co-design checks; never inferred from wiring |
 
 The runtime compiler and search are tested implementations, not extracted Lean programs.
@@ -66,8 +71,25 @@ Generated certificates check the encoded finite instances. `related_effects`, pa
 or functors. Conditions stay visible as hypotheses; a typing or behavior certificate does not
 discharge them or prove empirical physical performance.
 
-In a checkout, `pnpm example:effects` runs the actual three-effect setup and an explicitly
-synthetic off/on behavior comparison. To generate and check its certificates locally:
+Same-type mechanisms such as optical guidance, superconducting transmission, wedges, levers
+and gears are generators between equal object types; that does not identify them with the
+identity arrow. `triz_effect_chains` defaults to allowing a zero-length identity. Supply
+`min_length: 1` to discover nonempty mechanisms, or a higher minimum up to `k` for longer chains:
+
+```json
+{"resources": [{"quantity": "light"}], "output": {"quantity": "light"}, "min_length": 1, "k": 1}
+```
+
+New quantity declarations keep strain separate from length change, concentration gradient from
+concentration difference, reaction extent from its rate, and absorbed heat from released heat.
+Feed and permeate composition, deposited metal rate and sacrificial consumption rate also retain
+separate meanings even when SI dimensions coincide. Opaque light ports do not guarantee
+compatible spectra; stateful and quantitative implementations must supply those assumptions.
+
+In a checkout, `pnpm example:effects` runs the photovoltaic/Ohmic/Joule setup, a synthetic
+off/on behavior comparison, nonempty optical discovery, and a declared one-tick excitation
+memory → TIR → photovoltaic chain. Its state transitions are synthetic, not measured lifetimes.
+To generate and check its certificates locally:
 
 ```sh
 node --import tsx examples/assurance/effects-flow.mjs --cert-dir /tmp/triz-effects
@@ -76,7 +98,8 @@ node scripts/certify.mjs --local --tamper /tmp/triz-effects/*.lean
 
 `tests/knowledge-setup.test.ts` checks setup for every shipped typed generator and a composed
 physical example; `tests/knowledge.test.ts` checks cross-pack composition. Lean CI also checks
-their typing/behavior certificates and rejects altered copies. See the
+all 74 generator typing certificates, composed stateful typing/dynamics certificates and
+behavior certificates, and rejects altered copies of the composed certificates. See the
 [theory map](../../../docs/theory-map.md) for the theorem inventory and assurance scope.
 
 Optional `canonical_mappings: [{id, relation, rationale}]` record an analyst's equivalence or

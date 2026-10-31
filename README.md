@@ -488,7 +488,7 @@ construction.
 ## Data provenance and licensing
 
 - The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
-  the effects starter database (74 entries, 37 with conditional typings) contains repository-authored summaries of physics,
+  the effects starter database (74 entries, all with conditional typings) contains repository-authored summaries of physics,
   chemistry and geometry. See the [catalogue audit](skills/triz-innovation/references/effects-audit.md)
   for corrections, additions, references and evidence gaps.
 - [Knowledge packs](skills/triz-innovation/references/knowledge-packs.md) separate universal

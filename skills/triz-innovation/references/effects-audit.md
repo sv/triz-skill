@@ -55,10 +55,39 @@ recovery have different triggers. No phenomenon was removed as obsolete.
 | 73–74 | Sensible heating, Ohmic conduction; additional bridges for thermal/electrical composition | [Calorimetry](https://openstax.org/books/university-physics-volume-2/pages/1-4-heat-transfer-specific-heat-and-calorimetry), [Ohm's law](https://openstax.org/books/university-physics-volume-2/pages/9-4-ohms-law) |
 
 New entries include specific references, conditions and limitations. Their summaries are authored
-for this repository; referenced text is not copied. 37 entries now have selected input/output
-clauses with explicit parameter references and conditions, using 35 physical quantity definitions.
+for this repository; referenced text is not copied. All 74 entries now have selected input/output
+clauses with explicit parameter references and conditions, using 63 physical quantity definitions.
 SI dimensions are explicit declarations checked against [NIST SP 811](https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes);
 they are not inferred from labels. Typing does not establish a quantitative operating envelope.
-Most unchanged legacy entries still have only general textbook provenance. Domain packs and expert
-review can address that evidence gap. [Model setup](knowledge-packs.md#set-up-a-categorical-model)
+Every selected typing now names a specific reference. These references support the selected
+clauses; they do not independently validate every legacy statement or application hint. Domain
+packs and expert review can address those remaining evidence gaps. [Model setup](knowledge-packs.md#set-up-a-categorical-model)
 connects the catalogue to the existing categorical checks without inventing behavior or resources.
+
+
+## Remaining 37 typings completed
+
+The extension retains all effect ids and the previous 37 input/output contracts. Each new
+contract selects one conditional unary clause; independent inputs and history are explicit
+conditions. The data records a per-entry source and scope limitation. New parameters keep
+same-dimensional but different meanings separate; no dimensional or semantic casts are added.
+
+| Effects | Selected clauses | Supporting references |
+|---|---|---|
+| 9–10 | Thermal shape recovery; branch-dependent superelastic strain | [Illinois shape-memory research group](https://publish.illinois.edu/shape-memory-structures/shape-memory-alloys/) |
+| 16–20 | Excitation/emission, internal reflection, path-difference irradiance, grating-order angle, analyzer transmission | [IUPAC photoluminescence](https://goldbook.iupac.org/terms/view/P04623), [OpenStax optics](https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization) |
+| 22, 25 | Rotation-rate force; fixed-arrangement jet deflection | [MIT rotating frames](https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/6fe39e8d5ce4ce746ca256dfea665eda_MIT8_09F14_Chapter_2.pdf), [NASA Coanda experiments](https://ntrs.nasa.gov/citations/19720023364) |
+| 28 | Concentration gradient to Fickian molar flux | [IUPAC diffusion coefficient](https://goldbook.iupac.org/terms/view/D01704) |
+| 29–31 | Acoustic displacement, radiation force, collapse pressure pulse | [OpenStax sound](https://openstax.org/books/university-physics-volume-1/pages/17-1-sound-waves), [levitation measurements](https://doi.org/10.1121/10.0036148), [bubble-collapse experiments](https://arxiv.org/abs/1210.4748) |
+| 32–33, 35 | Gas adsorption isotherm; ionic wind; superconducting DC transmission | [NIST adsorption guide](https://adsorption.nist.gov/isodb/content/media/userguide.pdf), [ionic-wind aircraft](https://www.nature.com/articles/s41586-018-0707-9), [OpenStax superconductors](https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors) |
+| 36–39, 48 | Catalytic rate, reaction heat/heat uptake, polymer conversion, combustion heat | [Catalysis](https://openstax.org/books/chemistry-2e/pages/12-7-catalysis), [enthalpy](https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy), [IUPAC polymerization](https://goldbook.iupac.org/terms/view/P04740) |
+| 40–44 | Anode consumption, assay absorbance, reaction light, water uptake, plating rate | [Corrosion](https://openstax.org/books/chemistry-2e/pages/17-6-corrosion), [Beer–Lambert law](https://goldbook.iupac.org/terms/view/B00626), [chemiluminescence](https://goldbook.iupac.org/terms/view/C01045), [CCI sorption data](https://www.canada.ca/en/conservation-institute/services/conservation-preservation-publications/technical-bulletins/silica-gel-relative-humidity.html), [electrolysis](https://openstax.org/books/chemistry-2e/pages/17-7-electrolysis) |
+| 45–47 | Light-initiated conversion; forward sublimation; membrane permeate composition | [IUPAC polymer kinetics](https://publications.iupac.org/pac/80/10/2163/index.html), [phase changes](https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions), [DOE membrane research](https://www.energy.gov/science/bes/articles/traffic-cop-molecules) |
+| 49–50, 52 | Wedge/lever force transformation; gear speed transformation | [OpenStax simple machines](https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines), [MIT gears](https://ocw.mit.edu/courses/2-00aj-exploring-sea-space-earth-fundamentals-of-engineering-design-spring-2009/e8c25391a19f4a1ef3c427017307f509_MIT2_00AJs09_lec07.pdf) |
+| 54–56 | Parabolic ray transformation; cellular load response; selected fold kinematics | [OpenStax mirrors](https://openstax.org/books/university-physics-volume-3/pages/2-2-spherical-mirrors), [NASA structures](https://www.nasa.gov/smallsat-institute/sst-soa/structures-materials-and-mechanisms/), [origami inverse design](https://arxiv.org/abs/2008.02349) |
+| 57–58 | Vibration and reverse-pulse detachment over declared intervals | [NASA dust mitigation](https://ntrs.nasa.gov/api/citations/20070020448/downloads/20070020448.pdf), [original filter-cake experiments](https://pmc.ncbi.nlm.nih.gov/articles/PMC3886367/) |
+
+Optical, current, force and rotational-speed endomorphisms remain explicit generators rather
+than identity arrows. `min_length` makes nonempty same-type chains discoverable. Stateful
+implementations can declare `state`, `initial` and `transition` through both setup and insertion;
+no hysteresis, persistence, kinetics or memory is inferred from these catalogue contracts.

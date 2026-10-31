@@ -40,10 +40,10 @@ test("installed knowledge preserves classic lookups and exposes explicit quantit
   core.useProvider(file => file in bundledKnowledge ? bundledKnowledge[file] : read(file));
   assert.equal(core.parameters().length, 39);
   assert.equal(core.effects().matched, 74);
-  assert.equal(core.typedEffects().length, 37);
+  assert.equal(core.typedEffects().length, 74);
   const catalog = core.knowledgeCatalog();
   assert.equal(catalog.packs.length, 2);
-  assert.equal(catalog.parameters.length, 38);
+  assert.equal(catalog.parameters.length, 66);
   const seebeck = core.effects(undefined, undefined, { input: "temperature difference", output: "voltage" }).effects[0];
   assert.equal(seebeck.input_parameter, "physical:temperature-difference");
   assert.equal(seebeck.review.status, "curated");

@@ -35,11 +35,28 @@ const json = async (name, args) => {
 };
 
 const knowledge = await json("triz_knowledge", {});
-if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 38) fail("knowledge packs or quantity definitions missing");
+if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 66) fail("knowledge packs or quantity definitions missing");
 if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
 const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
 if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");
+const typed = await json("triz_effects", { typed: true });
+if (typed.matched !== 74) fail("incomplete shipped effect typing coverage");
+const optical = await json("triz_effect_chains", { resources: [{ quantity: "light" }], output: { quantity: "light" }, min_length: 1, k: 1 });
+if (optical.verdict !== "chains" || optical.chains.some(c => c.effects.length !== 1) || !optical.chains.some(c => c.effects[0].id === 17)) fail("nonempty same-type effect discovery failed");
+const memory = await json("triz_effect_setup", {
+  chain: [16], domain: "physical",
+  bindings: { "physical:light": { values: ["off", "on"] } },
+  boundary: { source_values: ["on"], accepted_values: ["off", "on"] },
+  declarations: [{ state: ["dark", "charged"], initial: ["dark"], transition: [
+    { state: "dark", in: { in: "on" }, next: "charged", out: { out: "off" } },
+    { state: "charged", in: { in: "on" }, next: "charged", out: { out: "on" } },
+  ] }],
+});
+if (!memory.ok) fail("stateful catalogue setup failed");
+const memoryRun = await json("triz_dynamics", { model: memory.model, horizon: 2, unsafe: [{ box: memory.effects[0].box, state: ["charged"] }], certificate: true });
+if (memoryRun.escalation?.time !== 1 || memoryRun.certificate?.format !== "lean") fail("declared effect memory did not enter dynamics/certificate checks");
+console.log("74 typed effects -> nonempty optical discovery -> explicit memory/dynamics passed");
 
 // Source import stays a draft through the actual stdio schema/handler boundary.
 const imported = await json("triz_import_source", { format: "bom-csv", source: {
