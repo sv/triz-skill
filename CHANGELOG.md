@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Share finite relation representation, indexed joins and connected-factor evaluation across behavior, synthesis residual compilation and global separation; preserve exact boundary relations, internal-state counts and bounded witnesses. Add exhaustive differential tests and committed-baseline benchmarks with index/factor ablations.
+- Prune fixed-wiring synthesis with coupled backward residual constraints and component-choice propagation; reuse request-local exact boundary summaries. Add exhaustive/ablation controls, search counters, differential whole-port oracle tests, and reproducible before/after benchmarks.
 - Add a runnable synthetic hardware/software/provider analysis and discovery example; clarify that budgets are hard constraints, costs may be vectors, and joint Pareto assembly/policy optimization remains an extension.
 - Integrate theorem-search results: bounded overlap-aware behavior pruning, replayable source-grounding activation order, and Lean laws for target residuals, least source closure, acyclic table gluing and randomized stationary occupation bounds. Document the capability map, graph endpoint audit and remaining adapter prerequisites.
 - Make optimal-policy ambiguity explicit, rank lifecycle priors with exact masses, guard effect hints/provenance/flow edits, and report only justified bond causality findings. Add the edge-walk cost theorem and shared complete certificate source pins.

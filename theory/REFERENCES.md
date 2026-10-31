@@ -8,7 +8,7 @@ search results and papers appearing only inside another work's bibliography are 
 
 Reference identifiers are stable: R1–R18 retain the original plan's anchors. New references are
 appended rather than renumbering existing citations. The [implemented scope](../docs/categorical-assurance.md)
-and [future plan](../docs/categorical-future-plan.md) state the actual guarantees and remaining
+and [assurance requirements](../docs/assurance-requirements.md) state the actual guarantees and remaining
 obligations; [sources and research notes](../skills/triz-innovation/references/sources.md) retain
 methodology and data-provenance commentary.
 
@@ -32,6 +32,7 @@ valid. Mutable API pages should be read against the project's pinned dependencie
 | Official TRIZ, MPV and matrix sources | [R51](#r51)–[R69](#r69), [R87](#r87), [R89](#r89)–[R90](#r90), [R97](#r97)–[R100](#r100) |
 | AI-TRIZ, published cases and supplied material | [R70](#r70)–[R74](#r74), [R77](#r77)–[R81](#r81), [R88](#r88) |
 | Naming, abstraction and neutral models | [R101](#r101)–[R109](#r109) |
+| Russian/Chinese TRIZ formalization and Extenics | [R124](#r124--russian-logical-tasktool-representation)–[R134](#r134--compound-element-change-propagation); [reading notes](../docs/formal-triz-literature.md) |
 
 ## R1
 
@@ -797,3 +798,94 @@ Multichain MDPs*, [arXiv:2012.02178v2](https://arxiv.org/pdf/2012.02178), §§4�
 Reference for initial distributions and policy-class constraints in occupation-measure planning.
 The new finite rational occupation lower-bound/attainment proofs are independent. No general
 multichain solver, initial-state encoding or optimal-availability range algorithm is claimed.
+
+## R124 — Russian logical task/tool representation
+
+С. В. Ревякин, *Стандартная форма описания задачи и методических инструментов ТРИЗ*,
+Современные научные исследования и инновации, 2013, №8.
+[Original article](https://web.snauka.ru/issues/2013/08/25950).
+**Considered method.** Textual logical/topological task/rule formulation read; formula images
+not independently audited. No implementation or formal proof imported.
+
+## R125 — Russian TRIZ ontology
+
+А. Курьян, М. Рубин, Н. Щедрин, О. Экардт, Н. Рубина, *ТРИЗ Онтология. Текущее состояние
+и перспективы*, Minsk, 21 August 2020.
+[Authors' report](https://wumm-project.github.io/Texts/Ontology-TDS2020.pdf).
+**Modelling reference.** Report text reviewed for concept/model/rule distinctions and aliases;
+no ontology reasoner or synthesis correctness artifact established by this review.
+
+## R126 — OTSM ENV representation
+
+Н. Н. Хоменко, *Некоторые базовые модели, используемые в ОТСМ-ТРИЗ*, 2001,
+[author archive](https://otsm-triz.org/content/models_otsm-triz_ru), posted 2014.
+**TRIZ context.** Archived discussion of element–feature–value representation read; an import
+vocabulary candidate, not a verified composition algorithm.
+
+## R127 — Extenics function analysis
+
+张文林、成思源、杨雪荣, *基于基元理论的改进功能分析方法研究*, 广东工业大学学报,
+2019, 36(1):10–15, DOI `10.12052/gdutxb.180096`.
+[Publisher text](https://html.rhhz.net/GDGYDXXB/html/20190102.htm).
+**Considered method.** Definitions/method read. Basic-element property records and functional
+relations are modelling prior art; no composition theorem or data imported.
+
+## R128 — Substance–field extension method
+
+陈美蓉、江帆、黄浩翔、黄海涛、黄玉琴, *物场−可拓创新方法研究及应用*, 广东工业大学学报,
+2022, 39(2):19–25,90, DOI `10.12052/gdutxb.210185`.
+[Publisher text](https://html.rhhz.net/GDGYDXXB/html/1648878253628-1800685755.htm).
+**Considered method.** Modelling/transformation sections read. Candidate templates and preference
+evaluation do not establish executable physical adequacy or lifetime optimality.
+
+## R129 — Extenics relation transformations
+
+李文军、杨春燕、汤龙等, *可拓学中相关关系的变换方法研究*, 智能系统学报,
+2019, 14(4):619–626, DOI `10.11992/tis.201811027`.
+[Publisher text](https://html.rhhz.net/tis/html/201811027.htm).
+**Considered method.** Definitions and transformation discussion read. Functional-dependency
+edits are candidate generators; global monotonicity/bounds need independent hypotheses.
+
+## R130 — Forty principles as Extenics transformations
+
+周贤永、陈光, *TRIZ40条发明原理的可拓变换表述形式研究*, 科技进步与对策,
+2011, 28(5):107–115, published 10 March 2011.
+[Publisher record](https://www.kjjb.org/CN/Y2011/V28/I5/107).
+**Prior-art lead.** Bibliographic record/keywords read; full text and dynamic abstract unavailable
+in the checked page. Exact principle mappings and guarantees have not been verified.
+
+## R131 — Lattice-based ideality
+
+周贤永、黄庆、赵立力, *基于格论和TRIZ技术进化理论的理想化水平表述方式*,
+科技进步与对策, 2010, (21):5–9,
+[author's university bibliography](https://faculty.swjtu.edu.cn/zhouxianyong/zh_CN/lwcg/120220/list/index.htm).
+周贤永, *技术创新理论与方法*, Higher Education Press, January 2021,
+ISBN `978-7-04-055299-7`, [publisher description/contents](https://xuanshu.hep.com.cn/front/h5Mobile/bookDetails?bookId=5fb948d15710f1bcc39a1b1a).
+**Prior-art lead.** Only bibliography and book description/contents read. The stated lattice/Hasse
+approach motivates comparison with E2; no exact equivalence or lattice theorem claimed here.
+
+## R132 — TRIZ–Extenics integration review
+
+赵燕伟、何路、洪欢欢、黄祥, *面向TRIZ-可拓学集成的创新方法研究*, 广东工业大学学报,
+2015, 32(2):1–10, DOI `10.3969/j.issn.1007-7162.2015.02.001`.
+[Publisher text](https://html.rhhz.net/GDGYDXXB/html/1007-7162%282015%2902-0001-10.htm).
+**Research navigation.** Integration discussion/reference trail read. A review mapping relevant
+approaches, not an implementation guarantee. Checked-source scope and engine implications for
+R124–R132 are in [the research note](../docs/formal-triz-literature.md).
+
+## R133 — Quantitative physical-effect dependencies
+
+葛标标、杨春燕, *科学效应与可拓变换、传导效应的关系研究*, 广东工业大学学报,
+2021, 38(6):91–97, DOI `10.12052/gdutxb.210103`.
+[Publisher text](https://html.rhhz.net/GDGYDXXB/html/1636452043221-421788683.htm).
+**Considered method.** §§1–2.8 read. Quantitative dependencies motivate explicit law expressions;
+neither constitutive calibration nor a verified symbolic compiler is imported.
+
+## R134 — Compound-element change propagation
+
+廖升平、杨春燕, *异类多维复合元间的传导规则及其在可拓创新设计中的应用*, 广东工业大学学报,
+2024, 41(4):122–128, DOI `10.12052/gdutxb.230161`.
+[Publisher text](https://html.rhhz.net/GDGYDXXB/html/1717584627093-1727027999.htm).
+**Considered method.** §§1–2 read. Shared-element/dependency propagation motivates checked
+footprints and cache invalidation. The engine's frame, correspondence and pruning obligations
+are additional work in [the symbolic-summary proposal](../docs/symbolic-summary-design.md).

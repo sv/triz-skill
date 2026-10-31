@@ -1,5 +1,6 @@
 /** Exact finite gluing for overlapping local relations. No topological obstruction is inferred. */
 import { z } from "zod";
+import { RelationPlan, type RelationOptions } from "./act-relations.js";
 import { fail, issue, at } from "./act-issues.js";
 
 const Id = z.string().min(1);
@@ -26,40 +27,31 @@ export const GlobalSeparationRequest = z.strictObject({
 export type GlobalSeparationInput = z.infer<typeof GlobalSeparationRequest>;
 
 /** Global consistency requires a single assignment meeting ALL local tuples simultaneously. */
-export function globalSeparation(input: unknown) {
+export function globalSeparation(input: unknown, options: RelationOptions = {}) {
   const parsed = GlobalSeparationRequest.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues.map((e) => issue("invalid-argument", at("$", ...e.path.map(String)), e.message, "Use declared variables, values, and complete local tuples only.")));
   const s = parsed.data, max = s.max_work ?? 100_000;
   let work = s.variables.reduce((n, v) => n + v.values.length, 0) + s.regions.reduce((n, r) => n + r.allowed.length * Math.max(1, r.variables.length), 0);
-  const assigned: Record<string, string> = Object.create(null);
-  let capped = work > max;
+  class Limit extends Error {}
+  const spend = (n: number) => { if (work + n > max) { work = max; throw new Limit(); } work += n; };
   let witness: Record<string, string> | undefined;
-  const spend = () => { if (++work > max) { capped = true; return false; } return true; };
-  const compatible = () => {
-    for (const r of s.regions) {
-      let match = false;
-      for (const row of r.allowed) {
-        if (!spend()) return false;
-        if (r.variables.every((v, i) => !Object.hasOwn(assigned, v) || assigned[v] === row[i])) { match = true; break; }
-      }
-      if (!match) return false;
-    }
-    return true;
-  };
-  const search = (k: number): boolean => {
-    if (!spend() || !compatible()) return false;
-    if (k === s.variables.length) { witness = { ...assigned }; return true; }
-    const v = s.variables[k];
-    for (const value of v.values) {
-      assigned[v.id] = value;
-      if (search(k + 1)) return true;
-      if (capped) return false;
-    }
-    delete assigned[v.id];
-    return false;
-  };
-  if (!capped) search(0);
-  const common = { ok: true as const, work: Math.min(work, max), maxWork: max, semantics: "One finite global assignment must restrict to an allowed tuple in every overlapping region. Pairwise projection agreement alone does not establish it." };
+  let capped = work > max;
+  let relations: RelationPlan | undefined;
+  if (!capped) try {
+    const index = new Map(s.variables.map((v, i) => [v.id, i]));
+    const sets = s.regions.map(r => ({ vars: r.variables.map(v => index.get(v)!),
+      rows: r.allowed.map(row => row.map((x, i) => [index.get(r.variables[i])!, x] as [number, string])) }));
+    // Domain factors also supply unconstrained variables; no caller variable disappears.
+    sets.push(...s.variables.map((v, i) => ({ vars: [i], rows: v.values.map(x => [[i, x] as [number, string]]) })));
+    relations = new RelationPlan(sets, options, spend);
+    const assignment: Array<string | undefined> = Array(s.variables.length).fill(undefined);
+    const found = relations.witness(assignment, { explored: 0, max: Infinity, spend });
+    if (found) witness = Object.fromEntries(s.variables.map((v, i) => [v.id, assignment[i]!]));
+  } catch (e) {
+    if (!(e instanceof Limit)) throw e;
+    capped = true;
+  }
+  const common = { ok: true as const, work: Math.min(work, max), maxWork: max, ...(relations ? { relationStats: relations.stats } : {}), semantics: "One finite global assignment must restrict to an allowed tuple in every overlapping region. Pairwise projection agreement alone does not establish it." };
   if (witness) return { ...common, verdict: "satisfiable" as const, witness, complete: true };
   if (capped) return { ...common, verdict: "undecided" as const, reason: "work-cap" as const, complete: false };
   return { ...common, verdict: "unsatisfiable" as const, complete: true, obstruction: { regions: s.regions.map((r) => r.id), note: "The full finite join is empty; no minimal unsatisfiable core or cohomology class is claimed." } };

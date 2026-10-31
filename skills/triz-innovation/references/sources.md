@@ -315,8 +315,9 @@ matrix workbook provenance gap or validate domain-specific mappings.
 
 The implemented finite capabilities and exact limitations are recorded in
 [categorical-assurance.md](../../../docs/categorical-assurance.md). The separate
-[categorical-future-plan.md](../../../docs/categorical-future-plan.md) preserves the eight-workstream
-roadmap, decisions on all eighteen supplied suggestions, and falsifying cases. The complete
+[assurance requirements](../../../docs/assurance-requirements.md) preserve the workstreams'
+proof obligations and falsifying cases; the [roadmap](../../../docs/FUTURE-PLANS.md) owns
+priorities and status. The complete
 [theory/REFERENCES.md bibliography](../../../theory/REFERENCES.md) also includes the existing
 theory foundations, methods used to correct the suggestions, alternatives considered but not
 adopted, and the TRIZ/AI and evaluation sources above; it is not limited to future work.
@@ -325,6 +326,11 @@ verified checkers (Alkassar et al.), implementation-aware co-design (Censi), bou
 synthesis (Iannopollo et al.), sound abstraction/refinement, exact global-section constraints,
 network calculus, and DPO with interfaces. A citation alone does not establish that a kernel
 operation satisfies a paper's hypotheses.
+
+The [Russian/Chinese formalization review](../../../docs/formal-triz-literature.md) distinguishes
+OTSM/ontology models, Extenics transformation methods and lattice-ideality leads from
+machine-checked solver guarantees. Its primary sources and reading limits are R124–R134 in
+the bibliography; these methods and data have not been imported into the kernel.
 
 The controlled-trim proof in `theory/ControlledTrim.lean` uses explicit absorber reattachment
 and the existing ordinary DPO deletion/gluing basis. Related context-control formalisms are
