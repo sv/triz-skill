@@ -1,11 +1,11 @@
 import type { FunctionModel } from "../../src/act.js";
 
 /** Literal whole-port oracle: no recognition, quotient, joins, cache or pruning helpers. */
-export function wholePortBoundary(model: FunctionModel) {
+export function wholePortBoundary(model: FunctionModel, boundary?: { inputs: Array<{box:string;port:string}>; outputs: Array<{box:string;port:string}> }) {
   const ports = model.boxes.flatMap(b => (["in", "out"] as const).flatMap(side => (side === "in" ? b.inputs ?? [] : b.outputs ?? []).map(p => ({ box: b.id, side, port: p.id, domain: model.carriers.find(c => c.id === p.carrier)!.values! }))));
   const find = (box: string, side: "in" | "out", port: string) => ports.findIndex(p => p.box === box && p.side === side && p.port === port);
-  const ins = ports.filter(p => p.side === "in" && !model.wires.some(w => w.to.box === p.box && w.to.port === p.port));
-  const outs = ports.filter(p => p.side === "in" && model.boxes.find(b => b.id === p.box)!.role === "product" && model.wires.some(w => w.to.box === p.box && w.to.port === p.port && w.polarity !== "harmful"));
+  const ins = boundary ? boundary.inputs.map(p => ports[find(p.box,"in",p.port)]) : ports.filter(p => p.side === "in" && !model.wires.some(w => w.to.box === p.box && w.to.port === p.port));
+  const outs = boundary ? boundary.outputs.map(p => ports[find(p.box,"out",p.port)]) : ports.filter(p => p.side === "in" && model.boxes.find(b => b.id === p.box)!.role === "product" && model.wires.some(w => w.to.box === p.box && w.to.port === p.port && w.polarity !== "harmful"));
   const rows = new Set<string>(), values: string[] = [];
   const visit = (i: number) => {
     if (i < ports.length) { for (const x of ports[i].domain) { values[i] = x; visit(i + 1); } return; }

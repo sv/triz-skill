@@ -12,6 +12,7 @@ import { exportSymbolicLean, symbolicLeanProblems } from "../src/act-symbolic-le
 import { synthesisFixture } from "../tests/support/synthesis.ts";
 import { distinctMapFixture, sharedMapFixture, typedMapFixture } from "../tests/support/symbolic.ts";
 import { jointSynthesisFixture, correlatedSynthesisFixture, closedJointSynthesisFixture } from "../tests/support/joint-synthesis.ts";
+import { validateNamedReduction } from "../examples/assurance/effects-reduction.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "triz-symbolic-"));
 const lean = process.env.TRIZ_SYMBOLIC_LEAN ?? "lean";
@@ -33,10 +34,12 @@ try {
   const inputFlag = process.argv.indexOf("--input");
   const requests = inputFlag < 0 ? [...[2, 4, 6].map(n => synthesisFixture("coupled", n)), typedMapFixture(), distinctMapFixture(3), sharedMapFixture(2, 4), jointSynthesisFixture(3), correlatedSynthesisFixture(), closedJointSynthesisFixture()]
     : [JSON.parse(fs.readFileSync(process.argv[inputFlag + 1], "utf8"))];
+  const jobs = requests.map(input => ({ input }));
+  if (inputFlag < 0) jobs.push(...validateNamedReduction().symbolicCertificates.map(fixed => ({ fixed })));
   const records = [];
-  for (const [i, input] of requests.entries()) {
+  for (const [i, job] of jobs.entries()) {
     const started = performance.now();
-    const result = synthesizeFinite({ ...input, strategy: "symbolic", include_symbolic_certificate: true });
+    const result = job.fixed ? { ok: true, symbolicCertificates: [job.fixed] } : synthesizeFinite({ ...job.input, strategy: "symbolic", include_symbolic_certificate: true });
     assert.ok(result.ok && result.symbolicCertificates?.length, `No checked region: ${JSON.stringify(result.searchStats)}`);
     const text = exportSymbolicLean(result.symbolicCertificates);
     const encodingMs = performance.now() - started;
@@ -56,8 +59,7 @@ try {
       if (kind === "missing-stages") c.stages = [];
       if (kind === "extra-layer") c.layers.push(c.layers.at(-1));
       if (kind === "repeated-hole") {
-        const hole = c.stages.find(s => s.hole !== null);
-        c.stages.find(s => s !== hole).hole = hole.hole;
+        c.stages[0].hole = 0; c.stages[1].hole = 0;
       }
       if (kind === "fixed-choice-count") c.stages[0].choiceCount++;
       if (kind === "tuple-arity") c.layers[0][0].inputs[0].push("extra");
@@ -65,7 +67,7 @@ try {
       fs.writeFileSync(path.join(tmp, "Tampered.lean"), exportSymbolicLean(bad));
       run("Tampered.lean", [], false);
     }
-    records.push({ request: i, holes: input.holes.length, regions: result.symbolicCertificates.length, encodingAndSynthesisMs: encodingMs, certificateBytes: Buffer.byteLength(text), kernelCheckMs: kernelMs, tamperedRejected: corruptions.length * result.symbolicCertificates.length });
+    records.push({ request: i, kind: job.fixed ? "fixed-effect" : "synthesis", holes: job.input?.holes?.length ?? 0, regions: result.symbolicCertificates.length, encodingAndSynthesisMs: encodingMs, certificateBytes: Buffer.byteLength(text), kernelCheckMs: kernelMs, tamperedRejected: corruptions.length * result.symbolicCertificates.length });
   }
   console.log(JSON.stringify({ localOnly: true, reusableLawsCompileAndAuditMs: lawsMs,
     lawTheoremsAudited: [...stripComments(source).matchAll(/^theorem (\w+)/gm)].map(m => m[1]), standardAxiomsOnly: true, records }, null, 2));

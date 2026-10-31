@@ -24,15 +24,15 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack has 65 quantity declarations and 78 searchable typed entries: 69 selected
+The physical pack has 88 quantity declarations (65 original and 23 model-boundary/state types) and 78 searchable typed entries: 69 selected
 responses and nine mechanisms. These modeling roles do not count independent physical laws.
 `triz_knowledge.taxonomy` reports roles separately from field groups and links each field to its
 entry ids. Counts and taxonomy have the documented all-installed-packs scope, including when
 the parameter list is filtered. A field such as `magnetic` classifies responses; it does not
 supply a current-to-force contract or replace induction, Hall sensing or magnetostriction.
 The pack stores
-56 direct declarations and 22 named specializations of eight families with 14 signatures: 70
-independently declared interfaces in total. This reduces duplicate interface declarations;
+52 direct declarations and 22 named specializations of eight families with 14 signatures: 66
+independently declared unary interfaces, plus four derived named configurations (20/33/35/59). This reduces duplicate interface declarations;
 independent physical evidence and constitutive laws remain on each named case.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
 difference. Optical and nonuniform-field excitation tokens intentionally remain opaque where a
@@ -41,6 +41,106 @@ an effect, with other resources and operating assumptions recorded as conditions
 The original six quantity tokens are retained, but their new explicit SI declarations tighten
 matching: hand-authored resources/carriers must include the retrieved SI where required.
 `triz_effect_setup` copies those declarations directly and avoids reconstructing them from names.
+
+For compound-versus-split decisions, see [effects decomposition](effects-decomposition.md).
+`triz_effects` accepts `assessment: "retain-response" | "retain-compound" | "split-models"`;
+`triz_knowledge.taxonomy.model_assessments` groups the reviewed and unassessed ids. Optional
+`model_assessment` metadata reviews the whole named function and explicitly scopes the current
+typing. Its facets may reference unary `effect` clauses and multiport `models`; neither is
+an inferred generator, executable recipe or physical equivalence proof.
+
+## Multiport and stateful configurations
+
+Optional `KnowledgePack.models` defaults to empty. A template declares `id`, `name`, `description`,
+`parents`, named `inputs`/`outputs` referencing parameters, `conditions`, `provenance`, `limitations`,
+optional `review` and optional `state_parameter`. The compiler validates namespaces, unique
+ids/ports and all parameter/parent/facet references. `triz_knowledge.models` and `model_count`
+cover all installed packs; pack metadata reports local counts. Templates are separate from named
+lookups and unary interfaces, not additional physical laws.
+
+Call `triz_component_catalogue` with `{"source":"knowledge","parent":20}`; omit `parent` for all models.
+
+| Option | Contract |
+|---|---|
+| `models`, `query`, `parent` | Restrict templates by ids, text or parent effect. |
+| `effects:[33]` | Select a named configuration's constituents and return `named_configurations` wiring; no opaque component is added. |
+| `state_parameters` | Allow specified internal state meanings; stateless alternatives remain. Derive meanings from evidence, not names. `physical:separated-charge-state` excludes triplet phosphorescence. |
+| `bindings[parameter_id]` | Supply finite `values`, `levels`, `layer` and intensive/extensive allocation. Quantity tokens and SI cannot change. |
+| `declarations[model_id]` | Supply behavior, feasibility/cost or state/initial/transition using named ports. Stateful templates require all three state fields and reject memoryless substitutes; stateless templates reject internal state. |
+| `conditions` | Assert assumptions; `models[].unmetConditions` reports those missing. An assertion is not evidence. |
+
+Pass `catalogue` to `triz_component_search.catalogues[0].catalogue` with resource outputs and target
+inputs. `require_all_resources` requires every listed resource to participate. Search constructs
+multi-input/shared-output wiring and imports intermediate carriers; ambiguous existing carrier
+bindings and finite domains must agree explicitly. Bounds remain eight components, 100 entries
+and capped work. Conditions/limitations survive in candidate `catalogueOrigin` records.
+Without implementation rows, discovery is typed and behavior remains undecided. Use
+`triz_dynamics` for observation-step protocols and `triz_behavior`/`triz_feasibility` for finite
+relations/budgets. Certificates cover declarations, not continuous physics or empirical performance.
+
+## Named compositions instead of redundant effect generators
+
+`kind:"configuration"` retains the effect's selected `role` and declares model `nodes`, exact typed
+`wires`, external `inputs` with `targets`, and `outputs` with a `from` endpoint. Exactly one input
+and output are `primary`; they derive the unary discovery signature. Every node input needs one
+supplier. Unknown references, duplicate supplies, unused nodes and same-SI casts fail. Nodes
+reference models rather than effects, so configurations introduce no recursive recipe aliases.
+
+The four named views are 20 (illuminated analyzer), 33 (corona → ion-neutral force → gas flow),
+35 (shared phase → DC transport → current observation) and 59 (qE → force observation).
+`triz_effects` filters `form:"configuration"`; all 78 names/signatures remain and counts distinguish
+66 independent unary interfaces from four views. `triz_effect_chains` marks `requiresExpansion`
+and retains model assumptions. `triz_effect_insert` rejects opaque insertion even if a client
+strips the marker. Use `{"chain":[33],"domain":"physical","certificate":true}` with `triz_effect_setup`.
+
+Setup expands actual boxes and exposes context on the resource boundary: pressure and drift field
+for 33. `setup.context_inputs` identifies these required hypotheses; `setup.model_sources` retains
+sources, review, conditions and limitations. No availability, behavior, state or budget is inferred.
+Declare implementation rows through `node_declarations["0/ionize"]`, `["0/momentum"]`, `["0/flow"]`;
+the number is the zero-based expanded step, including serial recipes. `declarations[0]` cannot
+replace the composition with an opaque relation. Bind every constituent quantity. With finite
+`boundary`, declare every context through `context_values`, e.g. `{"0/pressure":[...],"0/field":[...]}`,
+using values from explicit carrier domains. Recipes retain integration hypotheses/provenance
+and expand to at most 12 actual model/effect boxes.
+
+Scalar and named setup share one builder. Named networks lower to typed inner diagrams and use
+the existing checked hierarchy substitution for fresh names and boundary rewiring. Read instance
+ids from `effects[].nodes`, `setup.model_sources[].node` and `setup.boundary_mappings[].box`;
+declaration keys such as `0/ionize` are unchanged. Shared inputs, output aliases and unused output
+ports retain their original wiring/relations; no implementation is summarized away.
+
+After declaring finite behavior, use `triz_subsystem_summary` on returned instance ids to obtain
+one exact stateless boundary relation. Complete serial maps reuse the checked symbolic compiler;
+partial, nondeterministic and other supported static networks use the shared finite projection.
+The result reports `method` and, for symbolic maps, a declaration-bound `symbolicCertificate`.
+Keep the original model for operating feasibility, provenance and dynamics; a state machine or
+undeclared behavior never becomes a static map. Discovery retains every original name/topology.
+
+Optional `KnowledgePack.boundary_mappings` defines sourced forward observations with qualified `id`,
+`name`, `description`, `input_parameter`, `output_parameter`, `relation:"forget-refinement"`,
+`rationale`, conditions, limitations, provenance and optional review. Mappings must be non-identity,
+same-dimensional and same-layer. Their semantic refinement needs evidence; dimensions do not
+select it. Current observations forget qualifiers on transmitted DC current and particle electric
+force while preserving value, terminal/population, frame/component and interval. They supply no
+inverse, net-force calculation, unit conversion or constitutive-law equivalence.
+
+Only configuration **outputs** may name `mapping`; the observed parameter is derived and the
+original stays in `model_parameter`. Internal wires require exact parameter identity. Setup adds
+an observation box and reports its evidence in `setup.boundary_mappings`. Finite observations
+require explicit identical value encoding, thresholds, allocation semantics and layer overrides;
+missing/mismatched domains fail without guessed conversion. Without domains only typing is known.
+
+`triz_knowledge.boundary_mappings` and `boundary_mapping_count` cover all installed packs.
+Catalogues include observations only via explicit `mappings` ids or `effects` selection, never
+as global aliases. `named_configurations[].catalogue_complete` reports their presence;
+`effects:[35]` obtains phase, transport and observation. No broader force/current can be refined
+in reverse. Deposition/sublimation, membrane/bed and temporal emission mechanisms remain distinct.
+
+For new or emerging patent terminology, extract resource/output types, history, regime and topology
+before adding a primitive. Compare resource-complete discovery, preserve old lookups and test
+missing resources and temporal alternatives. The [validation report](../../../docs/effects-configurations.md)
+records scopes and results. `pnpm example:effects-reduction --cert-dir DIR` also emits typing,
+selected finite behavior and retained-state certificates.
 
 ## Set up a categorical model
 

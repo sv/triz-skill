@@ -15,6 +15,8 @@ export const CatalogueSource = z.strictObject({ citation: Id, license: Id });
 const metadata = {
   tags: z.array(Id).max(100).optional(),
   domains: z.array(Id).max(100).optional(),
+  conditions: z.array(Id).max(100).optional().describe("Implementation assumptions retained with discovered components; typing does not establish them"),
+  limitations: z.array(Id).max(100).optional(),
   source: CatalogueSource.optional(),
 };
 export const ConcreteComponentEntry = z.strictObject({
@@ -117,6 +119,8 @@ export function instantiateCatalogues(
       source: z.infer<typeof CatalogueSource>;
       tags?: string[];
       domains?: string[];
+      conditions?: string[];
+      limitations?: string[];
       abstract: boolean;
     }
   > = Object.create(null);
@@ -307,6 +311,8 @@ export function instantiateCatalogues(
         max_instances: entry.max_instances,
         ...(entry.tags ? { tags: entry.tags } : {}),
         ...(entry.domains ? { domains: entry.domains } : {}),
+        ...(entry.conditions ? { conditions: entry.conditions } : {}),
+        ...(entry.limitations ? { limitations: entry.limitations } : {}),
         source: entry.source,
       });
       origins[id] = {
@@ -315,6 +321,8 @@ export function instantiateCatalogues(
         source: entry.source,
         ...(entry.tags ? { tags: entry.tags } : {}),
         ...(entry.domains ? { domains: entry.domains } : {}),
+        ...(entry.conditions ? { conditions: entry.conditions } : {}),
+        ...(entry.limitations ? { limitations: entry.limitations } : {}),
         abstract: "primitive" in entry,
       };
     }

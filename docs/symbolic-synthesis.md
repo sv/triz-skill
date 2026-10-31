@@ -45,6 +45,11 @@ Fan-in, fan-out, feedback and disconnected constraints remain in the residual co
 cycles without a serial head are not summarized. Existing hierarchy/stateful-hole rejection
 and declaration, resource-mode and harm checks still apply.
 
+`triz_subsystem_summary` reuses this compiler for fixed, fully declared serial regions without
+choice holes. It checks the complete selected interface and binds the certificate back to the
+original rows before returning a static map. Unsupported shapes use shared finite projection;
+missing behavior and state remain uncollapsed. The original model retains engineering obligations.
+
 ## Composition and choice supports
 
 Each prefix state is its typed boundary map. Equal primitive maps are grouped before

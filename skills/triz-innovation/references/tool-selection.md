@@ -24,7 +24,7 @@ run `npx -y -p triz-mcp triz …`. Do not read `src/` to learn a tool's argument
 | `triz_resolve(improving, worsening)` | Expand a matrix cell into principle records |
 | `triz_tool_catalog(stage?)` | List the broader toolset, optionally by stage |
 | `triz_component_search(model, resources, targets, catalogue, contract?, implementation?)` | Discover component instances and wiring with desired typed ports and optional finite property/resource contracts |
-| `triz_component_catalogue()` | Get shared polymorphic identity/fan-out relations; use `catalogues` and type bindings to combine reusable libraries across domains |
+| `triz_component_catalogue()` | Get general identity/fan-out relations, or `source:"knowledge"` for multiport/stateful templates; configure declarations and pass the catalogue to component search |
 | `triz_effect_chains(resources, output, effects?, k?, min_length?)` | Find bounded typed hypotheses without reusing an effect; min_length:1 finds nonempty same-type chains; empty resources fail closed |
 | `triz_lifecycle(model, box?, weights?, acceptable?)` | Check exact average-cost policies, explicit holding costs and stationary availability; tied transition choices remain undecided |
 | `triz_bond_graph(model, max_steps?)` | Structural energy causality, universally forced derivative storage and equation dependencies |

@@ -2,6 +2,11 @@
 import { z } from 'zod';
 import { FunctionModel, Endpoint, checkModel, type FunctionModel as Model } from './act.js';
 import { externalBehavior } from './act-behavior.js';
+import { modelRelations } from './act-relation-model.js';
+import { RelationPlan } from './act-relations.js';
+import { propagateRelations } from './act-propagation.js';
+import { compileSymbolicRegions, SymbolicFallback } from './act-synthesis-symbolic.js';
+import { checkRegionDeclarations } from './act-symbolic-certificate.js';
 import { fail, issue } from './act-issues.js';
 const ValueMap = z.union([z.array(z.tuple([z.string().min(1),z.string().min(1)])).refine(xs=>new Set(xs.map(([k])=>k)).size===xs.length,'Value map keys must be distinct'),z.record(z.string(),z.string().min(1))]);
 const PortMap = z.strictObject({ detailed:Endpoint, coarse:Endpoint, values:ValueMap });
@@ -48,9 +53,29 @@ export function behaviorRefinement(input:z.input<typeof RefinementRequest>) {
   return {ok:true as const,verdict:!missing.length?(!extra.length?'exact':'overapproximation'):(!extra.length?'underapproximation':'incomparable'),soundOverapproximation:!missing.length,scope:'whole',detailedPairCount:detail.size,coarsePairCount:abstract.size,detailedEmpty:!detail.size,coarseEmpty:!abstract.size,...(missing.length?{counterexample:JSON.parse(missing[0])}:{}),...(extra.length?{coarseOnly:JSON.parse(extra[0])}:{}),note:'Inclusion of complete declared steady-state relations under this interface/value map. Nonblocking, hidden harms, and truth of declarations are separate obligations.'};
 }
 export const SummaryRequest=z.strictObject({model:FunctionModel,boxes:z.array(z.string().min(1)).min(1),id:z.string().min(1).default('summary'),max_states:z.number().int().min(1).max(100_000).default(100_000)});
-export function summarizeSubsystem(input:z.input<typeof SummaryRequest>){
+/** A serial total-map summary needs no hidden-state enumeration. Unsupported regions keep
+ * the exact relational fallback; declarations, dimensions and joint tuples are never inferred. */
+function symbolicSummary(model: Model, ins: Array<{box:string;id:string}>, outs: Array<{box:string;id:string}>, max: number) {
+  let work=0;
+  const spend=(n=1)=>{if(work+n>max)throw new SymbolicFallback('summary-work-cap');work+=n;};
+  try {
+    for(const region of compileSymbolicRegions(model,[],spend,undefined,true)){
+      const c=region.certificate,first=c.stages[0],last=c.stages.at(-1)!;
+      if(region.boxes.length!==model.boxes.length||ins.length!==first.inputPorts.length||outs.length!==last.outputPorts.length
+        ||ins.some(p=>p.box!==first.box||!first.inputPorts.includes(p.id))||outs.some(p=>p.box!==last.box||!last.outputPorts.includes(p.id)))continue;
+      if(!checkRegionDeclarations(c,model,[],spend))return;
+      const map=c.layers.at(-1)![0];
+      return {certificate:c,relation:map.inputs.map((xs,i)=>({
+        in:Object.fromEntries(ins.map((p,j)=>[`in${j}`,xs[first.inputPorts.indexOf(p.id)]])),
+        out:Object.fromEntries(outs.map((p,j)=>[`out${j}`,map.outputs[map.image[i]][last.outputPorts.indexOf(p.id)]])),
+      }))};
+    }
+  } catch(e){if(!(e instanceof SymbolicFallback))throw e;}
+}
+
+export function summarizeSubsystem(input:z.input<typeof SummaryRequest>, options:{symbolic?:boolean}={}){
   const parsed=SummaryRequest.safeParse(input);if(!parsed.success)return fail(parsed.error.issues.map(e=>issue('invalid-argument',`$.${e.path.join('.')}`,e.message,'Name a nonempty subsystem.')));
-  const {model,boxes,id,max_states}=parsed.data;const checked=checkModel(model);if(!checked.ok)return checked;
+  const {model,boxes,id,max_states}=parsed.data;const checked=checkModel(model);if(!checked.ok)return fail(checked.issues);
   const keep=new Set(boxes);if(keep.size!==boxes.length||boxes.some(b=>!model.boxes.some(x=>x.id===b)))return fail([issue('invalid-argument','$.boxes','Subsystem boxes are duplicated or unknown.','Use distinct model box ids.')]);
   if(model.boxes.some(b=>b.id===id&&!keep.has(b.id)))return fail([issue('id-not-fresh','$.id','Summary id belongs to a box outside the subsystem.','Choose a fresh summary id.')]);
   const internal=model.wires.filter(w=>keep.has(w.from.box)&&keep.has(w.to.box));
@@ -58,24 +83,28 @@ export function summarizeSubsystem(input:z.input<typeof SummaryRequest>){
   const ins=selected.flatMap(b=>(b.inputs??[]).filter(p=>!internal.some(w=>w.to.box===b.id&&w.to.port===p.id)||model.wires.some(w=>!keep.has(w.from.box)&&w.to.box===b.id&&w.to.port===p.id)).map(p=>({box:b.id,...p})));
   const outs=selected.flatMap(b=>(b.outputs??[]).filter(p=>!internal.some(w=>w.from.box===b.id&&w.from.port===p.id)||model.wires.some(w=>!keep.has(w.to.box)&&w.from.box===b.id&&w.from.port===p.id)).map(p=>({box:b.id,...p})));
   if(!outs.length)return {ok:true as const,verdict:'undecided',reason:'no-output-interface'};
-  const taken=new Set([...model.boxes.map(b=>b.id),...model.wires.map(w=>w.id)]);let n=0;
-  const fresh=()=>{let s;do{s=`__summary_${n++}`;}while(taken.has(s));taken.add(s);return s;};
-  const observer=fresh();const env=ins.map(()=>fresh());
-  const sourceBoxes=ins.map((p,i)=>({id:env[i],name:'Boundary input',role:'environment' as const,inputs:[{id:'in',carrier:p.carrier}],outputs:[{id:'out',carrier:p.carrier}],behavior:(model.carriers.find(c=>c.id===p.carrier)!.values??[]).map(v=>({in:{in:v},out:{out:v}}))}));
-  let combinations:Array<Record<string,string>>=[{}];
-  for(let i=0;i<outs.length;i++){
-    const values=model.carriers.find(c=>c.id===outs[i].carrier)!.values;
-    if(!values)return {ok:true as const,verdict:'undecided',reason:'missing-values'};
-    if(combinations.length*values.length>max_states)return {ok:true as const,verdict:'undecided',reason:'cap-exceeded'};
-    combinations=combinations.flatMap(r=>values.map(v=>({...r,[`out${i}`]:v})));
+  if([...ins,...outs].some(p=>!model.carriers.find(c=>c.id===p.carrier)!.values))return {ok:true as const,verdict:'undecided',reason:'missing-values'};
+  if(selected.some(b=>b.inner))return fail([issue('hierarchy-substitution','$.boxes','Subsystem summary requires expanded hierarchy.','Expand nested boxes before summarizing.')]);
+  if(selected.some(b=>!b.behavior))return {ok:true as const,verdict:'undecided',reason:'missing-behavior'};
+  const local:Model={domain:model.domain,carriers:model.carriers,boxes:selected,wires:internal};
+  const symbolic=options.symbolic===false?undefined:symbolicSummary(local,ins,outs,max_states);
+  let behavior:Array<{in:Record<string,string>;out:Record<string,string>}>;
+  if(symbolic)behavior=symbolic.relation;
+  else {
+    const {ports,sets,domains}=modelRelations(local,selected),inputs=ins.map(p=>ports.at(p.box,'in',p.id)),boundary=[...new Set(inputs)];
+    if(boundary.reduce((n,v)=>n*domains[v].length,1)>max_states)return {ok:true as const,verdict:'undecided',reason:'cap-exceeded'};
+    const prepared=propagateRelations(sets,domains);
+    const table=new RelationPlan(prepared.sets).project(domains,boundary,outs.map(p=>ports.at(p.box,'out',p.id)),0,{explored:0,max:max_states});
+    if(!table)return {ok:true as const,verdict:'undecided',reason:'cap-exceeded'};
+    behavior=[...table.values()].flatMap(row=>[...row.outputs.values()].map(out=>({
+      in:Object.fromEntries(inputs.map((v,i)=>[`in${i}`,row.input[boundary.indexOf(v)]])),
+      out:Object.fromEntries(outs.map((_,i)=>[`out${i}`,out[i]])),
+    })));
   }
-  if(sourceBoxes.some(b=>!b.behavior.length))return {ok:true as const,verdict:'undecided',reason:'missing-values'};
-  const temporary:Model={domain:model.domain,carriers:model.carriers,boxes:[...selected.map(b=>({...b,role:'tool' as const})),...sourceBoxes,{id:observer,name:'Boundary observations',role:'product',inputs:outs.map((p,i)=>({id:`out${i}`,carrier:p.carrier})),behavior:combinations.map(r=>({in:r,out:{}}))}],wires:[...internal,...ins.map((p,i)=>({id:fresh(),from:{box:env[i],port:'out'},to:{box:p.box,port:p.id},carrier:p.carrier,polarity:'useful' as const})),...outs.map((p,i)=>({id:fresh(),from:{box:p.box,port:p.id},to:{box:observer,port:`out${i}`},carrier:p.carrier,polarity:'useful' as const}))]};
-  const evaluated=externalBehavior(temporary,{scope:'whole',fullRelation:true,maxStates:max_states});
-  if(!evaluated.ok)return evaluated;if(!evaluated.decided)return {ok:true as const,verdict:'undecided',reason:'missing-behavior',details:evaluated};
   const inputMap=ins.map((p,i)=>({original:{box:p.box,port:p.id},summary:{box:id,port:`in${i}`}}));
   const outputMap=outs.map((p,i)=>({original:{box:p.box,port:p.id},summary:{box:id,port:`out${i}`}}));
-  const behavior=evaluated.relation.flatMap(row=>row.outputs.map(out=>({in:Object.fromEntries(ins.map((_,i)=>[`in${i}`,row.input[evaluated.inputs.findIndex(p=>p.box===env[i]&&p.port==='in')]])),out:Object.fromEntries(outs.map((_,i)=>[`out${i}`,out[evaluated.deliverables.findIndex(p=>p.box===observer&&p.port===`out${i}`)]]))})));
   const cost:Record<string,number>={};for(const b of selected)for(const[d,v]of Object.entries(b.cost??{}))Object.defineProperty(cost,d,{value:(Object.hasOwn(cost,d)?cost[d]:0)+v,enumerable:true,configurable:true,writable:true});
-  return {ok:true as const,verdict:behavior.length?'summarized':'empty-relation',scope:'whole-subsystem',box:{id,name:`Summary of ${boxes.join(', ')}`,role:'tool' as const,inputs:ins.map((p,i)=>({id:`in${i}`,carrier:p.carrier})),outputs:outs.map((p,i)=>({id:`out${i}`,carrier:p.carrier})),cost,...(behavior.length?{behavior}:{})},relation:behavior,inputMap,outputMap,hiddenHarms:internal.filter(w=>w.polarity==='harmful'||w.polarity==='excessive').map(w=>w.id),note:behavior.length?'Exact declared steady-state summary with fixed costs; operating feasibility, dynamics, and hidden-harm adequacy are not inferred.':'The subsystem admits no boundary behavior. An absent behavior declaration must not be used to represent the empty relation.'};
+  return {ok:true as const,verdict:behavior.length?'summarized':'empty-relation',scope:'whole-subsystem',method:symbolic?'symbolic' as const:'finite' as const,
+    ...(symbolic?{symbolicCertificate:symbolic.certificate}:{}),
+    box:{id,name:`Summary of ${boxes.join(', ')}`,role:'tool' as const,inputs:ins.map((p,i)=>({id:`in${i}`,carrier:p.carrier})),outputs:outs.map((p,i)=>({id:`out${i}`,carrier:p.carrier})),cost,...(behavior.length?{behavior}:{})},relation:behavior,inputMap,outputMap,hiddenHarms:internal.filter(w=>w.polarity==='harmful'||w.polarity==='excessive').map(w=>w.id),note:behavior.length?'Exact declared steady-state summary with fixed costs; operating feasibility, dynamics, and hidden-harm adequacy are not inferred.':'The subsystem admits no boundary behavior. An absent behavior declaration must not be used to represent the empty relation.'};
 }

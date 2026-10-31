@@ -1,7 +1,7 @@
 # Engine roadmap
 
 This is the single prioritized backlog. Status was reconciled against reference main
-`68556e9` on 2026-10-31; local synthesis changes are identified separately below.
+`9bd2942` on 2026-11-01; PR #55 effects changes remain under review.
 [Assurance requirements](assurance-requirements.md) owns acceptance and proof obligations,
 [delivered assurance](categorical-assurance.md) owns current guarantees, and the
 [theory map](theory-map.md#what-is-not-claimed) records their limits. See the
@@ -54,7 +54,7 @@ not claim a fresh reproduction of every report on this checkout.
 | Equal lifecycle optima leave comparison unresolved | E2: preserve ties; accept an explicit secondary objective or stated policy-selection convention |
 | Result display/work caps require manual splitting | Scaling: separate pagination/continuation from search completeness and optimality |
 | Expanded hierarchy and its flat shell cannot be compared directly | Q5/item 5: checked observable/interface mapping, independently of internal annotations |
-| Only six built-in effects have executable typings | E1/B2: expand reviewed effect/component models with laws, applicability and provenance |
+| Typed effect names lack calibrated implementation laws | E1/B2: validate sourced multiport/stateful models with explicit applicability and provenance |
 
 ## Assurance and categorical foundations
 
@@ -140,7 +140,7 @@ review status; an Agents snapshot does not supply imperative transition semantic
 | S1 | Finite min-fill separator elimination in merged #52 | Checked runtime correspondence; stronger orders and shared decomposition plans; extend beyond behavior projection |
 | S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in merged #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
 | S3 | Exact stateless single-mode contracts implemented | Local residual synthesis, explicitly coupled multi-mode contracts, then dynamics |
-| S4 | Request-local synthesis cache in this checkout | Checked warm starts/content-hash subsystem reuse across requests |
+| S4 | Request-local synthesis cache merged in #52 | Checked warm starts/content-hash subsystem reuse across requests |
 | S5 | Open; C5/Q5 available | Observable- and reward-preserving bisimulation before dynamic products |
 | S6 | Bounded stateless serial finite maps implemented | Affine/feedback summaries, dependency footprints, cross-request reuse and certified parameter bounds |
 
@@ -210,7 +210,7 @@ T1–T5 are merged in reference main via #51.
 
 | ID | Implemented scope | Remaining boundary |
 |---|---|---|
-| T1 | Six entry-derived typed effects, bounded chains and checked insertion | Calibrated physical catalogue, broader effects and source rights/provenance |
+| T1 | Knowledge packs merged in #53; #55 adds 19 model templates, two observations and four named configurations across 78 discovery names | Empirical calibration, assessment coverage and rights for third-party catalogue imports |
 | T2 | Explicit SI vectors/base-unit parsing and dimension lints | Conversion and inference |
 | T3 | Exact cycle means, potentials and achieving-cycle certificates | Probabilistic/continuous-time extension |
 | T4 | Finite average-cost lifecycle policies, occupancy/availability and certificate foundations | General multichain/product methods, joint design optimization and robust games |
@@ -219,6 +219,20 @@ T1–T5 are merged in reference main via #51.
 See [typed effects and lifecycle](typed-effects-lifecycle.md), [bond graphs](bond-graphs.md),
 [component discovery](component-discovery.md) and [mathematical connections](math-connections.md).
 These guides own executable examples and current tool restrictions.
+
+The [#55](https://github.com/sv/triz-skill/pull/55) effects follow-up remains bounded:
+
+- **Assessment coverage:** 34 named entries have sourced retain/split decisions; **44 remain
+  unassessed**. Further reductions need explicit boundaries, context/state and sources plus
+  preserved discovery on relevant examples. Equal fields or units do not justify merging.
+- **Calibration:** empirical validation of the **19 templates** and implementation-specific
+  checks of the **two boundary observations** remain open. Bind attributed measurements or
+  independent expert validation to material, geometry, regime, temporal resolution, uncertainty
+  and operating envelopes. See [the validation scope](effects-configurations.md).
+
+Finite rows, typing/behavior certificates and bounded patent regressions establish their
+selected declared claims; they do not establish calibrated performance, continuous-law or
+whole-patent equivalence, or correctness of unassessed entries.
 
 ## Deliberately not planned
 

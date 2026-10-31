@@ -448,6 +448,328 @@
         "additionalProperties": false
       }
     },
+    "models": {
+      "default": [],
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parents": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                },
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              ]
+            }
+          },
+          "inputs": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": [
+                "id",
+                "parameter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "outputs": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": [
+                "id",
+                "parameter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "state_parameter": {
+            "description": "Meaning of internal history; configured implementations must declare state, initial and transition",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "conditions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "citation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "license": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "citation",
+              "license"
+            ],
+            "additionalProperties": false
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "curated",
+                  "expert-reviewed"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewers": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "expertise": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "expertise"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "reviewed_on": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "status",
+              "note",
+              "reviewers"
+            ],
+            "additionalProperties": false
+          },
+          "limitations": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "parents",
+          "inputs",
+          "outputs",
+          "conditions",
+          "provenance",
+          "limitations"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "boundary_mappings": {
+      "default": [],
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "input_parameter": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "output_parameter": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "relation": {
+            "type": "string",
+            "const": "forget-refinement"
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          },
+          "conditions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "limitations": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "citation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "license": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "citation",
+              "license"
+            ],
+            "additionalProperties": false
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "curated",
+                  "expert-reviewed"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewers": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "expertise": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "expertise"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "reviewed_on": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "status",
+              "note",
+              "reviewers"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "input_parameter",
+          "output_parameter",
+          "relation",
+          "rationale",
+          "conditions",
+          "limitations",
+          "provenance"
+        ],
+        "additionalProperties": false
+      }
+    },
     "effects": {
       "maxItems": 10000,
       "type": "array",
@@ -566,6 +888,9 @@
                   "type": "string",
                   "minLength": 1
                 }
+              },
+              "model_assessment": {
+                "$ref": "#/$defs/EffectModelAssessment"
               },
               "related_effects": {
                 "type": "array",
@@ -900,6 +1225,9 @@
                   "minLength": 1
                 }
               },
+              "model_assessment": {
+                "$ref": "#/$defs/EffectModelAssessment"
+              },
               "related_effects": {
                 "type": "array",
                 "items": {
@@ -1095,6 +1423,9 @@
                   "minLength": 1
                 }
               },
+              "model_assessment": {
+                "$ref": "#/$defs/EffectModelAssessment"
+              },
               "related_effects": {
                 "type": "array",
                 "items": {
@@ -1178,6 +1509,397 @@
               "source"
             ],
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "category": {
+                "type": "string",
+                "minLength": 1
+              },
+              "function": {
+                "type": "string",
+                "minLength": 1
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1
+              },
+              "hints": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "provenance": {
+                "type": "object",
+                "properties": {
+                  "citation": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "license": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "citation",
+                  "license"
+                ],
+                "additionalProperties": false
+              },
+              "review": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "curated",
+                      "expert-reviewed"
+                    ]
+                  },
+                  "note": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reviewers": {
+                    "default": [],
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "expertise": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "expertise"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "reviewed_on": {
+                    "type": "string",
+                    "format": "date",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                  }
+                },
+                "required": [
+                  "status",
+                  "note",
+                  "reviewers"
+                ],
+                "additionalProperties": false
+              },
+              "limitations": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "model_assessment": {
+                "$ref": "#/$defs/EffectModelAssessment"
+              },
+              "related_effects": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        },
+                        {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      ]
+                    },
+                    "relation": {
+                      "type": "string",
+                      "enum": [
+                        "specializes",
+                        "uses",
+                        "related"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "relation"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "kind": {
+                "type": "string",
+                "const": "configuration"
+              },
+              "role": {
+                "type": "string",
+                "enum": [
+                  "response",
+                  "mechanism"
+                ]
+              },
+              "configuration": {
+                "type": "object",
+                "properties": {
+                  "nodes": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "model": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "model"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "wires": {
+                    "maxItems": 192,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "from": {
+                          "type": "object",
+                          "properties": {
+                            "node": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            },
+                            "port": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            }
+                          },
+                          "required": [
+                            "node",
+                            "port"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "to": {
+                          "type": "object",
+                          "properties": {
+                            "node": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            },
+                            "port": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            }
+                          },
+                          "required": [
+                            "node",
+                            "port"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "from",
+                        "to"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "inputs": {
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "targets": {
+                          "minItems": 1,
+                          "maxItems": 32,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "node": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$"
+                              },
+                              "port": {
+                                "type": "string",
+                                "pattern": "^[a-z][a-z0-9-]*$"
+                              }
+                            },
+                            "required": [
+                              "node",
+                              "port"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "primary": {
+                          "default": false,
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "targets",
+                        "primary"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "outputs": {
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*$"
+                        },
+                        "from": {
+                          "type": "object",
+                          "properties": {
+                            "node": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            },
+                            "port": {
+                              "type": "string",
+                              "pattern": "^[a-z][a-z0-9-]*$"
+                            }
+                          },
+                          "required": [
+                            "node",
+                            "port"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "mapping": {
+                          "description": "Explicit forward observation of this output; never a cast on internal wires",
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                        },
+                        "primary": {
+                          "default": false,
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "from",
+                        "primary"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "nodes",
+                  "wires",
+                  "inputs",
+                  "outputs"
+                ],
+                "additionalProperties": false
+              },
+              "field": {
+                "type": "string",
+                "enum": [
+                  "mechanical",
+                  "acoustic",
+                  "thermal",
+                  "chemical",
+                  "electric",
+                  "magnetic",
+                  "optical",
+                  "gravitational",
+                  "information"
+                ]
+              },
+              "conditions": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "typed_from": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "statement"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "category",
+              "function",
+              "statement",
+              "hints",
+              "kind",
+              "role",
+              "configuration",
+              "field",
+              "conditions",
+              "source",
+              "typed_from"
+            ],
+            "additionalProperties": false
           }
         ]
       }
@@ -1200,8 +1922,107 @@
     "limitations",
     "parameters",
     "families",
+    "models",
+    "boundary_mappings",
     "effects"
   ],
   "additionalProperties": false,
+  "$defs": {
+    "EffectModelAssessment": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "retain-response",
+            "retain-compound",
+            "split-models"
+          ]
+        },
+        "selected_clause": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scope of the existing registered typing, not the whole named application"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facets": {
+          "minItems": 2,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "effect": {
+                "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "models": {
+                "description": "Related multiport model templates; not a realization or equivalence proof",
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "citation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "license": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "citation",
+            "license"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "type": "string",
+          "const": "assessment-only",
+          "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
+        }
+      },
+      "required": [
+        "decision",
+        "selected_clause",
+        "rationale",
+        "source",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
   "title": "TRIZ knowledge pack"
 }

@@ -126,6 +126,12 @@ quantity boundaries and explicit per-step implementation rows remain visible. Th
 
 ## Product and patent validation
 
+The follow-up [compound/clause audit](../skills/triz-innovation/references/effects-decomposition.md)
+records 34 detailed decisions without changing these executable contracts: 15 retain-compound,
+six split-models and 13 retain-response. Assessments review the full named function, while its
+registered typing can cover only one selected clause. Missing facets are not generators, and a
+recommended decomposition supplies neither an executable recipe nor a physical equivalence proof.
+
 `pnpm example:effects-products` checks three selected real cases using a frozen, source-linked
 [fixture](../examples/assurance/fixtures/product-patent-cases.json). It checks the contracts before
 and after the field/mechanism cleanup, while the separate compatibility snapshot protects all
@@ -320,3 +326,11 @@ proposal/verification, followed by quantitative resource and probability contrac
 frontier mechanisms should enter expert-curated draft packs with their operating regime and
 controlling inputs preserved. Their engineering value should be tested through a specified
 before/after task and a negative control, as in the examples above.
+
+## Multiport and stateful configurations
+
+The [configuration and reduction report](effects-configurations.md) covers 19 templates,
+23 added boundary/state quantities, two forward observations and four named configurations.
+All 78 names remain; independent unary interfaces fall to 66. It records the eight-patent
+comparison, three additional boundary cases, preserved topologies, removed opaque shortcuts,
+source locators, temporal controls and the limits of finite validation.

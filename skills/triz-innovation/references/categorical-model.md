@@ -1237,7 +1237,9 @@ claims typing only. Complete absence is `impossible-in-library`; caps or unknown
 `certificate:true` returns supported typing/behavior certificates for the first result.
 
 `triz_component_catalogue` returns general identity/fan-out relations parameterized by carrier
-`T`. Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
+`T` by default. `source: "knowledge"` returns registered multiport and stateful physical
+models, with explicit parameter bindings and implementation rows; see
+[knowledge setup](knowledge-packs.md#multiport-and-stateful-configurations). Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
 sourced entries. Bind parameters explicitly; conflicting or ambiguous aliases fail closed.
 Tags/domains only organize entries. Abstract relations declare no physical resource modes or
 costs. Imported carriers and entry origins are returned for replay; supplied source/license

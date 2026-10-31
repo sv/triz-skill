@@ -42,7 +42,14 @@ and a runnable hardware/software/provider example.
 
 ### General, reusable catalogues
 
-`triz_component_catalogue` returns the shared `general` catalogue. Its type parameter `T` can bind
+`triz_component_catalogue` returns the shared `general` catalogue by default.
+With `source: "knowledge"`, it builds a catalogue from registered multiport/stateful effect
+models; parameter bindings configure carriers and declarations supply implementation rows.
+Conditions and limitations are retained in each discovered component origin. See
+[setup](../skills/triz-innovation/references/knowledge-packs.md#multiport-and-stateful-configurations)
+and the [decomposed-patent comparison](effects-configurations.md).
+
+The `general` catalogue provides abstract identity/fan-out relations. Its type parameter `T` can bind
 to any explicitly declared model carrier. Add this selection to a search request:
 
 ```json
