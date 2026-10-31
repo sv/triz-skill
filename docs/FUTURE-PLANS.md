@@ -77,7 +77,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 |---|---|---|
 | T2 Dimensions | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit SI vectors/base-unit parsing, shared equality and dimension lints; no conversions/inference |
 | T3 Costed dynamics | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact Karp cycle ranges, potentials and achieving-cycle certificates; no probabilities/continuous time |
-| T1 Typed effects | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Typed filters, capped checked chains and weakest-spec hints; six entry-derived typings; external catalogue rights gap remains |
+| T1 Typed effects | Core and knowledge packs landed in [#51](https://github.com/sv/triz-skill/pull/51)/[#53](https://github.com/sv/triz-skill/pull/53); model/observation extension in [#55](https://github.com/sv/triz-skill/pull/55), under review | Typed filters, checked discovery and setup; sourced repository-authored templates carry provenance/licenses. Third-party catalogue imports still require rights; finite checks do not establish empirical calibration. |
 | T4 Lifecycle MDP | Implemented in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Exact scalar-gain policy iteration, stationary occupancy/availability, certificates and concept-specific priors; general multichain/product-MDP/game scope remains open |
 | T5 Bond graphs | Design and first structural implementation in [#51](https://github.com/sv/triz-skill/pull/51), pending merge | Explicit effort/flow typing, capped causality and equation structure; no numerical simulation/chemistry |
 
@@ -93,6 +93,22 @@ explicit replacement and optional whole-model finite contracts. See
 The same PR adds reusable domain-independent bundles, explicit type bindings and shared
 polymorphic identity/fan-out relations. Domain tags organize entries without limiting composition.
 Empirical component specifications remain separately sourced inputs.
+
+The [#55](https://github.com/sv/triz-skill/pull/55) follow-up backlog is explicitly bounded:
+
+- **Assessment coverage:** 34 named entries have detailed retain/split assessments; **44 remain
+  unassessed**. Review their selected boundaries, required context, state and sources before
+  proposing further reductions. Acceptance requires a sourced decision and preserved discovery
+  on relevant examples; a shared unit or field alone does not justify merging effects.
+- **Template calibration:** empirical validation of the **19 multiport/stateful templates** and
+  implementation-specific checks of the **two boundary observations** remain open. Obtain
+  attributed measurements or independent expert validation for the selected material, geometry,
+  regime, temporal resolution and uncertainty, then bind those data to implementation rows and
+  operating envelopes. See [the source-backed examples and their scope](effects-configurations.md).
+
+Not claimed by #55: calibrated physical performance, continuous-law or whole-patent equivalence,
+or correctness of the remaining unassessed entries. Its finite example rows, typing/behavior
+certificates and bounded discovery regressions establish only their declared model claims.
 
 PR #51 review fixes distinguish steady resource balance from grounded input support, expose
 unused discovery resources and a require-all option, and add explicit per-state lifecycle holding

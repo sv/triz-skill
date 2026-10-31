@@ -72,6 +72,26 @@ test("catalogue setup exposes hypotheses, exact parameter types and explicit sta
   } }, k).ok, false, "a temporal alternative cannot be smuggled into a stateless template");
 });
 
+test("catalogue assembly errors retain the actual validation path for capacity and entry-shape failures", () => {
+  const oversized = structuredClone(k);
+  while (oversized.models.length < 100) oversized.models.push({ ...structuredClone(k.models[0]), id: p(`overflow-model-${oversized.models.length}`) });
+  const capacity = knowledgeModelCatalogue({ source: "knowledge", mappings: k.boundary_mappings.map(m => m.id) }, oversized);
+  assert.equal(capacity.ok, false);
+  if (!capacity.ok) {
+    assert.equal(capacity.issues[0].path, "$.catalogue.entries");
+    assert.match(capacity.issues[0].message, /100/);
+  }
+  // Fault injection models a future registry/assembly shape mismatch, not another selection cap.
+  const malformed = structuredClone(k);
+  malformed.models[0].provenance.license = "";
+  const shape = knowledgeModelCatalogue({ source: "knowledge", models: [malformed.models[0].id] }, malformed);
+  assert.equal(shape.ok, false);
+  if (!shape.ok) {
+    assert.equal(shape.issues[0].path, "$.catalogue.entries[0].source.license");
+    assert.doesNotMatch(shape.issues[0].message, /exceed|limit/i);
+  }
+});
+
 /** Configure a selected implementation, then let the existing search construct its wiring. */
 function network(ids: string[], resources: string[], targets: string[], bindings: Record<string, any>, declarations: Record<string, any>) {
   const r = knowledgeModelCatalogue({ source: "knowledge", models: ids.map(p), bindings: Object.fromEntries(Object.entries(bindings).map(([id, b]) => [p(id), b])),

@@ -32,12 +32,14 @@ export function discovery(c, after = true, k = knowledge()) {
     component: { id: `effect-${e.id}`, name: e.name, role: "tool", inputs: [{ id: "in", carrier: e.input_parameter }], outputs: [{ id: "out", carrier: e.output_parameter }] }, source: e.provenance, conditions: e.conditions, limitations: e.limitations }));
   if (after) entries.push(...extra.catalogue.entries.map(e => ({ ...e, original: e.id })));
   const originals = new Map();
-  // Blind ids, names, tags and domains before search. Expected components are only an assertion afterwards.
+  // Assign anonymous ids/names. The explicit allowlist below omits tags/domains from both libraries;
+  // types, sources and assumptions stay intact. Expected components are asserted only after search.
   const blinded = entries.map((e, i) => {
     const id = `component-${i}`;
     originals.set(id, e.original);
     return { id, component: { ...e.component, id, name: id }, source: e.source, conditions: e.conditions, limitations: e.limitations };
   });
+  assert.ok(blinded.every(e => !("tags" in e) && !("domains" in e)), "organization metadata must not enter the blinded catalogue");
   const catalogue = { format: "triz-component-catalogue-v1", id: "blinded-library", carriers: k.parameters.map(p => carrier(p.id)), entries: blinded };
   const result = searchComponents({ model: boundary(c.resources, c.targets),
     resources: c.resources.map((_, i) => ({ box: "resource", port: `r${i}` })),

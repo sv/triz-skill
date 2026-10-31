@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { Box, Carrier, checkModel } from "./act.js";
 import { ComponentCatalogue, GENERAL_CATALOGUE } from "./act-component-catalogue.js";
-import { fail, issue } from "./act-issues.js";
+import { at, fail, issue } from "./act-issues.js";
 import { compileKnowledge } from "./knowledge.js";
 import { boundaryMappingComponent } from "./knowledge-boundary-mappings.js";
 
@@ -96,7 +96,10 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
     } catch (error) { return reject("$.bindings", error instanceof Error ? error.message : "Invalid boundary mapping domains"); }
   }
   const catalogue = ComponentCatalogue.safeParse({ format: "triz-component-catalogue-v1", id: "registered-knowledge-models", carriers, entries });
-  if (!catalogue.success) return reject("$.models", "Selected models exceed the portable catalogue limits");
+  if (!catalogue.success) return fail(catalogue.error.issues.map(e => issue("invalid-argument",
+    at("$.catalogue", ...e.path.map(p => typeof p === "number" ? p : String(p))),
+    `Catalogue assembly failed: ${e.message}`,
+    "Check the assembled catalogue at this path against the component-catalogue schema; adjust the selected models, mappings or bindings.")));
   return { ok: true as const, catalogue: catalogue.data,
     boundary_mappings: mappings,
     named_configurations: knowledge.effects.filter(e => e.definition.form === "configuration" && (!a.effects || a.effects.includes(e.id)) &&
