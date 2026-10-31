@@ -100,3 +100,17 @@ search entries. Case-specific conditions, attribution, limitations and text are 
 frozen compatibility test. Conduction, convection and radiation, for example, retain their own
 constitutive laws and evidence while sharing a selected input/output interface. Serial recipes
 expand into their constituent effects before model checks; see [knowledge packs](knowledge-packs.md).
+
+## Field and mechanism cleanup
+
+Entry 72 is classified as a mechanism rather than a response: phased electrodes use the
+electrostatic and dielectrophoretic responses of entries 59 and 71. The selected typing, text,
+conditions, related-effect links and evidence are unchanged. The catalogue now has 65 response
+entries and nine mechanism entries; its 74 searchable cases and 69 interface declarations remain.
+`triz_knowledge` exposes field groups separately from these roles. Field membership supplies no
+force law or typed arrow, and neither role nor interface counts assert scientific irreducibility.
+
+Checks against an H2W voice-coil stage and two patent disclosures support keeping the useful
+response contracts. They also reject treating a dust shield's simultaneous forces or a
+refrigerator's heat-transfer paths as serial recipes. See the executable
+[product/patent validation](../../../docs/effects-evidence.md#product-and-patent-validation).

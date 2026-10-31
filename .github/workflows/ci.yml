@@ -43,6 +43,8 @@ jobs:
 
       - run: pnpm example:effects-compare
 
+      - run: pnpm example:effects-products
+
       - name: MCP handshake smoke test (dist)
         run: node scripts/smoke-mcp.mjs dist/server.js
 

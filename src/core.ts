@@ -94,6 +94,7 @@ export function knowledgeCatalog(query?: string, domain?: string) {
       .map(({ parameters, effects, families, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length })),
     families: all.families.filter(f => !domain || f.domain === "universal" || f.domain === domain),
     counts: all.counts,
+    taxonomy: all.taxonomy,
     counts_scope: "all-installed-packs",
     parameters,
     total: all.parameters.length,

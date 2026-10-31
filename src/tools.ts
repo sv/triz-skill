@@ -363,7 +363,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
     },
     {
       name: "triz_knowledge",
-      description: "List installed universal and domain knowledge packs, provenance, review status, explicit quantity parameters, shared interface families and definition counts. Uses all packs by default. A domain filter includes universal definitions; counts describe all installed packs. These parameters are separate from the canonical 39 matrix parameters; domain mappings never invoke the matrix automatically.",
+      description: "List installed universal and domain knowledge packs, provenance, review status, explicit quantity parameters, shared interface families and definition counts. Taxonomy separately reports response/mechanism/recipe roles and field groups with entry ids; fields do not supply response contracts and counts do not measure independent physical laws. Uses all packs by default. A domain filter includes universal definitions; counts and taxonomy describe all installed packs. These parameters are separate from the canonical 39 matrix parameters; domain mappings never invoke the matrix automatically.",
       shape: {
         query: z.string().optional().describe("Search quantity parameter definitions"),
         domain: z.string().optional().describe("Optional domain plus universal definitions; omit to use all"),

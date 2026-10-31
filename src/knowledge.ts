@@ -126,6 +126,21 @@ export type RegisteredEffect = Omit<z.infer<typeof KnowledgeEffect>, "kind"> & {
   pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview>; limitations: string[];
 };
 
+/** Classification and modeling roles are separate axes, neither a basis of physical laws. */
+export function effectTaxonomy(effects: readonly RegisteredEffect[]) {
+  const roles = { response: 0, mechanism: 0, composite: 0, unclassified: 0 };
+  const fieldGroups = EffectField.options.map(field => ({ field,
+    entry_ids: effects.filter(e => e.field === field || e.fields?.includes(field)).map(e => e.id),
+  })).filter(group => group.entry_ids.length > 0);
+  for (const e of effects) roles[e.kind ?? "unclassified"]++;
+  return {
+    roles,
+    field_groups: fieldGroups,
+    without_field: effects.filter(e => !e.field && !e.fields?.length).map(e => e.id),
+    note: "Fields classify entries; they do not supply response contracts. Roles describe selected responses, designed mechanisms or serial recipes, not scientific novelty or irreducible laws. A recipe may belong to several field groups.",
+  };
+}
+
 /** Project only complete declarations onto the existing typed-effect kernel schema. */
 export function typedKnowledgeEffects(effects: RegisteredEffect[]): import("./act-effects.js").TypedEffect[] {
   return effects.filter(e => e.kind !== "composite" && e.input && e.output && e.field && e.conditions && e.source && e.typed_from)
@@ -244,7 +259,7 @@ export function compileKnowledge(raw: unknown[]) {
   const specializations = effects.filter(e => e.definition.form === "specialization").length;
   const composites = effects.filter(e => e.definition.form === "composite").length;
   const direct = effects.length - specializations - composites;
-  return { packs, parameters, effects, families, counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
+  return { packs, parameters, effects, families, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
     independent_contracts: effects.filter(e => e.definition.form === "direct" && e.input && e.output).length + families.reduce((n, f) => n + f.signatures.length, 0), searchable: effects.length } };
 }
 

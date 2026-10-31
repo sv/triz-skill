@@ -16,6 +16,7 @@
     "knowledge:check": "node --import tsx scripts/knowledge.mjs --check",
     "example:effects": "node --import tsx examples/assurance/effects-flow.mjs",
     "example:effects-compare": "node --import tsx examples/assurance/effects-comparison.mjs",
+    "example:effects-products": "node --import tsx examples/assurance/effects-products.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "smoke:mcp": "node scripts/smoke-mcp.mjs",

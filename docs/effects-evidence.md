@@ -118,6 +118,46 @@ such a serial mechanism therefore needs no new opaque generator. Nested recipe s
 quantity boundaries and explicit per-step implementation rows remain visible. The installed
 74-entry catalogue is unchanged in coverage; the temporary recipe is only an example.
 
+## Product and patent validation
+
+`pnpm example:effects-products` checks three selected real cases using a frozen, source-linked
+[fixture](../examples/assurance/fixtures/product-patent-cases.json). It checks the contracts before
+and after the field/mechanism cleanup, while the separate compatibility snapshot protects all
+74 entry contracts, descriptions, assumptions and evidence. The baseline reconstruction only
+restores entry 72's previous role; it is not a second independent catalogue audit.
+
+The cleanup changes entry 72 from a response to a mechanism. It exposes role counts and field
+groups separately through `triz_knowledge`: 65 selected responses, nine mechanisms, 74 named
+entries, and 69 independently declared interfaces. The four numbers describe different things;
+none counts irreducible physical laws. No named case or response contract is removed.
+
+| Source-backed case | Executed check | What it supports and what remains open |
+|---|---|---|
+| [H2W VCS20-020-CR-001-XY](https://cdn.h2wtech.com/product/voice-coil-stages/VCS20-020-CR-001-XY) | Discover and set up Ohmic conduction → magnetic force `[74,65]` and Ohmic conduction → Joule heating `[74,64]`. Compose an exact finite DC force model. | Keep the current-to-force response under the magnetic field classification. The product's 3.5 ohm resistance and 6.1 N/A force constant give 6.1 N and 3.5 W at a selected 1 A / 3.5 V operating point. These are calculations at fixed temperature and zero motion, not measured performance or a controller model. |
+| [LG refrigerator, US11300331B2](https://patents.google.com/patent/US11300331B2/en), with [Ferrotec's heat-sink guide](https://thermal.ferrotec.com/technology/thermoelectric-reference-guide/thermalref05/) | Retrieve and set up Peltier transfer, conduction, convection and Joule heating. Reject `[8,61]`, `[61,62]` and the power-to-energy shortcut `[64,73]`. | Multiple responses remain necessary. Coupled thermal balances and explicit time conversion are needed to relate these unary contracts. Gasket geometry, recirculation control and complete cooling performance are outside this check. |
+| [Electrodynamic screen, US9433336B2](https://patents.google.com/patent/US9433336B2/en), supported by [NASA's EDS operating description](https://ntrs.nasa.gov/citations/20150016082) | Retrieve electrostatic force, dielectrophoresis and traveling-field transport. Reject the serial substitutions `[59,71]` and `[71,72]`. | Classify traveling-field transport as a mechanism using force responses. Its electrode drive, simultaneous forces, adhesion and particle dynamics prevent replacing it with these serial chains. The patent and NASA mechanism are separate sources, not an assertion of product identity. |
+
+All nine selected paths remain discoverable and generate identical models across the cleanup;
+all six invalid serial substitutions are rejected. Removing response contracts and retaining
+only field classifications finds none of the nine nonempty paths. These deliberately selected
+cases demonstrate preserved coverage, not a general retrieval-quality benchmark.
+
+Without implementation rows, behavior remains undecided for every path. For the voice coil,
+the script derives explicit rows at -1, 0 and +1 A from the published coefficients and checks
+that composed voltage → current → force behavior equals the direct finite force contract.
+It checks input/output correlations, including force reversal; it does not infer dynamics.
+Nine typing certificates and one finite behavior certificate can be checked independently:
+
+```sh
+node --import tsx examples/assurance/effects-products.mjs --cert-dir /tmp/triz-products
+node scripts/certify.mjs --local --tamper /tmp/triz-products/*.lean
+```
+
+The sources establish that the selected mechanisms appear in actual engineering systems.
+The executable checks establish catalogue coverage, valid wiring and the supplied finite DC
+calculation. They do not reproduce the complete products, validate patent claims, or establish
+measured dust removal or refrigeration performance.
+
 ## Reusable patterns identified in patent disclosures
 
 The abstraction column is our interpretation of the disclosed construction. A patent disclosure

@@ -24,7 +24,13 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack has 63 quantity declarations and 74 searchable typed effects. It stores
+The physical pack has 63 quantity declarations and 74 searchable typed entries: 65 selected
+responses and nine mechanisms. These modeling roles do not count independent physical laws.
+`triz_knowledge.taxonomy` reports roles separately from field groups and links each field to its
+entry ids. Counts and taxonomy have the documented all-installed-packs scope, including when
+the parameter list is filtered. A field such as `magnetic` classifies responses; it does not
+supply a current-to-force contract or replace induction, Hall sensing or magnetostriction.
+The pack stores
 62 direct declarations and 12 named specializations of four families with seven signatures: 69
 independently declared interfaces in total. This reduces duplicate interface declarations;
 independent physical evidence and constitutive laws remain on each named case.
@@ -74,6 +80,15 @@ Generated certificates check the encoded finite instances. `related_effects`, pa
 `distinguish_from` links and canonical matrix analogies do not declare categorical morphisms
 or functors. Conditions stay visible as hypotheses; a typing or behavior certificate does not
 discharge them or prove empirical physical performance.
+
+Before reducing a named mechanism, check an actual product specification or patent disclosure:
+retain each response's types and conditions, identify simultaneous interactions and state, and
+only use a serial recipe when the constituent quantity boundaries actually compose. Entry 72,
+traveling-field electrodynamic transport, is a mechanism using force responses 59 and 71; those
+forces do not form a serial chain. Its selected response contract remains available, with the
+electrode arrangement and transport regime as hypotheses. Run `pnpm example:effects-products`
+for three source-backed cases, preserved discovery and rejected decompositions; see the
+[validation scope and results](../../../docs/effects-evidence.md#product-and-patent-validation).
 
 Same-type mechanisms such as optical guidance, superconducting transmission, wedges, levers
 and gears are generators between equal object types; that does not identify them with the

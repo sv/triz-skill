@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHash } from "node:crypto";
 import * as data from "../src/data.js";
-import { compileKnowledge, KnowledgePack, typedKnowledgeEffects } from "../src/knowledge.js";
+import { compileKnowledge, effectTaxonomy, KnowledgePack, typedKnowledgeEffects } from "../src/knowledge.js";
 import { setupEffectModel } from "../src/knowledge-setup.js";
 import { compareBehavior } from "../src/act-behavior.js";
 import { behaviorCertificate, modelCertificate } from "../src/act-cert.js";
@@ -53,8 +53,40 @@ test("all 74 previous interfaces, text, assumptions, attribution and lookup orde
   assert.equal(read("effects.json").effects.filter((e: any) => e.input).length, 62);
   assert.equal(data.effects(undefined, undefined, { form: "specialization" }).matched, 12);
   assert.equal(data.effects(undefined, undefined, { form: "direct" }).matched, 62);
-  assert.equal(data.effects(undefined, undefined, { kind: "mechanism" }).matched, 8);
+  assert.equal(data.effects(undefined, undefined, { kind: "mechanism" }).matched, 9);
   assert.equal(data.knowledgeCatalog().families.length, 4);
+});
+
+test("fields group response contracts without replacing them or counting mechanisms as responses", () => {
+  const knowledge = compileKnowledge(packs());
+  assert.deepEqual(knowledge.taxonomy.roles, { response: 65, mechanism: 9, composite: 0, unclassified: 0 });
+  const magnetic = knowledge.taxonomy.field_groups.find(g => g.field === "magnetic")!;
+  assert.deepEqual(magnetic.entry_ids, [3, 12, 14, 34, 65]);
+  const force = knowledge.effects.find(e => e.id === 65)!;
+  assert.equal(force.kind, "response");
+  assert.equal(force.input_parameter, "physical:current");
+  assert.equal(force.output_parameter, "physical:force");
+  const screen = knowledge.effects.find(e => e.id === 72)!;
+  assert.equal(screen.kind, "mechanism");
+  assert.deepEqual(screen.related_effects?.filter(r => r.relation === "uses").map(r => r.id), [59, 71]);
+  assert.deepEqual(data.knowledgeCatalog().taxonomy, knowledge.taxonomy);
+  assert.deepEqual(data.knowledgeCatalog("missing", "software").taxonomy, knowledge.taxonomy,
+    "the documented all-installed-packs scope also applies to taxonomy");
+});
+
+test("taxonomy preserves unclassified entries and counts a multi-field recipe once in its role", () => {
+  const p = recipePack();
+  p.effects.push({ id: "physical:unclassified", name: "Unclassified", category: "test", function: "test", statement: "test", hints: [] });
+  const knowledge = compileKnowledge([p]);
+  const recipe = knowledge.effects.find(e => e.id === "physical:light-heater")!;
+  const unknown = knowledge.effects.find(e => e.id === "physical:unclassified")!;
+  const taxonomy = effectTaxonomy([recipe, unknown]);
+  assert.deepEqual(taxonomy.roles, { response: 0, mechanism: 0, composite: 1, unclassified: 1 });
+  assert.deepEqual(taxonomy.field_groups, [
+    { field: "electric", entry_ids: [recipe.id] }, { field: "optical", entry_ids: [recipe.id] },
+  ]);
+  assert.deepEqual(taxonomy.without_field, [unknown.id]);
+  assert.deepEqual(effectTaxonomy([]).roles, { response: 0, mechanism: 0, composite: 0, unclassified: 0 });
 });
 
 test("named specializations derive ports only from explicit family signatures", () => {

@@ -500,6 +500,11 @@ construction.
   declared interfaces while retaining all 74 searchable entries and their case-specific evidence.
   Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
   no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.
+- `triz_knowledge` reports field groups separately from the 65 response and nine mechanism
+  entries; these are modeling roles, not counts of independent physical laws.
+  `pnpm example:effects-products` checks selected contracts against a real voice-coil stage and
+  two patent disclosures, preserving discovery and rejecting unsupported decompositions.
+  See the [validation scope](docs/effects-evidence.md#product-and-patent-validation).
 - The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
   every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
   wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.
