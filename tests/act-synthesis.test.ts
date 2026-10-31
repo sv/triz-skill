@@ -29,7 +29,7 @@ const request = () => {
 };
 
 test("multi-hole search checks whole tuples and preserves output correlation", () => {
-  const r = synthesizeFinite(request());
+  const r = synthesizeFinite({ ...request(), strategy: "exhaustive" });
   assert.ok(r.ok && r.verdict === "synthesized", JSON.stringify(r));
   assert.ok("candidateSpace" in r && "witness" in r && r.witness);
   assert.equal(r.candidateSpace.size, 4);
@@ -40,6 +40,12 @@ test("multi-hole search checks whole tuples and preserves output correlation", (
   assert.equal(r.results.filter((x) => x.result.verdict === "rejected" && x.result.reason === "behavior-changed").length, 3);
   assert.deepEqual(r.witness.model.wires, request().model.wires);
   assert.deepEqual(r.witness.model.carriers, request().model.carriers);
+  const optimized = synthesizeFinite(request());
+  assert.ok(optimized.ok && optimized.verdict === r.verdict && "candidateSpace" in optimized);
+  assert.equal(optimized.satisfyingCount, r.satisfyingCount);
+  assert.deepEqual(optimized.witness?.choices, r.witness.choices);
+  assert.equal(optimized.candidateSpace.pruned, 3);
+  assert.equal(optimized.candidateSpace.enumerated, 1);
 });
 
 test("library impossibility combines all holes' resource demands under one budget", () => {

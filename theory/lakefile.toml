@@ -1,5 +1,9 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle", "ComponentSearch", "SourceSupport", "SynthesisWitnesses"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle", "ComponentSearch", "SourceSupport", "SynthesisWitnesses", "Symbolic"]
+
+[[lean_lib]]
+name = "Symbolic"
+allowNonModules = true
 
 [[lean_lib]]
 name = "SourceSupport"

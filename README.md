@@ -143,7 +143,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_subsystem_summary` | Compose an exact stateless boundary summary and report hidden harms |
 | `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
 | `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
-| `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_synthesize` | Search fixed-wiring finite libraries jointly; optional checked symbolic serial maps reduce union trace enumeration |
 | `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
 | `triz_component_catalogue` | Get the shared general catalogue; reusable libraries combine across domains through explicit type bindings |
 | `triz_effect_chains` | Search bounded typed effect chains from explicit resources; hypotheses require substantiation |
@@ -157,6 +157,13 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_rewrite_pair` | Check whether two named rewrites commute in their two orders |
 | `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
+
+`triz_synthesize` preserves exhaustive reference mode and the optimized residual search.
+Use `strategy: "symbolic"` for checked joint finite-map compilation of stateless serial regions before
+union traces are enumerated. Typed port permutations, grouped primitives and bounded residual
+reuse compound boundary sharing; concrete resource choices remain separate. See
+[scope, proofs and trust boundary](docs/symbolic-synthesis.md) and
+[measured benchmarks](benchmarks/synthesis/latest.md).
 
 For local source import, including exports from instantiated ModelingToolkit and Agents.jl models,
 see [Importing models](docs/importing-models.md). Imported models remain drafts through the builder

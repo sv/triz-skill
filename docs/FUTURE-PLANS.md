@@ -58,6 +58,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | S3 | Per-subsystem interface contracts | Declared/checked stateless single-mode contracts implemented; local residual synthesis open | Adds: residuals and weakest specifications against local targets | M–L |
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
+| S6 | Checked symbolic summaries | Bounded stateless serial finite-map synthesis implemented in this checkout; broader symbolic reasoning open | Adds: checked composition and compact choice supports before union-trace enumeration | M–L |
 | E1 | Structured operating envelopes and system boundaries | Open; finite situations/interfaces are foundations | Adds: executable assumptions and explicit applicability limits | M |
 | E2 | Joint specifications and multidimensional Pareto search | Open; resource antichains and occupation proofs are foundations | Adds: joint comparison of assembly/mode/policy choices without implicit scalarization | M–L |
 | E3 | Safe operating regions and finite viability | Open; requires explicit environment/control quantifiers | Adds: staying safe over time, separately from steady-state admissibility | M–L |
@@ -881,6 +882,21 @@ feasibility. The route is hierarchy plus contracts.
   refinement) before forming the product, then compose hierarchically with Q5.
 - **Adds.** Smaller products for C5's horizon-free verdicts.
 - **Risks.** Minimisation must keep the states and ports the targets name observable.
+
+### S6. Checked symbolic summaries
+
+- **Status.** Bounded finite, stateless serial regions implemented; the [implementation and
+  proof scope](symbolic-synthesis.md) describe the exact supported slice.
+- **Implemented.** Complete joint-row recognition, explicit typed port mappings, summary
+  composition, grouped choice DAGs and backward pruning. Original costs, resource modes,
+  applicability and provenance remain attached to concrete choices. Unsupported structures
+  and exhausted allowances use bounded finite fallback; exhaustive mode remains the reference.
+- **Evidence.** Independent declaration/substitution checks, local Lean certificate/axiom
+  audits, whole-port differential tests and [end-to-end benchmarks](../benchmarks/synthesis/latest.md).
+- **Open.** General affine/feedback summaries, dependency footprints, cross-request reuse and
+  certified parameter bounds from the [broader proposal in #52](https://github.com/sv/triz-skill/blob/8560e2508f0f7484d3ba9f56077682c2c6705ffc/docs/symbolic-summary-design.md).
+  Integration with #52's shared relation kernel follows that PR's landing. Generic laws and
+  normalized certificates do not verify the TypeScript implementation or empirical premises.
 
 ## Neutral mode for models
 

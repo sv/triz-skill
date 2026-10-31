@@ -47,7 +47,9 @@ import { at as jp, fail, issue, quoted, rebase, where, type Failure as BaseFailu
 export type Box = FunctionModel["boxes"][number];
 /** `upstream` retains the legacy projection assumption; `whole` composes every declared box. */
 export type BehaviorScope = "upstream" | "whole";
-export type BehaviorOptions = { maxStates?: number; scope?: BehaviorScope; fullRelation?: boolean };
+export type BehaviorOptions = { maxStates?: number; scope?: BehaviorScope; fullRelation?: boolean;
+  /** Internal, request-local reuse of exact evaluations; never a caller-supplied assertion. */
+  evaluationCache?: BehaviorEvaluationCache };
 /** A complete joint assignment of the operating inputs, identified by endpoint rather than order. */
 export type OperatingSituation = Array<{ box: string; port: string; value: string }>;
 /** Explicit joint weights; zero weights are permitted, and every situation must be listed once. */
@@ -134,6 +136,43 @@ export function plan(model: FunctionModel, observe: Endpoint[], opts: { scope?: 
 
 interface Row { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number; }
 interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; propagation: PropagationStatus; }
+
+/** Bounded, request-local boundary summaries. Resources are deliberately excluded from the
+ * key: they do not change the declared steady-state relation and are checked independently.
+ * Internal valuations are retained for existing diagnostics. Only complete evaluations cache;
+ * a smaller state allowance cannot reuse an evaluation that exceeded that allowance. */
+export class BehaviorEvaluationCache {
+  private readonly entries = new Map<string, Evaluation>();
+  private cells = 0;
+  readonly stats = { hits: 0, computations: 0, work: 0, entries: 0, traces: 0, cells: 0 };
+  constructor(readonly enabled = true, readonly maxCells = 200_000) {}
+  evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number): Evaluation | Failure {
+    const key = this.enabled ? JSON.stringify([
+      model.carriers.map(c => [c.id, c.values]),
+      p.composed.map(b => [b.id, b.inputs, b.outputs, b.behavior]),
+      model.wires.map(w => [w.from, w.to]), observe,
+    ]) : "";
+    const cached = this.entries.get(key);
+    if (cached && cached.explored <= max) {
+      this.stats.hits++; this.stats.work++;
+      return cached;
+    }
+    this.stats.computations++;
+    const result = evaluate(model, p, observe, max, () => { this.stats.traces++; });
+    this.stats.work += result.ok ? result.explored : max;
+    if (this.enabled && result.ok && this.entries.size < 128 && !cached) {
+      const cells = key.length + [...result.table.values()].reduce((n, r) =>
+        n + r.input.length + r.outputs.size * observe.length + r.states.length * result.variables.length, 0);
+      if (this.cells + cells <= this.maxCells) {
+        this.entries.set(key, result); this.cells += cells; this.stats.entries++; this.stats.cells = this.cells;
+      }
+    }
+    return result;
+  }
+}
+
+const evaluateObserved = (model: FunctionModel, p: Plan, observe: Observed[], max: number, cache?: BehaviorEvaluationCache) =>
+  cache ? cache.evaluate(model, p, observe, max) : evaluate(model, p, observe, max);
 
 export interface PortVariables {
   variables: Array<Typed & { side: "in" | "out" }>;
@@ -233,7 +272,7 @@ export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assig
  * variable; each composed box contributes its relation; a backtracking join enumerates every
  * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
  */
-function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number): Evaluation | Failure {
+function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, onTrace?: () => void): Evaluation | Failure {
   // Output-side probes are ports of composed boxes, so only input-side observations are extra.
   const { variables, at: v, boundary } = portVariables(model, p.composed, observe.filter((d) => (d.side ?? "in") === "in"));
   const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
@@ -285,6 +324,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
     const row: Row = { input, outputs: new Map(), states: [], count: 0 };
     table.set(tupleKey(input), row);
     overflow = !joinRows(propagated, assign, () => {
+      onTrace?.();
       const y = out.map((i) => assign[i]!);
       row.outputs.set(tupleKey(y), y);
       if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));
@@ -355,7 +395,7 @@ function externalBehaviorScoped(model: FunctionModel, opts: BehaviorOptions) {
       note: `Declare behavior for ${p.missing.map((id) => `'${id}'`).join(", ")}: they are composed in the selected scope, so the relation depends on them.`,
     };
   }
-  const e = evaluate(model, p, deliverables, opts.maxStates ?? MAX_STATES);
+  const e = evaluateObserved(model, p, deliverables, opts.maxStates ?? MAX_STATES, opts.evaluationCache);
   if (!e.ok) return e;
   const factorisations = factorisationsOf(p.composed);
   return {
@@ -456,9 +496,9 @@ function compareBehaviorScoped(baseline: FunctionModel, concept: FunctionModel, 
     };
   }
   const max = opts.maxStates ?? MAX_STATES;
-  const b = evaluate(baseline, before, deliverables, max);
+  const b = evaluateObserved(baseline, before, deliverables, max, opts.evaluationCache);
   if (!b.ok) return { ...rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: "), ...(b.propagation ? { propagation: b.propagation } : {}) };
-  const c = evaluate(concept, after, observed, max);
+  const c = evaluateObserved(concept, after, observed, max, opts.evaluationCache);
   if (!c.ok) return { ...rebase(fail(c.issues), [], "concept: "), ...(c.propagation ? { propagation: c.propagation } : {}) };
 
   // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
@@ -632,7 +672,7 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
     ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, missingBehavior: p.missing,
     note: "Declare behavior for every box composed in the selected scope before checking nonblocking and output acceptability.",
   };
-  const e = evaluate(model, p, target, opts.maxStates ?? MAX_STATES);
+  const e = evaluateObserved(model, p, target, opts.maxStates ?? MAX_STATES, opts.evaluationCache);
   if (!e.ok) return capped(e);
   const domains = e.inputs.map((q) => model.carriers.find((c) => c.id === q.carrier)!.values!);
   const selected = new Set<string>();
