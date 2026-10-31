@@ -16,7 +16,10 @@ const knowledge = data.knowledge();
 // Compare arrow availability using current engine and exact vocabulary on both sides.
 // New quantity names can be queried in the old library, but supply no implicit arrows.
 const baselinePacks = structuredClone(knowledge.packs);
-for (const p of baselinePacks) p.effects = p.effects.filter(e => typeof e.id !== "number" || e.id <= fixture.baseline.last_effect_id);
+for (const p of baselinePacks) {
+  p.effects = p.effects.filter(e => typeof e.id !== "number" || e.id <= fixture.baseline.last_effect_id);
+  for (const e of p.effects) delete e.model_assessment; // Assessments postdate the baseline and can link new clauses.
+}
 const before = compileKnowledge(baselinePacks);
 const libraries = [before, knowledge].map(k => typedKnowledgeEffects(k.effects));
 const find = id => knowledge.effects.find(e => e.id === id);
@@ -65,7 +68,7 @@ const repeated = [...groups.values()].filter(es => es.length > 1);
 const unshared = repeated.filter(es => es.some(e => e.definition.form !== "specialization") ||
   new Set(es.map(e => `${e.definition.family}:${e.definition.signature}`)).size !== 1).map(es => es.map(e => e.id));
 assert.deepEqual(unshared, []);
-assert.equal(knowledge.counts.independent_contracts, fixture.baseline.independent_interfaces + 4 - 3);
+assert.equal(knowledge.counts.independent_contracts, fixture.baseline.independent_interfaces + 4 - 3 - knowledge.counts.configurations);
 
 // Conditional composition examples, not assertions that a whole patent implements these paths.
 const newCompositions = [[7, 75], [76, 1], [77, 1]].map(chain => {
@@ -137,7 +140,7 @@ assert.ok(enabled > 0 && disabled > 0);
 console.log(JSON.stringify({ scope: fixture.scope, window: fixture.publication_window, baseline: fixture.baseline,
   cases, selected_clauses: { before: beforeFound, after: afterFound, rejected_serial_substitutions: rejected },
   additional_conditional_compositions: newCompositions,
-  reduction: { old_interfaces: fixture.baseline.independent_interfaces, added_clauses: 4, repeated_declarations_removed: 3,
+  reduction: { old_interfaces: fixture.baseline.independent_interfaces, added_clauses: 4, repeated_declarations_removed: 3, named_compositions_removed_from_generators: knowledge.counts.configurations,
     current_interfaces: knowledge.counts.independent_contracts, named_entries: knowledge.effects.length, further_identical_unshared_interfaces: unshared },
   programmed_conductance: { reachable_at_tick: dynamic.escalation.time, fixed_resistance: fixedResult.escalation.verdict,
     scope: "Synthetic read/write/read state counterexample, not an empirical memristor or trained crossbar model." },

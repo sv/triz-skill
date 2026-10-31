@@ -1,5 +1,9 @@
 name = "categorical-triz"
-defaultTargets = ["CategoricalTriz", "Witnesses", "Certificates", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle", "ComponentSearch", "SourceSupport", "SynthesisWitnesses"]
+defaultTargets = ["CategoricalTriz", "Witnesses", "Semantics", "SemanticsWitnesses", "Graded", "Hierarchy", "Restriction", "Naturality", "Propagation", "JointResidual", "ControlledTrim", "SteadyStateGfp", "MeanCost", "Lifecycle", "ComponentSearch", "SourceSupport", "SynthesisWitnesses", "Symbolic"]
+
+[[lean_lib]]
+name = "Symbolic"
+allowNonModules = true
 
 [[lean_lib]]
 name = "SourceSupport"
@@ -22,90 +26,82 @@ rev = "v4.35.0"
 
 [[lean_lib]]
 name = "CategoricalTriz"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Non-vacuity witnesses for the lemmas above; a default target, so `lake build --wfail` and CI check them.
 [[lean_lib]]
 name = "Witnesses"
-# Existing theory and generated certificates retain the non-module syntax.
-allowNonModules = true
-
-# Per-instance certificates of seven examples, as `triz_export` format `lean`, `triz_dynamics`,
-# `triz_weakness`, and `triz_behavior` write them; a default target, so CI checks them.
-# tests/act-cert.test.ts keeps them equal to the generator's output.
-[[lean_lib]]
-name = "Certificates"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # The compositional semantics of declared behaviour (series, parallel, feedback, monotonicity, and
 # the functor to RelCat); tests/act-semantics.test.ts checks the evaluator against it.
 [[lean_lib]]
 name = "Semantics"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Non-vacuity witnesses and counterexamples for Semantics.
 [[lean_lib]]
 name = "SemanticsWitnesses"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Graded residuals and the Boolean/min-plus instances.
 [[lean_lib]]
 name = "Graded"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Arbitrary-wiring substitution semantics and witnesses.
 [[lean_lib]]
 name = "Hierarchy"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Restriction-grid lifting and conditional residual descent.
 [[lean_lib]]
 name = "Restriction"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Semantic transport under explicit equivalences.
 [[lean_lib]]
 name = "Naturality"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # One scoped arc-consistency support pass preserves the exact solution set.
 [[lean_lib]]
 name = "Propagation"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Joint merged-hole residuals and nonfactorization.
 [[lean_lib]]
 name = "JointResidual"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Absorber reattachment as explicit typed deletion/gluing rule data.
 [[lean_lib]]
 name = "ControlledTrim"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 # Complete-valuation consistency as a greatest fixed point.
 [[lean_lib]]
 name = "SteadyStateGfp"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 [[lean_lib]]
 name = "MeanCost"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true
 
 [[lean_lib]]
 name = "Lifecycle"
-# Existing theory and generated certificates retain the non-module syntax.
+# The theory retains the non-module syntax.
 allowNonModules = true

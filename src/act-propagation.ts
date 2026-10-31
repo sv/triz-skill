@@ -1,10 +1,13 @@
 /** One relation row binds wire-unified variable numbers to declared values. */
-export type PropagationBinding = Array<[number, string]>;
-export type PropagationSet = { vars: number[]; rows: PropagationBinding[] };
+import type { RelationBinding, RelationOptions, ScopedRelation } from "./act-relations.js";
+import { RelationTupleIndex } from "./act-relation-index.js";
+export type PropagationBinding = RelationBinding;
+export type PropagationSet = ScopedRelation;
 export const MAX_PROPAGATION_WORK = 1_000_000;
 /** How arc consistency ended: `complete` pruned to the fixpoint (or found a table with no row);
  *  `fallback` hit the work limit and pruned nothing. `work` counts the units charged. */
-export type PropagationStatus = { status: "complete" | "fallback"; work: number };
+export type SemijoinStats = { rowComparisons: number; indexLookups: number; indexBuilds: number; indexCells: number; indexFallbacks: number };
+export type PropagationStatus = { status: "complete" | "fallback"; work: number; semijoin?: SemijoinStats };
 
 /**
  * Generalized arc consistency for finite table constraints, by an AC-3-style worklist. Keep a value
@@ -97,11 +100,12 @@ export function propagateRows(sets: PropagationSet[], domains: readonly (readonl
  * correlations that unary domains lose. Sparse bindings remain wildcards. A fixed point
  * is not a global-consistency claim for cyclic scopes or wildcard-expanded relations.
  * As with domain propagation, exhaustion discards this entire pass. */
-export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_WORK):
-  { sets: PropagationSet[] } & PropagationStatus {
+export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_WORK, options: RelationOptions = {}):
+  { sets: PropagationSet[]; stats: SemijoinStats } & PropagationStatus {
   let work = 0;
+  const stats: SemijoinStats = { rowComparisons: 0, indexLookups: 0, indexBuilds: 0, indexCells: 0, indexFallbacks: 0 };
   const spend = (amount = 1) => (work += amount) <= maxWork;
-  const fallback = () => ({ sets, status: "fallback" as const, work });
+  const fallback = () => ({ sets, status: "fallback" as const, work, stats });
   // Preflight before copying rows or building indices. vars must cover every row's bindings,
   // as in propagateRows and the evaluator's full box tables.
   for (const set of sets) {
@@ -118,7 +122,7 @@ export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_W
   }));
   const finish = () => ({
     sets: sets.map((set, i) => ({ vars: set.vars, rows: current[i].map(r => r.row) })),
-    status: "complete" as const, work,
+    status: "complete" as const, work, stats,
   });
   if (current.some(rows => !rows.length)) return finish();
   const touching = new Map<number, number[]>();
@@ -136,6 +140,9 @@ export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_W
     }
   }
   const queue: Array<[number, number]> = [], queued = new Set<string>();
+  // A support index belongs to the current right table. Revisions invalidate all its
+  // indexes; no removed row can remain as stale support for a later worklist revision.
+  const indexes = sets.map(() => new Map<string, RelationTupleIndex>());
   const enqueue = (left: number, right: number) => {
     if (!spend()) return false;
     const key = `${left}:${right}`;
@@ -149,11 +156,35 @@ export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_W
     if (!spend()) return fallback();
     const [left, right] = queue[head];
     queued.delete(`${left}:${right}`);
+    let index: RelationTupleIndex | undefined;
+    if (options.indexed !== false && current[right].length >= 8) {
+      if (!spend(sets[left].vars.length + sets[right].vars.length)) return fallback();
+      const rightScope = new Set(sets[right].vars);
+      const overlap = [...new Set(sets[left].vars.filter(v => rightScope.has(v)))].sort((a, b) => a - b);
+      const key = JSON.stringify(overlap);
+      index = indexes[right].get(key);
+      if (!index) {
+        const cells = current[right].length * (1 + overlap.length);
+        if (stats.indexCells + cells <= (options.maxIndexCells ?? 200_000)) {
+          if (!spend(cells)) return fallback();
+          index = new RelationTupleIndex(overlap, current[right].map(row => row.values));
+          indexes[right].set(key, index); stats.indexCells += cells; stats.indexBuilds++;
+        } else stats.indexFallbacks++;
+      }
+    }
     const keep: typeof current[number] = [];
     for (const row of current[left]) {
       if (!spend()) return fallback();
       let supported = false;
-      for (const other of current[right]) {
+      let candidates: readonly number[] | undefined;
+      if (index) {
+        if (!spend(1 + index.vars.length)) return fallback();
+        stats.indexLookups++; candidates = index.candidates(v => row.values.get(v));
+      }
+      const count = candidates?.length ?? current[right].length;
+      for (let i = 0; i < count; i++) {
+        const other = current[right][candidates ? candidates[i] : i];
+        stats.rowComparisons++;
         if (!spend()) return fallback();
         let compatible = true;
         for (const [v, x] of row.values) {
@@ -166,8 +197,23 @@ export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_W
     }
     if (keep.length === current[left].length) continue;
     current[left] = keep;
+    indexes[left].clear();
     if (!keep.length) return finish();
     for (const other of neighbors[left]) if (!enqueue(other, left)) return fallback();
   }
   return finish();
+}
+
+/** One all-or-nothing preprocessing plan for exact model projections. A capped pass must not
+ * leak partly pruned rows into either behavior evaluation or subsystem summaries. */
+export function propagateRelations(sets: PropagationSet[], domains: readonly (readonly string[])[], options: RelationOptions = {}): { sets: PropagationSet[]; propagation: PropagationStatus } {
+  const unary = propagateRows(sets, domains);
+  const overlaps = unary.status !== "complete" ? undefined : unary.sets.some(s => !s.rows.length)
+    ? { sets: unary.sets, status: "complete" as const, work: 0 }
+    : semijoinRows(unary.sets, MAX_PROPAGATION_WORK - unary.work, options);
+  const complete = unary.status === "complete" && overlaps?.status === "complete";
+  return { sets: complete ? overlaps!.sets : sets, propagation: {
+    status: complete ? "complete" : "fallback", work: unary.work + (overlaps?.work ?? 0),
+    ...(overlaps && "stats" in overlaps ? { semijoin: overlaps.stats } : {}),
+  } };
 }

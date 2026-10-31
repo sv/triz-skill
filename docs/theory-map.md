@@ -10,7 +10,7 @@ is not claimed. Read it to audit a verdict, not to run a TRIZ session.
 
 The Lean package is `theory/`. The literature is in [theory/REFERENCES.md](../theory/REFERENCES.md),
 the implemented assurance scope in [categorical-assurance.md](categorical-assurance.md), its
-acceptance criteria in [categorical-future-plan.md](categorical-future-plan.md), and the ranked
+acceptance criteria in [assurance-requirements.md](assurance-requirements.md), and the ranked
 backlog in [FUTURE-PLANS.md](FUTURE-PLANS.md). Every issue and lint code is in
 [error-codes.md](../skills/triz-innovation/references/error-codes.md).
 
@@ -639,7 +639,7 @@ accidental use of unconfirmed drafts; they do not authenticate source contents o
 
 The implemented guarantees are separated from future work in
 [categorical-assurance.md](categorical-assurance.md) and the cited
-[categorical-future-plan.md](categorical-future-plan.md); the ranked backlog is
+[assurance-requirements.md](assurance-requirements.md); the ranked backlog is
 [FUTURE-PLANS.md](FUTURE-PLANS.md). The following limits remain.
 
 - Trimming is not framed as a Kan extension of what remains. `theory/` once stated it

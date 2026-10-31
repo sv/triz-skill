@@ -47,6 +47,7 @@ test("weights order the listing only: the frontier, witnesses and trade-offs nev
   assert.deepEqual(plain.frontier, ["cheap-heavy", "dear-light"], "declaration order lists cheap-heavy first");
   assert.deepEqual(new Set(plain.frontier), new Set(weighted.frontier));
   assert.deepEqual(weighted.frontier, ["cheap-heavy", "dear-light"], "a usd-heavy weighting keeps cheap-heavy first");
+  assert.ok(weighted.weightedListing);
   assert.match(weighted.weightedListing, /never move under weights/);
   const flip = pareto({ candidates, weights: { usd: 1, kg: 10 } });
   assert.ok(flip.ok && flip.frontier.indexOf("dear-light") < flip.frontier.indexOf("cheap-heavy"), "a kg-heavy weighting flips the listing");

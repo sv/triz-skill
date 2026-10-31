@@ -1,10 +1,10 @@
 name: Lean
 
-# Paths: the theory and the setup script its build needs.
+# Paths: the theory and inputs to the independent symbolic law/encoding audit.
 on:
   push:
     branches: [main]
-    paths: ["theory/**", "scripts/lean-setup.mjs", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
+    paths: ["theory/**", "scripts/lean-setup.mjs", "scripts/check-symbolic.mjs", "src/**", "tests/**", "examples/assurance/**", "skills/triz-innovation/data/**", "package.json", "pnpm-lock.yaml", ".github/workflows/lean.yml"]
   # Every pull request runs the workflow, because "Build theory (no sorry)" is a required check and a
   # workflow skipped by a path filter leaves a required check pending. The `changes` job applies the
   # same paths instead: when none changed, the build job is skipped by its condition, which reports
@@ -39,7 +39,7 @@ jobs:
           if [ "$EVENT" != "pull_request" ]; then echo "lean=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           files=$(git diff --name-only "$BASE...$HEAD")
           echo "$files"
-          if echo "$files" | grep -qE '^(theory/|scripts/lean-setup\.mjs$|package\.json$|pnpm-lock\.yaml$|\.github/workflows/lean\.yml$)'; then
+          if echo "$files" | grep -qE '^(theory/|scripts/(lean-setup|check-symbolic)\.mjs$|src/|tests/|examples/assurance/|skills/triz-innovation/data/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/lean\.yml$)'; then
             echo "lean=true" >> "$GITHUB_OUTPUT"
           else
             echo "No Lean-relevant changes; the build is skipped."
@@ -115,3 +115,14 @@ jobs:
         working-directory: theory
         run: lake build --wfail
 
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Symbolic laws and checked map encodings (local kernel and axiom audit)
+        run: pnpm check:symbolic

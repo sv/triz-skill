@@ -144,9 +144,9 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_subsystem_summary` | Compose an exact stateless boundary summary and report hidden harms |
 | `triz_implementations` | Require one named implementation to meet behavior, resources and declared-harm constraints together |
 | `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
-| `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
+| `triz_synthesize` | Search fixed-wiring finite libraries jointly; optional checked symbolic serial maps reduce union trace enumeration |
 | `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
-| `triz_component_catalogue` | Get the shared general catalogue; reusable libraries combine across domains through explicit type bindings |
+| `triz_component_catalogue` | Get general relations or registered multiport/stateful effect models; configure explicit types and implementation rows |
 | `triz_effect_chains` | Search bounded typed effect chains from explicit resources; hypotheses require substantiation |
 | `triz_lifecycle` | Solve declared maintenance policies and holding costs; ambiguous optimal-policy occupancy remains undecided |
 | `triz_bond_graph` | Check structural effort/flow causality, forced derivative storage and equation dependencies |
@@ -158,6 +158,13 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_rewrite_pair` | Check whether two named rewrites commute in their two orders |
 | `triz_trim_rewrite` | Return explicit absorber-aware trim data with checked structural replay |
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
+
+`triz_synthesize` preserves exhaustive reference mode and the optimized residual search.
+Use `strategy: "symbolic"` for checked joint finite-map compilation of stateless serial regions before
+union traces are enumerated. Typed port permutations, grouped primitives and bounded residual
+reuse compound boundary sharing; concrete resource choices remain separate. See
+[scope, proofs and trust boundary](docs/symbolic-synthesis.md) and
+[measured benchmarks](benchmarks/synthesis/latest.md).
 
 For local source import, including exports from instantiated ModelingToolkit and Agents.jl models,
 see [Importing models](docs/importing-models.md). Imported models remain drafts through the builder
@@ -192,8 +199,9 @@ The eight-workstream assurance extension adds whole-model behavior, operational 
 semantic isomorphism/refinement, joint implementation and finite
 synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
 and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
-[Future work and acceptance criteria](docs/categorical-future-plan.md) and
-[literature references](theory/REFERENCES.md) are kept in separate files; these bounded capabilities do not close every research exclusion.
+[Acceptance criteria](docs/assurance-requirements.md) and
+[literature references](theory/REFERENCES.md) are kept separately. The
+[documentation index](docs/README.md) maps guides, guarantees and planned work.
 
 
 `triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function
@@ -489,8 +497,10 @@ construction.
   default. Expert contributions add versioned JSON packs with attributed review status;
   `pnpm knowledge` validates their union and updates hosted imports. Canonical matrix parameters
   remain the original 39.
-- Eight shared interface families factor 22 named cases into 14 signatures, giving 70 independently
+- Eight shared interface families factor 22 named cases into 14 signatures, with 52 direct definitions giving 66 independently
   declared interfaces while retaining all 78 searchable entries and their case-specific evidence.
+  Four named configurations derive their boundaries from registered multiport models; two
+  explicit forward observations forget qualified current/force types without unit conversion.
   Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
   no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.
 - `triz_knowledge` reports field groups separately from the 69 response and nine mechanism
@@ -500,6 +510,10 @@ construction.
   See the [validation scope](docs/effects-evidence.md#product-and-patent-validation).
   `pnpm example:effects-recent-patents` checks nine 2025–2026 publications, four added response
   clauses, further interface sharing, and explicit state/probability limitations.
+- [Compound/clause assessments](skills/triz-innovation/references/effects-decomposition.md)
+  identify 15 named functions to retain as compounds, six entries needing separate clause models,
+  and 13 coupled responses to retain. Query them with `triz_effects.assessment`; missing facets
+  remain advisory and do not change the 78-entry executable catalogue.
 - The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
   every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
   wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.
@@ -518,11 +532,11 @@ construction.
 
 ## Roadmap
 
-The ranked backlog of the categorical-model work — properties to promote from tested to
-proved, and the larger categorical closures — lives
-in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in the theory map's
-"What is not claimed". The acceptance criteria of the assurance
-workstreams are in [docs/categorical-future-plan.md](docs/categorical-future-plan.md).
+The [engine roadmap](docs/FUTURE-PLANS.md) owns priorities and workstream status.
+[Assurance requirements](docs/assurance-requirements.md) owns acceptance cases; the
+[joint engineering synthesis design](docs/engineering-synthesis.md) develops architecture,
+sizing and maintenance optimization. See the [documentation index](docs/README.md) for
+current tool guides and research notes.
 
 ## Publishing and distribution
 

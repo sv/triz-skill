@@ -189,6 +189,7 @@ test("over-budget relaxation: the nondominated minimal raises, each with its wit
   tight.budget = { usd_unit: 170, service_h_year: 4 };
   const one = feasibility(tight);
   assert.ok(one.ok && one.verdict === "infeasible" && one.reason === "over-budget");
+  assert.ok(one.relaxation && one.relaxation.kind === "budget");
   assert.deepEqual(one.relaxation.raises, [{
     raise: { service_h_year: 0, usd_unit: 8 }, resources: { service_h_year: 2, usd_unit: 178 },
     rows: [{ box: "motor", row: 0 }, { box: "shaft", row: 0 }, { box: "bearing", row: 0 }, { box: "housing", row: 0 }],
@@ -235,13 +236,15 @@ test("unprovidable relaxation names the smallest capability raises", () => {
 test("the budget relaxation is invariant under renaming boxes, ports and carriers", () => {
   const twin = renamedTwin(splitBudget());
   const a = feasibility(splitBudget()), b = feasibility(twin.model);
-  assert.ok(a.ok && b.ok && a.relaxation && b.relaxation);
+  assert.ok(a.ok && b.ok && a.verdict === "infeasible" && b.verdict === "infeasible" && a.reason === "over-budget" && b.reason === "over-budget");
+  assert.ok(a.relaxation && b.relaxation && a.relaxation.kind === "budget" && b.relaxation.kind === "budget");
   const rename = (rows: Array<{ box: string }>) => rows.map((x) => ({ ...x, box: twin.box(x.box) }));
   const renameRaise = (raise: Record<string, number>) => Object.fromEntries(Object.entries(raise).map(([d, v]) => [twin.dim(d), v]));
   assert.deepEqual(b.relaxation.kind, a.relaxation.kind);
   assert.deepEqual(b.relaxation.basis, a.relaxation.basis);
   assert.deepEqual(b.relaxation.raises.map((x: { raise: Record<string, number>; rows: unknown }) => [x.raise, x.rows]),
     a.relaxation.raises.map((x: { raise: Record<string, number>; rows: Array<{ box: string }> }) => [renameRaise(x.raise), rename(x.rows)]));
+  assert.ok(a.relaxation.perDimension && b.relaxation.perDimension);
   assert.deepEqual(b.relaxation.perDimension,
     a.relaxation.perDimension.map((p: { dimension: string }) => ({ ...p, dimension: twin.dim(p.dimension) })));
 });

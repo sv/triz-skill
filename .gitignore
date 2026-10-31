@@ -14,3 +14,6 @@ dist/
 
 # mimosa security scans
 .mimosa/
+
+# Raw synthesis benchmark samples; regenerate with pnpm bench:synthesis
+/benchmarks/synthesis/latest.json

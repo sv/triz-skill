@@ -76,7 +76,7 @@ assert.ok(recipeSetup.ok);
 assert.deepEqual(recipeSetup.model, finite.model);
 assert.deepEqual(recipeSetup.setup.expanded_effect_ids, chain);
 assert.ok(recipeSetup.unmetConditions.includes("declared optical/electrical/load integration"));
-assert.deepEqual(data.knowledge().counts, { direct: 56, signatures: 14, specializations: 22, composites: 0, independent_contracts: 70, searchable: 78 });
+assert.deepEqual(data.knowledge().counts, { direct: 52, signatures: 14, specializations: 22, composites: 0, configurations: 4, independent_contracts: 66, searchable: 78 });
 
 const wire = (id, from, fp, to, tp, carrier) => ({ id, from: { box: from, port: fp }, to: { box: to, port: tp }, carrier, polarity: "useful" });
 const accept = (id, carrier, values) => ({ id, name: id, role: "product", inputs: [{ id: "in", carrier }], behavior: values.map(v => ({ in: { in: v }, out: {} })) });

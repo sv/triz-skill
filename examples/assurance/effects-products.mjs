@@ -12,7 +12,10 @@ import { rational, mul, cmp, show } from "../../src/act-rational.ts";
 const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/product-patent-cases.json", import.meta.url), "utf8"));
 const knowledge = data.knowledge();
 const baselinePacks = structuredClone(knowledge.packs);
-for (const pack of baselinePacks) pack.effects = pack.effects.filter(e => typeof e.id !== "number" || e.id <= 74);
+for (const pack of baselinePacks) {
+  pack.effects = pack.effects.filter(e => typeof e.id !== "number" || e.id <= 74);
+  for (const e of pack.effects) delete e.model_assessment; // Later audit links are not historical dependencies.
+}
 for (const { id, kind } of fixture.classification_baseline.role_overrides)
   baselinePacks.flatMap(p => p.effects).find(e => e.id === id).kind = kind;
 const before = compileKnowledge(baselinePacks);

@@ -58,8 +58,8 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-All 78 entries have explicit conditional typings identified in `source`, using 65 declared physical
-quantities. The original six quantity tokens are preserved, with explicit SI where the quantity
+All 78 entries have explicit conditional selected-clause typings identified in `source`, using the original
+65 physical quantities. An additional 23 quantity/state types support 19 separate multiport models. The original six quantity tokens are preserved, with explicit SI where the quantity
 has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
 and current tokens use shared vocabulary; the induction typing covers the changing-field clause
 only. Optical/field excitations with ambiguous quantitative meaning stay opaque. Energy and
@@ -74,10 +74,21 @@ universal and domain quantity parameters, provenance, review status and effect r
 discovery by default. Optional domain filtering includes universal entries. Canonical matrix
 parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
 records the 78-entry physical starter set and remaining evidence gaps. Eight shared families
-supply 14 signatures for 22 named specializations, alongside 56 direct definitions: 70
-independently declared interfaces. All 74 previous contracts and their case-specific
+supply 14 signatures for 22 named specializations, alongside 52 direct definitions: 66
+independently declared unary interfaces. Entries 20, 33, 35 and 59 are derived named configurations.
+They expose illumination, gas/field, material-phase and particle-charge context. Two explicit
+forward boundary observations retain the same current/force encoding, without general type casts. [Reduction validation](effects-configurations.md#named-composition-reduction)
+checks discovery, patent topologies and selected finite behavior. All 74 previous contracts and their case-specific
 assumptions/evidence are preserved; four new sourced clauses fill recent-patent coverage gaps. Kind
 and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
+
+For multi-input or stateful configurations, use `triz_component_catalogue` with
+`source: "knowledge"` and pass its catalogue to `triz_component_search`. The 19 registered
+models support optical retardance/readout, vapor deposition, temporal emission, shared
+superconducting phase, alternative ion sources with gas/particle forces, and cyclic bed
+regeneration. [Setup and limitations](../skills/triz-innovation/references/knowledge-packs.md#multiport-and-stateful-configurations)
+and [modern-patent validation](effects-configurations.md) distinguish typed configurations
+from implementation dynamics and empirical performance.
 
 `triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,
 and registry quantity/SI/layer declarations. Recipe ids expand into their typed constituent

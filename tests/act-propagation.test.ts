@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { propagateRows, semijoinRows, type PropagationSet } from "../src/act-propagation.js";
 import { bindRow, deliverablePorts, externalBehavior, joinRows, plan, portVariables } from "../src/act-behavior.js";
 import type { FunctionModel } from "../src/act.js";
+import { relationFixture } from "./support/relations.js";
 
 /** Independent exhaustive valuations over original finite domains. */
 function solutions(sets: PropagationSet[], domains: string[][]): string[][] {
@@ -24,6 +25,67 @@ test("semijoins retain correlations across a multi-variable overlap", () => {
   const overlap = semijoinRows(unary.sets);
   assert.equal(overlap.status, "complete");
   assert.ok(overlap.sets.some(s => s.rows.length === 0));
+});
+
+test("indexed overlap supports match scan and independent exhaustive valuations", () => {
+  let seed = 7823;
+  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed >>> 8; };
+  const alphabet = ["", "__proto__", "a,b[\"x\"]"], domains = Array.from({ length: 4 }, () => alphabet);
+  for (let n = 0; n < 300; n++) {
+    const sets: PropagationSet[] = Array.from({ length: 2 + rand() % 4 }, () => {
+      const cols = Array.from({ length: 1 + rand() % 6 }, () => rand() % 4);
+      return { vars: [...new Set(cols)], rows: Array.from({ length: 8 + rand() % 16 }, () =>
+        cols.filter(() => rand() % 8 !== 0).map(v => [v, alphabet[rand() % 3]] as [number, string])) };
+    });
+    const snapshot = structuredClone(sets), scan = semijoinRows(sets, 1_000_000, { indexed: false }), indexed = semijoinRows(sets);
+    assert.equal(scan.status, "complete"); assert.equal(indexed.status, "complete");
+    assert.deepEqual(indexed.sets, scan.sets);
+    assert.deepEqual(solutions(indexed.sets, domains), solutions(sets, domains));
+    assert.deepEqual(semijoinRows(sets, 1_000_000, { maxIndexCells: 0 }).sets, scan.sets);
+    assert.deepEqual(semijoinRows(indexed.sets).sets, indexed.sets);
+    for (const cap of [0, Math.floor(indexed.work / 2), indexed.work - 1, indexed.work]) {
+      const result = semijoinRows(sets, cap);
+      if (result.status === "fallback") assert.equal(result.sets, sets);
+      else assert.deepEqual(result.sets, indexed.sets);
+    }
+    assert.deepEqual(sets, snapshot);
+  }
+});
+
+test("support indexes are invalidated as pruning travels back through a chain", () => {
+  const values = Array.from({ length: 16 }, (_, i) => String(i));
+  const sets: PropagationSet[] = Array.from({ length: 12 }, (_, i) => ({ vars: [i, i + 1],
+    rows: values.map(x => [[i, x], [i + 1, x]]) }));
+  sets.push({ vars: [12], rows: values.slice(0, 8).map(x => [[12, x]]) });
+  const result = semijoinRows(sets), scan = semijoinRows(sets, 1_000_000, { indexed: false });
+  assert.equal(result.status, "complete"); assert.deepEqual(result.sets, scan.sets);
+  assert.ok(result.stats.indexBuilds > 0);
+  // Eight survivors still qualify for indexing. A stale sixteen-row index would retain
+  // removed supports in the next table, rather than merely taking the tiny-table scan path.
+  assert.ok(result.sets.every(s => s.rows.length === 8 && s.rows.every(row => row.every(([, x]) => Number(x) < 8))));
+  assert.ok(result.stats.rowComparisons < scan.stats.rowComparisons);
+});
+
+test("hash semijoins remove quadratic correlation checks and fit a formerly exhausted allowance", () => {
+  const f = relationFixture("overlap-contradiction", 512), snapshot = structuredClone(f.sets);
+  const scan = semijoinRows(f.sets, 10_000_000, { indexed: false }), indexed = semijoinRows(f.sets);
+  assert.equal(scan.status, "complete"); assert.equal(indexed.status, "complete");
+  assert.deepEqual(indexed.sets, scan.sets);
+  assert.equal(indexed.stats.rowComparisons, 0);
+  assert.ok(scan.stats.rowComparisons >= 512 * 512);
+  assert.ok(indexed.work * 20 < scan.work);
+  assert.equal(semijoinRows(f.sets, indexed.work, { indexed: false }).status, "fallback");
+  assert.equal(semijoinRows(f.sets, indexed.work).status, "complete");
+  const capped = semijoinRows(f.sets, indexed.work - 1);
+  assert.equal(capped.status, "fallback"); assert.equal(capped.sets, f.sets);
+  assert.deepEqual(f.sets, snapshot);
+  const before = externalBehavior(f.model!, { fullRelation: true, relationOptions: { indexed: false } });
+  const after = externalBehavior(f.model!, { fullRelation: true });
+  assert.ok(before.ok && before.decided && after.ok && after.decided);
+  assert.deepEqual(after.relation, before.relation);
+  assert.deepEqual(after.noSteadyState, [[]]);
+  assert.equal(after.propagation.status, "complete");
+  assert.equal(after.propagation.semijoin?.rowComparisons, 0);
 });
 
 test("semijoins preserve exact solutions with wildcards and repeated variables, and discard capped work", () => {

@@ -2,7 +2,7 @@
 
 This change implements bounded capabilities across the eight workstreams in the reviewed plan.
 It does not remove a limitation merely because a related theorem exists. The remaining work and
-acceptance criteria are in [the separate future plan](categorical-future-plan.md); the ranked
+acceptance criteria are in [assurance requirements](assurance-requirements.md); the ranked
 backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); the bibliography
 is in [theory/REFERENCES.md](../theory/REFERENCES.md). The Lean statement behind each verdict,
 and everything the kernel does not claim, are in the [theory map](theory-map.md).

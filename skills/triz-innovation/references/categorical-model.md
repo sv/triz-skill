@@ -18,8 +18,8 @@ This file is what a session needs. Every issue and lint code is in
 not, how the semantics work inside, and the complete list of what is not
 claimed. The finite assurance extensions, their exact implemented scope, and examples of the
 new APIs are summarized in [categorical-assurance.md](../../../docs/categorical-assurance.md).
-Deferred work, acceptance criteria and adopted suggestions are recorded separately in
-[categorical-future-plan.md](../../../docs/categorical-future-plan.md), and the ranked backlog in
+Proof obligations and acceptance criteria are recorded separately in
+[assurance-requirements.md](../../../docs/assurance-requirements.md), and the ranked backlog in
 [FUTURE-PLANS.md](../../../docs/FUTURE-PLANS.md). Literature is collected in
 [theory/REFERENCES.md](../../../theory/REFERENCES.md).
 
@@ -289,7 +289,7 @@ The finite assurance tools:
 | `triz_subsystem_summary` | `model`, the stateless `boxes` of the subsystem | its exact boundary relation, fixed cost, and hidden harmful and excessive functions |
 | `triz_implementations` | a `contract` (target model, `acceptable`, one shared `budget`, optional `required_inputs` and `allowed_harms`); named complete `alternatives`, each box with exactly one feasibility row asserted to support all its behaviour rows, plus envelope and evidence | which alternatives meet behaviour, adequacy, declared harms, and budget together |
 | `triz_absorber_assignments` | `model`, `trim`, a `contract`, `implementation` metadata | every compatible absorber endpoint, and complete assignments checked together |
-| `triz_synthesize` | a fixed `model`, a `contract`, `implementation` metadata, `holes`: per box, alternatives with full joint `behavior` rows and one `feasibility` row | complete tuples that meet the contract; impossibility holds only within the library and cap |
+| `triz_synthesize` | a fixed `model`, a `contract`, `implementation` metadata, `holes`: per box, alternatives with full joint `behavior` rows and one `feasibility` row; optional `strategy: exhaustive` | defaults to coupled backward residual filtering, choice propagation and request-local boundary memoization; `searchStats` reports avoided combinations and cache hits; surviving tuples meet the full contract, and impossibility holds only within the complete bounded library |
 | `triz_global_separation` | `variables`, and `regions` with allowed tuples | one assignment satisfying every region, or none |
 | `triz_queue` | per-slot `arrivals`, `service_capacity`, `storage_capacity`, `initial_backlog`, `schedule`, units | overflow or none within the declared slots, through the dynamics evaluator |
 | `triz_conservation` | a `splitter` or `merge`, `quantity_kind`, `unit`, the amounts | whether the declared balance holds: extensive amounts sum, intensive levels take the max |
@@ -1186,7 +1186,9 @@ complete candidate's finite behavior, acceptable values, harms and budget. Other
 claims typing only. Complete absence is `impossible-in-library`; caps or unknown properties are
 `undecided`. `remove` names parts to replace; their lost retained consumers become obligations.
 `triz_component_catalogue` returns general identity/fan-out relations parameterized by carrier
-`T`. Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
+`T` by default. `source: "knowledge"` returns registered multiport and stateful physical
+models, with explicit parameter bindings and implementation rows; see
+[knowledge setup](knowledge-packs.md#multiport-and-stateful-configurations). Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
 sourced entries. Bind parameters explicitly; conflicting or ambiguous aliases fail closed.
 Tags/domains only organize entries. Abstract relations declare no physical resource modes or
 costs. Imported carriers and entry origins are returned for replay; supplied source/license

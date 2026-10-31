@@ -1,15 +1,14 @@
-# Future categorical-model work
+# Assurance requirements
 
-This is the separate future-work record requested during the eight-workstream review.
-Implemented scope and current restrictions are in [categorical-assurance.md](categorical-assurance.md).
-The ranked backlog of the categorical-model work is [FUTURE-PLANS.md](FUTURE-PLANS.md); this
-file keeps the per-workstream acceptance criteria. The full research bibliography is maintained
-separately in
-[theory/REFERENCES.md](../theory/REFERENCES.md), including current foundations, deferred
-alternatives and supporting TRIZ/AI sources; it is not limited to this future plan.
-The baseline reviewed was `82d87a6a7a124481afa33194679807561bb6358c`.
-A roadmap entry is not an implemented guarantee. A paper supplying a method is not a proof that
-this kernel satisfies that method's hypotheses.
+Acceptance cases and proof/evidence obligations for future engine changes. Priorities,
+dependencies and implementation status belong to the [roadmap](FUTURE-PLANS.md).
+Current guarantees belong to [delivered assurance](categorical-assurance.md) and the
+[theory map](theory-map.md); source-reading limits belong to the
+[bibliography](../theory/REFERENCES.md).
+
+These criteria originated in the eight-workstream review in #35 and were extended for
+system evolution. They are retained here independently of release history. A roadmap entry
+is not an implemented guarantee, and a method citation does not establish its hypotheses.
 
 > Status note (0.6.0): the per-instance Lean certificate machinery this document describes
 > (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
@@ -20,7 +19,7 @@ this kernel satisfies that method's hypotheses.
 
 ## 1. Claims, request binding and trust
 
-**Next:** formalize the JSON/finite-table encoder correspondence, or use an extracted/verified
+**Required scope:** formalize the JSON/finite-table encoder correspondence, or use an extracted/verified
 encoder. Extend versioned request binding to future certificate kinds. Preserve the distinction
 between a generated proof, an input-bound proof, and a proof checked by pinned local Lean or a
 separately trusted remote service.
@@ -34,7 +33,7 @@ separation of proof validity from statement meaning [R3](../theory/REFERENCES.md
 
 ## 2. Invariance and semantic comparison
 
-**Next:** extend generated semantic models and stress tests to larger stateful/feasibility
+**Required scope:** extend generated semantic models and stress tests to larger stateful/feasibility
 families, supported capped searches and every new transformation. Establish transport theorems
 for semantic annotations. Keep witness validity separate from arbitrary witness tie-breaking.
 Develop external behavioral equivalence separately from annotation-preserving isomorphism.
@@ -45,7 +44,7 @@ Incomplete capped evidence must remain sound without a promise of identical sele
 
 ## 3. Broader finite certificates
 
-**Next, in order:**
+**Required scope:**
 
 1. Residual safety, target coverage and impossibility certificates, using a semantic one-hole
    union theorem and the delivered row/diagram correspondence. The general one/two-hole
@@ -70,7 +69,7 @@ recurrence. No `sorry`, unsafe axioms or skipped kernel validation.
 
 ## 4. Whole-system semantics and adequacy
 
-**Next:** verify the optimized finite joins, variable identification and pruning against the
+**Required scope:** verify the optimized finite joins, variable identification and pruning against the
 formal semantics, or validate each optimized result independently. Add checked conditions under
 which an omitted context admits every upstream state. Add exact arbitrary observable interfaces,
 deadlock-freedom and explicitly quantified temporal requirements.
@@ -91,7 +90,7 @@ constructive runtime solver to the theorem remain open.
 
 ## 5. Fine-grained implementation/evidence contracts
 
-**Next:** couple multiple resource/behavior/transition modes with stable implementation and
+**Required scope:** couple multiple resource/behavior/transition modes with stable implementation and
 row identifiers instead of requiring a single resource mode per box. Represent measured,
 derived, estimated and hypothetical evidence with operating envelopes and versioned sources.
 Bind physical-contradiction parameters explicitly to ports, states or measured expressions.
@@ -110,7 +109,7 @@ about a uniform distribution over tasks [R7](../theory/REFERENCES.md#r7).
 
 ## 6. Synthesis and abstraction
 
-**Next:**
+**Required scope:**
 
 - Merged-hole residuals landed in #49 as coordinated relaxations/diagnostics. Require
   factorization, an explicit coordination mechanism, or finite product-subrelation synthesis
@@ -137,7 +136,7 @@ whose hypotheses explicitly support the desired transferred property [R9](../the
 
 ## 7. Engineering models and overlapping contexts
 
-**Next:** feed-forward queue networks with declared arrival/service envelopes, backlog/delay
+**Required scope:** feed-forward queue networks with declared arrival/service envelopes, backlog/delay
 bounds, finite storage and schedules; validated component adapters for conversion, conservation,
 loss and buffering. Support richer multi-parameter contexts and return small checked conflict
 cores. Investigate continuous/hybrid adapters as a separate project.
@@ -154,7 +153,7 @@ are not a complete replacement for exact compatibility decisions [R13](../theory
 
 ## 8. Rewriting and optional categorical completion
 
-**Next:**
+**Required scope:**
 
 - Select a fixed-signature normalization subset and prove termination under its actual
   identification, freshness, attribute and flow conditions.
@@ -186,7 +185,7 @@ Restricted critical-pair algorithms [R44](../theory/REFERENCES.md#r44),
 the undecidability and compatibility limits [R45](../theory/REFERENCES.md#r45),
 [R46](../theory/REFERENCES.md#r46), [R83](../theory/REFERENCES.md#r83).
 
-## 9. System evolution, operating boundaries and joint objectives
+## System evolution, operating boundaries and joint objectives
 
 This open workstream connects E1–E6 in the [ranked roadmap](FUTURE-PLANS.md#system-evolution-and-operating-boundaries).
 Existing finite conditions, state transitions, typed rewrites and snapshot comparisons are
@@ -194,7 +193,7 @@ foundations. They do not yet form an integrated operating-envelope/evolution pla
 
 ### E1 — Executable envelopes and system boundaries
 
-**Next:** bind operating assumptions to explicit finite inputs/states, resource/quantity bounds,
+**Required scope:** bind operating assumptions to explicit finite inputs/states, resource/quantity bounds,
 initial conditions and evidence. Declare which choices are controlled, which context changes
 are external, what the policy observes and which interfaces cross the system boundary.
 Preserve coupled conditions instead of expanding them into independent marginals.
@@ -206,7 +205,7 @@ silently become permissive guarantees. Continuous range abstractions require the
 
 ### E2 — Joint properties and Pareto objectives
 
-**Next:** one specification contains hard predicates and an ordered property vector over the
+**Required scope:** one specification contains hard predicates and an ordered property vector over the
 same architecture, resource/behavior mode and policy. Budgets are hard predicates, while the
 same cost axes can also be objectives. Declare units, directions and aggregation for each axis.
 Extend finite alternative comparison before joint topology/mode/policy optimization.
@@ -219,7 +218,7 @@ frontier or a globally optimal evolution path. Weights are explicit preferences,
 
 ### E3 — Dynamic safe operating regions
 
-**Next:** separate steady-state admissibility from safety/viability over trajectories. State
+**Required scope:** separate steady-state admissibility from safety/viability over trajectories. State
 whether the claim concerns some run, every run, or a causal policy against all admissible
 disturbance sequences. Define observation and action order before introducing a finite game
 solver; the existing stationary expected-cost MDP theorem is not that solver.
@@ -231,7 +230,7 @@ checking; wider modeled coverage is not an estimated probability of successful o
 
 ### E4 — Context and requirement evolution
 
-**Next:** declare finite context transitions, schedules/clocks and versions for workloads,
+**Required scope:** declare finite context transitions, schedules/clocks and versions for workloads,
 provider contracts, quotas, compatibility, requirements and objective orders. Reconcile time
 scales explicitly. Keep operational state changes, context changes and architecture edits
 distinct; future inputs are declarations, not forecasts inferred from TRIZ trends.
@@ -242,7 +241,7 @@ Unsupported future conditions remain unresolved, and changed goals identify a ne
 
 ### E5 — Migration verification and bounded path planning
 
-**Next:** validate a supplied migration with explicit intermediate operational configurations,
+**Required scope:** validate a supplied migration with explicit intermediate operational configurations,
 live-state/interface maps and rollback transitions. This precedes searching bounded architecture
 paths and policies under E1 envelopes and E4 context traces with E2 objective orders.
 Snapshot-to-runtime-transition inference remains deferred; state transfer must be supplied.
@@ -255,7 +254,7 @@ complete paths; bounded exhaustion concerns only the declared path and policy sp
 
 ### E6 — Applicability, evidence and revalidation
 
-**Next:** bind proof-relevant context/envelope, requirements, objective algebra, policy and
+**Required scope:** bind proof-relevant context/envelope, requirements, objective algebra, policy and
 evidence versions to results, building on §1's encoder correspondence. Record dependency scopes
 for targeted rechecking. Monitoring adapters supply explicit observations; this plan does not
 deploy a monitoring or automatic corrective-action service.
@@ -266,32 +265,7 @@ original request, not about the new operating conditions. Distinguish observed b
 modeled violations, inapplicable evidence and uncertainty; no provenance count becomes a truth
 probability.
 
-**Build order:** E1 and initial E6 binding first; E2 finite joint comparison next; E4 explicit
-context evolution before E3 robust-region synthesis and E5 path optimization. Supplied-path
-checking may start once its envelope, transitions and state-transfer maps are explicit. C2
-aggregation, S3 contracts, C7/S1 acyclic/elimination methods and S5 compositional dynamics are
-shared prerequisites rather than duplicate implementations. Physlib/CSLib adapters retain
-their separate semantic bridge obligations in [math-connections.md](math-connections.md).
-
-## Suggestions adopted and corrected
-
-| Pasted suggestion | Disposition |
-|---|---|
-| 1 negative dynamics | Supported state-only inductive certificates delivered; bounded inputs and port predicates remain §3. |
-| 2 incomparability | Delivered with generic witnesses and complete admission/rejection obligations. |
-| 3 behavior certificates | Shared PR #39 encoder covers box maps, gained deliverables and one-sided inputs; this branch adds changed/whole-scope proofs and binding. Remaining interfaces are in §3. |
-| 4 label-blindness | Extended tests and semantic mapping search delivered; sorting ids alone was rejected as a proof of equivariance. #37's generated-model tests cover feasibility and the principle constructions alongside them. |
-| 5 model encoding check | Authoritative request binding and independent table comparison delivered; verified encoder remains §1. |
-| 6 weighted weakness | Joint operating coverage delivered separately from inclusion (`joint_prior`, beside #37's independent per-input `priors`); no extension of Bennett's task-prior theorem. |
-| 7 row isomorphism | Delivered with value/state maps and continued search after failed automorphisms. |
-| 8 grouping theorem | Row/diagram bridge delivered; unused overlapping union proofs removed in favor of #32 (merged). Optimized evaluator correctness remains §4. |
-| 9 harm completeness | Deferred to §3; witness validity must not be described as completeness. |
-| 10 loop certificates | Deferred to §3; recurrence requires a quantified statement and full premises. #32's `recurrent_reach` is that statement for the `recurrent` verdict's basis; certificates remain §3. |
-| 11 whole composition | Exact global finite constraints delivered; greatest fixed point of complete-valuation filtering proved. No local-propagation or implementation theorem. |
-| 12 merged residual | Explicit joint_boxes residual and projection-safety checking delivered, beside existing two-box maximal pairs and finite-library synthesis. N-adic concept lattices remain open. |
-| 13 absorber checks | Complete endpoint/assignment search delivered, with joint checks and a shared budget. |
-| 14 controlled trim | Explicit replay and typed retained-interface rule proved, with absorber-dependent behavior witness; AGREE/PBPO+ and universal categorical claims remain §8. |
-| 15 fibration | Optional §8; proposed full-grid fibration had the wrong variance. |
-| 16 overlapping separation | Exact global finite joins delivered; a pairwise scan was rejected as insufficient. |
-| 17 critical pairs | Termination measure and occurrence commutation delivered; global critical-pair obligations remain §8. |
-| 18 small features | Exact behavioral summaries/refinement delivered; group search landed in #38; numeric preimages and transition inference remain §§6/8. |
+Build order is maintained only in the [roadmap](FUTURE-PLANS.md#next-priorities).
+C2 aggregation, S3 contracts, C7/S1 solvers and S5 dynamics are shared dependencies.
+Physlib/CSLib adapters retain their semantic bridge obligations in
+[mathematical connections](math-connections.md).

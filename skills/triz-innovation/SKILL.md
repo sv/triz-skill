@@ -105,6 +105,8 @@ Read only what the task needs:
   [tool-selection.md](references/tool-selection.md);
 - cross-domain effects and quantity parameters, or expert contributions to the database:
   [knowledge-packs.md](references/knowledge-packs.md);
+- emerging effect names, patent configurations, and whether to retain compounds or split models:
+  [effects-decomposition.md](references/effects-decomposition.md);
 - exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
 - interaction tables built with `triz_build_model`, nested boxes expanded with
