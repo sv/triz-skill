@@ -3,6 +3,8 @@ import { z } from "zod";
 import { FunctionModel, BehaviorRow, FeasibilityRow, checkModel } from "./act.js";
 import { FiniteContract, ImplementationMetadata, EngineeringBudget, engineeringCap, engineeringInvalid, evaluateImplementation, modelWork } from "./act-contract.js";
 import { fail, issue, type Failure } from "./act-issues.js";
+import { BehaviorEvaluationCache } from "./act-behavior.js";
+import { SynthesisPruner, choiceMask, choiceIndices, combinationCount, pruningStats, type ChoiceConstraints } from "./act-synthesis-pruning.js";
 
 const Id = z.string().min(1);
 export const SynthesisRequest = z.strictObject({
@@ -20,6 +22,9 @@ export const SynthesisRequest = z.strictObject({
   })).min(1).max(10),
   max_work: z.number().int().min(1).max(1_000_000).optional(),
   max_states: z.number().int().min(1).max(100_000).optional(),
+  strategy: z.enum(["optimized", "exhaustive"]).default("optimized").describe("Exhaustive is the reference Cartesian search; optimized prunes coupled choice constraints and reuses exact boundary summaries"),
+  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
+  max_pruning_work: z.number().int().min(0).max(1_000_000).default(100_000).describe("Per compilation/propagation allowance within max_work, reserving at least three quarters of remaining work for validation; exhaustion falls back without speculative pruning"),
 });
 
 /** Full Cartesian tuples are tested; independent projections are never substituted for a relation. */
@@ -38,18 +43,54 @@ export function synthesizeFinite(input: unknown) {
     if (!b) return fail([issue("unknown-box", `$.holes[${i}].box`, `unknown hole '${h.box}'`, "Name an existing box in the fixed model.")]);
     if (b.transition || b.state || b.initial) return fail([issue("invalid-argument", `$.holes[${i}].box`, "finite relation synthesis does not replace stateful machines", "Use stateless holes with full behavior rows; dynamics synthesis is unsupported.")]);
     if (new Set(h.alternatives.map((a) => a.id)).size !== h.alternatives.length) return fail([issue("invalid-argument", `$.holes[${i}].alternatives`, "alternative ids within a hole must be distinct", "Give each local alternative its own id.")]);
+    // Validate every declaration before pruning can hide an invalid alternative.
+    for (const a of h.alternatives) {
+      const { producible: _producible, ...rest } = b;
+      const declaration = { domain: s.model.domain, carriers: s.model.carriers, wires: [], boxes: [{ ...rest, behavior: a.behavior, feasibility: [a.feasibility], ...(a.cost !== undefined ? { cost: a.cost } : {}) }] };
+      if (!budget.spend(modelWork(declaration))) return engineeringCap(budget);
+      const valid = checkModel(declaration, `$.holes[${i}].alternatives`);
+      if (!valid.ok) return fail(valid.issues);
+    }
   }
-  let size = 1;
-  for (const h of s.holes) size = size > Number.MAX_SAFE_INTEGER / h.alternatives.length ? Infinity : size * h.alternatives.length;
+  const checkedTarget = checkModel(s.contract.target, "$.contract.target");
+  if (!checkedTarget.ok) return fail(checkedTarget.issues);
+  const optimized = s.strategy === "optimized";
+  const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false);
+  const pruning = pruningStats();
+  const holeIds = new Set(ids);
+  // These checks precede behavior in evaluateImplementation. Preserve its unknown/error
+  // handling rather than using a behavior rejection to hide missing resource declarations.
+  const canPrune = !s.model.boxes.some(b => !holeIds.has(b.id) && b.feasibility?.length !== 1)
+    && new Set(s.implementation.declared_harms.map(h => h.id)).size === s.implementation.declared_harms.length
+    && s.implementation.declared_harms.every(h => h.wire === undefined || s.model.wires.some(w => w.id === h.wire))
+    && s.model.wires.every(w => !["harmful", "excessive"].includes(w.polarity) || s.implementation.declared_harms.some(h => h.wire === w.id));
+  const residual = s.optimizations?.backward_residual !== false, propagation = s.optimizations?.choice_propagation !== false;
+  const pruner = optimized && canPrune && (residual || propagation)
+    ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation) : undefined;
+  if (optimized && !canPrune) { pruning.status = "fallback"; pruning.reason = "pre-behavior-validation"; }
+  const initialDomains = s.holes.map(h => choiceMask(h.alternatives.length));
+  const sizeExact = combinationCount(initialDomains);
+  const asNumber = (n: bigint) => n <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(n) : null;
   const selected = new Map<string, (typeof s.holes)[number]["alternatives"][number]>();
   type Evaluation = Extract<ReturnType<typeof evaluateImplementation>, { ok: true }>;
   const results: Array<{ choices: Record<string, string>; result: Evaluation }> = [];
   let checkedCount = 0, satisfyingCount = 0, unknown = false, capped = false, failure: Failure | undefined;
+  let pruned = 0n, searchNodes = 0;
   let witness: { choices: Record<string, string>; model: FunctionModel } | undefined;
-  const search = (k: number) => {
+  const search = (k: number, incoming: bigint[], constraints?: ChoiceConstraints) => {
     if (!budget.spend()) { capped = true; return; }
+    searchNodes++;
+    const filtered = pruner?.filter(incoming, constraints);
+    const domains = pruner ? filtered?.domains : incoming;
+    if (pruner) pruned += combinationCount(incoming) - (domains ? combinationCount(domains) : 0n);
+    if (!domains) return;
     if (k < s.holes.length) {
-      for (const a of s.holes[k].alternatives) { selected.set(s.holes[k].box, a); search(k + 1); if (capped || failure) return; }
+      for (const i of choiceIndices(domains[k], s.holes[k].alternatives.length)) {
+        selected.set(s.holes[k].box, s.holes[k].alternatives[i]);
+        const next = [...domains]; next[k] = 1n << BigInt(i);
+        search(k + 1, next, filtered?.constraints);
+        if (capped || failure) return;
+      }
       return;
     }
     const choices = Object.fromEntries([...selected].map(([box, a]) => [box, a.id]));
@@ -59,7 +100,7 @@ export function synthesizeFinite(input: unknown) {
       const { producible: _producible, ...rest } = b;
       return { ...rest, behavior: a.behavior, feasibility: [a.feasibility], ...(a.cost !== undefined ? { cost: a.cost } : {}) };
     }) };
-    const result = evaluateImplementation(s.contract, { ...s.implementation, id: `tuple-${checkedCount + 1}`, model }, budget, s.max_states);
+    const result = evaluateImplementation(s.contract, { ...s.implementation, id: `tuple-${checkedCount + 1}`, model }, budget, s.max_states, cache);
     if (!result.ok) { failure = result; return; }
     checkedCount++;
     if (result.verdict === "satisfied") { satisfyingCount++; witness ??= { choices, model }; }
@@ -67,12 +108,15 @@ export function synthesizeFinite(input: unknown) {
     if (result.verdict === "undecided" && result.reason === "work-cap") capped = true;
     if (results.length < 50) results.push({ choices, result });
   };
-  search(0);
+  search(0, initialDomains);
   if (failure) return failure;
-  const common = { candidateSpace: { size: Number.isFinite(size) ? size : null, enumerated: checkedCount, complete: !capped,
+  const common = { candidateSpace: { size: asNumber(sizeExact), sizeExact: String(sizeExact), enumerated: checkedCount,
+    pruned: asNumber(pruned), prunedExact: String(pruned), accountedFor: asNumber(pruned + BigInt(checkedCount)), complete: !capped,
     scope: "Cartesian product of the declared finite libraries on the fixed wiring; no unlisted implementation or topology is searched." }, satisfyingCount, allDecided: !unknown && !capped, results, listedLimit: 50,
+    searchStats: { strategy: s.strategy, searchNodes, fullEvaluations: checkedCount, combinationsAvoided: asNumber(pruned), pruning,
+      boundarySummaries: { computations: cache.stats.computations, hits: cache.stats.hits, entries: cache.stats.entries } },
     ...(witness ? { witness } : {}), work: budget.used, maxWork: budget.max, scope: "whole" as const,
-    note: "Each full tuple is checked for exact target relation equality, operational adequacy, declared harms, and one shared resource budget. Joint behavior rows preserve correlated outputs. An empty result proves impossibility only in this declared finite library when candidateSpace.complete is true and every candidate is decided." };
+    note: "Surviving full tuples are checked for exact target relation equality, operational adequacy, declared harms, and one shared resource budget. Pruned tuples violate coupled target safety/coverage constraints; results lists evaluated tuples only. Joint behavior rows are never independently projected or deleted. An empty result proves impossibility only in this declared finite library when candidateSpace.complete is true and every remaining candidate is decided." };
   if (capped) return { ...engineeringCap(budget), ...common };
   return { ok: true as const, verdict: satisfyingCount ? "synthesized" as const : unknown ? "undecided" as const : "impossible-in-library" as const, complete: true as const, ...common };
 }

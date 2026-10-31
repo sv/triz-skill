@@ -106,5 +106,5 @@ lifecycle optimization. Guarded feedback and physical/CSLib adapters need the br
 listed in the [mathematical integration map](math-connections.md#integrated-theorem-search-results).
 The [E1–E6 roadmap](FUTURE-PLANS.md#system-evolution-and-operating-boundaries) gives the build
 order for structured envelopes, context evolution, safe operating regions and migration paths;
-[acceptance criteria](categorical-future-plan.md#9-system-evolution-operating-boundaries-and-joint-objectives)
+[acceptance criteria](assurance-requirements.md#system-evolution-operating-boundaries-and-joint-objectives)
 keep these plans separate from current guarantees.

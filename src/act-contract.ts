@@ -1,7 +1,7 @@
 /** Coupled finite implementations: behavior and resources are checked on the SAME choice. */
 import { z } from "zod";
 import { FunctionModel, checkModel, trimCandidates } from "./act.js";
-import { compareBehavior, operationalAdequacy } from "./act-behavior.js";
+import { compareBehavior, operationalAdequacy, type BehaviorEvaluationCache } from "./act-behavior.js";
 import { feasibility } from "./act-feasibility.js";
 import { levelsConsistency } from "./act-levels.js";
 import { applyTrim } from "./act-rewrite.js";
@@ -50,7 +50,7 @@ export const engineeringCap = (budget: EngineeringBudget) => ({ ok: true as cons
 const capFailure = (x: { ok: boolean; issues?: Array<{ code: string }> }) => !x.ok && x.issues?.some((i) => i.code === "cap-exceeded");
 
 /** One bounded joint check. Separate feasibility modes must be represented as separate alternatives. */
-export function evaluateImplementation(contract: Contract, alternative: Alternative, budget: EngineeringBudget, maxStates = 100_000) {
+export function evaluateImplementation(contract: Contract, alternative: Alternative, budget: EngineeringBudget, maxStates = 100_000, evaluationCache?: BehaviorEvaluationCache) {
   const base = { id: alternative.id, operatingEnvelope: alternative.contract.operating_envelope, evidence: alternative.evidence, declaredHarms: alternative.declared_harms, evidenceStatus: "declared-unverified" as const };
   if (!budget.spend(modelWork(alternative.model) + modelWork(contract.target))) return { ...base, ...engineeringCap(budget) };
   for (const [m, path] of [[alternative.model, "$.alternatives.model"], [contract.target, "$.contract.target"]] as const) {
@@ -82,18 +82,20 @@ export function evaluateImplementation(contract: Contract, alternative: Alternat
   const limit = Math.min(maxStates, Math.floor(budget.remaining / 6));
   if (limit < 1) return { ...base, ...engineeringCap(budget) };
   budget.spend(3 * limit);
-  const behavior = compareBehavior(contract.target, alternative.model, { scope: "whole", maxStates: limit });
+  const beforeBehavior = evaluationCache?.stats.work ?? 0;
+  const behavior = compareBehavior(contract.target, alternative.model, { scope: "whole", maxStates: limit, evaluationCache });
   if (capFailure(behavior)) return { ...base, ...engineeringCap(budget), behavior };
   if (!behavior.ok) return { ...base, ...behavior };
-  const behaviorWork = "baseline" in behavior ? behavior.baseline.statesExplored + behavior.concept.statesExplored + behavior.inputValuations : 1;
+  const behaviorWork = "baseline" in behavior ? (evaluationCache ? evaluationCache.stats.work - beforeBehavior : behavior.baseline.statesExplored + behavior.concept.statesExplored) + behavior.inputValuations : 1;
   budget.release(3 * limit - behaviorWork);
   if (behavior.verdict === "undecided") return { ...base, ok: true as const, verdict: "undecided" as const, reason: "behavior-undecided" as const, behavior };
   if (behavior.verdict !== "preserved") return { ...base, ok: true as const, verdict: "rejected" as const, reason: "behavior-changed" as const, behavior };
   budget.spend(2 * limit);
-  const adequacy = operationalAdequacy(alternative.model, contract.acceptable, { scope: "whole", maxStates: limit, requiredInputs: contract.required_inputs });
+  const beforeAdequacy = evaluationCache?.stats.work ?? 0;
+  const adequacy = operationalAdequacy(alternative.model, contract.acceptable, { scope: "whole", maxStates: limit, requiredInputs: contract.required_inputs, evaluationCache });
   if (capFailure(adequacy)) return { ...base, ...engineeringCap(budget), behavior, adequacy };
   if (!adequacy.ok) return { ...base, ...adequacy };
-  const adequacyWork = "statesExplored" in adequacy ? (adequacy.statesExplored ?? 0) + (adequacy.requiredSituationCount ?? 0) : 1;
+  const adequacyWork = "statesExplored" in adequacy ? (evaluationCache ? evaluationCache.stats.work - beforeAdequacy : adequacy.statesExplored ?? 0) + (adequacy.requiredSituationCount ?? 0) : 1;
   budget.release(2 * limit - adequacyWork);
   if (adequacy.verdict === "undecided") return { ...base, ok: true as const, verdict: "undecided" as const, reason: "adequacy-undecided" as const, behavior, adequacy };
   if (adequacy.verdict !== "adequate") return { ...base, ok: true as const, verdict: "rejected" as const, reason: "inadequate" as const, behavior, adequacy };
