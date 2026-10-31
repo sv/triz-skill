@@ -109,6 +109,13 @@ ids from `effects[].nodes`, `setup.model_sources[].node` and `setup.boundary_map
 declaration keys such as `0/ionize` are unchanged. Shared inputs, output aliases and unused output
 ports retain their original wiring/relations; no implementation is summarized away.
 
+After declaring finite behavior, use `triz_subsystem_summary` on returned instance ids to obtain
+one exact stateless boundary relation. Complete serial maps reuse the checked symbolic compiler;
+partial, nondeterministic and other supported static networks use the shared finite projection.
+The result reports `method` and, for symbolic maps, a declaration-bound `symbolicCertificate`.
+Keep the original model for operating feasibility, provenance and dynamics; a state machine or
+undeclared behavior never becomes a static map. Discovery retains every original name/topology.
+
 Optional `KnowledgePack.boundary_mappings` defines sourced forward observations with qualified `id`,
 `name`, `description`, `input_parameter`, `output_parameter`, `relation:"forget-refinement"`,
 `rationale`, conditions, limitations, provenance and optional review. Mappings must be non-identity,

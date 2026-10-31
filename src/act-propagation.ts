@@ -203,3 +203,17 @@ export function semijoinRows(sets: PropagationSet[], maxWork = MAX_PROPAGATION_W
   }
   return finish();
 }
+
+/** One all-or-nothing preprocessing plan for exact model projections. A capped pass must not
+ * leak partly pruned rows into either behavior evaluation or subsystem summaries. */
+export function propagateRelations(sets: PropagationSet[], domains: readonly (readonly string[])[], options: RelationOptions = {}): { sets: PropagationSet[]; propagation: PropagationStatus } {
+  const unary = propagateRows(sets, domains);
+  const overlaps = unary.status !== "complete" ? undefined : unary.sets.some(s => !s.rows.length)
+    ? { sets: unary.sets, status: "complete" as const, work: 0 }
+    : semijoinRows(unary.sets, MAX_PROPAGATION_WORK - unary.work, options);
+  const complete = unary.status === "complete" && overlaps?.status === "complete";
+  return { sets: complete ? overlaps!.sets : sets, propagation: {
+    status: complete ? "complete" : "fallback", work: unary.work + (overlaps?.work ?? 0),
+    ...(overlaps && "stats" in overlaps ? { semijoin: overlaps.stats } : {}),
+  } };
+}

@@ -95,6 +95,13 @@ The TypeScript lowering is regression-tested, not extracted from Lean. After mer
 boundary checks also compare indexed/factored evaluation with the shared engine's scan fallback
 and reuse its bounded request-local summaries; corruptions still invalidate those summaries.
 
+The subsystem-summary flow now shares #54's serial-map compiler: the declared ionic momentum/flow
+pair and particle-force/observation pair each become one checked static boundary map. Their joint
+context inputs and exact finite relations match the finite fallback. Analyzer readout and the
+explicitly fixed-phase SC relation use finite projection; the full stateful SC model stays unknown
+to static summarization. No discovery entry is replaced. `pnpm check:symbolic` also audits these
+two fixed effect certificates and ten corrupted encodings of each, alongside its synthesis cases.
+
 `--cert-dir DIR` emits eight patent typing certificates from the configuration runner and nine
 from the reduction runner (four typings, four selected finite equivalences, one stateful current
 trace). CI checks Lean acceptance and tamper rejection. Focused tests also check two typings,

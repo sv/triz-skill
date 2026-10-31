@@ -2,7 +2,7 @@ import { RelationPlan, type RelationOptions, type RelationStats, type ProjectedR
 import { modelRelations, portVariables } from "./act-relation-model.js";
 export { bindRow, portVariables, type Binding, type PortVariables } from "./act-relation-model.js";
 import type { Binding } from "./act-relation-model.js";
-import { MAX_PROPAGATION_WORK, propagateRows, semijoinRows, type PropagationStatus } from "./act-propagation.js";
+import { MAX_PROPAGATION_WORK, propagateRelations, type PropagationStatus } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
  * Declared behaviour: the external relation of a function model, and a decided trim.
@@ -204,17 +204,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
   // Keep every boundary valuation and its empty table row; only the joined relations are pruned.
   // A preprocessing cap falls back to the original sets without charging the search budget; the
   // status is reported, so a state cap after a fallback names the unpruned join as its cause.
-  const pruning = propagateRows(sets, domains);
-  const overlaps = pruning.status !== "complete" ? undefined
-    : pruning.sets.some(set => !set.rows.length)
-      ? { sets: pruning.sets, status: "complete" as const, work: 0 }
-      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work, options);
-  const propagation: PropagationStatus = {
-    status: pruning.status === "complete" && overlaps?.status === "complete" ? "complete" : "fallback",
-    work: pruning.work + (overlaps?.work ?? 0),
-    ...(overlaps && "stats" in overlaps ? { semijoin: overlaps.stats } : {}),
-  };
-  const propagated = propagation.status === "complete" ? overlaps!.sets : sets;
+  const { sets: propagated, propagation } = propagateRelations(sets, domains, options);
 
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const relations = new RelationPlan(propagated, options);

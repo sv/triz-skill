@@ -5,6 +5,7 @@ import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { BehaviorEvaluationCache, compareBehavior, externalBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics } from "../../src/act-dynamics.ts";
 import { modelCertificate, behaviorCertificate, dynamicsCertificate } from "../../src/act-cert.ts";
+import { summarizeSubsystem } from "../../src/act-refinement.ts";
 import { discovery } from "./effects-configurations.mjs";
 import { reductionBaseline } from "./reduction-baseline.mjs";
 
@@ -29,7 +30,7 @@ function reference(model, effect, rows, primaryValues) {
   return baseline;
 }
 export function validateBoundaryModels(k) {
-  const certificates = {}, relations = [];
+  const certificates = {}, relations = [], symbolicCertificates = [], summaries = [];
   const options = { scope: "whole", evaluationCache: new BehaviorEvaluationCache() };
   const store = (name, cert) => { assert.ok(cert.ok, JSON.stringify(cert)); certificates[name] = cert; };
   const check = (name, baseline, model) => {
@@ -37,6 +38,13 @@ export function validateBoundaryModels(k) {
     assert.ok(result.ok && result.verdict === "preserved", JSON.stringify(result));
     const scan = compareBehavior(baseline, model, { ...options, relationOptions: { indexed: false, decompose: false, elimination: "off" } });
     assert.ok(scan.ok && scan.verdict === "preserved" && scan.inputValuations === result.inputValuations, JSON.stringify(scan));
+    const request = { model, boxes: model.boxes.filter(b => !["resource", "required"].includes(b.id)).map(b => b.id) };
+    const compact = summarizeSubsystem(request), finite = summarizeSubsystem(request, { symbolic: false });
+    assert.ok(compact.ok && compact.verdict === "summarized" && finite.ok && finite.verdict === "summarized", JSON.stringify({ compact, finite }));
+    const rows = r => r.relation.map(row => JSON.stringify([row.in, row.out])).sort();
+    assert.deepEqual(rows(compact), rows(finite)); assert.deepEqual(compact.inputMap, finite.inputMap); assert.deepEqual(compact.outputMap, finite.outputMap);
+    if (compact.symbolicCertificate) symbolicCertificates.push(compact.symbolicCertificate);
+    summaries.push({ name, method: compact.method, components_before: request.boxes.length, components_after: 1 });
     store(`${name}Typing`, modelCertificate(model));
     store(`${name}Behavior`, behaviorCertificate(baseline, model, { scope: "whole" }));
     relations.push({ name, verdict: result.verdict });
@@ -80,6 +88,8 @@ export function validateBoundaryModels(k) {
       "0/transport": { behavior: currents.map(drive => ({ in: { phase: "sc", drive }, out: { transmitted: drive } })) },
     } }, k);
   assert.ok(sc.ok, JSON.stringify(sc));
+  const temporalSummary = summarizeSubsystem({ model: sc.model, boxes: sc.model.boxes.filter(b => !["resource", "required"].includes(b.id)).map(b => b.id) });
+  assert.ok(temporalSummary.ok && temporalSummary.verdict === "undecided" && temporalSummary.reason === "missing-behavior", "stateful phase must not become a static symbolic map");
   const snapshot = structuredClone(sc.model), phase = snapshot.boxes.find(b => b.id === sc.setup.model_sources.find(s => s.model === p("superconducting-phase")).node);
   // Explicit restriction to stable SC-state rows. This is not an implicit erasure of dynamics.
   phase.behavior = phase.transition.filter(row => row.state === "sc" && row.next === "sc").map(({ in: input, out }) => ({ in: input, out }));
@@ -108,5 +118,5 @@ export function validateBoundaryModels(k) {
   });
   assert.ok(options.evaluationCache.stats.hits > 0, "shared summaries should reuse unchanged finite boundaries while rejecting changed models");
   return { report: { finite_relations: relations, zero_illumination_checked: true, force_sign_corruption_rejected: true,
-    phase_state_retained: true, out_of_envelope_unsupported: true, patent_cases: patentCases }, certificates };
+    phase_state_retained: true, out_of_envelope_unsupported: true, patent_cases: patentCases }, certificates, symbolicCertificates, summaries };
 }

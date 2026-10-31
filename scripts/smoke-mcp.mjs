@@ -63,6 +63,12 @@ const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
 const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
 if (!familySetup.ok || familySetup.certificate?.format !== "lean" || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
+const finiteFlow = await json("triz_effect_setup", { chain: [66, 74], domain: "physical",
+  bindings: Object.fromEntries(["light", "voltage", "current"].map(p => [`physical:${p}`, { values: ["0", "1"] }])),
+  declarations: [0, 1].map(() => ({ behavior: ["0", "1"].map(v => ({ in: { in: v }, out: { out: v } })) })),
+});
+const compactFlow = await json("triz_subsystem_summary", { model: finiteFlow.model, boxes: finiteFlow.effects.map(e => e.box) });
+if (!compactFlow.ok || compactFlow.method !== "symbolic" || compactFlow.symbolicCertificate?.stages.length !== 2 || compactFlow.relation.length !== 2) fail("declared effects flow did not reuse checked symbolic summary composition");
 const windCatalogue = await json("triz_component_catalogue", { source: "knowledge", effects: [33] });
 if (!windCatalogue.ok || windCatalogue.catalogue.entries.length !== 3 || windCatalogue.named_configurations?.length !== 1) fail("named configuration became an opaque catalogue generator");
 const wind = await json("triz_effect_setup", { chain: [33], domain: "physical", certificate: true });

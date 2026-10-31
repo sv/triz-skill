@@ -13,6 +13,7 @@ import { modelCertificate, behaviorCertificate } from "../../src/act-cert.ts";
 import { validateReduction } from "./effects-configurations.mjs";
 import { reductionBaseline } from "./reduction-baseline.mjs";
 import { validateBoundaryModels } from "./effects-boundaries.mjs";
+import { summarizeSubsystem } from "../../src/act-refinement.ts";
 
 export function validateNamedReduction() {
   const current = data.knowledge(), baseline = reductionBaseline(current);
@@ -57,6 +58,11 @@ export function validateNamedReduction() {
     wire("finish", { box: "legacy", port: "out" }, { box: "required", port: "in" }, p("fluid-velocity"))];
   const compared = compareBehavior(reference, model, { scope: "whole" });
   assert.ok(compared.ok && compared.verdict === "preserved", JSON.stringify(compared));
+  const compactRequest = { model, boxes: expanded.setup.model_sources.filter(s => ["physical:ion-neutral-force", "physical:gas-flow-response"].includes(s.model)).map(s => s.node) };
+  const compact = summarizeSubsystem(compactRequest), finite = summarizeSubsystem(compactRequest, { symbolic: false });
+  assert.ok(compact.ok && compact.method === "symbolic" && compact.symbolicCertificate && finite.ok && finite.verdict === "summarized", JSON.stringify({ compact, finite }));
+  assert.deepEqual(compact.relation.map(r => JSON.stringify([r.in, r.out])).sort(), finite.relation.map(r => JSON.stringify([r.in, r.out])).sort());
+  assert.deepEqual(compact.box.inputs.map(p => p.carrier), [p("ion-current"), p("electric-field")], "drift context stays on the joint boundary");
   const broken = structuredClone(model);
   broken.boxes.find(b => b.id === expanded.setup.model_sources.find(s => s.model === p("gas-flow-response")).node).behavior[1].out.flow = "0";
   const mismatch = compareBehavior(reference, broken, { scope: "whole" });
@@ -67,13 +73,16 @@ export function validateNamedReduction() {
   for (const c of Object.values(certificates)) assert.ok(c.ok, JSON.stringify(c));
   const topology = validateReduction();
   const boundaries = validateBoundaryModels(current);
+  const symbolicCertificates = [compact.symbolicCertificate, ...boundaries.symbolicCertificates];
+  assert.equal(symbolicCertificates.length, 2, "ionic momentum/flow and the qualified particle-force observation supply fixed total serial maps");
   Object.assign(certificates, boundaries.certificates);
   return { report: { independent_unary_interfaces: { before: 70, previous: 69, after: 66 }, named_effects: current.effects.length, model_templates: current.models.length, boundary_mapping_count: current.boundary_mappings.length,
     implementation_declarations: { previous: 69 + 18, after: 66 + 19 },
     converted_ids: [20, 33, 35, 59], removed_discovery_names: [], ranked_text_queries: queries.length, typed_chain_queries: signatures.length,
     finite_boundary_behavior: compared.verdict, invalid_calibration_rejected: true, missing_context_rejected: true,
     patent_comparison: topology, boundary_validation: boundaries.report, certificate_count: Object.keys(certificates).length,
-    scope: "Selected conditional boundary behavior at explicitly declared finite points; not continuous physics or measured patent performance." }, certificates };
+    symbolic_summaries: [{ name: "IonicWindMomentumFlow", method: compact.method, components_before: compactRequest.boxes.length, components_after: 1 }, ...boundaries.summaries],
+    scope: "Selected conditional boundary behavior at explicitly declared finite points; not continuous physics or measured patent performance." }, certificates, symbolicCertificates };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { report, certificates } = validateNamedReduction();

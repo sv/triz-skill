@@ -9,16 +9,16 @@ type Box = FunctionModel["boxes"][number];
 export const symbolicStats = () => ({ status: "disabled" as "disabled" | "ready" | "fallback", reason: "", work: 0, certificateWork: 0,
   compilationMs: 0, certificateCheckMs: 0, substitutionCheckMs: 0, backwardMs: 0, regions: 0, states: 0, transitions: 0, prefixWidths: [] as number[][], supportCounts: [] as string[][], filterCalls: 0, filterFallbacks: 0, cacheHits: 0, primitiveGroups: 0, primitiveCompositions: 0, compositionsAvoided: 0, residualCalls: 0, residualCacheHits: 0, residualCacheEntries: 0, residualCacheCells: 0, retainedCells: 0 });
 export type SymbolicStats = ReturnType<typeof symbolicStats>;
-class Stop extends Error {}
+export class SymbolicFallback extends Error {}
 const key = (m: FiniteMap) => JSON.stringify(m);
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 type StageInput = Omit<SummaryStage, "edges">;
 function product(model: FunctionModel, ports: NonNullable<Box["inputs"]>, spend: (n?: number) => void): string[][] {
   const domains = ports.map(p => model.carriers.find(c => c.id === p.carrier)?.values);
-  if (domains.some(d => !d?.length)) throw new Stop("missing-carrier-domain");
+  if (domains.some(d => !d?.length)) throw new SymbolicFallback("missing-carrier-domain");
   const size = domains.reduce((n, d) => n * d!.length, 1);
-  if (!Number.isSafeInteger(size)) throw new Stop("symbolic-product-domain-cap");
+  if (!Number.isSafeInteger(size)) throw new SymbolicFallback("symbolic-product-domain-cap");
   spend(1 + size * (1 + ports.length)); // Reserve BEFORE building a Cartesian product.
   let tuples: string[][] = [[]];
   for (const domain of domains) tuples = tuples.flatMap(xs => domain!.map(x => [...xs, x]));
@@ -53,7 +53,7 @@ function recognize(model: FunctionModel, b: Box, hole: number, rows: NonNullable
 function reorderInput(model: FunctionModel, b: Box, s: StageInput, order: string[], spend: (n?: number) => void): StageInput {
   if (same(order, s.inputPorts)) return s;
   const columns = order.map(p => s.inputPorts.indexOf(p));
-  if (order.length !== s.inputPorts.length || columns.some(i => i < 0) || new Set(columns).size !== s.inputPorts.length) throw new Stop("invalid-wire-permutation");
+  if (order.length !== s.inputPorts.length || columns.some(i => i < 0) || new Set(columns).size !== s.inputPorts.length) throw new SymbolicFallback("invalid-wire-permutation");
   const ports = order.map(id => b.inputs!.find(p => p.id === id)!);
   const inputs = product(model, ports, spend), indices = new Map(inputs.map((x, i) => [JSON.stringify(x), i]));
   const oldToNew = s.primitives[0].map.inputs.map(xs => indices.get(JSON.stringify(columns.map(i => xs[i])))!);
@@ -90,7 +90,7 @@ export function compileRegion(stages: StageInput[], spend: (n?: number) => void,
       const b = g.map;
       spend(1 + a.image.length + a.outputs.length + b.inputs.length + b.outputs.length);
       if (stats) stats.primitiveCompositions++;
-      if (!same(a.target, b.source) || !same(a.outputs, b.inputs)) throw new Stop("typed-composition");
+      if (!same(a.target, b.source) || !same(a.outputs, b.inputs)) throw new SymbolicFallback("typed-composition");
       const m = { source: a.source, target: b.target, inputs: a.inputs, outputs: b.outputs, image: a.image.map(y => b.image[y]) };
       const signature = key(m);
       let to = ids.get(signature);
@@ -104,6 +104,60 @@ export function compileRegion(stages: StageInput[], spend: (n?: number) => void,
 }
 
 type Region = { boxes: Box[]; certificate: RegionCertificate };
+/** Shared serial-region compiler. Fixed-model consumers may include regions without holes;
+ * every consumer must bind the emitted certificate back to its raw declarations before use. */
+export function* compileSymbolicRegions(model: FunctionModel, holes: ChoiceLibrary[], spend: (n?: number) => void,
+  stats?: SymbolicStats, includeFixed = false): Generator<Region> {
+  spend(1 + model.boxes.length + model.wires.length);
+  const byId = new Map(model.boxes.map(b => [b.id, b])), incoming = new Map<string, FunctionModel["wires"]>(), outgoing = new Map<string, FunctionModel["wires"]>();
+  for (const w of model.wires) {
+    if (!incoming.has(w.to.box)) incoming.set(w.to.box, []);
+    if (!outgoing.has(w.from.box)) outgoing.set(w.from.box, []);
+    incoming.get(w.to.box)!.push(w); outgoing.get(w.from.box)!.push(w);
+  }
+  // Find possible serial bundles BEFORE constructing any carrier products. Boxes outside
+  // these bundles remain in the residual context; recognition cannot benefit from them.
+  const candidate = (b: Box | undefined): b is Box => !!b && b.role !== "product" && !b.inner && !b.state && !b.initial && !b.transition;
+  const next = new Map<string, string>(), prior = new Map<string, string>();
+  for (const s of model.boxes) {
+    if (!candidate(s)) continue;
+    const id = s.id, outputs = s.outputs ?? [];
+    const wires = outgoing.get(id) ?? [];
+    spend(1 + wires.length + outputs.length);
+    if (!outputs.length || wires.length !== outputs.length || new Set(wires.map(w => w.from.port)).size !== wires.length) continue;
+    const targetId = wires[0].to.box, t = byId.get(targetId);
+    if (!candidate(t)) continue;
+    const inputs = t.inputs ?? [];
+    if (wires.some(w => w.to.box !== targetId) || (incoming.get(targetId)?.length ?? 0) !== inputs.length
+      || wires.length !== inputs.length || new Set(wires.map(w => w.to.port)).size !== inputs.length
+      || outputs.some(p => !wires.some(w => w.from.port === p.id)) || inputs.some(p => !wires.some(w => w.to.port === p.id))) continue;
+    next.set(id, targetId); prior.set(targetId, id);
+  }
+  if (!next.size) return;
+  const members = new Set([...next.keys(), ...next.values()]), recognized = new Map<string, StageInput>();
+  for (const b of model.boxes) if (members.has(b.id)) {
+    const hole = holes.findIndex(h => h.box === b.id), h = holes[hole];
+    const rows = h ? h.alternatives.map(a => a.behavior) : b.behavior ? [b.behavior] : [];
+    const stage = recognize(model, b, hole, rows, spend);
+    if (stage) recognized.set(b.id, stage);
+  }
+  for (const [from, to] of next) if (!recognized.has(from) || !recognized.has(to)) { next.delete(from); prior.delete(to); }
+  for (const id of recognized.keys()) {
+    if (prior.has(id)) continue; // Cycles have no head and remain in the ordinary solver.
+    const boxes: Box[] = [];
+    for (let at: string | undefined = id; at !== undefined; at = next.get(at)) boxes.push(byId.get(at)!);
+    if (boxes.length < 2 || (!includeFixed && !boxes.some(b => recognized.get(b.id)!.hole !== null))) continue;
+    const stages = boxes.map((b, i) => {
+      const s = recognized.get(b.id)!;
+      if (!i) return s;
+      const previous = recognized.get(boxes[i - 1].id)!, wires = outgoing.get(previous.box)!;
+      const order = previous.outputPorts.map(id => wires.find(w => w.from.port === id)!.to.port);
+      return reorderInput(model, b, s, order, spend);
+    });
+    yield { boxes, certificate: compileRegion(stages, spend, stats) };
+  }
+}
+
 /** A wrapper over the existing exact coupled residual, whose choices now name summary states.
  * The DAG carries supports; it is NEVER flattened into rectangles of concrete choices. */
 export class SymbolicPruner {
@@ -114,7 +168,7 @@ export class SymbolicPruner {
     readonly memoryLimit: number, readonly memoize: boolean) {
     this.edgeMasks = regions.map(r => r.certificate.stages.map(s => s.edges.map(e => e.choices.reduce((m, i) => m | (1n << BigInt(i)), 0n))));
     stats.retainedCells += this.edgeMasks.flat(2).reduce((n, m) => n + m.toString().length, 0);
-    if (stats.retainedCells > memoryLimit) throw new Stop("symbolic-memory-cap");
+    if (stats.retainedCells > memoryLimit) throw new SymbolicFallback("symbolic-memory-cap");
   }
 
   static compile(model: FunctionModel, target: FunctionModel, holes: ChoiceLibrary[], budget: EngineeringBudget, pruning: SynthesisPruningStats,
@@ -122,60 +176,15 @@ export class SymbolicPruner {
     let used = 0;
     const started = performance.now();
     const limit = Math.min(maxWork, Math.floor(budget.remaining / 4));
-    const spend = (n = 1) => { if (used + n > limit || !budget.spend(n)) throw new Stop("symbolic-work-cap"); used += n; stats.work += n; };
+    const spend = (n = 1) => { if (used + n > limit || !budget.spend(n)) throw new SymbolicFallback("symbolic-work-cap"); used += n; stats.work += n; };
     try {
-      spend(1 + model.boxes.length + model.wires.length);
-      const byId = new Map(model.boxes.map(b => [b.id, b])), incoming = new Map<string, FunctionModel["wires"]>(), outgoing = new Map<string, FunctionModel["wires"]>();
-      for (const w of model.wires) {
-        if (!incoming.has(w.to.box)) incoming.set(w.to.box, []);
-        if (!outgoing.has(w.from.box)) outgoing.set(w.from.box, []);
-        incoming.get(w.to.box)!.push(w); outgoing.get(w.from.box)!.push(w);
-      }
-      // Find possible serial bundles BEFORE constructing any carrier products. Boxes outside
-      // these bundles remain in the residual context; recognition cannot benefit from them.
-      const candidate = (b: Box | undefined): b is Box => !!b && b.role !== "product" && !b.inner && !b.state && !b.initial && !b.transition;
-      const next = new Map<string, string>(), prior = new Map<string, string>();
-      for (const s of model.boxes) {
-        if (!candidate(s)) continue;
-        const id = s.id, outputs = s.outputs ?? [];
-        const wires = outgoing.get(id) ?? [];
-        spend(1 + wires.length + outputs.length);
-        if (!outputs.length || wires.length !== outputs.length || new Set(wires.map(w => w.from.port)).size !== wires.length) continue;
-        const targetId = wires[0].to.box, t = byId.get(targetId);
-        if (!candidate(t)) continue;
-        const inputs = t.inputs ?? [];
-        if (wires.some(w => w.to.box !== targetId) || (incoming.get(targetId)?.length ?? 0) !== inputs.length
-          || wires.length !== inputs.length || new Set(wires.map(w => w.to.port)).size !== inputs.length
-          || outputs.some(p => !wires.some(w => w.from.port === p.id)) || inputs.some(p => !wires.some(w => w.to.port === p.id))) continue;
-        next.set(id, targetId); prior.set(targetId, id);
-      }
-      if (!next.size) throw new Stop("no-supported-serial-region");
-      const members = new Set([...next.keys(), ...next.values()]), recognized = new Map<string, StageInput>();
-      for (const b of model.boxes) if (members.has(b.id)) {
-        const hole = holes.findIndex(h => h.box === b.id), h = holes[hole];
-        const rows = h ? h.alternatives.map(a => a.behavior) : b.behavior ? [b.behavior] : [];
-        const stage = recognize(model, b, hole, rows, spend);
-        if (stage) recognized.set(b.id, stage);
-      }
-      for (const [from, to] of next) if (!recognized.has(from) || !recognized.has(to)) { next.delete(from); prior.delete(to); }
       const regions: Region[] = [], covered = new Set<number>();
-      for (const id of recognized.keys()) {
-        if (prior.has(id)) continue; // Cycles have no head and remain in the ordinary solver.
-        const boxes: Box[] = [];
-        for (let at: string | undefined = id; at !== undefined; at = next.get(at)) boxes.push(byId.get(at)!);
-        if (boxes.length < 2 || !boxes.some(b => recognized.get(b.id)!.hole !== null)) continue;
-        const stages = boxes.map((b, i) => {
-          const s = recognized.get(b.id)!;
-          if (!i) return s;
-          const previous = recognized.get(boxes[i - 1].id)!, wires = outgoing.get(previous.box)!;
-          const order = previous.outputPorts.map(id => wires.find(w => w.from.port === id)!.to.port);
-          return reorderInput(model, b, s, order, spend);
-        });
-        const certificate = compileRegion(stages, spend, stats);
+      for (const region of compileSymbolicRegions(model, holes, spend, stats)) {
+        const { boxes, certificate } = region;
         const before = used;
         const checkStarted = performance.now();
         try {
-          if (!checkRegionDeclarations(certificate, model, holes, spend)) throw new Stop("certificate-rejected");
+          if (!checkRegionDeclarations(certificate, model, holes, spend)) throw new SymbolicFallback("certificate-rejected");
         } finally {
           stats.certificateCheckMs += performance.now() - checkStarted;
           stats.certificateWork += used - before;
@@ -184,9 +193,9 @@ export class SymbolicPruner {
         regions.push({ boxes, certificate });
         const cells = JSON.stringify(certificate).length;
         stats.retainedCells += cells;
-        if (stats.retainedCells > maxCells) throw new Stop("symbolic-memory-cap");
+        if (stats.retainedCells > maxCells) throw new SymbolicFallback("symbolic-memory-cap");
       }
-      if (!regions.length) throw new Stop("no-supported-serial-region");
+      if (!regions.length) throw new SymbolicFallback("no-supported-serial-region");
       const uncovered = holes.flatMap((_, i) => covered.has(i) ? [] : [i]);
       const removed = new Set(regions.flatMap(r => r.boxes.slice(1).map(b => b.id)));
       const heads = new Map(regions.map(r => [r.boxes[0].id, r]));
@@ -217,13 +226,13 @@ export class SymbolicPruner {
       const libraries = [...virtualHoles, ...uncovered.map(i => holes[i])];
       const beforeCheck = used, checkStarted = performance.now();
       try {
-        if (!checkBoundarySubstitution(model, holes, regions.map(r => r.certificate), reduced, libraries, spend)) throw new Stop("substitution-rejected");
+        if (!checkBoundarySubstitution(model, holes, regions.map(r => r.certificate), reduced, libraries, spend)) throw new SymbolicFallback("substitution-rejected");
       } finally {
         stats.certificateWork += used - beforeCheck;
         stats.substitutionCheckMs += performance.now() - checkStarted;
       }
       const compiled = SynthesisPruner.compile(reduced, target, libraries, budget, pruning, maxPruningWork, residual, propagation, relationOptions);
-      if (!compiled) throw new Stop(`residual-${pruning.reason}`);
+      if (!compiled) throw new SymbolicFallback(`residual-${pruning.reason}`);
       stats.status = "ready"; stats.regions = regions.length;
       stats.prefixWidths = regions.map(r => r.certificate.layers.map(l => l.length));
       stats.states = stats.prefixWidths.flat().reduce((n, x) => n + x, 0);
@@ -232,7 +241,7 @@ export class SymbolicPruner {
       stats.supportCounts = regions.map(r => countSummarySupports(r.certificate).map(String));
       return new SymbolicPruner(regions, uncovered, compiled, budget, maxWork, stats, maxCells, memoize);
     } catch (e) {
-      if (!(e instanceof Stop)) throw e;
+      if (!(e instanceof SymbolicFallback)) throw e;
       stats.status = "fallback"; stats.reason = e.message;
       stats.retainedCells = 0;
       return undefined;
@@ -244,7 +253,7 @@ export class SymbolicPruner {
     let used = 0;
     const started = performance.now();
     const limit = Math.min(this.maxWork, Math.floor(this.budget.remaining / 4));
-    const spend = (n = 1) => { if (used + n > limit || !this.budget.spend(n)) throw new Stop(); used += n; this.stats.work += n; };
+    const spend = (n = 1) => { if (used + n > limit || !this.budget.spend(n)) throw new SymbolicFallback(); used += n; this.stats.work += n; };
     try {
       const forward = this.regions.map(({ certificate: c }, r) => {
         const layers = [1n];
@@ -300,7 +309,7 @@ export class SymbolicPruner {
       this.uncovered.forEach((h, i) => { domains[h] &= acceptedVirtual![this.regions.length + i]; });
       return domains.every(d => d !== 0n) ? { domains } : undefined;
     } catch (e) {
-      if (!(e instanceof Stop)) throw e;
+      if (!(e instanceof SymbolicFallback)) throw e;
       this.stats.filterFallbacks++;
       return { domains: original }; // Atomic rollback; work remains charged.
     } finally { this.stats.backwardMs += performance.now() - started; }
