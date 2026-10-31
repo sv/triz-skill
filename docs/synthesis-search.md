@@ -6,6 +6,11 @@ implementations with the existing behavior, adequacy, harm and resource validato
 `strategy: "exhaustive"` retains the Cartesian reference search. Component/topology discovery
 and lifecycle policy search do not use this optimization yet.
 
+Behavior evaluation, residual compilation and global separation now share a
+[finite relation layer](shared-relations.md). Indexed joins reduce row scanning; connected-factor
+behavior evaluation avoids expanding independent internal products. The residual compiler still
+needs complete traces for coupled choice supports. This is not symbolic primitive recognition.
+
 ## What is computed
 
 The compiler unions the alternatives' behavior rows at each hole and enumerates consistent
@@ -61,6 +66,8 @@ tree-decomposition or hierarchical subsystem solver.
 {
   "strategy": "optimized",
   "optimizations": {
+    "indexed_relations": true,
+    "connected_factors": true,
     "backward_residual": true,
     "choice_propagation": true,
     "memoize_boundaries": true
@@ -121,7 +128,7 @@ node --import tsx scripts/benchmark-synthesis.mjs
 ```
 
 The benchmark runs exhaustive, memoization-only, residual-only, propagation-only, pruning
-without memoization, and fully optimized variants. All must finish under identical limits
+without memoization, index-only, factor-only, and fully optimized variants. All must finish under identical limits
 and match exhaustive verdicts, satisfying counts and first witnesses. Timings include
 preprocessing and request-local cache construction, with one warmup and seven rotated samples
 per variant. No timing threshold is used as a correctness test.

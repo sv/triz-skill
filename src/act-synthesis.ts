@@ -23,7 +23,7 @@ export const SynthesisRequest = z.strictObject({
   max_work: z.number().int().min(1).max(1_000_000).optional(),
   max_states: z.number().int().min(1).max(100_000).optional(),
   strategy: z.enum(["optimized", "exhaustive"]).default("optimized").describe("Exhaustive is the reference Cartesian search; optimized prunes coupled choice constraints and reuses exact boundary summaries"),
-  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
+  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), indexed_relations: z.boolean().optional(), connected_factors: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
   max_pruning_work: z.number().int().min(0).max(1_000_000).default(100_000).describe("Per compilation/propagation allowance within max_work, reserving at least three quarters of remaining work for validation; exhaustion falls back without speculative pruning"),
 });
 
@@ -55,7 +55,9 @@ export function synthesizeFinite(input: unknown) {
   const checkedTarget = checkModel(s.contract.target, "$.contract.target");
   if (!checkedTarget.ok) return fail(checkedTarget.issues);
   const optimized = s.strategy === "optimized";
-  const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false);
+  const relationOptions = { indexed: optimized && s.optimizations?.indexed_relations !== false,
+    decompose: optimized && s.optimizations?.connected_factors !== false, smallFirst: optimized };
+  const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false, 200_000, relationOptions);
   const pruning = pruningStats();
   const holeIds = new Set(ids);
   // These checks precede behavior in evaluateImplementation. Preserve its unknown/error
@@ -66,7 +68,7 @@ export function synthesizeFinite(input: unknown) {
     && s.model.wires.every(w => !["harmful", "excessive"].includes(w.polarity) || s.implementation.declared_harms.some(h => h.wire === w.id));
   const residual = s.optimizations?.backward_residual !== false, propagation = s.optimizations?.choice_propagation !== false;
   const pruner = optimized && canPrune && (residual || propagation)
-    ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation) : undefined;
+    ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation, relationOptions) : undefined;
   if (optimized && !canPrune) { pruning.status = "fallback"; pruning.reason = "pre-behavior-validation"; }
   const initialDomains = s.holes.map(h => choiceMask(h.alternatives.length));
   const sizeExact = combinationCount(initialDomains);

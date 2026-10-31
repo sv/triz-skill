@@ -260,7 +260,7 @@ for (const example of assuranceExamples) {
   for (const [key, expected] of Object.entries(example.expect)) if (result[key] !== expected) fail(`${example.tool}.${key}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(result[key])}`);
   if (example.tool === "triz_synthesize") {
     const reference = await json(example.tool, { ...example.args, strategy: "exhaustive" });
-    const uncached = await json(example.tool, { ...example.args, optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false } });
+    const uncached = await json(example.tool, { ...example.args, optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false } });
     for (const other of [reference, uncached]) if (!other.ok || other.verdict !== result.verdict || other.satisfyingCount !== result.satisfyingCount) fail("synthesis strategies disagree through MCP");
     if (result.searchStats?.strategy !== "optimized" || reference.searchStats?.strategy !== "exhaustive" || uncached.searchStats?.boundarySummaries.hits !== 0) fail("synthesis optimization controls did not cross MCP correctly");
     console.log(`triz_synthesize optimized/exhaustive -> ${result.satisfyingCount} matching solutions; optimization controls passed`);

@@ -2,7 +2,9 @@
 
 Status: design proposal, checked against the local search implementation on 2026-10-31.
 This note develops roadmap S6 with C6/S1/S3/S4; priorities remain in the
-[roadmap](FUTURE-PLANS.md). No production symbolic compiler is implemented by this note.
+[roadmap](FUTURE-PLANS.md). The [shared finite relation foundation](shared-relations.md) is
+implemented in the local PR #52 changes; the symbolic compiler and equivalence-class search
+below remain proposals.
 
 The strongest next step is a small, checked relation language with exact composition and
 search over equivalent boundary summaries. Dependency-based reuse and certified parameter
@@ -28,7 +30,8 @@ Full citations and reading limits are in the [research note](formal-triz-literat
 
 ## What the current engine still computes
 
-- [The residual compiler](../src/act-synthesis-pruning.ts) unions library rows and enumerates
+- [The residual compiler](../src/act-synthesis-pruning.ts) uses the shared relation adapter and
+  indexed join, unions library rows and enumerates
   consistent internal traces before forming unsafe/coverage rectangles. This can be expensive
   even when many implementations have simple, equivalent behavior.
 - [Synthesis](../src/act-synthesis.ts) still visits surviving concrete tuples. The
@@ -37,6 +40,9 @@ Full citations and reading limits are in the [research note](formal-triz-literat
 - [Subsystem summaries](../src/act-refinement.ts) are exact finite relations with maps back to
   ports. The current [contract checker](../src/act-subsystem-contract.ts) checks single-mode
   stateless declarations by recomputing their finite behavior.
+
+Connected-factor evaluation now avoids materializing independent internal products. It does not
+merge equivalent component-choice prefixes or eliminate variables across connected separators.
 
 The proposed gain is to avoid materializing internal traces and repeatedly exploring equivalent
 prefixes. It cannot eliminate the cost of reading input tables, distinct resource problems,

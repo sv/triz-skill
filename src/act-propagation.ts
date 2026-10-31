@@ -1,6 +1,7 @@
 /** One relation row binds wire-unified variable numbers to declared values. */
-export type PropagationBinding = Array<[number, string]>;
-export type PropagationSet = { vars: number[]; rows: PropagationBinding[] };
+import type { RelationBinding, ScopedRelation } from "./act-relations.js";
+export type PropagationBinding = RelationBinding;
+export type PropagationSet = ScopedRelation;
 export const MAX_PROPAGATION_WORK = 1_000_000;
 /** How arc consistency ended: `complete` pruned to the fixpoint (or found a table with no row);
  *  `fallback` hit the work limit and pruned nothing. `work` counts the units charged. */

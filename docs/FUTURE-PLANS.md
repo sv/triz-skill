@@ -91,9 +91,9 @@ coverage. Its detailed adversarial cases live only in
 | C1 | Implemented, #42 | Wire-equivalence quotient for finite certificates |
 | C2 | Carrier quantity kinds implemented, #42 | Cost aggregation across ideality, feasibility, windows, refinement and isomorphism; conversion/conservation adapters |
 | C3 | Open | Declared value orders, port-level signed SCCs and conditional lattice steady-state results |
-| C4 | Open | Solve independent connected factors separately and combine exact boundaries |
+| C4 | Implemented in local PR #52 changes | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
 | C5 | Implemented, #42 | Horizon-free time-invariant finite saturation; schedules and work caps retain bounded/undecided scope |
-| C6 | Open | Recognize total functional rows and evaluate from boundary inputs plus a feedback cut |
+| C6 | Indexed table evaluation in local PR #52 changes | Total-function recognition and feedback-cut propagation remain open |
 | C7 | Abstract gluing theorem implemented, #51 | Check join-tree witnesses and connect a constructive reducer/solver to the theorem |
 | C8 | Open | Optional totality/input-enabledness lint with explicit feedback hypotheses |
 
@@ -145,8 +145,10 @@ review status; an Agents snapshot does not supply imperative transition semantic
 | S6 | Open | Checked symbolic summaries for recognized mathematical primitives |
 
 The local changes add backward residual filtering, propagation over component choices and exact
-boundary memoization for stateless fixed-wiring synthesis. Exhaustive comparison, ablations,
-rollback caps and measurements are documented in [synthesis search](synthesis-search.md) and
+boundary memoization for stateless fixed-wiring synthesis, plus a shared finite relation layer,
+indexed joins and connected-factor evaluation. See [shared relations](shared-relations.md).
+Exhaustive comparison, ablations, rollback caps and measurements are documented in
+[synthesis search](synthesis-search.md) and
 [benchmarks](../benchmarks/synthesis/latest.md). They are not merged-main capabilities in the
 reference revision, a formal proof of the TypeScript optimizer, or lifecycle/topology optimization.
 
