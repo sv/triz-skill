@@ -4,8 +4,8 @@ The audit companion to the skill's agent reference,
 [categorical-model.md](../skills/triz-innovation/references/categorical-model.md). That file says
 what each verdict means and how to act on it. This one holds what does not change what an agent
 does or says: every Lean statement behind the function-model tools, cited or never cited; which
-verdict cites which statement; how the compositional semantics, the verdicts, and the
-certificates work inside; the classification of all 40 principles; and the complete list of what
+verdict cites which statement; how the compositional semantics and the verdicts
+work inside; the classification of all 40 principles; and the complete list of what
 is not claimed. Read it to audit a verdict, not to run a TRIZ session.
 
 The Lean package is `theory/`. The literature is in [theory/REFERENCES.md](../theory/REFERENCES.md),
@@ -23,29 +23,24 @@ than extracted or separately Lean-certified; it now records activation order.
 `SourceSupport.lean` proves the corresponding generic least-Horn-closure and finite-derivation
 laws, including max/threshold compatibility, without claiming a verified runtime encoder.
 It does not prove timed startup or physical supply.
-Lifecycle holding costs enter the same finite cost matrix checked by `Lifecycle.Optimality`;
-`Certificates.LifecycleHolding` covers a rational per-state charge and tamper rejection.
+Lifecycle holding costs enter the same finite cost matrix checked by `Lifecycle.Optimality`.
 
 Automatic [component discovery](component-discovery.md) replays each bounded network through
-`typed_delete`/`typed_glue`. Generated networks reuse existing typing and whole-model behavior
-certificates. Those do not certify the enumerator, resource/adequacy verdicts or empirical
-properties. `ComponentSearch.chain_nil`, `chain_append` and `chain_preserves` use simp/grind to
+`typed_delete`/`typed_glue`. The enumerator, resource/adequacy verdicts and empirical
+properties are not certified. `ComponentSearch.chain_nil`, `chain_append` and `chain_preserves` use simp/grind to
 prove identity, serial composition and conditional predicate preservation, separately from
 arbitrary multi-input topology search.
 
 Reusable catalogues instantiate declared type bindings before search. General identity/fan-out
 entries are mathematical equality relations with rows derived only from declared finite values.
-`Certificates.GeneralIdentity` certifies one instantiated identity's whole-model behavior and
-nonemptiness, with tamper rejection. It does not verify the catalogue compiler, physical
+They do not verify the catalogue compiler, physical
 realizability, resource modes or supplied source/license assertions.
 
 Each verdict cites in `basis` the theorem in `theory/CategoricalTriz.lean` its reasoning uses,
 as in the inventory below, or a Mathlib lemma a proof in that file uses. A test checks that
 every cited name is a theorem in that file or such a lemma, which `lake build` then resolves.
 That theorem proves the abstract fact. Tests check the TypeScript against it; nothing is
-extracted from Lean. Typing, harm-loop witness, separation, reachable- and unreachable-escalation, state-only
-safety, every weakness pair (strict, equal, incomparable), and preserved- and changed-behaviour
-verdicts can also be certified per instance (see [Certificates](#certificates)). A basis never means the TRIZ reading of a verdict is proved. A
+extracted from Lean. A basis never means the TRIZ reading of a verdict is proved. A
 verdict that needs no theorem, such as a compatible pair, cites none. A theorem is cited only
 where its statement is exactly what the verdict uses. The inventory marks the others as never cited.
 Most are semantic sanity lemmas: they pin the semantics down on the tests' own examples
@@ -97,13 +92,14 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 | Weakness of a concept | `triz_weakness` | `incomparable_of_witnesses`, `card_lt_of_strictly_weaker`; `level_gc` for a threshold | `admits_incomparable`, `admits_bot`, `admits_mono_ok`, `atLeastAsWeak_refl`, `atLeastAsWeak_trans` | `admits`, `AtLeastAsWeak` |
 | Dynamics: escalation, invariance, separation in time | `triz_dynamics` | `reachIn_iff_trace`, `reachWithin_iff_trace`, `reach_of_trace`, `reachIn_of_trace`, `reachWithin_saturated`, `unreachable_of_invariant` | `mealyStep_mono`, `reachIn_mono`, `reachWithin_mono`; dynamics read as behaviour, which the kernel does not compute: `relTrace_mealyRel_iff`, `relTrace_mealyRel_fixed` | `mealyStep`, `reachIn`, `reachWithin` |
 | Loop behaviour | `triz_dynamics` `loops` | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `recurrent_reach`, `return_ge_two` | — | `Closed` |
-| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` | `feasibility_comp`, `feasibility_par`, `feasibility_trace`; for extensive carriers, `selection_mono`, `extensive_demand_mono` | — |
+| Co-design feasibility | `triz_feasibility` | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`; the `relaxation` block also cites `budget_feasible_iff` | `feasibility_comp`, `feasibility_par`, `feasibility_trace`; for extensive carriers, `selection_mono`, `extensive_demand_mono` | — |
 | Levels | `triz_feasibility`, `triz_abstraction`, `triz_weakness` | `level_monotone`, `level_gc`, `level_band` | — | — |
 | Abstraction | `triz_abstraction` | `typed_restrict` and `typed_map` (typed), `reach_map`, `cycle_map`, `reach_quotient` (flows) | — | `Wiring.map` |
 | Ideality comparison | `triz_function_model`, `triz_trim` | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` | — | — |
+| Joint ranking of candidate designs | `triz_pareto` | `pareto_not_total`, `pareto_incomparable` | — | — |
 | Physical contradiction, separation | `triz_separate` | `exists_section_iff`, `glue_of_disjoint_regions`, `no_section_of_overlap`, `separated_iff_axis` | `separation_on_condition` | — |
 | Same model in another domain | `comparison.isomorphism` | `typed_rename`, `transGen_equiv` | — | — |
-| Certificate of one run | `scripts/certify.mjs` | none: a certificate proves its own statements; see [Certificates](#certificates) | used by the proofs, never cited: `WireClasses.eq_root`, `WireClasses.exists_eq_comp`, `WireClasses.comp_respects`, `Rows.exists_steady_iff_classes`, `Rows.relation_eq_classes`, `Sync.unreachable_of_holding_classes`, `Sync.closed_of_classes`, `admitted_ssubset` | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation`, `Rows.classRelation`; port classes `WireClasses`, `WireClasses.Ok` |
+| Port classes over wired ports (proof layer; no verdict applies them since per-instance certificates were removed) | none | — | never cited: `WireClasses.eq_root`, `WireClasses.exists_eq_comp`, `WireClasses.comp_respects`, `Rows.exists_steady_iff_classes`, `Rows.relation_eq_classes`, `Sync.unreachable_of_holding_classes`, `Sync.closed_of_classes`, `admitted_ssubset` | `Wiring.Typed`, `Wiring.Acts`; row tables `Sync.Step`, `Rows.relation`, `Rows.classRelation`; port classes `WireClasses`, `WireClasses.Ok` |
 | Model transformation | `triz_transform` | `typed_delete`, `typed_glue`, `typed_reroute`, `typed_retarget`, `typed_reverse`, `typed_extend`; per construction, `reach_quotient`, `flow_merge_typed`, `flow_merge_reach`, `edge_on_cycle`, `typed_rename`, `cheaper_part_lowers_cost` | — | — |
 | Reusable move, evolution-line step | `triz_rule_apply` | `typed_dpo` | `typed_overlay` (listed as citable, emitted by no verdict) | — |
 | A subsystem that lags | `uneven-development` | `edge_on_cycle`; the feasibility verdict's basis | — | — |
@@ -111,13 +107,6 @@ row says otherwise, the statements are in `theory/CategoricalTriz.lean`.
 | Which ports of a box are independent | `behavior.finest`, `factorisations` | `IsFinest.addPort`, `factors_split_iff`, `IsFinest.factors_iff` | `Factors.inf`, `Factors.mono`, `Factors.onPorts`, `exists_isFinest`, `IsFinest.unique`, `IsFinest.rel_iff`, `factors_bot_iff`, `factors_empty`, `isFinest_onPorts_empty` | `Factors`, `IsFinest` |
 | System operator, level axis | `triz_nine_windows` | `typed_restrict` | used by `supportedOn`, never cited: `restrict_restrict`, `restrict_of_subset` | `supportedOn`, `typedOn` |
 | System operator, time axis | `triz_nine_windows` `transitions` | `restrict_rewrite`, `restrict_rewrite_of_inside`, `boundary_rewrite` | — | `restrictionGrid` |
-
-The certificate statements use `edge_on_cycle`, `exists_section_iff`, `glue_of_disjoint_regions`,
-`no_section_of_overlap`, and `separated_iff_axis` over `Wiring.Typed` and `Wiring.Acts`, and
-`reach_of_trace`, `unreachable_of_invariant`, `unreachable_of_holding_classes`, `closed_of_classes`,
-`AtLeastAsWeak`, `admitted_ssubset`, `card_lt_of_strictly_weaker`, and `incomparable_of_witnesses`
-over the row tables `Sync.Step` and `Rows.relation`, read through the port classes
-(`relation_eq_classes`) where a proof enumerates valuations (`theory/Certificates/`).
 
 ## Which verdict cites what
 
@@ -372,9 +361,10 @@ continuation runs after every other part of the result, on a budget and sets of 
 start where the horizon's search stopped, so the bounded verdicts, counts, fixed points, blocked
 runs, separation, and loops are what they were. Past the cap only `unbounded` is `undecided`
 (reason `cap-exceeded`); a decided bounded verdict never becomes a failure. Under an input sequence
-configurations are indexed by time, never saturate, and get no `unbounded` verdict. A certificate
-states the unbounded verdict when the bounded one is open: a later trace, or for a port target the
-reached global states as the invariant of `unreachable_of_holding_classes`.
+configurations are indexed by time, never saturate, and get no `unbounded` verdict. When the
+bounded verdict is open but `unbounded` is decided, it carries the deciding evidence: a later
+trace, or for a port target the reached global states as the invariant of
+`unreachable_of_holding`.
 
 The reached fixed points are checked by tests, on the examples: the steps staying at a reached
 fixed point are exactly the steady states `triz_behavior` finds when each stateful box is frozen
@@ -479,57 +469,20 @@ A property test applies five rules at every match in 200 generated models. Every
 match gives a typed model. Every other match fails on a named condition, never at step 7. A
 test on the bearing model with declared behaviour checks step 4.
 
-## Certificates
+## Per-instance certificates (removed)
 
-A generated certificate contains finite source tables, precisely stated verdicts, and a manifest.
-Generation is distinct from successful Lean checking. The manifest binds the complete authoritative
-request and records scope, source SHA256, schema/generator/theory versions and toolchain pins.
+Per-instance Lean certificates — generated Lean files restating one model's verdicts over finite
+id tables, checked by `scripts/certify.mjs` with tamper rejection, with the fixtures in
+`theory/Certificates/` — were removed in 0.6.0 (see the CHANGELOG): the theory now pairs with the
+tools by citing theorems in `basis` and by powering design moves (`triz_feasibility`'s
+`relaxation`, `triz_pareto`), not by re-proving each finite instance. Lean CI still builds
+`theory/` with `lake build --wfail`, so no `sorry` or nonstandard axiom ships.
 
-What each kind of certificate proves, and which cases are unsupported, is tabulated in the agent
-reference's [Certificates](../skills/triz-innovation/references/categorical-model.md#certificates).
-
-The `Rows` encoding says each box admits its port valuation and every wire equates its ends.
-Weakness admission requires a nonempty output set and every output acceptable, so a favorable
-output alone proves nothing universal. Behavior inequality includes membership and nonmembership
-at one pair; it does not certify every separately reported containment direction. Negative dynamics
-invariants contain all port valuations of each selected machine state, because `Sync.Step` constrains
-successor machine states but not successor consistency. A BFS node list is not automatically closed.
-
-**Port classes.** A function says its two ports carry one value, so the ports a chain of functions
-joins are one variable. A certificate that enumerates valuations (behaviour, weakness, a state-only
-invariant's closure, a saturated port target) carries the classes as proof data: `portClass`, a
-`classRoot` per class, and a spanning forest, `portLink` (the function each port was reached by) and
-`portRank`. `WireClasses.Ok` checks it: every function joins two ports of one class, and from every
-port the links lead to its class's root, the rank falling at each step. A class map that joins two
-ports no path of functions joins fails that check, and so does every verdict whose proof reads it
-(`--tamper`'s "port classes merged"). Given the check, a valuation every function respects is a
-valuation of the classes read through `portClass` (`WireClasses.eq_root`, `exists_eq_comp`). So:
-
-- `Rows.exists_steady_iff_classes`: a steady state exists exactly when one exists through the
-  classes, and `Rows.relation_eq_classes` rewrites `rows.relation` to `rows.classRelation`, which
-  `decide` evaluates over a value per class;
-- `Sync.unreachable_of_holding_classes` is `unreachable_of_holding` with its three valuation checks
-  over the classes, and `Sync.closed_of_classes` decides a state set's closure the same way;
-- `admitted_ssubset` gives a strict count from the two inclusions, each decided on its own.
-
-The certified statements stay over raw ports, and the checker pins them as before; only the
-proofs, and the tables they read, change. Initial coverage, unsafe exclusion, and safe containment
-of a state-only invariant read no valuation at all, so their proofs quantify over the global states
-only. The work estimate (`tableReads` on a generated certificate, capped at `MAX_CERT_ROWS`) raises
-the value count to the number of classes, not of ports: for `bearing-heat-behavior`'s trim, 4,550
-table reads instead of 69,376, and a chain of eight binary mediators (18 ports, 9 classes), which
-read 368,050,176 over its ports, now fits. A trace certificate checks one valuation per step and
-carries no classes.
-
-The request records `kind` (`model`, `separation`, `behavior`, `weakness`, or `dynamics`) and all of
-that generator's source options. The checker independently compares normalized source data with
-literal finite tables and regenerates to detect staleness before Lean checking. This detects input
-mismatches; it is not a proof that the encoder or optimized evaluator is correct on all inputs.
-See [the request formats](categorical-assurance.md#certificates-and-source-correspondence).
-
-The strict generated-file grammar, pinned theorem statements, no-warning/no-`sorry` requirement,
-and axiom whitelist (`propext`, `Classical.choice`, `Quot.sound`) still apply. `--tamper` verifies
-that relevant negated or altered copies fail. Source ids are escaped data, not Lean commands.
+What survives of that layer are the port-class lemmas in the inventory above: a function says its
+two ports carry one value, so the ports a chain of functions joins are one variable, and
+`WireClasses.Ok` + `Rows.exists_steady_iff_classes`/`relation_eq_classes` let a finite check read
+one value per class instead of per port. No tool currently applies them; they remain proved,
+never cited.
 Per-instance work caps remain explicit. A theorem holds for the encoded scope and declared rows;
 physical truth is not established by proof checking.
 
@@ -741,9 +694,7 @@ The implemented guarantees are separated from future work in
   part to the whole model: the whole relates no more on the upstream inputs, and the same when the
   rest accepts whatever the part does (`external_sub_of_external`, `extends_of_accepts`).
   `scope: "whole"` composes every box instead (tested, not proved, against the same semantics).
-  `preserved` and `changed` are certified per instance. The weakness and behaviour certificates
-  restate composition from the declared rows (`Rows.relation`) and decide it there; they do not
-  certify the evaluator either. Lean relates those row tables to open diagrams (`rowsDiagram`,
+  Lean relates the row tables to open diagrams (`rowsDiagram`,
   `rows_steady_iff`, `rows_relation_iff_external`); that does not prove the TypeScript encoder.
 - The default weakest-spec modes return one relation or maximal pairs for two boxes. The
   `joint_boxes` mode handles more boxes as one coupled relation; it does not enumerate n-adic
@@ -832,38 +783,32 @@ The implemented guarantees are separated from future work in
   (`tests/act-extended-invariance.test.ts`) check reachable sets, loop classes, and shortest
   traces under renamed states, values, targets, and inputs, comparing a tied witness by validity
   and length, not identity.
-- The dynamics, weakness, and behaviour certificates certify what a witness or an exhaustive
-  decision supports, and nothing else:
-  - of `triz_dynamics`, a reachable escalation, witnessed by one trace; for state-only targets,
-    unreachability and invariance (`safetyInvariant`) at every horizon, witnessed by a closed
+- What a dynamics, weakness, or behaviour verdict states is exactly what its witness or its
+  exhaustive decision supports, and nothing else:
+  - of `triz_dynamics`, a reachable escalation is witnessed by one trace; for state-only targets,
+    unreachability and invariance (`safetyInvariant`) at every horizon hold by a closed
     invariant that holds every valuation of each selected state, with initial coverage; and for
-    a saturated port target, an unreachable escalation witnessed by the reached global states as
-    an inductive invariant. All are decided within the cap on table reads, so only small models
-    are certified. Under time-invariant inputs, the unbounded verdict (`unbounded`) is certified
-    when decided: a trace past the horizon, or saturation past it. Unreachability within the
-    horizon only (an input sequence, or the cap hit past the horizon), safe port predicates,
-    separation in time, and loop classes are not certified, and runs under an input sequence are
-    not encoded;
-  - a port-target unreachable certificate's target, like an escalation's, is the admitted
+    a saturated port target, an unreachable escalation holds by the reached global states as
+    an inductive invariant. All are decided within the cap, so only small models are decided.
+    Unreachability within the horizon only (an input sequence, or the cap hit past the horizon)
+    and safe port predicates are weaker statements; runs under an input sequence are not
+    indexed by a saturation argument;
+  - a port-target unreachable verdict's target, like an escalation's, is the admitted
     configurations in the unsafe set (`Sync.target`). A run that blocks has no admitted
-    configuration there, so the certificate also states the kernel's further check: every reached
+    configuration there, so the kernel further checks: every reached
     state admits a valuation or fails the unsafe set's state conditions, so no run blocks in them
     (`unreachable_of_holding`);
-  - of `triz_weakness`, every pair: strict inclusions with the larger count, equality, and
+  - of `triz_weakness`, every pair is decided: strict inclusions with the larger count, equality, and
     incomparability by a witness admitted by one concept and rejected by the other, each way
-    (`incomparable_of_witnesses`), decided over every situation and valuation within the cap on
-    table reads, so only small concepts are certified;
+    (`incomparable_of_witnesses`), decided over every situation and valuation within the cap,
+    so only small concepts are decided;
   - of `triz_behavior`, `preserved` (the two relations equal and not empty) and `changed` (an
     input and output in one relation and not the other), decided over every situation and
     valuation within the same cap. `undecided`, the weakest specification, and lost
-    deliverables are not certified;
-  - only the boxes composed in the certificate's scope are encoded. Under the default upstream
-    scope each certificate holds under the kernel's stated `assumption`: every other box accepts
-    whatever it receives; under `scope: "whole"` every box is encoded;
-  - a manifest binds each certificate to its request, scope, and theory and schema pins.
-    `scripts/certify.mjs --request` checks the source and table correspondence and regenerates
-    the certificate; that detects staleness and encoding mismatches, and is not a proof of the
-    encoder.
+    deliverables state what they say and no more;
+  - only the boxes composed in the selected scope enter the verdict. Under the default upstream
+    scope it holds under the kernel's stated `assumption`: every other box accepts
+    whatever it receives; under `scope: "whole"` every box is composed.
 - `preserved` means equal relations, not equal non-empty outputs at every input. An input with
   no steady state in either model agrees vacuously; only relations empty everywhere are
   refused (`undecided`, `no-steady-state`).
@@ -1021,8 +966,7 @@ The implemented guarantees are separated from future work in
   narrow adapter: a declared discrete queue with explicit arrivals, service and storage
   capacity, and schedule, checked through the dynamics evaluator over its declared slots only;
   an upper bound above capacity does not show that overflow occurs. `triz_behavior`,
-  `triz_dynamics`, and `triz_feasibility` ignore flows, and the per-instance Lean certificates do
-  not cover them. A trim's flow bypass assumes the carrier can pass from the box before to the
+  `triz_dynamics`, and `triz_feasibility` ignore flows. A trim's flow bypass assumes the carrier can pass from the box before to the
   box after.
 - The uneven-development detector reads structure and declared feasibility rows. It does not
   measure how far a subsystem lags; "largest" counts boxes, not effect.
@@ -1050,7 +994,7 @@ Mathlib imports/lemmas and affected proofs were migrated; warning failures remai
 | `MeanCost` | `telescope` | Finite permutation-closed vertex potentials cancel exactly |
 | `MeanCost` | `cycle_lower`, `cycle_upper` | Edge potential inequalities bound every finite cycle's total, hence mean |
 | `MeanCost` | `attains_bound` | A nonempty cycle with total n·λ has mean λ |
-| `MeanCost` | `Bounds`, `CycleWitness` | Decidable finite potential and achieving-cycle certificate predicates |
+| `MeanCost` | `Bounds`, `CycleWitness` | Decidable finite potential and achieving-cycle witness predicates |
 | `Lifecycle` | `stationary_invariant` | πP=π plus explicit measure/kernel encoding compatibility implies `Kernel.Invariant` |
 | `Lifecycle` | `stationary_cost_lower` | Stationary expected cost bounds from gain/bias inequalities |
 | `Lifecycle` | `policy_attains_gain` | A stationary policy satisfying gain/bias equality attains its gain |
@@ -1072,10 +1016,8 @@ provide an LP solver, or replace the existing tied-policy ambiguity guard. See t
 These names are registered in `src/act-basis.ts`; its theorem-to-file map extends the original
 single-file basis test. Cycle results cite `MeanCost.Bounds.walk_mean` for closed edge-indexed walks (including parallel edges), plus `cycle_lower`, `cycle_upper` and `attains_bound`.
 Lifecycle results cite `stationary_invariant`, `optimality_stationary`, `policy_attains_gain`.
-The TypeScript algorithms are not extracted from Lean. Generated rational certificates use
-`decide +kernel` and have per-statement tamper rejection. Request binding uses a manifest and
-full regeneration. Source pins include the local dimension/schema and cost/lifecycle predicate libraries; the new rational tables do not have the separate correspondence encoder
-used by the older wiring/row-table certificate kinds. This limitation is explicit.
+The TypeScript algorithms are not extracted from Lean; the exact-rational arithmetic is
+checked against independent oracles in tests. This limitation is explicit.
 
 SI equality, typed effect search, and bond causality are finite structural checks with no
 additional Lean theorem claim. See [API and scope](typed-effects-lifecycle.md) and

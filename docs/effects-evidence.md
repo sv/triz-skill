@@ -7,6 +7,13 @@ The installed catalogue has 78 conditional entries, including four response clau
 recent-publication audit. Other experimental patterns below remain example component catalogues
 with explicitly supplied finite semantics.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## What adding effects actually changes
 
 A sourced name improves retrieval. A typed contract also lets search connect mechanisms and

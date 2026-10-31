@@ -16,7 +16,6 @@ export const EffectSetupRequest = z.strictObject({
     .describe("Explicit finite source availability and product acceptance; requires corresponding binding values"),
   declarations: EffectInsertRequest.shape.declarations.describe("One implementation declaration per expanded constituent effect, in order; recipes never hide implementation rows"),
   conditions: z.array(Text).default([]),
-  certificate: z.boolean().optional(),
 });
 
 export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowledge: ReturnType<typeof compileKnowledge>) {

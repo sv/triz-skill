@@ -11,6 +11,13 @@ The baseline reviewed was `82d87a6a7a124481afa33194679807561bb6358c`.
 A roadmap entry is not an implemented guarantee. A paper supplying a method is not a proof that
 this kernel satisfies that method's hypotheses.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## 1. Claims, request binding and trust
 
 **Next:** formalize the JSON/finite-table encoder correspondence, or use an extracted/verified

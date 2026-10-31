@@ -218,8 +218,7 @@
           }
         ]
       },
-      "scope": "whole",
-      "certificate": true
+      "scope": "whole"
     },
     "expect": {
       "verdict": "preserved"
@@ -2008,8 +2007,7 @@
           ],
           "weight": 1
         }
-      ],
-      "certificate": true
+      ]
     },
     "expect": {
       "verdict": "ranked"

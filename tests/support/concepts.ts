@@ -1,5 +1,5 @@
 /**
- * Support concepts for the weakness ranking and its certificates: a box `support` reading the
+ * Support concepts for the weakness ranking: a box `support` reading the
  * lubrication and the temperature (the situations) and supporting the shaft where `ok` says so.
  * Every concept uses the same box and port ids, so they read the same situations.
  */

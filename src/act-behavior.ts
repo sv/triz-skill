@@ -100,7 +100,7 @@ export function deliverablePorts(model: FunctionModel): Typed[] {
 
 export interface Plan { scope: BehaviorScope; composed: Box[]; downstream: string[]; missing: string[]; partialDownstream: string[]; }
 
-/** The boxes that can reach an observed port (backwards along wires), and what they lack. Exported for certificates (src/act-cert.ts). */
+/** The boxes that can reach an observed port (backwards along wires), and what they lack. */
 export function plan(model: FunctionModel, observe: Endpoint[], opts: { scope?: BehaviorScope } = {}): Plan {
   const scope = opts.scope ?? "upstream";
   const into = new Map<string, FunctionModel["wires"]>();
@@ -371,7 +371,7 @@ function externalBehaviorScoped(model: FunctionModel, opts: BehaviorOptions) {
  * baseline id. Only input ports are compared (deliverables and boundary inputs), so each mapped
  * box's input ports must exist on its baseline box with the same carrier (else mismatch), and no
  * two concept boxes may land one input port on the same baseline port (else ambiguous). Fails
- * closed on both. Exported for certificates (src/act-cert.ts).
+ * closed on both.
  */
 export function alignment(baseline: FunctionModel, concept: FunctionModel, boxMap: Record<string, string>) {
   const mapped = mapBoxes(concept, baseline, boxMap);

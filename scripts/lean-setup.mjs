@@ -163,7 +163,7 @@ function main(argv) {
       return 1;
     }
   }
-  console.log("Next: cd theory && lake build   (lake build CategoricalTriz is enough for scripts/certify.mjs and the Lean tests)");
+  console.log("Next: cd theory && lake build --wfail   (the same no-sorry check Lean CI runs)");
   return 0;
 }
 

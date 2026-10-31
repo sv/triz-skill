@@ -298,6 +298,12 @@ export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listA
     const b = s.blocked;
     return {
       ok: true as const, verdict: "infeasible" as const, reason: "unprovidable" as const, unprovidable: b, ...stats,
+      relaxation: b.ports.length
+        ? { kind: "capability" as const, box: b.box,
+            ports: b.ports.map((q) => ({ ...q, raise: q.demanded - q.provided })),
+            note: `Each port lists the smallest raise of '${b.box}'s best provided level that reaches what is demanded. Add or redeclare rows of '${b.box}', or lower what the requirements demand of it.` }
+        : { kind: "capability" as const, box: b.box, demanded: b.demanded,
+            note: `Some row of '${b.box}' reaches each demanded level alone, but no single row provides them together: declare a combined row, or split the demand across rows through a merge box.` },
       note: (b.ports.length
         ? `No row of '${b.box}' provides what the requirements demand of it (${b.ports.map((q) => `'${q.port}': ${q.demanded} demanded, at most ${q.provided} provided`).join("; ")})`
         : `No single row of '${b.box}' provides the demanded levels together (${b.demanded.map((q) => `'${q.port}': ${q.level}`).join(", ")}), though some row reaches each of them alone`)
@@ -329,7 +335,8 @@ export function feasibility(model: FunctionModel, caps: Caps = {}, opts: { listA
   const order = [...groundedWithin, ...all.map((_, i) => i).filter((i) => !groundedWithin.includes(i))];
   const listed = opts.listAll ? all.length : LISTED;
   const affordable = verdict.verdict === "feasible" ? { withinBudget: groundedWithin.slice(0, listed).map((_, k) => k), withinBudgetCount: groundedWithin.length } : {};
-  return { ok: true as const, ...verdict, ...affordable, minimal: order.slice(0, listed).map((i) => all[i]), minimalCount: all.length, ...stats,candidates:s.candidates+supportWork,supportWork,
+  const relaxation = verdict.verdict === "infeasible" && verdict.reason === "over-budget" ? budgetRelaxation(model, p.dims, totals, over, all) : undefined;
+  return { ok: true as const, ...verdict, ...(relaxation ? { relaxation } : {}), ...affordable, minimal: order.slice(0, listed).map((i) => all[i]), minimalCount: all.length, ...stats,candidates:s.candidates+supportWork,supportWork,
     steadyState:{...balance,withinBudget:within.map(i=>order.indexOf(i)),withinBudgetCount:within.length},
     sourceSupport:{groundedCount:support.filter(x=>x.grounded).length,checkedCount:support.length,witnesses:order.slice(0,listed).map(i=>support[i]),hint:"Declare source-backed operating rows for required inputs, or substantiate initialization separately. Circular steady-state balance alone does not establish input supply."} };
 }
@@ -345,6 +352,55 @@ function rowResources(model: FunctionModel, r: Solved, box: string) {
     const k = v.rows.find((x) => x.box === box)?.row;
     return { row: k ?? null, resources: k === undefined ? {} : { ...(rows[k].cost ?? {}) } };
   });
+}
+
+/** The budget-relaxation basis: the frontier's fixpoint plus the lemma naming when a budget admits one. */
+const RELAXATION: Theorem[] = ["codesign_lfp", "budget_feasible_iff"];
+
+/**
+ * The minimal budget raises that restore affordability, when every minimal resource vector is
+ * over budget. Each kept entry is one minimal vector's per-dimension deficit against the budget,
+ * nondominated among the deficits: by `budget_feasible_iff` a raised budget admits a feasible
+ * configuration exactly when it lies above some minimal vector, so these raises are a complete
+ * set — if any raise of this budget helps, one of these does. Raises advise; the budget stays
+ * the caller's declaration.
+ */
+function budgetRelaxation(
+  model: FunctionModel,
+  dims: string[],
+  totals: number[][],
+  over: string[][],
+  all: Array<{ rows: Array<{ box: string; row: number }> }>,
+) {
+  const budget = model.budget;
+  if (!budget || !over.every((o) => o.length)) return undefined;
+  const budgeted = dims.map((d) => own(budget, d) !== undefined);
+  const deficits = totals.map((v) => v.map((x, i) => (budgeted[i] ? Math.max(0, x - own(budget, dims[i])!) : 0)));
+  const le = (a: number[], b: number[]) => a.every((x, i) => x <= b[i]);
+  const keys = new Set<string>();
+  const unique: number[] = [];
+  for (let i = 0; i < deficits.length; i++) {
+    const k = JSON.stringify(deficits[i]);
+    if (!keys.has(k)) { keys.add(k); unique.push(i); }
+  }
+  const kept = unique.filter((i) => !unique.some((j) => j !== i && le(deficits[j], deficits[i]) && JSON.stringify(deficits[j]) !== JSON.stringify(deficits[i])));
+  const perDimension = dims.flatMap((d, i) => (!budgeted[i] ? [] : [{
+    dimension: d,
+    raise: Math.min(...totals.map((_, k) => (over[k].length === 1 && over[k][0] === d ? deficits[k][i] : Infinity))),
+  }]));
+  return {
+    kind: "budget" as const,
+    basis: RELAXATION,
+    raises: kept.map((k) => ({
+      raise: Object.fromEntries(dims.flatMap((d, i) => (budgeted[i] ? [[d, deficits[k][i]]] : []))),
+      resources: record(dims, totals[k]),
+      rows: all[k].rows,
+    })),
+    ...(perDimension.some((p) => Number.isFinite(p.raise))
+      ? { perDimension: perDimension.map((p) => ({ ...p, raise: Number.isFinite(p.raise) ? p.raise : null })) }
+      : {}),
+    note: "Each raise is one minimal way to make the model affordable: raise exactly the listed budget dimensions by these amounts and that row selection fits (budget_feasible_iff: a budget admits a configuration iff it lies above one of the minimal resource vectors). The listed raises are nondominated, so none is componentwise below another, and they are complete: if any raise of this budget admits a configuration, one of these does. Raising a budget is a design decision, not a verdict.",
+  };
 }
 
 /**

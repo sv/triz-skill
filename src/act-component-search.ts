@@ -58,12 +58,6 @@ export const ComponentSearchRequest = z.strictObject({
     .describe(
       "Require every listed resource output to supply at least one new wire; candidates always report unusedResources",
     ),
-  certificate: z
-    .boolean()
-    .optional()
-    .describe(
-      "Return existing local Lean typing/behavior certificates for the first reported network",
-    ),
 });
 
 type End = z.infer<typeof Endpoint>;

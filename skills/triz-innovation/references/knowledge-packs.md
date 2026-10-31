@@ -47,7 +47,7 @@ matching: hand-authored resources/carriers must include the retrieved SI where r
 Call `triz_effect_setup` with registered effect ids in order and an explicit model domain:
 
 ```json
-{"chain": [66, 74, 64], "domain": "physical", "certificate": true}
+{"chain": [66, 74, 64], "domain": "physical"}
 ```
 
 This builds photovoltaic voltage → Ohmic current → Joule heat flow. Carriers retain registered
@@ -70,15 +70,15 @@ Without those declarations, model typing can succeed while behavior remains unde
 |---|---|---|
 | Registered quantity and SI | Explicit port/object type in the wiring syntax | Reference and dimension agreement |
 | Completely typed effect | Generator between its declared input/output types | Chain compatibility and model typing |
-| Selected chain | Serial wiring composition | `typed_delete`, `typed_glue` and the finite Lean typing certificate |
-| Explicit finite values and behavior rows | A relation interpreting each generator | `triz_behavior` composition/comparison and finite behavior certificates |
-| Explicit state, initial states and transitions | Stateful generator interpretation | `triz_dynamics`, trace rechecking and supported finite dynamics certificates |
+| Selected chain | Serial wiring composition | `typed_delete`, `typed_glue` |
+| Explicit finite values and behavior rows | A relation interpreting each generator | `triz_behavior` composition/comparison |
+| Explicit state, initial states and transitions | Stateful generator interpretation | `triz_dynamics`, trace rechecking |
 | Explicit feasibility rows | Resource/functionality interpretation | Existing co-design checks; never inferred from wiring |
 
 The runtime compiler and search are tested implementations, not extracted Lean programs.
-Generated certificates check the encoded finite instances. `related_effects`, parameter
+`related_effects`, parameter
 `distinguish_from` links and canonical matrix analogies do not declare categorical morphisms
-or functors. Conditions stay visible as hypotheses; a typing or behavior certificate does not
+or functors. Conditions stay visible as hypotheses; a checked typing does not
 discharge them or prove empirical physical performance.
 
 Before reducing a named mechanism, check an actual product specification or patent disclosure:
@@ -115,17 +115,9 @@ compatible spectra; stateful and quantitative implementations must supply those 
 In a checkout, `pnpm example:effects` runs the photovoltaic/Ohmic/Joule setup, a synthetic
 off/on behavior comparison, nonempty optical discovery, and a declared one-tick excitation
 memory → TIR → photovoltaic chain. Its state transitions are synthetic, not measured lifetimes.
-To generate and check its certificates locally:
-
-```sh
-node --import tsx examples/assurance/effects-flow.mjs --cert-dir /tmp/triz-effects
-node scripts/certify.mjs --local --tamper /tmp/triz-effects/*.lean
-```
 
 `tests/knowledge-setup.test.ts` checks setup for every shipped typed generator and a composed
-physical example; `tests/knowledge.test.ts` checks cross-pack composition. Lean CI also checks
-all 78 generator typing certificates, composed stateful typing/dynamics certificates and
-behavior certificates, and rejects altered copies of the composed certificates. See the
+physical example; `tests/knowledge.test.ts` checks cross-pack composition. See the
 [theory map](../../../docs/theory-map.md) for the theorem inventory and assurance scope.
 
 Optional `canonical_mappings: [{id, relation, rationale}]` record an analyst's equivalence or
@@ -254,7 +246,7 @@ Use the existing `ComponentCatalogue` for multiport or branching constructions.
 
 Compatibility tests snapshot all 74 previous contracts, text, assumptions, attribution, limitations
 and order. The runnable comparison also expands a recipe and checks the same model and nonempty
-behavior as its explicit chain; Lean checks both instances and rejects altered certificates.
+behavior as its explicit chain.
 
 An effect can remain untyped and searchable. Complete typing requires both parameter references,
 both ports, field, conditions, source and `typed_from`; partial typing is rejected. Untyped effects

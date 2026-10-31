@@ -2,13 +2,11 @@
 /** Source-backed catalogue checks; finite calculations do not validate an entire device. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import path from "node:path";
 import * as data from "../../src/data.ts";
 import { compileKnowledge, typedKnowledgeEffects } from "../../src/knowledge.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { externalBehavior, compareBehavior } from "../../src/act-behavior.ts";
-import { modelCertificate, behaviorCertificate } from "../../src/act-cert.ts";
 import { rational, mul, cmp, show } from "../../src/act-rational.ts";
 
 const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/product-patent-cases.json", import.meta.url), "utf8"));
@@ -19,11 +17,6 @@ for (const { id, kind } of fixture.classification_baseline.role_overrides)
   baselinePacks.flatMap(p => p.effects).find(e => e.id === id).kind = kind;
 const before = compileKnowledge(baselinePacks);
 const libraries = [before, knowledge].map(k => typedKnowledgeEffects(k.effects));
-const certificates = {};
-const certificate = (name, value) => {
-  assert.ok(value.ok, JSON.stringify(value));
-  certificates[name] = value;
-};
 const find = (k, id) => {
   const e = k.effects.find(e => e.id === id);
   assert.ok(e?.input && e.output, `Missing typed case ${id}`);
@@ -46,7 +39,6 @@ const results = fixture.cases.map(c => {
     assert.deepEqual(setups[0].unmetConditions, setups[1].unmetConditions);
     const behavior = externalBehavior(setups[1].model, { scope: "whole" });
     assert.ok(behavior.ok && !behavior.decided, "Descriptions cannot invent product behavior");
-    certificate(`${c.id.replaceAll("-", "_")}_${chain.join("_")}`, modelCertificate(setups[1].model));
     return { chain, before: "found", after: "found", same_model: true, behavior: "undecided without declarations",
       hypotheses: setups[1].unmetConditions.length };
   });
@@ -104,15 +96,7 @@ for (const [i, v] of voltage.entries())
   assert.deepEqual(composed.relation.find(r => r.input[0] === v)?.outputs, [[force[i]]]);
 const comparison = compareBehavior(reference, setup.model, { scope: "whole" });
 assert.ok(comparison.ok && comparison.verdict === "preserved", JSON.stringify(comparison));
-certificate("VoiceCoilDCBehavior", behaviorCertificate(reference, setup.model, { scope: "whole" }));
 
-const certIndex = process.argv.indexOf("--cert-dir");
-if (certIndex >= 0) {
-  assert.ok(process.argv[certIndex + 1], "--cert-dir needs a directory");
-  const dir = path.resolve(process.argv[certIndex + 1]);
-  fs.mkdirSync(dir, { recursive: true });
-  for (const [name, c] of Object.entries(certificates)) fs.writeFileSync(path.join(dir, `${name}.lean`), c.content);
-}
 console.log(JSON.stringify({
   scope: fixture.scope, classification_baseline: fixture.classification_baseline,
   roles: { before: before.taxonomy.roles, after: knowledge.taxonomy.roles },
@@ -122,5 +106,4 @@ console.log(JSON.stringify({
   cases: results,
   voice_coil: { current_A: currents, voltage_V: voltage, force_N: force, Joule_heat_W: heating,
     finite_composition: comparison.verdict, scope: spec.scope },
-  certificate_count: Object.keys(certificates).length,
 }, null, 2));

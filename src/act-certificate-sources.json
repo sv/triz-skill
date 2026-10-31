@@ -1,4 +1,0 @@
-{
-  "theory": ["theory/CategoricalTriz.lean", "theory/MeanCost.lean", "theory/Lifecycle.lean"],
-  "schema": ["src/act.ts", "src/act-dimensions.ts", "src/act-lifecycle-schema.ts", "src/act-bond-schema.ts", "src/act-provenance.ts", "src/act-rational.ts"]
-}

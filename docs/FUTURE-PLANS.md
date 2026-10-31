@@ -28,6 +28,13 @@ including joint specifications, property vectors and migration paths.
 open items by leverage and gives the build order. Literature ids (R…) refer to
 [theory/REFERENCES.md](../theory/REFERENCES.md).
 
+> Per-instance Lean certificates (items 1-3 below, the certificate CI steps, and the machinery
+> behind them) were removed in 0.6.0: the theory pairs with the tools through `basis` citations
+> and through design machinery — `triz_feasibility`'s `relaxation` block (backed by the new
+> `budget_feasible_iff`) and `triz_pareto` — instead of re-proving each finite instance. The
+> landed statuses below are kept as history. Lean CI still builds `theory/` with
+> `lake build --wfail`.
+
 | # | Item | Status | Closes or adds ("What is not claimed" in the theory map) | Effort |
 |---|---|---|---|---|
 | 1 | Certify unreachability and invariance | **Landed in #39** | Closed | — |
@@ -59,7 +66,7 @@ open items by leverage and gives the build order. Literature ids (R…) refer to
 | S4 | Incremental use without server state | Open | Adds: warm starts and hash-keyed subsystem summaries | M |
 | S5 | Compositional dynamics | Open; pairs with C5 (landed) and Q5 | Adds: components minimised by bisimulation before the product | M |
 | E1 | Structured operating envelopes and system boundaries | Open; finite situations/interfaces are foundations | Adds: executable assumptions and explicit applicability limits | M |
-| E2 | Joint specifications and multidimensional Pareto search | Open; resource antichains and occupation proofs are foundations | Adds: joint comparison of assembly/mode/policy choices without implicit scalarization | M–L |
+| E2 | Joint specifications and multidimensional Pareto search | Comparison half landed: `triz_pareto` ranks declared candidate metric vectors on one nondominated frontier, with dominance witnesses and trade-offs, no implicit scalarization; automated metric collection across tools and joint assembly/policy search stay open | Adds: joint comparison of assembly/mode/policy choices without implicit scalarization | M–L |
 | E3 | Safe operating regions and finite viability | Open; requires explicit environment/control quantifiers | Adds: staying safe over time, separately from steady-state admissibility | M–L |
 | E4 | Explicit evolution of context and requirements | Open; requires E1 and declared clocks/transitions | Adds: provider, workload and requirement changes with versioned assumptions | M |
 | E5 | Checked migration paths, then bounded evolution planning | Open; supplied-path validation first | Adds: safety and costs during architecture changes, not just at endpoints | L |

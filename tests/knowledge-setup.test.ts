@@ -3,12 +3,10 @@ import assert from "node:assert/strict";
 import * as data from "../src/data.js";
 import { checkModel, type FunctionModel } from "../src/act.js";
 import { compareBehavior } from "../src/act-behavior.js";
-import { behaviorCertificate, dynamicsCertificate, modelCertificate } from "../src/act-cert.js";
 import { boundedDynamics, checkRun } from "../src/act-dynamics.js";
 import { effectChains } from "../src/act-effects.js";
 import { rewrite } from "../src/act-rewrite.js";
 import { setupEffectModel, type EffectSetupRequest } from "../src/knowledge-setup.js";
-import { bindRequest, checkAll, ensureBuilt, lint, localLeanAvailable, tamperVariants } from "../scripts/certify.mjs";
 import type { z } from "zod";
 
 const rows = ["off", "on"].map(v => ({ in: { in: v }, out: { out: v } }));
@@ -65,10 +63,6 @@ test("every typed catalogue generator sets up as a typed model without inventing
     assert.ok(checkModel(r.model).ok);
     assert.ok(r.model.boxes.every(b => !b.behavior && !b.feasibility && !b.cost && !b.state && !b.transition));
     assert.equal(r.effects[0].provenance, "catalogue-verified");
-    const certificate = modelCertificate(r.model);
-    assert.ok(certificate.ok, JSON.stringify(certificate));
-    assert.deepEqual(lint(certificate.content), []);
-    assert.deepEqual(bindRequest(certificate.content, { kind: "model", model: r.model }), []);
   }
 });
 
@@ -79,9 +73,6 @@ test("registered electrical/thermal types compose and finite declarations enable
   assert.equal(concept.carriers.find(c => c.id === "physical:current")!.si, "A");
   const result = compareBehavior(baseline, concept, { scope: "whole" });
   assert.ok(result.ok && result.verdict === "preserved", JSON.stringify(result));
-  const certificate = behaviorCertificate(baseline, concept, { scope: "whole" });
-  assert.ok(certificate.ok, JSON.stringify(certificate));
-  assert.deepEqual(bindRequest(certificate.content, { kind: "behavior", baseline, concept, scope: "whole" }), []);
 });
 
 test("setup rejects untyped generators, unsupported composition, weakened types and undeclared finite values", () => {
@@ -150,9 +141,6 @@ test("stateful setup composes declared memory with relations and returns the rep
   const voltage = boundedDynamics(setup.model, { unsafe: [{ box: "required", port: "in", values: ["high"] }], horizon: 2 });
   assert.ok(voltage.ok && voltage.decided && voltage.escalation?.verdict === "reachable");
   assert.equal(voltage.escalation.time, 1, "the downstream relation observes the explicitly delayed emission");
-  const cert = dynamicsCertificate(setup.model, spec);
-  assert.ok(cert.ok, JSON.stringify(cert));
-  assert.deepEqual(bindRequest(cert.content, { kind: "dynamics", model: setup.model, spec }), []);
 });
 
 test("implementation state fails closed on conflicting, incomplete or ill-typed declarations", () => {
@@ -168,36 +156,4 @@ test("implementation state fails closed on conflicting, incomplete or ill-typed 
   ];
   for (const input of broken) assert.equal(setupEffectModel(input, data.knowledge()).ok, false, JSON.stringify(input));
   assert.deepEqual(args, original);
-});
-
-function leanTest(name: string, fn: () => Promise<void>) {
-  const available = localLeanAvailable();
-  const skip = !process.env.TRIZ_REQUIRE_LEAN && (process.env.TRIZ_SKIP_LEAN ? "TRIZ_SKIP_LEAN is set" : !available && "theory/ is not built");
-  test(name, { skip }, async () => {
-    assert.ok(available, "TRIZ_REQUIRE_LEAN is set, but theory/ is not built");
-    await ensureBuilt();
-    await fn();
-  });
-}
-
-leanTest("Lean accepts configured physical-effect composition and rejects altered certificate rows", async () => {
-  const { concept, baseline } = physicalExample();
-  const certificates = [modelCertificate(concept), behaviorCertificate(baseline, concept, { scope: "whole" })];
-  const texts = certificates.map(c => { assert.ok(c.ok); return c.content; });
-  const results = await checkAll({ certificates: texts, tampered: texts.flatMap(tamperVariants) }, { mode: "local" });
-  for (const r of [...results.certificates, ...results.tampered]) assert.ok(r.ok, r.problems.join("\n"));
-});
-
-leanTest("Lean accepts every catalogue generator and composed stateful optical dynamics", async () => {
-  const certificates = data.typedEffects().map(e => {
-    const setup = setupEffectModel({ chain: [e.id], domain: "physical" }, data.knowledge());
-    assert.ok(setup.ok);
-    const cert = modelCertificate(setup.model);
-    assert.ok(cert.ok);
-    return cert.content;
-  });
-  const { setup, spec } = delayedLightExample();
-  const stateful = [modelCertificate(setup.model), dynamicsCertificate(setup.model, spec)].map(c => { assert.ok(c.ok); return c.content; });
-  const results = await checkAll({ certificates: [...certificates, ...stateful], tampered: stateful.flatMap(tamperVariants) }, { mode: "local" });
-  for (const r of [...results.certificates, ...results.tampered]) assert.ok(r.ok, r.problems.join("\n"));
 });

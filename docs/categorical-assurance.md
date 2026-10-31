@@ -8,6 +8,13 @@ is in [theory/REFERENCES.md](../theory/REFERENCES.md). The Lean statement behind
 and everything the kernel does not claim, are in the [theory map](theory-map.md).
 The research baseline was commit `82d87a6a7a124481afa33194679807561bb6358c`.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## Delivered scope
 
 | Workstream | Delivered interface | What a successful result establishes |

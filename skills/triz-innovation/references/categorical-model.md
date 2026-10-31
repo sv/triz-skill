@@ -15,7 +15,7 @@ marketplace, and a connection pool. The connection pool has the bearing's wiring
 This file is what a session needs. Every issue and lint code is in
 [error-codes.md](error-codes.md). For auditing only, not for a session: the
 [theory map](../../../docs/theory-map.md) holds every Lean statement behind the verdicts, cited or
-not, how the semantics and the certificates work inside, and the complete list of what is not
+not, how the semantics work inside, and the complete list of what is not
 claimed. The finite assurance extensions, their exact implemented scope, and examples of the
 new APIs are summarized in [categorical-assurance.md](../../../docs/categorical-assurance.md).
 Deferred work, acceptance criteria and adopted suggestions are recorded separately in
@@ -39,14 +39,14 @@ Deferred work, acceptance criteria and adopted suggestions are recorded separate
 | Weakness of a concept ([weakness.md](weakness.md)) | the situations it admits: boundary-input valuations with a steady state and only acceptable deliverable outputs, ordered by inclusion | `triz_weakness` | `incomparable_of_witnesses`, `card_lt_of_strictly_weaker`; definitions `admits`, `AtLeastAsWeak` |
 | Dynamics: escalation, invariance, separation in time | box `state`, `initial`, and `transition` rows: a nondeterministic Mealy machine, which is a lens with a residual as its state; the synchronous composite's runs up to a horizon | `triz_dynamics`: escalation into an unsafe set (shortest trace), invariance of a safe set, separation in time along one run | `reach_of_trace`, `reachWithin_iff_trace`, `reachWithin_saturated`, `unreachable_of_invariant`; separation, `reachIn_of_trace`, `reachIn_iff_trace` |
 | Loop behaviour: bistable, runaway, oscillating | closed strongly connected components of the reachable graph of declared states | `triz_dynamics` `loops`: bistable, trapped (inside the unsafe set) or recurrent (meets it, and holds a safe configuration), each with a shortest trace, oscillating (period and one cycle) | `fixed_on_cycle`, `closed_reachIn`, `trapped_reachIn`, `recurrent_reach`, `return_ge_two` |
-| Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp` |
+| Absorber's added resources, co-design | box `feasibility` rows: each box a monotone feasibility relation; the composite by Kleene's ascent to the least fixpoint (Censi 2015) | `triz_feasibility`; with `trim`, decides whether the remaining boxes provide what the trim leaves them within budget | `kleene_lfp`, `kleeneStep_upperClosure`, `codesign_lfp`; the `relaxation` block: `budget_feasible_iff` |
 | Numeric amount read as a qualitative value | carrier `levels`: a threshold per value, from 0, increasing; an amount reads as the last value whose threshold it reaches | checkModel (fail closed); `triz_feasibility` `levels`: each feasibility row against the box's behaviour rows; `triz_abstraction` across the map; `triz_weakness` `acceptable` by `at_least` or `below` | `level_monotone`, `level_gc`, `level_band` |
 | A detailed and a coarse model of one system | an abstraction map: detailed box → coarse box (many to one), port → port per box, carrier → carrier | `triz_abstraction`: total, typed, every coarse function an image of its class, every coarse harm loop the image of a detailed one | `typed_restrict` and `typed_map` (typed), `reach_map`, `cycle_map`, `reach_quotient` (flows); definition `Wiring.map` |
 | Ideality comparison | componentwise order on cost vectors | profile per dimension; baseline vs concept with `compare_to`; over the main parameters of value only with `mpv_weights`; `triz_trim`'s `costRelief` (`costBound`) | `trim_lowers_cost`, `pareto_incomparable`, `pareto_not_total` |
+| Joint ranking of candidate designs | componentwise dominance over declared metric vectors | `triz_pareto`: the nondominated frontier, dominance witnesses, trade-offs between incomparable candidates; weights order the listing only | `pareto_not_total`, `pareto_incomparable` |
 | Physical contradiction, separation | gluing a parameter assignment over a finite base | `triz_separate`, or embedded `contradictions` | `exists_section_iff`, `separated_iff_axis`, `glue_of_disjoint_regions`, `no_section_of_overlap` |
 | Same model in another domain | structural isomorphism: a bijection preserving roles, port sides, shared carriers, wiring, ratings, and costs | `triz_function_model` with `compare_to` (`comparison.isomorphism`); every wiring verdict is label-blind (property tests) | `typed_rename`, `transGen_equiv` |
 | Drawing the model | Graphviz DOT (ports drawn), a Mermaid flowchart (ports named on edges), an SVG picture laid out by elkjs (ports drawn), or an open hypergraph: ports as carrier-typed vertices, boxes and functions as hyperedges, unwired ports as the interface | `triz_export`, golden outputs, lossless round trip | — |
-| Certificate of one run | the model as finite Lean tables; each verdict a theorem about them | `triz_export` format `lean`, `triz_separate`, `triz_behavior`, `triz_dynamics`, and `triz_weakness` with `certificate`; checked by Lean (`scripts/certify.mjs`) | none: the certificate proves its own statements; definitions `Wiring.Typed`, `Wiring.Acts`, row tables `Sync.Step`, `Rows.relation` |
 | Model transformation | a rewrite at an occurrence named by id: delete, check no-dangling, glue, type-check | `triz_transform` | `typed_delete`, `typed_glue`; each construction adds its own ([Principle constructions](#principle-constructions)) |
 | Reusable move, evolution-line step | a rule L ← K → R applied by double pushout at a match found by search | `triz_rule_apply`: matches, no-identification and no-dangling conditions, fresh ids, typed result | `typed_dpo` |
 | A subsystem that lags (uneven development) | a box of the largest harm-loop region that is on a binding feasibility dimension or limits a deliverable | `triz_rule_apply` `uneven-development`: lagging, none, or undecided | `edge_on_cycle`; the feasibility verdict's basis |
@@ -208,14 +208,14 @@ naming the boxes, or fail closed with a code; the kernel never fills anything in
 | `catalogue`, `resources`, `targets` | `triz_component_search` arguments | automatic component/wiring discovery, including multi-input/shared assemblies; optional finite property/resource contracts | no discovery outside the bounded catalogue |
 | `catalogues`, `bindings` | `triz_component_search` arguments | reusable cross-domain bundles, explicit type parameters and source metadata | legacy local entries remain supported; no domain-name matching |
 | `chain`, `from`, `to` | `triz_effect_insert` arguments | insert discovered chains, explicit replacement, SI checks, citations and replay | effects stay standalone hypotheses |
-| transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses and optional certificates | no recurring-cost claim |
+| transition `cost` | stateful box rows | `triz_dynamics` closed-component `meanCost`, with rational witnesses | no recurring-cost claim |
 | `actions`, `lifecycle` | stateful box or model | `triz_lifecycle`: policy, gain/bias, occupancy, availability; opt-in concept-specific weakness priors | no inferred action probabilities or policy |
 | `holding_cost` | `lifecycle`; stateful box | explicit per-state lifecycle cost, charged once per source-state step in addition to action/outcome cost; rational costs supported | no occupancy penalty inferred from `acceptable` |
 | `energy`, `bond` | carrier; box | `triz_bond_graph` structural causality and equation structure | no inferred physical domain |
 | `values` | carrier | every row: behaviour, transition, producible, targets, `acceptable` | rows or checks that read the carrier fail (`no-declared-values`) |
-| `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, behaviour certificates, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
+| `behavior` | box | `triz_behavior` (and `weakest_spec` for the other boxes), `triz_weakness`, `triz_adequacy`, the behaviour of constructions, `triz_nine_windows` verdicts, and the finite assurance tools below | `undecided` (`missing-behavior`) for every box that can reach a deliverable |
 | `producible` | a box without `behavior` or `transition` | `weakest_spec` cut to what the box can make: `impossible` with reason `infeasible`; with `feasibility` and `levels` too, the `unbacked-producible-row` lint | the spec ranges over every row of the box's declared values |
-| `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance (each bounded by the horizon, and without `inputs` also `unbounded`, at every horizon), separation in time, `loops`; dynamics certificates; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
+| `state`, `initial`, `transition` | box | `triz_dynamics`: escalation, invariance (each bounded by the horizon, and without `inputs` also `unbounded`, at every horizon), separation in time, `loops`; `triz_queue` compiles into them | `triz_dynamics` fails (`nothing-to-explore`) unless a target names a box |
 | `feasibility`, `cost`, `budget` | box; box; model | `triz_feasibility` (with `trim`, each absorber's added resources), `uneven-development`, `triz_nine_windows` `system.verdicts.feasibility`, resource modes in `triz_implementations` and `triz_synthesize` | `undecided`: `missing-feasibility`, or `no-budget`, or `unbudgeted`; a box outside the solve adds only its `cost` |
 | `levels` | carrier with `values` | amounts read as values: `levels` in `triz_feasibility` and `triz_abstraction`; `at_least`/`below` in every `acceptable` | no reading between amounts and values; a threshold fails (`invalid-threshold`) |
 | `quantity` | carrier | `extensive`: in `triz_feasibility` an output's demands add up, an input fed by several functions fails closed (`extensive-fan-in`), and the `extensive-fan-out` lint; `triz_isomorphism` maps it unchanged | `intensive`: one shared level, so an output meets the largest demand |
@@ -264,8 +264,7 @@ The chaining rules agents get wrong:
   that can reach a deliverable are composed, and every other box is assumed to accept whatever it
   receives (the result's `assumption`). `scope: "whole"` composes every box constraint:
   downstream boxes, disconnected ones, fan-in, and loops. `triz_adequacy` defaults to `"whole"`,
-  and `triz_behavior_refinement` and the contracts always compose the whole model. A certificate
-  encodes the scope requested. Pass `"whole"` before saying anything about the whole system, such
+  and `triz_behavior_refinement` and the contracts always compose the whole model. Pass `"whole"` before saying anything about the whole system, such
   as "the system behaves as before": the whole relates no more than the upstream part, and can
   relate strictly less. An empty `partialDownstream` does not show they are equal, since total
   downstream boxes can still rule out steady states through a loop or a disagreeing fan-in.
@@ -451,9 +450,7 @@ The finite assurance tools:
 7. **Share.** Use `triz_export` for a DOT drawing, a Mermaid flowchart to paste into markdown,
    an SVG picture (format `svg`, on the stdio server), or the hypergraph form. With
    `compare_to`, `triz_function_model` also reports whether the two models have the same wiring
-   shape. Use format `lean` for a certificate that Lean can check (see
-   [Certificates](#certificates)); `triz_separate`, `triz_dynamics`, and `triz_weakness` return
-   one with `certificate: true`.
+   shape.
 
 ## Feedback for agents
 
@@ -528,62 +525,16 @@ The ten slips agents make most often:
 | `listing-entry-as-match` | Pass `matches[i].match`, the inner object, not the whole listing entry |
 | `apply-args-without-match` | List without `carriers` or `ids`; pass them only when applying, with `match` |
 
-## Certificates
+## Per-instance certificates (removed)
 
-`triz_export` format `lean`, `triz_separate`, `triz_behavior`, `triz_dynamics`, and
-`triz_weakness` with `certificate: true` return a certificate: finite source tables, precisely
-stated verdicts, and a manifest that binds the request. Generating one is not checking it.
-Unsupported cases return a reason, never a certificate for a different claim, and `certifies`
-lists exactly which claims were proved.
-
-| Verdict | What the certificate proves |
-|---|---|
-| `checkModel` ok | Every encoded function has endpoints of its carrier on the correct sides |
-| A harm-loop witness | The selected negative function lies on the listed closed path; completeness is not certified |
-| Separation | The finite compatibility, separation, conflict and gluing statements listed in `certifies` |
-| Reachable dynamics escalation | An initial admitted trace reaches the unsafe target within its length |
-| Supported state-only negative dynamics | An invariant contains initial states, is closed under `Sync.Step`, and excludes unsafe states or lies in the safe set |
-| Saturated unreachable port target, within the horizon or past it (`unbounded`) | An invariant excludes every admitted unsafe configuration, and no run blocks in a state that meets the unsafe set's state conditions (`unreachable_of_holding_classes`) |
-| Weakness strict order, equality or incomparability | The actual composed row relations have the stated admission inclusions or distinguishing admitted/rejected situations |
-| `triz_behavior` comparison | The aligned finite relations are equal and nonempty, or an input/output pair belongs to just one of them |
-
-A row-table certificate is decided over every valuation of the composed ports, but ports that a
-chain of functions joins count once: the certificate carries these port classes with a witness
-that Lean checks, and states its verdict over the raw ports. So a series of boxes adds one
-variable per function, not two ports. Past the cap on table reads (2,000,000), generation fails
-closed with `cap-exceeded`; the hint names what to shrink.
-
-Behavior certificates support declared `box_map`, inputs read by only one model, and
-concept-only gained deliverables outside the baseline interface. Residual specifications and
-lost deliverables are not certified. Weakness prior masses are not certified. Negative dynamics
-require no input schedule and checked closure: state-only certificates exclude unsafe states
-regardless of admitted valuations; saturated port-target certificates exclude only admitted
-unsafe configurations. When the bounded escalation is open (`unreachable-within-horizon` or
-`undecided`) and `unbounded` is decided, the certificate states the unbounded verdict: the trace
-past the horizon, or the unreachable invariant. Bounded-only negatives (an input schedule, or the
-cap hit past the horizon), safe port-invariance claims, separation and loop classes remain
-unsupported. A combined request can return only the supported escalation proof.
-Blocked-state port uncertainty remains explicit.
-
-Check the proof and its input binding with an explicit execution mode:
-
-- **Locally**, the default: `lake env lean` against `theory/`, at the repo's Mathlib pin. If
-  `theory/` is not built, the script stops and names both options; it never falls back to the
-  network.
-- **Remotely**, only with `--remote`: the certificate, which holds the model's ids and tables,
-  leaves the machine. It goes with the theory to the AXLE service (environment `lean-4.35.0`, no
-  key). The result then trusts AXLE. AXLE swaps in `import Mathlib` at its own revision, which
-  may differ from the pin. The MCP server and the Worker never call AXLE.
-
-```sh
-node scripts/certify.mjs --local --tamper --request request.json result.lean
-```
-
-`--request` takes the exact request used for generation; see
-[the request formats](../../../docs/categorical-assurance.md#certificates-and-source-correspondence).
-A theorem holds for the encoded scope and declared rows; physical truth is not established by
-proof checking. How the encoding, the checker, and `--tamper` work is in the
-[theory map](../../../docs/theory-map.md#certificates).
+Earlier versions returned a per-instance Lean certificate (`triz_export` format `lean`, or
+`certificate: true` on the verdict tools), restating one model's verdicts over finite tables for
+`scripts/certify.mjs` to check with local Lean. That machinery was removed in 0.6.0: the theory
+now pairs with the tools through `basis` citations (name-checked against `theory/`) and through
+design machinery — `triz_feasibility`'s `relaxation` (backed by `budget_feasible_iff`) and
+`triz_pareto` — not by re-proving each finite instance. Lean CI still builds `theory/` with
+`lake build --wfail`, so no `sorry` ships. What each verdict states, and no more, is tabulated
+above and audited in the [theory map](../../../docs/theory-map.md).
 
 ## Declared behaviour
 
@@ -1234,8 +1185,6 @@ including shared/multi-input assemblies. With `contract` and `implementation`, i
 complete candidate's finite behavior, acceptable values, harms and budget. Otherwise `candidates`
 claims typing only. Complete absence is `impossible-in-library`; caps or unknown properties are
 `undecided`. `remove` names parts to replace; their lost retained consumers become obligations.
-`certificate:true` returns supported typing/behavior certificates for the first result.
-
 `triz_component_catalogue` returns general identity/fan-out relations parameterized by carrier
 `T`. Search `catalogues` accepts these or reusable bundles with local carriers, parameters and
 sourced entries. Bind parameters explicitly; conflicting or ambiguous aliases fail closed.
@@ -1426,8 +1375,6 @@ map.
   and flow verdicts. Tied witnesses (harm-loop cycles, absorber order, dynamics traces) follow
   declaration order: renaming that keeps every list's order shows the same witnesses, while
   reordering the boxes, or a symmetric model, can show another, never another verdict.
-- **Certificates.** They prove the listed statements for the encoded scope and declared rows,
-  within a cap on table reads; not the encoder, not the evaluator, not physical truth.
 - **Trimming.** It is not framed as a Kan extension: a decided trim depends on the absorber
   chosen.
 

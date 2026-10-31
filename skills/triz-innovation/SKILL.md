@@ -72,7 +72,15 @@ without an install). Do not read `src/` to learn a tool.
    made. See [weakness.md](references/weakness.md); for concepts modelled with declared
    behaviour, `triz_weakness` ranks them.
 5. **Substantiate.** Compare the best concept with the baseline using outcome, cost, time,
-   quality, resilience, and harm measures. A failure creates a new contradiction to model.
+   quality, resilience, and harm measures. When the candidate designs each have numbers the
+   kernel produced (minimal resource vectors from `triz_feasibility`, lifecycle gain and
+   availability from `triz_lifecycle`, component counts from `triz_synthesize` or
+   `triz_component_search`, declared costs), rank them jointly with `triz_pareto`: it returns
+   the nondominated frontier with dominance witnesses, and reports genuinely incomparable
+   candidates as trade-offs instead of hiding them behind a weighted score. If a concept is
+   `infeasible` on the budget but worth rescuing, read the `relaxation` block `triz_feasibility`
+   returns: the minimal budget raises that would make it affordable, each with the row selection
+   that then fits. A failure creates a new contradiction to model.
 
 Detailed templates and the repair loop are in [workflow.md](references/workflow.md). Route tools
 by stage and problem shape with [tool-selection.md](references/tool-selection.md).
@@ -107,8 +115,8 @@ Read only what the task needs:
   [categorical-model.md](references/categorical-model.md);
 - every issue and lint code a model tool returns, when an issue's own hint is not enough:
   [error-codes.md](references/error-codes.md);
-- auditing a verdict only, never during a session: the Lean statement behind it, what is not
-  claimed, and how certificates work inside, in the
+- auditing a verdict only, never during a session: the Lean statement behind it and what is not
+  claimed, in the
   [theory map](../../docs/theory-map.md);
 - ARIZ entry criteria and the ARIZ-85C part ladder: [ariz.md](references/ariz.md);
 - S-curve staging and evolution lines: [evolution-trends.md](references/evolution-trends.md);

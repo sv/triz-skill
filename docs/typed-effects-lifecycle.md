@@ -4,6 +4,13 @@ All new searches are finite and bounded. A cap returns `undecided`, without an o
 negative existence claim based on a prefix. Declaration order breaks witness and ranking ties.
 The kernel checks declarations; it does not supply physical or empirical data.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## Dimensions (T2)
 
 A carrier may declare `si: {L:1,M:1,T:-2}` or `si: "kg·m·s^-2"`. The seven keys are
@@ -38,9 +45,9 @@ state has no cycle mean. Under a time-varying input sequence recurrent analysis 
 
 These are the extrema over cycles in the declared nondeterministic graph, not controller versus
 environment policies. There are no probabilities, continuous-time durations, or discount factors.
-`mean_cost_certificate: {component:0,dimension:"resource"}` requests rational potential and closed
-achieving-cycle checks. These prove finite bounds and equality witnesses, not Karp's implementation
-or physical costs. Local checking is `node scripts/certify.mjs --local --tamper <file.lean>`.
+The results carry exact rational potentials and closed achieving-cycle witnesses: they prove
+finite bounds and equality witnesses, not Karp's implementation
+or physical costs.
 
 ## Typed effects (T1)
 

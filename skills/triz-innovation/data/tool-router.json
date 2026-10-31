@@ -39,7 +39,7 @@
     { "id": 32, "source_code": "FOS", "name": "Functional-oriented search", "stages": ["synthesis"], "signals": ["needed function", "other industry", "mechanism transfer"] },
     { "id": 33, "source_code": "PC", "name": "Physical contradiction", "stages": ["analysis", "modeling"], "signals": ["must be and must not be", "opposing requirement", "same property"], "mcp_tools": ["triz_separate"] },
     { "id": 34, "source_code": "FCA", "name": "Function-cost analysis", "stages": ["analysis", "modeling"], "signals": ["cost", "low-value function", "complexity"] },
-    { "id": 35, "source_code": "MPV", "name": "Main parameters of value analysis", "stages": ["analysis"], "signals": ["value drivers", "what customers pay for", "decisive parameter", "market pull", "purchase decision"], "mcp_tools": ["triz_function_model", "triz_weakness"] },
+    { "id": 35, "source_code": "MPV", "name": "Main parameters of value analysis", "stages": ["analysis"], "signals": ["value drivers", "what customers pay for", "decisive parameter", "market pull", "purchase decision"], "mcp_tools": ["triz_function_model", "triz_weakness", "triz_pareto"] },
     { "id": 36, "source_code": "AFD", "name": "Anticipatory failure determination", "stages": ["analysis", "synthesis"], "signals": ["failure prediction", "hazard", "reliability", "safety", "unknown failure modes", "side effects"] },
     { "id": 37, "source_code": "PCIRC", "name": "Patent circumvention (design-around)", "stages": ["analysis", "synthesis"], "signals": ["patent circumvention", "design around", "freedom to operate", "claim element", "blocked function"] }
   ]

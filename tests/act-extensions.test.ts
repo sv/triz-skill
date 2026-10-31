@@ -11,13 +11,6 @@ import { meanCosts, type CostEdge } from "../src/act-mean-cost.js";
 import { effectChains, type TypedEffect } from "../src/act-effects.js";
 import { lifecycle } from "../src/act-lifecycle.js";
 import { bondGraph } from "../src/act-bond.js";
-import { meanCostCertificate, lifecycleCertificate } from "../src/act-cert.js";
-import {
-  lint,
-  bindRequest,
-  checkAll,
-  tamperVariants,
-} from "../scripts/certify.mjs";
 import { renamedTwin } from "./support/twin.js";
 import { costModel, lifecycleModel, bondModel } from "./support/lifecycle.js";
 import { toolSpecs } from "../src/tools.js";
@@ -431,39 +424,6 @@ test("bond typing rejects information, duplicated ports and mismatched energy di
   const r = bondGraph({ model: other });
   assert.ok(!r.ok);
   assert.equal(r.issues[0].code, "invalid-bond");
-});
-test("new finite certificate grammar, request binding, and per-statement tampers", () => {
-  const requests = [
-    {
-      kind: "mean-cost" as const,
-      model: costModel(),
-      spec: {},
-      component: 0,
-      dimension: "resource",
-    },
-    {
-      kind: "lifecycle" as const,
-      args: { model: lifecycleModel() },
-      objective: 0,
-    },
-  ];
-  const certificates = [
-    meanCostCertificate(costModel(), {}, 0, "resource", {
-      namespace: "MeanCostFixture",
-    }),
-    lifecycleCertificate({ model: lifecycleModel() }, 0, {
-      namespace: "LifecycleFixture",
-    }),
-  ];
-  for (let i = 0; i < certificates.length; i++) {
-    const c = certificates[i];
-    assert.ok(c.ok, JSON.stringify(c));
-    assert.deepEqual(lint(c.content), []);
-    assert.deepEqual(bindRequest(c.content, requests[i]), []);
-    assert.ok(tamperVariants(c.content).length >= 3);
-    if (process.env.UPDATE_GOLDEN)
-      fs.writeFileSync(`theory/Certificates/${c.namespace}.lean`, c.content);
-  }
 });
 
 test("concept-specific occupancy priors feed weakness without changing inclusion", async () => {

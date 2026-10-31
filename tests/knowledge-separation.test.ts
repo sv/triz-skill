@@ -6,8 +6,6 @@ import * as data from "../src/data.js";
 import { compileKnowledge, effectTaxonomy, KnowledgePack, typedKnowledgeEffects } from "../src/knowledge.js";
 import { setupEffectModel } from "../src/knowledge-setup.js";
 import { compareBehavior } from "../src/act-behavior.js";
-import { behaviorCertificate, modelCertificate } from "../src/act-cert.js";
-import { bindRequest, checkAll, ensureBuilt, localLeanAvailable, tamperVariants } from "../scripts/certify.mjs";
 
 const read = (file: string) => JSON.parse(fs.readFileSync(new URL(`../skills/triz-innovation/data/${file}`, import.meta.url), "utf8"));
 const packs = () => [read("knowledge/universal.json"), read("effects.json")];
@@ -219,26 +217,10 @@ test("setup expands recipes before typed rewriting and preserves finite behavior
   assert.ok(recipe.unmetConditions.includes("declared load integration"));
   const behavior = compareBehavior(direct.model, recipe.model, { scope: "whole" });
   assert.ok(behavior.ok && behavior.verdict === "preserved");
-  const c = modelCertificate(recipe.model), d = modelCertificate(direct.model);
-  assert.ok(c.ok && d.ok);
-  assert.equal(c.content, d.content);
+  assert.equal(JSON.stringify(recipe.model), JSON.stringify(direct.model));
   assert.equal(setupEffectModel({ ...options, chain: ["physical:light-heater"], declarations: [{ behavior: rows }] }, knowledge).ok, false);
   assert.equal(setupEffectModel({ chain: Array(5).fill("physical:light-heater"), domain: "physical" }, knowledge).ok, false);
   const mismatch = setupEffectModel({ chain: ["physical:light-heater", 12], domain: "physical" }, knowledge);
   assert.ok(!mismatch.ok);
   assert.equal(mismatch.issues[0].path, "$.chain[1]", "expanded errors point to the caller's requested step");
-});
-
-function leanTest(name: string, fn: () => Promise<void>) {
-  const available = localLeanAvailable();
-  const skip = !process.env.TRIZ_REQUIRE_LEAN && (process.env.TRIZ_SKIP_LEAN ? "TRIZ_SKIP_LEAN is set" : !available && "theory/ is not built");
-  test(name, { skip }, async () => { assert.ok(available); await ensureBuilt(); await fn(); });
-}
-leanTest("Lean accepts expanded recipe typing and nonempty behavior, and rejects tampering", async () => {
-  const { direct, recipe } = models();
-  const certificates = [modelCertificate(recipe.model), behaviorCertificate(direct.model, recipe.model, { scope: "whole" })];
-  const texts = certificates.map(c => { assert.ok(c.ok); return c.content; });
-  assert.deepEqual(bindRequest(texts[1], { kind: "behavior", baseline: direct.model, concept: recipe.model, scope: "whole" }), []);
-  const results = await checkAll({ certificates: texts, tampered: texts.flatMap(tamperVariants) }, { mode: "local" });
-  for (const r of [...results.certificates, ...results.tampered]) assert.ok(r.ok, r.problems.join("\n"));
 });

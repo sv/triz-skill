@@ -54,12 +54,6 @@ export const EffectInsertRequest = z.strictObject({
     .optional()
     .describe("Explicit complete replacement of flows when their path changes"),
   polarity: Polarity.optional(),
-  certificate: z
-    .boolean()
-    .optional()
-    .describe(
-      "Return an existing local Lean typing certificate for the inserted model",
-    ),
 });
 
 const portType = (c: Carrier): z.infer<typeof EffectPort> | undefined =>

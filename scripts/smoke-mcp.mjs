@@ -44,10 +44,10 @@ const mechanisms = await json("triz_effects", { kind: "mechanism", field: "elect
 if (!mechanisms.effects.some(e => e.id === 72)) fail("traveling-field transport is not classified as a mechanism");
 const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
-const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
-if (!familySetup.ok || familySetup.certificate?.format !== "lean" || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
-const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
-if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
+const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical" });
+if (!familySetup.ok || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
+const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical" });
+if (!setup.ok || setup.effects.length !== 3) fail("registered effect setup failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");
 const typed = await json("triz_effects", {});
 if (typed.matched !== 78 || typed.effects.some(e => !e.input || !e.output || !e.field)) fail("incomplete shipped effect typing coverage");
@@ -63,8 +63,8 @@ const memory = await json("triz_effect_setup", {
   ] }],
 });
 if (!memory.ok) fail("stateful catalogue setup failed");
-const memoryRun = await json("triz_dynamics", { model: memory.model, horizon: 2, unsafe: [{ box: memory.effects[0].box, state: ["charged"] }], certificate: true });
-if (memoryRun.escalation?.time !== 1 || memoryRun.certificate?.format !== "lean") fail("declared effect memory did not enter dynamics/certificate checks");
+const memoryRun = await json("triz_dynamics", { model: memory.model, horizon: 2, unsafe: [{ box: memory.effects[0].box, state: ["charged"] }] });
+if (memoryRun.escalation?.time !== 1) fail("declared effect memory did not enter dynamics checks");
 console.log("78 typed effects -> nonempty optical discovery -> explicit memory/dynamics passed");
 
 // Source import stays a draft through the actual stdio schema/handler boundary.
@@ -157,9 +157,6 @@ console.log(`triz_export svg -> ${svg.ok ? `${svg.content.length} bytes` : svg.i
 if (!svg.ok || !svg.content.startsWith("<svg ")) fail("SVG export wrong (elkjs is an optional dependency: is it installed?)");
 const badExport = await json("triz_export", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] }, format: "dot" });
 if (badExport.ok !== false) fail("mistyped export did not fail closed");
-const cert = await json("triz_export", { model, format: "lean" });
-console.log(`triz_export lean -> ${cert.certifies?.map((c) => c.theorem.split(".").at(-1)).join(", ")}`);
-if (!cert.ok || !cert.content.startsWith("import CategoricalTriz\n") || cert.certifies[0]?.theorem !== "TrizCertificate.typed") fail("lean certificate wrong");
 
 const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
 console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);

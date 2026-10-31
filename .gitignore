@@ -11,3 +11,6 @@ dist/
 
 # Lean build output (theory/)
 /theory/.lake/
+
+# mimosa security scans
+.mimosa/

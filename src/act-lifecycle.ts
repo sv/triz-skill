@@ -27,7 +27,6 @@ export const LifecycleRequest = z.strictObject({
   acceptable: z.array(z.string()).optional().describe("Acceptable states for availability reporting. Box-local calls default to an empty list; model-level calls default to model.lifecycle.acceptable."),
   derive_prior: z.boolean().default(false),
   max_steps: z.number().int().min(1).max(1_000_000).default(100_000),
-  certificate: z.boolean().optional(),
 });
 export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
   const parsed = LifecycleRequest.safeParse(raw);
@@ -441,30 +440,6 @@ export function lifecycle(raw: z.input<typeof LifecycleRequest>) {
       availability: show(
         sum(states.flatMap((s, i) => (acceptable.includes(s) ? [pi[i]] : []))),
       ),
-      certificateData: {
-        p: p.map((r) => r.map(show)),
-        pi: pi.map(show),
-        h: h.map(show),
-        g: show(g),
-        cost: cost.map(show),
-        policy: policy.map(
-          (j, i) =>
-            choices.slice(0, i).reduce((a, c) => a + c.length, 0) +
-            choices[i].indexOf(j),
-        ),
-        alternatives: states.map((_, i) =>
-          choices[i].map((j) => ({
-            p: P[i][j].map(show),
-            cost: show(
-              sum(
-                Object.entries(weights).map(([d, w]) =>
-                  mul(rational(w), C[i][j][d] ?? Z),
-                ),
-              ),
-            ),
-          })),
-        ),
-      },
       basis: [
         "Lifecycle.stationary_invariant",
         "Lifecycle.optimality_stationary",
