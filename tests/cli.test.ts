@@ -22,8 +22,10 @@ import { loadElk } from "../src/elk.js";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const example = JSON.parse(fs.readFileSync(path.join(root, "examples/function-models/bearing-heat.json"), "utf8"));
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "triz-cli-"));
+/** A fixture file is written only inside the temp directory: the resolved path must stay under it. */
 const argsFile = (name: string, value: unknown) => {
-  const file = path.join(tmp, name);
+  const file = path.resolve(tmp, name);
+  if (file !== tmp && !file.startsWith(tmp + path.sep)) throw new Error(`fixture name '${name}' escapes the temp directory`);
   fs.writeFileSync(file, JSON.stringify(value));
   return file;
 };

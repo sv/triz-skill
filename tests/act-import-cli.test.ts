@@ -22,10 +22,17 @@ test("registry returns a builder model that stays draft, with diagnostics and hi
   if (!invalid.ok) { assert.equal(invalid.issues[0].code,"invalid-argument"); assert.equal(invalid.issues[0].path,"$.source.text"); }
 });
 
+/** A fixture path is returned only when it stays inside `dir`: a name can never reach outside the test's temp directory. */
+const fixture = (dir: string, name: string) => {
+  const p = path.resolve(dir, name);
+  if (p !== dir && !p.startsWith(dir + path.sep)) throw new Error(`fixture name '${name}' escapes '${dir}'`);
+  return p;
+};
+
 test("CLI imports only the explicit local file and rejects invalid, oversized and malformed inputs", () => {
   const dir = mkdtempSync(path.join(tmpdir(),"triz-import-"));
   try {
-    const file = path.join(dir,"bom.json");
+    const file = fixture(dir,"bom.json");
     writeFileSync(file,'[{"id":"a","name":"A"},{"id":"b","name":"B","parent_id":"a"}]');
     const result = cli("--format","bom-json",file);
     assert.equal(result.status,0,result.stderr);
@@ -36,9 +43,9 @@ test("CLI imports only the explicit local file and rejects invalid, oversized an
     assert.equal(cli("--help").status,0);
     assert.notEqual(cli("--format","missing",file).status,0);
     assert.notEqual(cli("--format","bom-json",dir).status,0);
-    const bad = path.join(dir,"bad.json"); writeFileSync(bad,Buffer.from([0xff]));
+    const bad = fixture(dir,"bad.json"); writeFileSync(bad,Buffer.from([0xff]));
     assert.notEqual(cli("--format","bom-json",bad).status,0);
-    const big = path.join(dir,"big.json"); writeFileSync(big,Buffer.alloc(1_000_001));
+    const big = fixture(dir,"big.json"); writeFileSync(big,Buffer.alloc(1_000_001));
     assert.notEqual(cli("--format","bom-json",big).status,0);
   } finally {rmSync(dir,{recursive:true,force:true});}
 });
@@ -46,15 +53,15 @@ test("CLI imports only the explicit local file and rejects invalid, oversized an
 test("every CLI refusal carries a code, a path and a hint", () => {
   const dir = mkdtempSync(path.join(tmpdir(),"triz-import-"));
   try {
-    const file = path.join(dir,"bom.json"); writeFileSync(file,'[{"id":"a","name":"A"}]');
-    const bad = path.join(dir,"bad.json"); writeFileSync(bad,Buffer.from([0xff]));
-    const big = path.join(dir,"big.json"); writeFileSync(big,Buffer.alloc(1_000_001));
-    const invalid = path.join(dir,"invalid.json"); writeFileSync(invalid,"not json");
+    const file = fixture(dir,"bom.json"); writeFileSync(file,'[{"id":"a","name":"A"}]');
+    const bad = fixture(dir,"bad.json"); writeFileSync(bad,Buffer.from([0xff]));
+    const big = fixture(dir,"big.json"); writeFileSync(big,Buffer.alloc(1_000_001));
+    const invalid = fixture(dir,"invalid.json"); writeFileSync(invalid,"not json");
     for (const [args, status, where] of [
       [["--format","bom-json"], 2, "$.argv"],
       [["--format","missing",file], 2, "$.format"],
       [["--format","bom-json",dir], 1, "$.file"],
-      [["--format","bom-json",path.join(dir,"absent.json")], 1, "$.file"],
+      [["--format","bom-json",fixture(dir,"absent.json")], 1, "$.file"],
       [["--format","bom-json",bad], 1, "$.file"],
       [["--format","bom-json",big], 1, "$.file"],
       [["--format","bom-json",invalid], 1, "$.source.text"],

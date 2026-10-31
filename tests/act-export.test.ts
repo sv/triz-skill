@@ -19,11 +19,33 @@ import { rng, genModel } from "./support/gen.js";
 import { line, requests } from "./support/flows.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const examples = fs.readdirSync(path.resolve(here, "../examples/function-models")).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -5)).sort();
-const example = (name: string): FunctionModel =>
-  FunctionModel.parse(JSON.parse(fs.readFileSync(path.resolve(here, `../examples/function-models/${name}.json`), "utf8")));
+/** A resolved path is returned only when it stays inside `root`: a name can never read or write outside the fixture tree. */
+const inside = (root: string, name: string) => {
+  const p = path.resolve(root, name);
+  if (p !== root && !p.startsWith(root + path.sep)) throw new Error(`fixture name '${name}' escapes '${root}'`);
+  return p;
+};
+/** Fixtures are read by listing their directory; `example` hands out deep copies because tests mutate the model. */
+const exampleDir = path.resolve(here, "../examples/function-models");
+const exampleData = new Map(fs.readdirSync(exampleDir).filter((f) => f.endsWith(".json"))
+  .map((f) => [f.slice(0, -5), JSON.parse(fs.readFileSync(inside(exampleDir, f), "utf8"))]));
+const examples = [...exampleData.keys()].sort();
+const example = (name: string): FunctionModel => FunctionModel.parse(structuredClone(exampleData.get(name)));
+const goldenDir = path.resolve(here, "golden");
+/** A golden name is a plain file name of a checked-in file (or a new literal under UPDATE_GOLDEN), never a caller path. */
+const goldenFiles = new Set(fs.readdirSync(goldenDir));
 const golden = (file: string, actual: string) => {
-  const p = path.resolve(here, "golden", file);
+  if (!/^[A-Za-z0-9._-]+$/.test(file)) throw new Error(`golden name '${file}' is not a plain file name`);
+  const p = inside(goldenDir, file);
+  if (!goldenFiles.has(file) && !process.env.UPDATE_GOLDEN) throw new Error(`golden '${file}' is not a checked-in file`);
+  if (process.env.UPDATE_GOLDEN) fs.writeFileSync(p, actual);
+  assert.equal(actual, fs.readFileSync(p, "utf8"), `${file} drifted; rerun with UPDATE_GOLDEN=1 and review`);
+};
+/** The README picture under docs/img, checked against the golden copy the same way, never named by a caller path. */
+const docsImageDir = path.resolve(here, "../docs/img");
+const docsImage = (file: string, actual: string) => {
+  if (!/^[A-Za-z0-9._-]+$/.test(file)) throw new Error(`image name '${file}' is not a plain file name`);
+  const p = inside(docsImageDir, file);
   if (process.env.UPDATE_GOLDEN) fs.writeFileSync(p, actual);
   assert.equal(actual, fs.readFileSync(p, "utf8"), `${file} drifted; rerun with UPDATE_GOLDEN=1 and review`);
 };
@@ -244,7 +266,7 @@ test("golden SVG for every shipped example and the cooling-water line", { skip: 
     golden(`${name}.svg`, r.content);
   }
   // The README shows software-cache drawn by format svg.
-  golden("../../docs/img/function-model-svg.svg", fs.readFileSync(path.resolve(here, "golden/software-cache.svg"), "utf8"));
+  docsImage("function-model-svg.svg", fs.readFileSync(inside(goldenDir, "software-cache.svg"), "utf8"));
 });
 
 test("SVG: well-formed, one group per box, function, and flow step, text that decodes to the model's, edges from port to port", { skip: !elk && "elkjs not installed" }, async () => {
