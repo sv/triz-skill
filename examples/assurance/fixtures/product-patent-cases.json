@@ -4,7 +4,7 @@
   "classification_baseline": {
     "commit": "732753ecf82acdc8c72f2283a9ce37a279426f3f",
     "role_overrides": [{"id": 72, "kind": "response"}],
-    "note": "Only the role changed during this cleanup. The separate frozen compatibility test protects all 74 contracts, descriptions and evidence."
+    "note": "The original role cleanup changed only entry 72. Reconstruction retains ids 1-74 using current family storage; the frozen compatibility test protects their contracts, descriptions and evidence."
   },
   "cases": [
     {

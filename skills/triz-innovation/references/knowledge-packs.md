@@ -24,14 +24,14 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack has 63 quantity declarations and 74 searchable typed entries: 65 selected
+The physical pack has 65 quantity declarations and 78 searchable typed entries: 69 selected
 responses and nine mechanisms. These modeling roles do not count independent physical laws.
 `triz_knowledge.taxonomy` reports roles separately from field groups and links each field to its
 entry ids. Counts and taxonomy have the documented all-installed-packs scope, including when
 the parameter list is filtered. A field such as `magnetic` classifies responses; it does not
 supply a current-to-force contract or replace induction, Hall sensing or magnetostriction.
 The pack stores
-62 direct declarations and 12 named specializations of four families with seven signatures: 69
+56 direct declarations and 22 named specializations of eight families with 14 signatures: 70
 independently declared interfaces in total. This reduces duplicate interface declarations;
 independent physical evidence and constitutive laws remain on each named case.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
@@ -90,6 +90,13 @@ electrode arrangement and transport regime as hypotheses. Run `pnpm example:effe
 for three source-backed cases, preserved discovery and rejected decompositions; see the
 [validation scope and results](../../../docs/effects-evidence.md#product-and-patent-validation).
 
+The [recent-publication audit](../../../docs/effects-evidence.md#recent-patent-validation) adds
+separate clauses for inverse piezoelectric actuation, magnetocaloric and electrocaloric
+temperature changes, and electroosmotic flow (75–78). Field-change endpoints are distinct
+quantity types; direct piezo sensing is not automatically inverted. Optical-to-electrical,
+optical-signal and geometric interface sharing removes three further repeated declarations
+without identifying case-specific laws or physical behavior.
+
 Same-type mechanisms such as optical guidance, superconducting transmission, wedges, levers
 and gears are generators between equal object types; that does not identify them with the
 identity arrow. `triz_effect_chains` defaults to allowing a zero-length identity. Supply
@@ -117,7 +124,7 @@ node scripts/certify.mjs --local --tamper /tmp/triz-effects/*.lean
 
 `tests/knowledge-setup.test.ts` checks setup for every shipped typed generator and a composed
 physical example; `tests/knowledge.test.ts` checks cross-pack composition. Lean CI also checks
-all 74 generator typing certificates, composed stateful typing/dynamics certificates and
+all 78 generator typing certificates, composed stateful typing/dynamics certificates and
 behavior certificates, and rejects altered copies of the composed certificates. See the
 [theory map](../../../docs/theory-map.md) for the theorem inventory and assurance scope.
 

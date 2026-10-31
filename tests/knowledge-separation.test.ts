@@ -42,26 +42,27 @@ function models() {
 
 test("all 74 previous interfaces, text, assumptions, attribution and lookup order survive factorization", () => {
   const knowledge = compileKnowledge(packs());
-  assert.deepEqual(knowledge.effects.map(e => e.id), snapshot.effects.map((e: any) => e.id));
-  for (const e of knowledge.effects) {
+  const legacy = knowledge.effects.filter(e => typeof e.id === "number" && e.id <= 74);
+  assert.deepEqual(legacy.map(e => e.id), snapshot.effects.map((e: any) => e.id));
+  for (const e of legacy) {
     const projection = Object.fromEntries(snapshot.fields.filter((k: string) => (e as any)[k] !== undefined).map((k: string) => [k, (e as any)[k]]));
     const hash = createHash("sha256").update(JSON.stringify(canonical(projection))).digest("hex");
     assert.equal(hash, snapshot.effects.find((s: any) => s.id === e.id).sha256, `Changed legacy contract/evidence ${e.id}`);
   }
-  assert.deepEqual(knowledge.counts, { direct: 62, signatures: 7, specializations: 12, composites: 0, independent_contracts: 69, searchable: 74 });
-  assert.equal(typedKnowledgeEffects(knowledge.effects).length, 74);
-  assert.equal(read("effects.json").effects.filter((e: any) => e.input).length, 62);
-  assert.equal(data.effects(undefined, undefined, { form: "specialization" }).matched, 12);
-  assert.equal(data.effects(undefined, undefined, { form: "direct" }).matched, 62);
+  assert.deepEqual(knowledge.counts, { direct: 56, signatures: 14, specializations: 22, composites: 0, independent_contracts: 70, searchable: 78 });
+  assert.equal(typedKnowledgeEffects(knowledge.effects).length, 78);
+  assert.equal(read("effects.json").effects.filter((e: any) => e.input).length, 56);
+  assert.equal(data.effects(undefined, undefined, { form: "specialization" }).matched, 22);
+  assert.equal(data.effects(undefined, undefined, { form: "direct" }).matched, 56);
   assert.equal(data.effects(undefined, undefined, { kind: "mechanism" }).matched, 9);
-  assert.equal(data.knowledgeCatalog().families.length, 4);
+  assert.equal(data.knowledgeCatalog().families.length, 8);
 });
 
 test("fields group response contracts without replacing them or counting mechanisms as responses", () => {
   const knowledge = compileKnowledge(packs());
-  assert.deepEqual(knowledge.taxonomy.roles, { response: 65, mechanism: 9, composite: 0, unclassified: 0 });
+  assert.deepEqual(knowledge.taxonomy.roles, { response: 69, mechanism: 9, composite: 0, unclassified: 0 });
   const magnetic = knowledge.taxonomy.field_groups.find(g => g.field === "magnetic")!;
-  assert.deepEqual(magnetic.entry_ids, [3, 12, 14, 34, 65]);
+  assert.deepEqual(magnetic.entry_ids, [3, 12, 14, 34, 65, 76]);
   const force = knowledge.effects.find(e => e.id === 65)!;
   assert.equal(force.kind, "response");
   assert.equal(force.input_parameter, "physical:current");
@@ -104,6 +105,36 @@ test("named specializations derive ports only from explicit family signatures", 
   assert.equal(compileKnowledge([p]).effects.find(e => e.id === 48)!.review.status, "curated", "family review does not upgrade a case's empirical evidence");
 });
 
+test("new clauses and further interface sharing preserve roles and explicit quantity distinctions", () => {
+  const k = compileKnowledge(packs());
+  const find = (id: number) => k.effects.find(e => e.id === id)!;
+  assert.deepEqual([find(2).input_parameter, find(2).output_parameter], ["physical:mechanical-stress", "physical:voltage"]);
+  assert.deepEqual([find(75).input_parameter, find(75).output_parameter], ["physical:voltage", "physical:dimension-change"]);
+  assert.equal(find(2).definition.form, "specialization");
+  assert.equal(find(75).definition.form, "specialization");
+  assert.equal(find(76).input_parameter, "physical:magnetic-flux-density-change");
+  assert.equal(find(77).input_parameter, "physical:electric-field-change");
+  assert.equal(find(78).input_parameter, "physical:electric-field");
+  assert.equal(find(76).output_parameter, "physical:temperature-change");
+  assert.equal(find(77).output_parameter, "physical:temperature-change");
+  assert.equal(find(78).output_parameter, "physical:fluid-velocity");
+  for (const ids of [[15, 67], [16, 17], [51, 56]]) {
+    const [a, b] = ids.map(find);
+    assert.deepEqual(a.definition, b.definition);
+    assert.notEqual(a.source, b.source, "sharing retains case-specific evidence");
+    assert.notDeepEqual(a.conditions, b.conditions, "sharing retains operating assumptions");
+  }
+  assert.equal(find(56).kind, "mechanism");
+  const meta = read("effects.json")._meta;
+  assert.equal(meta.typing.typed_count, typedKnowledgeEffects(k.effects).length);
+  assert.equal(meta.typing.total_count, k.effects.length);
+  assert.deepEqual(meta.definitions, { ...meta.definitions,
+    direct_definitions: k.counts.direct, family_definitions: k.families.length, shared_signatures: k.counts.signatures,
+    specializations: k.counts.specializations, composites: k.counts.composites,
+    independent_interface_contracts: k.counts.independent_contracts, searchable_effects: k.counts.searchable,
+  });
+});
+
 test("family namespaces, references, signatures and complete evidence fail closed", () => {
   const broken = [
     (p: any) => { p.families.push(structuredClone(p.families[0])); },
@@ -134,7 +165,7 @@ test("recipe compilation is independent of declaration order and retains every d
   assert.ok(recipe.conditions!.includes("specified nonzero resistance"));
   assert.ok(recipe.conditions!.includes("declared optical/electrical integration"));
   assert.ok(recipe.conditions!.includes("declared load integration"));
-  assert.equal(typedKnowledgeEffects(knowledge.effects).length, 74, "recipes are not opaque search generators");
+  assert.equal(typedKnowledgeEffects(knowledge.effects).length, 78, "recipes are not opaque search generators");
   p.effects.reverse();
   assert.deepEqual(compileKnowledge([p]).effects.find(e => e.id === recipe.id), recipe);
 });

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /** Catalogue ablation and patent-inspired finite-model experiments; no measured device data. */
 import assert from "node:assert/strict";
+import { speculativeSampling } from "./speculative-sampling.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import * as data from "../../src/data.ts";
@@ -17,7 +18,7 @@ import { rational, Z, ONE, add, sub, mul, div, cmp, sum, show } from "../../src/
 const snapshot = JSON.parse(fs.readFileSync(new URL("./fixtures/effects-before-pr53.json", import.meta.url), "utf8"));
 const current = data.typedEffects();
 const libraries = [snapshot.effects, current.filter(e => snapshot.first_pr_typed_ids.includes(e.id)), current];
-assert.deepEqual(libraries.map(es => es.length), [6, 37, 74]);
+assert.deepEqual(libraries.map(es => es.length), [6, 37, 78]);
 const port = quantity => {
   const p = data.knowledge().parameters.find(p => p.quantity === quantity);
   assert.ok(p, quantity);
@@ -28,7 +29,7 @@ const port = quantity => {
 const cases = [
   ["Thermocouple control", "temperature difference", "voltage", 1],
   ["Light to heating power", "light", "heat flow", 3],
-  ["Reaction to thermal displacement", "reaction extent", "dimension change", 3],
+  ["Reaction to displacement", "reaction extent", "dimension change", 3],
   ["Superelastic response", "mechanical stress", "strain", 1],
   ["Ultrasonic detachment", "acoustic pressure amplitude", "released mass", 2],
   ["Nonempty force transformation", "force", "force", 1],
@@ -77,7 +78,7 @@ assert.ok(recipeSetup.ok);
 assert.deepEqual(recipeSetup.model, finite.model);
 assert.deepEqual(recipeSetup.setup.expanded_effect_ids, chain);
 assert.ok(recipeSetup.unmetConditions.includes("declared optical/electrical/load integration"));
-assert.deepEqual(data.knowledge().counts, { direct: 62, signatures: 7, specializations: 12, composites: 0, independent_contracts: 69, searchable: 74 });
+assert.deepEqual(data.knowledge().counts, { direct: 56, signatures: 14, specializations: 22, composites: 0, independent_contracts: 70, searchable: 78 });
 
 const wire = (id, from, fp, to, tp, carrier) => ({ id, from: { box: from, port: fp }, to: { box: to, port: tp }, carrier, polarity: "useful" });
 const accept = (id, carrier, values) => ({ id, name: id, role: "product", inputs: [{ id: "in", carrier }], behavior: values.map(v => ({ in: { in: v }, out: {} })) });
@@ -190,18 +191,7 @@ const codedCorrected = bits.flatMap(b => flips([b, b, b]).slice(1).map(t => vote
 
 // Recent construction: one speculative-sampling step (Leviathan et al., ICML 2023).
 // Exact finite probabilities, not an LLM benchmark or a Lean proof about arbitrary distributions.
-function speculativeSampling(target, draft) {
-  for (const distribution of [target, draft]) {
-    assert.equal(show(sum(distribution)), "1");
-    assert.ok(distribution.every(p => cmp(p, Z) >= 0));
-  }
-  const accepted = target.map((p, i) => mul(draft[i], cmp(draft[i], Z) === 0 ? Z : cmp(p, draft[i]) < 0 ? div(p, draft[i]) : ONE));
-  const rejected = sub(ONE, sum(accepted));
-  const residual = target.map((p, i) => cmp(p, draft[i]) > 0 ? sub(p, draft[i]) : Z);
-  const mass = sum(residual);
-  const output = target.map((_, i) => add(accepted[i], cmp(mass, Z) === 0 ? Z : mul(rejected, div(residual[i], mass))));
-  return { accepted, rejected, output };
-}
+
 let probabilityCases = 0;
 for (let p = 0; p <= 4; p++) for (let q = 0; q <= 4; q++) {
   const target = [rational(`${p}/4`), rational(`${4 - p}/4`)];
@@ -236,7 +226,7 @@ if (dirIndex >= 0) {
   for (const [name, c] of Object.entries(certificates)) fs.writeFileSync(path.join(dir, `${name}.lean`), c.content);
 }
 console.log(JSON.stringify({
-  method: "Selected finite examples; fixed current engine, catalogue sizes 6/37/74; no measured device data, no general benchmark accuracy or runtime claim.",
+  method: "Selected finite examples; fixed current engine, catalogue sizes 6/37/78; no measured device data, no general benchmark accuracy or runtime claim.",
   snapshots: { before: snapshot.source_commit, first_pr: snapshot.first_pr_commit },
   discovery,
   separation: { independent_interfaces_before: 74, independent_interfaces_after: data.knowledge().counts.independent_contracts,

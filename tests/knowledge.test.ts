@@ -39,11 +39,11 @@ function extension() {
 test("installed knowledge preserves classic lookups and exposes explicit quantity provenance", () => {
   core.useProvider(file => file in bundledKnowledge ? bundledKnowledge[file] : read(file));
   assert.equal(core.parameters().length, 39);
-  assert.equal(core.effects().matched, 74);
-  assert.equal(core.typedEffects().length, 74);
+  assert.equal(core.effects().matched, 78);
+  assert.equal(core.typedEffects().length, 78);
   const catalog = core.knowledgeCatalog();
   assert.equal(catalog.packs.length, 2);
-  assert.equal(catalog.parameters.length, 66);
+  assert.equal(catalog.parameters.length, 68);
   const seebeck = core.effects(undefined, undefined, { input: "temperature difference", output: "voltage" }).effects[0];
   assert.equal(seebeck.input_parameter, "physical:temperature-difference");
   assert.equal(seebeck.review.status, "curated");
@@ -62,7 +62,7 @@ test("all packs feed search and chains by default, domain filtering keeps univer
   };
   core.useProvider(file => files[file] ?? read(file));
   try {
-    assert.equal(core.effects().matched, 76);
+    assert.equal(core.effects().matched, 80);
     assert.deepEqual(core.effects(undefined, undefined, { domain: "software" }).effects.map(e => e.id), ["universal:normalize", "software:emit"]);
     assert.deepEqual(core.effects(undefined, undefined, { pack: "software" }).effects.map(e => e.id), ["software:emit"]);
     assert.equal(core.effects(undefined, "algorithmic").matched, 1);
@@ -78,7 +78,7 @@ test("all packs feed search and chains by default, domain filtering keeps univer
   } finally {
     core.useProvider(file => file in bundledKnowledge ? bundledKnowledge[file] : read(file));
   }
-  assert.equal(core.effects().matched, 74, "provider changes invalidate knowledge caches");
+  assert.equal(core.effects().matched, 78, "provider changes invalidate knowledge caches");
 });
 
 test("hosted imports contain exactly the manifest files and agree with filesystem data", () => {

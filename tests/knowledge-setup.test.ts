@@ -58,7 +58,7 @@ function physicalExample() {
 
 test("every typed catalogue generator sets up as a typed model without inventing implementation rows", () => {
   const knowledge = data.knowledge();
-  assert.equal(data.typedEffects().length, 74);
+  assert.equal(data.typedEffects().length, 78);
   for (const effect of data.typedEffects()) {
     const r = setupEffectModel({ chain: [effect.id], domain: "physical" }, knowledge);
     assert.ok(r.ok, `${effect.id}: ${JSON.stringify(r)}`);

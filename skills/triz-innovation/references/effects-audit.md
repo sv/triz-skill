@@ -3,7 +3,8 @@
 All original 60 entries were screened for obvious conflation, misleading guarantees,
 classification errors and missing retrieval targets. Targeted primary/reference checks support
 the changes below. This is repository curation, not a comprehensive expert validation of every
-application hint. All original ids are retained; 14 entries are added, for 74 total.
+application hint. All original ids are retained; 18 entries are added, for 78 total. The initial
+14 additions and 74 typings are described below; the recent-publication extension adds 75–78.
 
 ## Corrections
 
@@ -94,10 +95,10 @@ no hysteresis, persistence, kinetics or memory is inferred from these catalogue 
 
 ## Definition separation
 
-Twelve named cases now reference four shared interface families with seven signatures. Together
-with 62 direct declarations, these give 69 independently stated interfaces and the same 74 resolved
-search entries. Case-specific conditions, attribution, limitations and text are preserved by a
-frozen compatibility test. Conduction, convection and radiation, for example, retain their own
+Twenty-two named cases now reference eight shared interface families with 14 signatures. Together
+with 56 direct declarations, these give 70 independently stated interfaces and 78 resolved
+search entries. The previous 74 cases' conditions, attribution, limitations and text are preserved
+by a frozen compatibility test. Conduction, convection and radiation, for example, retain their own
 constitutive laws and evidence while sharing a selected input/output interface. Serial recipes
 expand into their constituent effects before model checks; see [knowledge packs](knowledge-packs.md).
 
@@ -105,8 +106,8 @@ expand into their constituent effects before model checks; see [knowledge packs]
 
 Entry 72 is classified as a mechanism rather than a response: phased electrodes use the
 electrostatic and dielectrophoretic responses of entries 59 and 71. The selected typing, text,
-conditions, related-effect links and evidence are unchanged. The catalogue now has 65 response
-entries and nine mechanism entries; its 74 searchable cases and 69 interface declarations remain.
+conditions, related-effect links and evidence are unchanged. The catalogue now has 69 response
+entries and nine mechanism entries; its 78 searchable cases use 70 interface declarations.
 `triz_knowledge` exposes field groups separately from these roles. Field membership supplies no
 force law or typed arrow, and neither role nor interface counts assert scientific irreducibility.
 
@@ -114,3 +115,25 @@ Checks against an H2W voice-coil stage and two patent disclosures support keepin
 response contracts. They also reject treating a dust shield's simultaneous forces or a
 refrigerator's heat-transfer paths as serial recipes. See the executable
 [product/patent validation](../../../docs/effects-evidence.md#product-and-patent-validation).
+
+## Recent-publication extension
+
+Nine publications dated 2025–2026 exposed four missing selected clauses. Recent publication does
+not establish recent scientific discovery; several grants have much older priority dates.
+
+| Id | Added clause | Primary/reference support |
+|---|---|---|
+| 75 | Terminal voltage → piezoelectric dimension change | [PI actuator displacement](https://www.physikinstrumente.com/en/expertise/technology/piezo-technology/properties-piezo-actuators/displacement-behavior/), [2025 micropump disclosure](https://patents.google.com/patent/US20250161559A1/en) |
+| 76 | Magnetic flux density change → adiabatic temperature change | [NIST TN 1931](https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.1931.pdf), [2026 refrigeration disclosure](https://patents.google.com/patent/US20260029171A1/en) |
+| 77 | Electric field change → adiabatic temperature change | [2026 electrocaloric element disclosure](https://patents.google.com/patent/WO2026087545A1/en) |
+| 78 | Tangential electric field → electroosmotic liquid velocity | [Squires and Bazant](https://web.mit.edu/bazant/www/papers/pdf/Bazant_2004_J_Fluid_Mech_ICE2.pdf), [2025 pump grant](https://patents.google.com/patent/EP3842087B1/en) |
+
+The first three use piezoelectric/caloric families with explicit, distinct signatures; no sensing
+clause is inverted and no field, field change or field-rate tokens are automatically identified.
+Optical-to-electrical, optical-signal and angular-to-linear sharing removes three repeated
+declarations among existing cases. Starting from 69 interfaces, four additions minus those three
+repetitions gives 70 interfaces. Named cases retain their sources and operating assumptions.
+
+The [executable recent-patent audit](../../../docs/effects-evidence.md#recent-patent-validation)
+also records remaining gaps: coupled thermal/fluid/contact balances, material calibration and
+history, multi-input crossbar accumulation, and probability-preserving algorithm semantics.

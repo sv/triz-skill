@@ -51,7 +51,7 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-All 74 entries have explicit conditional typings identified in `source`, using 63 declared physical
+All 78 entries have explicit conditional typings identified in `source`, using 65 declared physical
 quantities. The original six quantity tokens are preserved, with explicit SI where the quantity
 has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
 and current tokens use shared vocabulary; the induction typing covers the changing-field clause
@@ -66,9 +66,10 @@ universal and domain quantity parameters, provenance, review status and effect r
 `triz_knowledge` lists these definitions; every installed pack feeds effect lookup and chain
 discovery by default. Optional domain filtering includes universal entries. Canonical matrix
 parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
-records the 74-entry physical starter set and remaining evidence gaps. Four shared families
-now supply seven signatures for 12 named specializations, alongside 62 direct definitions.
-All 74 resolved contracts and their case-specific assumptions/evidence are preserved. Kind
+records the 78-entry physical starter set and remaining evidence gaps. Eight shared families
+supply 14 signatures for 22 named specializations, alongside 56 direct definitions: 70
+independently declared interfaces. All 74 previous contracts and their case-specific
+assumptions/evidence are preserved; four new sourced clauses fill recent-patent coverage gaps. Kind
 and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
 
 `triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,

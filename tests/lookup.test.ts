@@ -102,16 +102,16 @@ for (const ev of suite.lookup_evals) {
 test("all 39 parameters present", () => assert.equal(triz.parameters().length, 39));
 test("all 40 principles present", () => assert.equal(triz.principles().length, 40));
 test("all 37 routed tools present", () => assert.equal(triz.toolCatalog().length, 37));
-test("effects database ships 74 curated entries with full metadata", () => {
+test("effects database ships 78 curated entries with full metadata", () => {
   const { effects } = triz.effects();
-  assert.equal(effects.length, 74);
+  assert.equal(effects.length, 78);
   assert.ok(effects.length >= 50, "starter set is substantive");
   for (const e of effects) {
     assert.ok(e.name && e.function && e.statement, `effect ${e.id} has name/function/statement`);
     assert.ok(["physical", "chemical", "geometric"].includes(e.category), `effect ${e.id} category valid`);
     assert.ok(Array.isArray(e.hints) && e.hints.length > 0, `effect ${e.id} has hints`);
   }
-  assert.deepEqual(effects.map(e => e.id), Array.from({ length: 74 }, (_, i) => i + 1), "retain original ids and append new ones");
+  assert.deepEqual(effects.map(e => e.id), Array.from({ length: 78 }, (_, i) => i + 1), "retain original ids and append new ones");
   for (const e of effects.filter(e => typeof e.id === "number" && e.id > 60)) {
     assert.match(e.provenance.citation, /^https:\/\//);
     assert.ok(e.conditions?.length && e.limitations.length, `new effect ${e.id} declares applicability limits`);

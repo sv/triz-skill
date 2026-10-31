@@ -136,6 +136,8 @@ jobs:
           node scripts/certify.mjs --local --tamper "$RUNNER_TEMP/effects-comparison/"*.lean
           node --import tsx examples/assurance/effects-products.mjs --cert-dir "$RUNNER_TEMP/effects-products"
           node scripts/certify.mjs --local --tamper "$RUNNER_TEMP/effects-products/"*.lean
+          node --import tsx examples/assurance/effects-recent-patents.mjs --cert-dir "$RUNNER_TEMP/effects-recent-patents"
+          node scripts/certify.mjs --local --tamper "$RUNNER_TEMP/effects-recent-patents/"*.lean
 
       # Only the test files with Lean tests (`leanTest(`); the CI workflow runs every other test.
       # TRIZ_REQUIRE_LEAN=1 runs the Lean tests and makes a missing build fail instead of skip.

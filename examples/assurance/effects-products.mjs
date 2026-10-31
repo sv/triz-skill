@@ -14,6 +14,7 @@ import { rational, mul, cmp, show } from "../../src/act-rational.ts";
 const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/product-patent-cases.json", import.meta.url), "utf8"));
 const knowledge = data.knowledge();
 const baselinePacks = structuredClone(knowledge.packs);
+for (const pack of baselinePacks) pack.effects = pack.effects.filter(e => typeof e.id !== "number" || e.id <= 74);
 for (const { id, kind } of fixture.classification_baseline.role_overrides)
   baselinePacks.flatMap(p => p.effects).find(e => e.id === id).kind = kind;
 const before = compileKnowledge(baselinePacks);
@@ -115,8 +116,9 @@ if (certIndex >= 0) {
 console.log(JSON.stringify({
   scope: fixture.scope, classification_baseline: fixture.classification_baseline,
   roles: { before: before.taxonomy.roles, after: knowledge.taxonomy.roles },
-  retained_named_entries: knowledge.effects.length,
-  retained_independent_interfaces: knowledge.counts.independent_contracts,
+  legacy_named_entries_preserved: before.effects.length,
+  current_named_entries: knowledge.effects.length,
+  current_independent_interfaces: knowledge.counts.independent_contracts,
   cases: results,
   voice_coil: { current_A: currents, voltage_V: voltage, force_N: force, Joule_heat_W: heating,
     finite_composition: comparison.verdict, scope: spec.scope },
