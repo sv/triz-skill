@@ -1,14 +1,48 @@
 /** Explicit multiport templates for the existing bounded configuration search. */
 import { z } from "zod";
-import { Box, Carrier, checkModel } from "./act.js";
+import { Box, Carrier, checkModel, type FunctionModel } from "./act.js";
 import { ComponentCatalogue, GENERAL_CATALOGUE } from "./act-component-catalogue.js";
 import { at, fail, issue } from "./act-issues.js";
-import { compileKnowledge } from "./knowledge.js";
+import type { compileKnowledge, RegisteredModel, RegisteredParameter } from "./knowledge.js";
 import { boundaryMappingComponent } from "./knowledge-boundary-mappings.js";
 
 const Text = z.string().min(1);
 export const ModelImplementation = Box.pick({ behavior: true, producible: true, state: true, initial: true, transition: true,
   cost: true, feasibility: true, actions: true, holding_cost: true });
+export const KnowledgeBindings = z.record(Text, Carrier.pick({ layer: true, values: true, levels: true, quantity: true }).partial()).default({});
+const reject = (path: string, message: string) => fail([issue("invalid-argument", path, message, "Use registered model/parameter ids and explicit implementation declarations.")]);
+
+/** One explicit type environment for scalar chains, open configurations and catalogues. */
+export function bindKnowledgeParameters(ids: Iterable<string>, bindings: z.infer<typeof KnowledgeBindings>, parameters: RegisteredParameter[], domain: FunctionModel["domain"] = "physical") {
+  const used = new Set(ids), carriers: z.infer<typeof Carrier>[] = [];
+  for (const id of Object.keys(bindings)) if (!used.has(id)) return reject(`$.bindings.${id}`, "Binding is unused by the selected network");
+  for (const id of used) {
+    const p = parameters.find(p => p.id === id), binding = bindings[id] ?? {};
+    if (!p) return reject("$.bindings", `Unknown quantity parameter ${id}`);
+    const layer = binding.layer ?? p.layer;
+    if (!layer) return reject(`$.bindings.${id}.layer`, "No carrier layer is declared");
+    carriers.push({ id, dimension: p.name, effect_quantity: p.quantity, ...(p.si === undefined ? {} : { si: p.si }), ...binding, layer });
+  }
+  return { ok: true as const, carriers,
+    instantiate: (m: RegisteredModel, declaration?: z.infer<typeof ModelImplementation>, path?: string) =>
+      instantiateKnowledgeModel(m, carriers, declaration, path, domain) };
+}
+
+/** Interpret a typed template under a bound environment; history belongs to each instance. */
+function instantiateKnowledgeModel(m: RegisteredModel, carriers: z.infer<typeof Carrier>[], d: z.infer<typeof ModelImplementation> = {}, path = `$.declarations.${m.id}`, domain: FunctionModel["domain"]) {
+  const temporal = d.state !== undefined || d.initial !== undefined || d.transition !== undefined;
+  const relational = d.behavior !== undefined || d.producible !== undefined;
+  if (m.state_parameter && (relational || temporal) && (!d.state || !d.initial || !d.transition || relational))
+    return reject(path, "A stateful model requires state, initial and transition; a memoryless relation cannot replace its history");
+  if (!m.state_parameter && temporal)
+    return reject(path, "This template has no internal state meaning; register a stateful model before adding history");
+  const component = { id: m.id, name: m.name, role: "tool" as const,
+    inputs: m.inputs.map(p => ({ id: p.id, carrier: p.parameter })),
+    outputs: m.outputs.map(p => ({ id: p.id, carrier: p.parameter })), ...d };
+  const checked = checkModel({ domain, carriers, boxes: [component], wires: [] });
+  return checked.ok ? { ok: true as const, component } : fail(checked.issues);
+}
+
 export const KnowledgeCatalogueRequest = z.strictObject({
   source: z.enum(["general", "knowledge"]).default("general"),
   models: z.array(Text).min(1).max(100).optional(),
@@ -17,7 +51,7 @@ export const KnowledgeCatalogueRequest = z.strictObject({
   mappings: z.array(Text).min(1).max(100).optional().describe("Explicit forward boundary-observation ids; no reverse mapping or automatic type alias"),
   effects: z.array(z.union([Text, z.number().int().positive()])).min(1).max(100).optional().describe("Named configuration effect ids; return their constituent models and wiring, never an opaque catalogue entry"),
   state_parameters: z.array(Text).max(100).optional().describe("Allowed internal state meanings; stateless models remain candidates. Never inferred from names"),
-  bindings: z.record(Text, Carrier.pick({ layer: true, values: true, levels: true, quantity: true }).partial()).default({})
+  bindings: KnowledgeBindings
     .describe("Parameter id to finite values, levels, layer and allocation semantics; registry SI and quantity tokens cannot be changed"),
   declarations: z.record(Text, ModelImplementation).default({}).describe("Model id to explicit implementation rows; no physical behavior is inferred"),
   conditions: z.array(Text).default([]),
@@ -26,7 +60,6 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
   const parsed = KnowledgeCatalogueRequest.safeParse(raw);
   if (!parsed.success) return fail(parsed.error.issues.map(e => issue("invalid-argument", `$.${e.path.join(".")}`, e.message, "Use the component catalogue schema.")));
   const a = parsed.data;
-  const reject = (path: string, message: string) => fail([issue("invalid-argument", path, message, "Use registered model/parameter ids and explicit implementation declarations.")]);
   if (a.source === "general") {
     if (a.models || a.mappings || a.effects || a.query || a.parent !== undefined || a.state_parameters || Object.keys(a.bindings).length || Object.keys(a.declarations).length || a.conditions.length)
       return reject("$.source", "Knowledge model options require source: knowledge");
@@ -61,31 +94,15 @@ export function knowledgeModelCatalogue(raw: z.input<typeof KnowledgeCatalogueRe
   const mappings = knowledge.boundary_mappings.filter(m => mappingIds.has(m.id));
   const used = new Set(models.flatMap(m => [...m.inputs, ...m.outputs].map(p => p.parameter)));
   for (const m of mappings) { used.add(m.input_parameter); used.add(m.output_parameter); }
-  for (const id of Object.keys(a.bindings)) if (!used.has(id)) return reject(`$.bindings.${id}`, "Binding is unused by the selected models");
   for (const id of Object.keys(a.declarations)) if (!models.some(m => m.id === id)) return reject(`$.declarations.${id}`, "Declaration is unused by the selected models");
-  const carriers: z.infer<typeof Carrier>[] = [];
-  for (const id of used) {
-    const p = knowledge.parameters.find(p => p.id === id)!;
-    const binding = a.bindings[id] ?? {};
-    const layer = binding.layer ?? p.layer;
-    if (!layer) return reject(`$.bindings.${id}.layer`, "No carrier layer is declared");
-    carriers.push({ id, dimension: p.name, effect_quantity: p.quantity, ...(p.si === undefined ? {} : { si: p.si }), ...binding, layer });
-  }
+  const bound = bindKnowledgeParameters(used, a.bindings, knowledge.parameters);
+  if (!bound.ok) return bound;
+  const { carriers } = bound;
   const entries: Array<z.input<typeof ComponentCatalogue>["entries"][number]> = [];
   for (const m of models) {
-    const d = a.declarations[m.id] ?? {};
-    const temporal = d.state !== undefined || d.initial !== undefined || d.transition !== undefined;
-    const relational = d.behavior !== undefined || d.producible !== undefined;
-    if (m.state_parameter && (relational || temporal) && (!d.state || !d.initial || !d.transition || relational))
-      return reject(`$.declarations.${m.id}`, "A stateful model requires state, initial and transition; a memoryless relation cannot replace its history");
-    if (!m.state_parameter && temporal)
-      return reject(`$.declarations.${m.id}`, "This template has no internal state meaning; register a stateful model before adding history");
-    const component = { id: m.id, name: m.name, role: "tool" as const,
-      inputs: m.inputs.map(p => ({ id: p.id, carrier: p.parameter })),
-      outputs: m.outputs.map(p => ({ id: p.id, carrier: p.parameter })), ...d };
-    const checked = checkModel({ domain: "physical", carriers, boxes: [component], wires: [] });
-    if (!checked.ok) return fail(checked.issues);
-    entries.push({ id: m.id, component, source: m.provenance, conditions: m.conditions, limitations: m.limitations,
+    const instance = bound.instantiate(m, a.declarations[m.id]);
+    if (!instance.ok) return instance;
+    entries.push({ id: m.id, component: instance.component, source: m.provenance, conditions: m.conditions, limitations: m.limitations,
       tags: m.parents.map(String), domains: [m.domain], max_instances: 1 });
   }
   for (const m of mappings) {

@@ -1,8 +1,8 @@
 /** Expand named configurations into their actual models, keeping every context input explicit. */
-import { checkModel, type FunctionModel } from "./act.js";
+import type { FunctionModel } from "./act.js";
 import { rewrite } from "./act-rewrite.js";
 import { fail, issue } from "./act-issues.js";
-import { knowledgeModelCatalogue } from "./knowledge-models.js";
+import { bindKnowledgeParameters } from "./knowledge-models.js";
 import { boundaryMappingComponent } from "./knowledge-boundary-mappings.js";
 import type { z } from "zod";
 import type { compileKnowledge, RegisteredEffect } from "./knowledge.js";
@@ -14,6 +14,18 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
     return reject("$.chain", "Named configurations expand beyond the 12-component setup limit");
   if (a.declarations && a.declarations.length !== entries.length) return reject("$.declarations", "Declarations must match expanded effect steps");
   const parameters = new Set<string>(), nodes: FunctionModel["boxes"] = [], wires: FunctionModel["wires"] = [];
+  for (const e of entries) {
+    parameters.add(e.input_parameter!); parameters.add(e.output_parameter!);
+    if (e.definition.form !== "configuration") continue;
+    for (const n of e.definition.configuration.nodes) {
+      const m = k.models.find(m => m.id === n.model)!;
+      for (const p of [...m.inputs, ...m.outputs]) parameters.add(p.parameter);
+    }
+    for (const p of e.definition.configuration.outputs) if (p.mapping) { parameters.add(p.parameter); parameters.add(p.model_parameter); }
+  }
+  const bound = bindKnowledgeParameters(parameters, a.bindings, k.parameters, a.domain);
+  if (!bound.ok) return bound;
+  const { carriers } = bound;
   const projections: Array<{ step: number; id: string; mapping: string; from: { box: string; port: string }; box: string }> = [];
   const contexts: Array<{ step: number; id: string; parameter: string; source_port: string }> = [];
   const usedDeclarations = new Set<string>(), ends: Array<{ from: { box: string; port: string }; to: { box: string; port: string } }> = [];
@@ -23,7 +35,6 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
   };
   for (const [step, e] of entries.entries()) {
     const box = `effect-${step}`;
-    parameters.add(e.input_parameter!); parameters.add(e.output_parameter!);
     if (e.definition.form !== "configuration") {
       nodes.push({ id: box, name: e.name, role: "tool", inputs: [{ id: "in", carrier: e.input_parameter! }], outputs: [{ id: "out", carrier: e.output_parameter! }], ...a.declarations?.[step] });
       ends.push({ to: { box, port: "in" }, from: { box, port: "out" } });
@@ -36,15 +47,9 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
       const m = k.models.find(m => m.id === n.model)!;
       const key = `${step}/${n.id}`;
       if (a.node_declarations[key]) usedDeclarations.add(key);
-      const used = new Set([...m.inputs, ...m.outputs].map(p => p.parameter));
-      for (const p of used) parameters.add(p);
-      const catalogue = knowledgeModelCatalogue({ source: "knowledge", models: [m.id],
-        bindings: Object.fromEntries(Object.entries(a.bindings).filter(([id]) => used.has(id))),
-        declarations: a.node_declarations[key] ? { [m.id]: a.node_declarations[key] } : {}, conditions: a.conditions }, k);
-      if (!catalogue.ok) return catalogue;
-      const component = catalogue.catalogue.entries[0];
-      if (!("component" in component)) return reject("$.chain", "Registered model is not a concrete template");
-      nodes.push({ ...component.component, id: `${box}-${n.id}` });
+      const instance = bound.instantiate(m, a.node_declarations[key], `$.node_declarations.${key}`);
+      if (!instance.ok) return instance;
+      nodes.push({ ...instance.component, id: `${box}-${n.id}` });
       modelSources.push({ node: `${box}-${n.id}`, model: m.id, conditions: m.conditions, provenance: m.provenance, review: m.review, limitations: m.limitations });
     }
     for (const w of config.wires) {
@@ -54,7 +59,6 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
     const input = config.inputs.find(p => p.primary)!, output = config.outputs.find(p => p.primary)!;
     // The first target is supplied by the main chain; the same resource can feed further targets.
     for (const p of config.outputs.filter(p => p.mapping)) {
-      parameters.add(p.parameter); parameters.add(p.model_parameter);
       projections.push({ step, id: p.id, mapping: p.mapping!, from: end(p.from), box: `${box}-observe-${p.id}` });
     }
     ends.push({ to: end(input.targets[0]), from: output.mapping ? { box: `${box}-observe-${output.id}`, port: "out" } : end(output.from) });
@@ -70,14 +74,6 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
   }
   for (const key of Object.keys(a.node_declarations)) if (!usedDeclarations.has(key)) return reject(`$.node_declarations.${key}`, "Unused configuration node declaration");
   for (const key of Object.keys(a.context_values)) if (!contexts.some(c => `${c.step}/${c.id}` === key)) return reject(`$.context_values.${key}`, "Unused context availability declaration");
-  for (const id of Object.keys(a.bindings)) if (!parameters.has(id)) return reject(`$.bindings.${id}`, "Binding is unused by the expanded network");
-  const carriers: FunctionModel["carriers"] = [];
-  for (const id of parameters) {
-    const p = k.parameters.find(p => p.id === id)!, binding = a.bindings[id] ?? {};
-    const layer = binding.layer ?? p.layer;
-    if (!layer) return reject(`$.bindings.${id}.layer`, "No carrier layer is declared");
-    carriers.push({ id, dimension: p.name, effect_quantity: p.quantity, ...(p.si === undefined ? {} : { si: p.si }), ...binding, layer });
-  }
   const mappingSources = [];
   for (const p of projections) {
     const mapping = k.boundary_mappings.find(m => m.id === p.mapping)!;
@@ -107,8 +103,6 @@ export function setupConfigurationChain(a: z.infer<typeof EffectSetupRequest>, k
   const step = { delete: {}, add: { boxes: nodes, wires } };
   const applied = rewrite(base, step);
   if (!applied.ok) return applied;
-  const checked = checkModel(applied.model);
-  if (!checked.ok) return fail(checked.issues);
   const sources = new Map<string | number, RegisteredEffect>();
   const collect = (e: RegisteredEffect) => {
     if (sources.has(e.id)) return;

@@ -82,6 +82,44 @@ test("a serial recipe containing a named configuration retains integration hypot
   assert.ok(setup.setup.sources.some(e => e.id === "physical:wind-pressure"));
 });
 
+test("a software configuration instantiates one stateful template twice under one type environment", () => {
+  const signal = "software:signal", memory = "software:memory", model = "software:delay", effect = "software:double-delay";
+  const source = { citation: "Synthetic cross-domain regression", license: "MIT" };
+  const registry = compileKnowledge([{
+    format: "triz-knowledge-pack-v1", id: "software", domain: "software", title: "Synthetic delay model",
+    source, review: { status: "draft", note: "Synthetic, not an empirical claim" }, limitations: ["Finite fixture only"],
+    parameters: [signal, memory].map(id => ({ id, name: id, quantity: id, description: "Synthetic bit meaning", layer: "information" })),
+    models: [{ id: model, name: "Delay", description: "Remember one prior input", parents: [effect],
+      inputs: [{ id: "in", parameter: signal }], outputs: [{ id: "out", parameter: signal }], state_parameter: memory,
+      conditions: ["Discrete synchronous steps"], provenance: source, limitations: ["Two-state fixture"] }],
+    effects: [{ id: effect, kind: "configuration", role: "response", name: "Two delays", category: "synthetic",
+      function: "Delay twice", statement: "Compose two independently initialized instances", hints: [],
+      field: "information", conditions: [], source: source.citation, typed_from: "source",
+      configuration: { nodes: [{ id: "first", model }, { id: "second", model }],
+        wires: [{ from: { node: "first", port: "out" }, to: { node: "second", port: "in" } }],
+        inputs: [{ id: "input", targets: [{ node: "first", port: "in" }], primary: true }],
+        outputs: [{ id: "output", from: { node: "second", port: "out" }, primary: true }] } }],
+  }]);
+  const bindings = { [signal]: { values: ["0", "1"] } };
+  const implementation = (initial: string) => ({ state: ["0", "1"], initial: [initial],
+    transition: ["0", "1"].flatMap(state => ["0", "1"].map(input => ({ state, in: { in: input }, next: input, out: { out: state } }))) });
+  const first = implementation("0"), second = implementation("1");
+  const catalogue = knowledgeModelCatalogue({ source: "knowledge", models: [model], bindings, declarations: { [model]: first } }, registry);
+  const options = { chain: [effect], domain: "software" as const, bindings,
+    node_declarations: { "0/first": first, "0/second": second } };
+  const setup = setupEffectModel(options, registry);
+  assert.ok(catalogue.ok && setup.ok, JSON.stringify({ catalogue, setup }));
+  assert.deepEqual(setup.model.carriers, catalogue.catalogue.carriers);
+  const component = catalogue.catalogue.entries[0];
+  assert.ok("component" in component);
+  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0-first"), { ...component.component, id: "effect-0-first" });
+  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0-second")!.initial, ["1"]);
+  const invalid = setupEffectModel({ ...options, node_declarations: { ...options.node_declarations,
+    "0/second": { behavior: [{ in: { in: "0" }, out: { out: "0" } }] } } }, registry);
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.equal(invalid.issues[0].path, "$.node_declarations.0/second");
+});
+
 test("reduction preserves every ranked lookup and all eight patent candidate topologies, with finite behavior and rejection controls", () => {
   const output = execFileSync(process.execPath, ["--import", "tsx", "examples/assurance/effects-reduction.mjs"], { encoding: "utf8", timeout: 30000 });
   const r = JSON.parse(output);

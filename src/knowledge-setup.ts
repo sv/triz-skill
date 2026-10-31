@@ -1,10 +1,10 @@
 /** Instantiate registered effect generators without inventing finite behavior or resource rows. */
 import { z } from "zod";
-import { Carrier, FunctionModel, type FunctionModel as Model } from "./act.js";
+import { FunctionModel, type FunctionModel as Model } from "./act.js";
 import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
 import { fail, issue } from "./act-issues.js";
 import { compileKnowledge, typedKnowledgeEffects } from "./knowledge.js";
-import { ModelImplementation } from "./knowledge-models.js";
+import { bindKnowledgeParameters, KnowledgeBindings, ModelImplementation } from "./knowledge-models.js";
 import { setupConfigurationChain } from "./knowledge-configuration-setup.js";
 
 const Text = z.string().min(1);
@@ -12,8 +12,7 @@ export const EffectSetupRequest = z.strictObject({
   chain: z.array(z.union([Text, z.number().int()])).min(1).max(12).describe("Registered effect or recipe ids in composition order; recipes expand to at most 12 constituent effects in total"),
   domain: FunctionModel.shape.domain,
   system: Text.optional(),
-  bindings: z.record(Text, Carrier.pick({ layer: true, values: true, levels: true, quantity: true }).partial())
-    .default({}).describe("Parameter id to explicit finite values, levels, carrier layer or allocation semantics; registry quantity/SI types are retained"),
+  bindings: KnowledgeBindings.describe("Parameter id to explicit finite values, levels, carrier layer or allocation semantics; registry quantity/SI types are retained"),
   boundary: z.strictObject({ source_values: z.array(Text).min(1), accepted_values: z.array(Text).min(1) }).optional()
     .describe("Explicit finite source availability and product acceptance; requires corresponding binding values"),
   declarations: EffectInsertRequest.shape.declarations.describe("One implementation declaration per expanded constituent effect, in order; recipes never hide implementation rows"),
@@ -48,19 +47,9 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
   if (Object.keys(a.node_declarations).length || Object.keys(a.context_values).length)
     return reject("$.node_declarations", "Configuration options supplied without a named configuration", "Use ordinary declarations for direct effects.");
   const path = [entries[0].input_parameter!, ...entries.map(e => e.output_parameter!)];
-  const parameters = [...new Set(path)].map(id => knowledge.parameters.find(p => p.id === id)!);
-  for (const id of Object.keys(a.bindings)) {
-    if (!parameters.some(p => p.id === id)) return reject(`$.bindings.${id}`, "Binding does not name a parameter used by the selected chain", "Bind only the selected chain's registered quantity parameters.");
-  }
-  const carriers: Model["carriers"] = [];
-  for (const p of parameters) {
-    const binding = a.bindings[p.id] ?? {};
-    const layer = binding.layer ?? p.layer;
-    if (!layer) return reject(`$.bindings.${p.id}.layer`, "No carrier layer is declared", "Supply a layer binding or add an explicit layer to this registered parameter.");
-    const { layer: _layer, ...declarations } = binding;
-    carriers.push({ id: p.id, layer, dimension: p.name, effect_quantity: p.quantity,
-      ...(p.si === undefined ? {} : { si: p.si }), ...declarations });
-  }
+  const bound = bindKnowledgeParameters(path, a.bindings, knowledge.parameters);
+  if (!bound.ok) return bound;
+  const { carriers } = bound;
   const model: Model = {
     domain: a.domain, ...(a.system ? { system: a.system } : {}), carriers,
     boxes: [
