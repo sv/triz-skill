@@ -1,0 +1,141 @@
+{
+  "source_commit": "68556e9a1d4187c8e19cd32a980ef7fcf390b644",
+  "source_path": "skills/triz-innovation/data/effects.json",
+  "note": "Exact typed-effect projection before PR #53. Comparison holds the current search engine constant; this is a catalogue ablation, not a historical runtime benchmark.",
+  "effects": [
+    {
+      "id": 3,
+      "name": "Electromagnetic induction",
+      "input": {
+        "quantity": "changing magnetic field"
+      },
+      "output": {
+        "quantity": "electromotive force"
+      },
+      "field": "magnetic",
+      "conditions": [
+        "conductor"
+      ],
+      "source": "effects.json#3: changing-field clause of statement, normalized vocabulary; moving-conductor clause is not typed (repository MIT license)",
+      "typed_from": "source"
+    },
+    {
+      "id": 7,
+      "name": "Seebeck effect",
+      "input": {
+        "quantity": "temperature difference"
+      },
+      "output": {
+        "quantity": "voltage"
+      },
+      "field": "thermal",
+      "conditions": [
+        "two dissimilar conductors joined"
+      ],
+      "source": "effects.json#7: existing statement (repository MIT license)",
+      "typed_from": "statement"
+    },
+    {
+      "id": 8,
+      "name": "Peltier effect",
+      "input": {
+        "quantity": "current"
+      },
+      "output": {
+        "quantity": "heat"
+      },
+      "field": "electric",
+      "conditions": [
+        "semiconductor junction"
+      ],
+      "source": "effects.json#8: existing statement (repository MIT license)",
+      "typed_from": "statement"
+    },
+    {
+      "id": 12,
+      "name": "Magnetostriction",
+      "input": {
+        "quantity": "magnetization"
+      },
+      "output": {
+        "quantity": "dimension change"
+      },
+      "field": "magnetic",
+      "conditions": [
+        "some materials"
+      ],
+      "source": "effects.json#12: statement input and function-field output (repository MIT license)",
+      "typed_from": "source"
+    },
+    {
+      "id": 15,
+      "name": "Photoelectric effect",
+      "input": {
+        "quantity": "light"
+      },
+      "output": {
+        "quantity": "current"
+      },
+      "field": "optical",
+      "conditions": [
+        "above a threshold frequency"
+      ],
+      "source": "effects.json#15: existing statement (repository MIT license)",
+      "typed_from": "statement"
+    },
+    {
+      "id": 34,
+      "name": "Eddy currents",
+      "input": {
+        "quantity": "changing magnetic field"
+      },
+      "output": {
+        "quantity": "current"
+      },
+      "field": "magnetic",
+      "conditions": [],
+      "source": "effects.json#34: statement, normalized vocabulary: time-varying magnetic fields and currents (repository MIT license)",
+      "typed_from": "source"
+    }
+  ],
+  "first_pr_commit": "808ebeff78c6a3a4d501e4311eb7979ffed6cc92",
+  "first_pr_typed_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    11,
+    12,
+    13,
+    14,
+    15,
+    21,
+    23,
+    24,
+    26,
+    27,
+    34,
+    51,
+    53,
+    59,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
+    68,
+    69,
+    70,
+    71,
+    72,
+    73,
+    74
+  ]
+}

@@ -206,3 +206,6 @@ receive the same packs without manual changes to server code. Custom `TRIZ_DATA_
 must include the manifest and its versioned packs; legacy unversioned effects files need migration.
 
 See [effects-audit.md](effects-audit.md) for the starter catalogue cleanup and remaining gaps.
+For measured catalogue coverage, patent-inspired finite comparisons and a dated research shortlist,
+see [effects evidence](../../../docs/effects-evidence.md). Its experimental component catalogues
+are examples, not additional installed effects or validated physical implementations.
