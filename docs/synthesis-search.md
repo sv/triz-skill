@@ -9,7 +9,8 @@ and lifecycle policy search do not use this optimization yet.
 Behavior evaluation, residual compilation and global separation now share a
 [finite relation layer](shared-relations.md). Indexed joins reduce row scanning; connected-factor
 behavior evaluation avoids expanding independent internal products. The residual compiler still
-needs complete traces for coupled choice supports. This is not symbolic primitive recognition.
+needs complete traces for coupled choice supports. The optional `strategy: "symbolic"` front end checks and composes serial finite maps before
+this shared residual evaluator runs; see [scope and proof boundary](symbolic-synthesis.md).
 
 ## What is computed
 
@@ -113,7 +114,8 @@ pruning can hide an invalid row or mode.
 Union behavior can itself be large, and tightly coupled choice constraints can make
 preprocessing more expensive than direct enumeration. These bounds are part of the design;
 types alone do not guarantee a small problem. No new Lean certificate for the compiler or
-cache is claimed.
+cache is claimed for that underlying solver. The symbolic front end has separate checked
+finite-map certificates; it is not a verified TypeScript implementation.
 
 ## Verification and benchmarks
 
@@ -134,11 +136,12 @@ node --import tsx scripts/benchmark-synthesis.mjs
 ```
 
 The benchmark runs exhaustive, memoization-only, residual-only, propagation-only, pruning
-without memoization, index-only, factor-only, and fully optimized variants. All must finish under identical limits
+without memoization, index-only, factor-only, separator-only, fully optimized and symbolic variants. All must finish under identical limits
 and match exhaustive verdicts, satisfying counts and first witnesses. Timings include
 preprocessing and request-local cache construction, with one warmup and seven rotated samples
 per variant. No timing threshold is used as a correctness test.
 
-See [the before/after and ablation tables](../benchmarks/synthesis/latest.md) and
-[raw samples, counters, runtime and source hashes](../benchmarks/synthesis/latest.json).
+See [the compact before/after and ablation report](../benchmarks/synthesis/latest.md).
+Full raw samples, counters and source hashes are generated locally into git-ignored
+`benchmarks/synthesis/latest.json`.
 The fixtures are synthetic algorithm exercises; motor/cyclone case-study data is not included.

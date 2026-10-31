@@ -17,6 +17,23 @@ function exhaustive(sets: ScopedRelation[], domains: string[][]) {
 const signature = (table: NonNullable<ReturnType<RelationPlan["project"]>>) => [...table.values()]
   .map(r => [r.input, [...r.outputs.keys()].sort(), r.count]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 
+test("trace observations count materialized valuations rather than factor or separator multiplicities", () => {
+  for (const kind of ["hidden-factors", "separator-chain"] as const) {
+    const f = relationFixture(kind, 10);
+    for (const summarized of [false, true]) {
+      let traces = 0;
+      const plan = new RelationPlan(f.sets, { decompose: summarized, elimination: summarized && kind === "separator-chain" ? "always" : "off" });
+      const table = plan.project(f.domains, f.boundary, f.observed, 3, { explored: 0, max: 100_000, onTrace: () => { traces++; } });
+      assert.ok(table);
+      const logical = [...table.values()].reduce((n, row) => n + row.count, 0);
+      const samples = [...table.values()].reduce((n, row) => n + row.states.length, 0);
+      assert.equal(traces, summarized ? samples : logical);
+      if (summarized) assert.ok(traces < logical);
+      if (summarized && kind === "separator-chain") assert.equal(plan.stats.elimination.applied, true);
+    }
+  }
+});
+
 test("compound indexes avoid single-column candidates while retaining exact outputs and provenance", () => {
   const f = relationFixture("tuple-chain", 5);
   const run = (compoundIndexes: boolean, maxIndexCells?: number) => {

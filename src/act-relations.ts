@@ -6,7 +6,9 @@ import { eliminateProject, eliminationStats, type EliminationOptions, type Elimi
  * Sparse rows are wildcards. No physical, probabilistic or cost semantics is inferred. */
 export type RelationBinding = Array<[number, string]>;
 export type ScopedRelation = { vars: number[]; rows: RelationBinding[] };
-export type RelationBudget = { explored: number; max: number; spend?: (amount: number) => void };
+export type RelationBudget = { explored: number; max: number; spend?: (amount: number) => void;
+  /** Complete valuations emitted or reconstructed, never logical multiplicities or partial rows. */
+  onTrace?: () => void };
 export type RelationOptions = EliminationOptions & { indexed?: boolean; compoundIndexes?: boolean; decompose?: boolean; maxIndexCells?: number; smallFirst?: boolean };
 export type RelationStats = {
   inputRows: number; rowCandidates: number; indexLookups: number; indexCells: number;
@@ -219,6 +221,7 @@ export class RelationPlan {
         boundary.forEach((v, i) => { assignment[v] = input[i]; });
         const row: ProjectedRow = { input, outputs: new Map(), states: [], count: 0 };
         if (!this.enumerate(assignment, () => {
+          budget.onTrace?.();
           const out = observed.map(v => assignment[v]!);
           row.outputs.set(JSON.stringify(out), out);
           if (row.states.length < samples) row.states.push(assignment.map(x => x!));
@@ -281,7 +284,7 @@ export class RelationPlan {
       if (!combine(0)) return undefined;
       const sample = (i: number) => {
         if (row.states.length >= samples) return;
-        if (i === parts.length) { row.states.push(assignment.map(x => x!)); return; }
+        if (i === parts.length) { row.states.push(assignment.map(x => x!)); budget.onTrace?.(); return; }
         const { factor, row: part } = parts[i];
         for (const state of part.states) {
           factor.vars.forEach((v, j) => { assignment[v] = state[j]; }); sample(i + 1);

@@ -149,7 +149,7 @@ interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map
 export class BehaviorEvaluationCache {
   private readonly entries = new Map<string, Evaluation>();
   private cells = 0;
-  readonly stats = { hits: 0, computations: 0, work: 0, entries: 0 };
+  readonly stats = { hits: 0, computations: 0, work: 0, entries: 0, traces: 0, cells: 0 };
   constructor(readonly enabled = true, readonly maxCells = 200_000, readonly relationOptions: RelationOptions = {}) {}
   evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, options = this.relationOptions): Evaluation | Failure {
     const key = this.enabled ? JSON.stringify([
@@ -163,13 +163,13 @@ export class BehaviorEvaluationCache {
       return cached;
     }
     this.stats.computations++;
-    const result = evaluate(model, p, observe, max, options);
+    const result = evaluate(model, p, observe, max, options, () => { this.stats.traces++; });
     this.stats.work += result.ok ? result.explored : max;
     if (this.enabled && result.ok && this.entries.size < 128 && !cached) {
       const cells = key.length + [...result.table.values()].reduce((n, r) =>
         n + r.input.length + r.outputs.size * observe.length + r.states.length * result.variables.length, 0);
       if (this.cells + cells <= this.maxCells) {
-        this.entries.set(key, result); this.cells += cells; this.stats.entries++;
+        this.entries.set(key, result); this.cells += cells; this.stats.entries++; this.stats.cells = this.cells;
       }
     }
     return result;
@@ -194,7 +194,7 @@ export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assig
  * variable; each composed box contributes its relation; a backtracking join enumerates every
  * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
  */
-function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, options: RelationOptions = {}): Evaluation | Failure {
+function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, options: RelationOptions = {}, onTrace?: () => void): Evaluation | Failure {
   // Output-side probes are ports of composed boxes, so only input-side observations are extra.
   const { ports, domains, sets } = modelRelations(model, p.composed, observe.filter(d => (d.side ?? "in") === "in"));
   const { variables, at: v, boundary } = ports;
@@ -218,7 +218,7 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
 
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
   const relations = new RelationPlan(propagated, options);
-  const budget = { explored: 0, max };
+  const budget = { explored: 0, max, onTrace };
   const table = relations.project(domains, boundary, out, LISTED_STATES, budget);
   if (!table) {
     const unpruned = propagation.status === "fallback";

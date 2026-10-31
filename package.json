@@ -21,6 +21,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "bench:synthesis": "node --import tsx scripts/benchmark-synthesis.mjs",
+    "check:symbolic": "node --import tsx scripts/check-symbolic.mjs",
     "bench:relations": "node --import tsx scripts/benchmark-relations.mjs",
     "bench:elimination": "node --import tsx scripts/benchmark-relations.mjs --base a39b48d --output benchmarks/elimination",
     "smoke:mcp": "node scripts/smoke-mcp.mjs",

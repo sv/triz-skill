@@ -159,7 +159,7 @@ export function eliminateProject(sets: ScopedRelation[], domains: string[][], bo
           allocate(1 + domains.length);
           const state = assignment.map(x => x!);
           for (const [v, x] of bindings) state[v] = x;
-          row.states.push(state);
+          row.states.push(state); budget.onTrace?.();
         }
       });
       if (count > BigInt(Number.MAX_SAFE_INTEGER)) { stats.reason = "count-overflow"; return { status: "overflow" }; }

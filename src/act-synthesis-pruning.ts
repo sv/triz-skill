@@ -25,6 +25,7 @@ export type SynthesisPruningStats = {
   reason?: string;
   work: number;
   contextStates: number;
+  targetStates: number;
   targetPairs: number;
   unsafeRectangles: number;
   rawUnsafeRectangles: number;
@@ -34,7 +35,7 @@ export type SynthesisPruningStats = {
   residualChoiceRemovals: number;
   coverageChoiceRemovals: number;
 };
-export const pruningStats = (): SynthesisPruningStats => ({ status: "disabled", work: 0, contextStates: 0, targetPairs: 0,
+export const pruningStats = (): SynthesisPruningStats => ({ status: "disabled", work: 0, contextStates: 0, targetStates: 0, targetPairs: 0,
   unsafeRectangles: 0, rawUnsafeRectangles: 0, coverageRectangles: 0, propagationCalls: 0, propagationFallbacks: 0,
   residualChoiceRemovals: 0, coverageChoiceRemovals: 0 });
 class Limit extends Error {}
@@ -126,6 +127,7 @@ export class SynthesisPruner {
       })) throw new Unsupported("different-boundary-inputs");
       const cover = new Map<string, Map<string, Rectangle>>();
       reference.enumerate(values => {
+        stats.targetStates++;
         work.spend(1 + reference.inputs.length + observed.length);
         const key = JSON.stringify([
           reference.inputs.map(p => values[reference.ports.at(p.box, "in", p.port)]),

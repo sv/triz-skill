@@ -25,7 +25,7 @@ Workstream identifiers are retained so bibliography and issue references remain 
 3. **Q2 + C7 + S1–S4 + S6: reduce semantic search.** Add complexity diagnostics, checked join
    trees, variable elimination and local contracts. Recognize mathematical primitives only after
    checking their complete declared semantics, compose exact symbolic summaries, and retain the
-   finite fallback. Local synthesis pruning/memoization is a foundation, not this symbolic compiler.
+   finite fallback. Shared relation evaluation and bounded serial symbolic compilation are implemented; broader symbolic regions remain open.
 4. **E4 → E3 → E5: evolving systems.** Declare context transitions and clocks; verify finite
    safety regions with explicit policy/environment quantifiers. Validate supplied migration paths
    before bounded path optimization, including intermediate configurations and state transfer.
@@ -91,9 +91,9 @@ coverage. Its detailed adversarial cases live only in
 | C1 | Implemented, #42 | Wire-equivalence quotient for finite certificates |
 | C2 | Carrier quantity kinds implemented, #42 | Cost aggregation across ideality, feasibility, windows, refinement and isomorphism; conversion/conservation adapters |
 | C3 | Open | Declared value orders, port-level signed SCCs and conditional lattice steady-state results |
-| C4 | Implemented in local PR #52 changes | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
+| C4 | Implemented in merged #52 | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
 | C5 | Implemented, #42 | Horizon-free time-invariant finite saturation; schedules and work caps retain bounded/undecided scope |
-| C6 | Indexed table evaluation in local PR #52 changes | Total-function recognition and feedback-cut propagation remain open |
+| C6 | Indexed table evaluation in merged #52 | Checked total serial maps are implemented; feedback-cut propagation remains open |
 | C7 | Abstract gluing theorem implemented, #51 | Check join-tree witnesses and connect a constructive reducer/solver to the theorem |
 | C8 | Open | Optional totality/input-enabledness lint with explicit feedback hypotheses |
 
@@ -137,22 +137,22 @@ review status; an Agents snapshot does not supply imperative transition semantic
 
 | ID | Status | Next slice |
 |---|---|---|
-| S1 | Finite min-fill separator elimination in local #52 | Checked runtime correspondence; stronger orders and shared decomposition plans; extend beyond behavior projection |
-| S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in local #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
+| S1 | Finite min-fill separator elimination in merged #52 | Checked runtime correspondence; stronger orders and shared decomposition plans; extend beyond behavior projection |
+| S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in merged #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
 | S3 | Exact stateless single-mode contracts implemented | Local residual synthesis, explicitly coupled multi-mode contracts, then dynamics |
-| S4 | Request-local synthesis cache in local changes | Checked warm starts/content-hash subsystem reuse across requests |
+| S4 | Request-local synthesis cache in this checkout | Checked warm starts/content-hash subsystem reuse across requests |
 | S5 | Open; C5/Q5 available | Observable- and reward-preserving bisimulation before dynamic products |
-| S6 | Open | Checked symbolic summaries for recognized mathematical primitives |
+| S6 | Bounded stateless serial finite maps implemented | Affine/feedback summaries, dependency footprints, cross-request reuse and certified parameter bounds |
 
-The local changes add backward residual filtering, propagation over component choices and exact
+The merged kernel provides backward residual filtering, propagation over component choices and exact
 boundary memoization for stateless fixed-wiring synthesis, plus a shared finite relation layer,
 joint-tuple indexed joins, indexed correlation propagation, connected-factor evaluation and
 [separator elimination](separator-elimination.md) with exact counts and bounded samples.
 See [shared relations](shared-relations.md).
 Exhaustive comparison, ablations, rollback caps and measurements are documented in
 [synthesis search](synthesis-search.md) and
-[benchmarks](../benchmarks/synthesis/latest.md). They are not merged-main capabilities in the
-reference revision, a formal proof of the TypeScript optimizer, or lifecycle/topology optimization.
+[benchmarks](../benchmarks/synthesis/latest.md). These finite optimizations do not formally verify the TypeScript optimizer or solve
+lifecycle/topology optimization.
 
 S1 remains exponential in treewidth; dense feedback still hits caps. S2 preserves complete
 solutions but cannot establish global consistency by itself. S3 must check summaries or provide
@@ -161,13 +161,14 @@ caller-supplied summaries/warm starts as untrusted inputs. Cache identity includ
 input relevant to the reused conclusion. Equal behavior does not identify resource modes or costs.
 S5 keeps target-named states, ports, costs and observations visible.
 
-S6 recognizes a primitive by checking the complete declared relation and all preconditions,
-composes summaries using proved laws, and shares equivalent behavior while retaining resource
-and implementation distinctions. Unrecognized structures use the existing finite solver. Check
-symbolic and exhaustive results on small domains and adversarial near-matches; count recognition,
-composition and proof/check work as well as saved evaluations. No rule may follow from a name/tag.
-The [symbolic-summary design](symbolic-summary-design.md) maps the strongest literature leads
-to concrete compiler/search changes, proof obligations and benchmark gates.
+S6's bounded stateless serial slice is implemented in [checked symbolic synthesis](symbolic-synthesis.md).
+Complete joint declarations and explicit typed interfaces are checked before composition and
+compact choice grouping; backward support pruning retains concrete resource distinctions.
+The runtime checker and local Lean encodings have distinct trust boundaries. Unsupported or
+capped compilation falls back to the same shared relation kernel. General affine/feedback
+summaries, dependency footprints, cross-request reuse and parameter bounds remain open.
+The [symbolic-summary design](symbolic-summary-design.md) separates this delivered slice from
+those extensions and links the current proof and benchmark evidence.
 
 ## System evolution and operating boundaries
 
