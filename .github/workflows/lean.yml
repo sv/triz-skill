@@ -130,6 +130,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Symbolic laws and generated certificates (local kernel and axiom audit)
+        run: pnpm check:symbolic
+
       # Only the test files with Lean tests (`leanTest(`); the CI workflow runs every other test.
       # TRIZ_REQUIRE_LEAN=1 runs the Lean tests and makes a missing build fail instead of skip.
       # TRIZ_LEAN_JOBS=3 runs three at a time, each one `lake env lean` process (about 1.5 GB);
