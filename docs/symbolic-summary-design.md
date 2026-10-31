@@ -43,8 +43,9 @@ Full citations and reading limits are in the [research note](formal-triz-literat
 
 Shared tuple indexes now reduce bound-input join candidates and replace quadratic complete-row
 overlap checks during correlation propagation. Connected-factor evaluation avoids materializing
-independent internal products. These improvements do not
-merge equivalent component-choice prefixes or eliminate variables across connected separators.
+independent internal products. [Finite separator elimination](separator-elimination.md) now
+summarizes internal variables across connected separators with exact counts and bounded samples.
+These improvements do not merge equivalent component-choice prefixes or compile symbolic laws.
 
 The proposed gain is to avoid materializing internal traces and repeatedly exploring equivalent
 prefixes. It cannot eliminate the cost of reading input tables, distinct resource problems,

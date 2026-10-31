@@ -17,15 +17,16 @@ const iterations = Number(values.iterations);
 assert.ok(Number.isInteger(iterations) && iterations >= 1 && iterations <= 100, "iterations must be 1..100");
 const variants = [
   ["exhaustive", { strategy: "exhaustive" }],
-  ["memoization only", { optimizations: { backward_residual: false, choice_propagation: false, indexed_relations: false, connected_factors: false } }],
-  ["residual only", { optimizations: { choice_propagation: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false } }],
-  ["propagation only", { optimizations: { backward_residual: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false } }],
-  ["pruning without memoization", { optimizations: { memoize_boundaries: false, indexed_relations: false, connected_factors: false } }],
-  ["indexed evaluation only", { optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, connected_factors: false } }],
-  ["factor decomposition only", { optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, indexed_relations: false } }],
+  ["memoization only", { optimizations: { backward_residual: false, choice_propagation: false, indexed_relations: false, connected_factors: false, separator_elimination: false } }],
+  ["residual only", { optimizations: { choice_propagation: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false, separator_elimination: false } }],
+  ["propagation only", { optimizations: { backward_residual: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false, separator_elimination: false } }],
+  ["pruning without memoization", { optimizations: { memoize_boundaries: false, indexed_relations: false, connected_factors: false, separator_elimination: false } }],
+  ["indexed evaluation only", { optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, connected_factors: false, separator_elimination: false } }],
+  ["factor decomposition only", { optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, indexed_relations: false, separator_elimination: false } }],
+  ["separator elimination only", { optimizations: { backward_residual: false, choice_propagation: false, memoize_boundaries: false, indexed_relations: false, connected_factors: false } }],
   ["optimized", {}],
 ];
-const cases = [["safety", 8], ["coverage", 5], ["memoization", 4], ["coupled", 6]];
+const cases = [["safety", 8], ["coverage", 5], ["memoization", 4], ["coupled", 6], ["separators", 9]];
 const signature = r => ({ verdict: r.verdict, complete: r.complete, allDecided: r.allDecided, satisfyingCount: r.satisfyingCount, witness: r.witness?.choices });
 const median = times => [...times].sort((a, b) => a - b)[Math.floor(times.length / 2)];
 const records = [];
@@ -46,16 +47,16 @@ for (const [kind, count] of cases) {
   for (let iteration = 0; iteration < iterations; iteration++) for (let j = 0; j < variants.length; j++) run(variants[(iteration + j) % variants.length], true);
   for (const [variant] of variants) {
     const result = results.get(variant), times = samples.get(variant);
-    records.push({ case: kind, holes: count, variant, candidateSpace: result.candidateSpace.size, fullEvaluations: result.searchStats.fullEvaluations,
+    records.push({ case: kind, size: count, holes: input.holes.length, maxStates: input.max_states, maxWork: input.max_work ?? 1_000_000, variant, candidateSpace: result.candidateSpace.size, fullEvaluations: result.searchStats.fullEvaluations,
       combinationsAvoided: result.searchStats.combinationsAvoided, satisfyingCount: result.satisfyingCount, work: result.work,
       boundaryComputations: result.searchStats.boundarySummaries.computations, boundaryCacheHits: result.searchStats.boundarySummaries.hits,
       pruning: result.searchStats.pruning, medianMs: median(times), minMs: Math.min(...times), maxMs: Math.max(...times), samplesMs: times });
   }
 }
-const sourceFiles = ["src/act-synthesis.ts", "src/act-synthesis-pruning.ts", "src/act-behavior.ts", "src/act-propagation.ts", "src/act-contract.ts", "src/act-relations.ts", "src/act-relation-index.ts", "src/act-relation-model.ts", "tests/support/synthesis.ts", "scripts/benchmark-synthesis.mjs"];
+const sourceFiles = ["src/act-synthesis.ts", "src/act-synthesis-pruning.ts", "src/act-behavior.ts", "src/act-propagation.ts", "src/act-contract.ts", "src/act-relations.ts", "src/act-relation-index.ts", "src/act-relation-elimination.ts", "src/act-relation-model.ts", "tests/support/synthesis.ts", "tests/support/relations.ts", "scripts/benchmark-synthesis.mjs"];
 const report = { generatedAt: new Date().toISOString(), runtime: { node: process.version, platform: process.platform, arch: process.arch, cpu: os.cpus()[0]?.model },
   iterations, warmupsPerVariant: 1, sourceSha256: Object.fromEntries(sourceFiles.map(file => [file, createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex")])),
-  scope: "Synthetic finite fixed-wiring libraries. All variants completed under the same 1,000,000 work and 10,000 state limits; counts, verdicts and first witnesses match exhaustive search. Timings include parsing, preprocessing, validation, caching and result construction. Each request gets a fresh cache.", records };
+  scope: "Synthetic finite fixed-wiring libraries. Each fixture uses the same work/state allowances across variants (recorded in latest.json); counts, verdicts and first witnesses match exhaustive search. Timings include parsing, preprocessing, validation, caching and result construction. Each request gets a fresh cache.", records };
 const lines = ["# Synthesis search benchmark", "", report.scope, "", `Node ${report.runtime.node}, ${report.runtime.platform}/${report.runtime.arch}; ${iterations} samples after one warmup per variant.`, "",
   "| Case | Full evaluations before → after | Avoided | Boundary computations before → after | Median ms before → after | Speedup |",
   "|---|---:|---:|---:|---:|---:|"];
@@ -65,7 +66,7 @@ for (const [kind] of cases) {
 }
 lines.push("", "## Individual optimizations", "", "| Case | Variant | Full evaluations | Boundary computations | Cache hits | Work | Median ms |", "|---|---|---:|---:|---:|---:|---:|");
 for (const r of records) lines.push(`| ${r.case} | ${r.variant} | ${r.fullEvaluations} | ${r.boundaryComputations} | ${r.boundaryCacheHits} | ${r.work} | ${r.medianMs.toFixed(2)} |`);
-lines.push("", "Safety uses nondeterministic alternatives that retain good rows but also produce invalid outputs. Coverage uses safe alternatives that omit required outputs. Memoization uses interchangeable behavior with different resource costs; every resource combination is still checked. Coupled uses copy/flip chains whose individually different choices can compensate. These are synthetic algorithm exercises, not motor/cyclone measurements or a universal speed guarantee.", "",
+lines.push("", "Safety uses nondeterministic alternatives that retain good rows but also produce invalid outputs. Coverage uses safe alternatives that omit required outputs. Memoization uses interchangeable behavior with different resource costs; every resource combination is still checked. Coupled uses copy/flip chains whose individually different choices can compensate. Separators uses a nondeterministic connected chain and three identical behavior alternatives with distinct costs; exactly two implementations satisfy the shared resource budget, independently of internal state multiplicity. These are synthetic algorithm exercises, not motor/cyclone measurements or a universal speed guarantee.", "",
   "Work is the engine's bounded accounting, not elapsed CPU time. Compilation and propagation can increase work on tightly coupled cases; raw timing samples and source hashes are in latest.json. The exhaustive strategy and optimization switches remain available for diagnosis.", "");
 const output = path.resolve(root, values.output);
 fs.mkdirSync(output, { recursive: true });

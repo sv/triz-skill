@@ -157,11 +157,11 @@ test("invalid alternatives cannot disappear behind a residual rejection", () => 
   for (const strategy of ["optimized", "exhaustive"] as const) assert.equal(synthesizeFinite({ ...input, strategy }).ok, false);
 });
 
-test("indexed evaluation and connected-factor ablations preserve exhaustive synthesis results", () => {
+test("indexed, factor and separator ablations preserve exhaustive synthesis results", () => {
   for (const kind of ["safety", "coverage", "coupled", "memoization"] as const) {
     const input = synthesisFixture(kind, 2), reference = solved({ ...input, strategy: "exhaustive" });
-    for (const indexed_relations of [false, true]) for (const connected_factors of [false, true]) {
-      const result = solved({ ...input, optimizations: { indexed_relations, connected_factors } });
+    for (const indexed_relations of [false, true]) for (const connected_factors of [false, true]) for (const separator_elimination of [false, true]) {
+      const result = solved({ ...input, optimizations: { indexed_relations, connected_factors, separator_elimination } });
       assert.equal(result.verdict, reference.verdict);
       assert.equal(result.satisfyingCount, reference.satisfyingCount);
       assert.deepEqual(result.witness?.choices, reference.witness?.choices);

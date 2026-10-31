@@ -61,14 +61,22 @@ try {
     for (let i = 0; i < iterations; i++) for (let j = 0; j < variants.length; j++) once(variants[(i + j) % variants.length], true);
     for (const [id] of variants) records.push({ case: name, variant: id, medianMs: median(times.get(id)), samplesMs: times.get(id), ...counters(results.get(id)) });
   };
-  for (const [kind, size] of [["indexed-chain", 14], ["tuple-chain", 5], ["hidden-factors", 14], ["boundary-factors", 8]]) {
+  for (const [kind, size] of [["indexed-chain", 14], ["tuple-chain", 5], ["hidden-factors", 14], ["boundary-factors", 8],
+    ["separator-chain", 12], ["separator-star", 12], ["separator-cycle", 12]]) {
     const f = relationFixture(kind, size);
-    benchmark(`kernel/${kind}`, [["scan", { indexed: false, decompose: false }], ["index only", { decompose: false }],
-      ["single-column", { compoundIndexes: false }], ["factors only", { indexed: false }], ["index + factors", {}]], options => {
+    benchmark(`kernel/${kind}`, [["scan", { indexed: false, decompose: false, elimination: "off" }], ["index only", { decompose: false, elimination: "off" }],
+      ["single-column", { compoundIndexes: false, elimination: "off" }], ["factors only", { indexed: false, elimination: "off" }],
+      ["index + factors", { elimination: "off" }], ["separator elimination", {}]], options => {
       const plan = new RelationPlan(f.sets, options), budget = { explored: 0, max: 100000 };
       const table = plan.project(f.domains, f.boundary, f.observed, 10, budget);
       assert.ok(table); return { table, states: budget.explored, stats: plan.stats };
     }, r => projected(r.table), r => ({ states: r.states, ...r.stats }));
+  }
+  for (const kind of ["separator-chain", "separator-star", "separator-cycle"]) {
+    const f = relationFixture(kind, 12);
+    benchmark(`behavior/${kind}`, [["before", previous], ["after", current]], api => api.externalBehavior(f.model,
+      { scope: "whole", fullRelation: true, maxStates: 100_000 }), behaviorSignature,
+      r => ({ states: r.statesExplored, propagationWork: r.propagation.work, ...(r.relationStats ?? {}) }));
   }
   for (const size of [128, 512, 1024]) {
     const f = relationFixture("overlap-contradiction", size);
@@ -101,18 +109,18 @@ try {
   ], max_work: 1_000_000 };
   benchmark("global/disconnected-contradiction", [["before", previous], ["after", current]], api => api.globalSeparation(problem),
     r => { assert.ok(r.ok && r.complete); return r.verdict; }, r => ({ work: r.work, ...(r.relationStats ?? {}) }));
-  for (const [kind, size] of [["safety", 8], ["coverage", 5], ["memoization", 4], ["coupled", 6]]) {
+  for (const [kind, size] of [["safety", 8], ["coverage", 5], ["memoization", 4], ["coupled", 6], ["separators", 9]]) {
     const input = synthesisFixture(kind, size);
     benchmark(`synthesis/${kind}`, [["before", previous], ["after", current]], api => api.synthesizeFinite(input), synthesisSignature,
       r => ({ fullEvaluations: r.searchStats.fullEvaluations, combinationsAvoided: r.searchStats.combinationsAvoided, work: r.work }));
   }
-  const sourceFiles = ["src/act-relations.ts", "src/act-relation-index.ts", "src/act-propagation.ts", "src/act-relation-model.ts", "src/act-behavior.ts", "src/act-global.ts",
+  const sourceFiles = ["src/act-relations.ts", "src/act-relation-index.ts", "src/act-relation-elimination.ts", "src/act-propagation.ts", "src/act-relation-model.ts", "src/act-behavior.ts", "src/act-global.ts",
     "src/act-synthesis-pruning.ts", "src/act-synthesis.ts", "tests/support/relations.ts", "tests/support/synthesis.ts", "scripts/benchmark-relations.mjs"];
   const report = { generatedAt: new Date().toISOString(), baselineCommit: base, iterations, warmupsPerVariant: 1,
     runtime: { node: process.version, platform: process.platform, arch: process.arch, cpu: os.cpus()[0]?.model ?? "unknown" },
     sourceSha256: Object.fromEntries(sourceFiles.map(f => [f, createHash("sha256").update(fs.readFileSync(path.join(root, f))).digest("hex")])), records };
   const lines = ["# Shared relation benchmark", "", `Baseline: \`${base}\`. ${iterations} rotated samples per variant after one warmup; ${process.version}, ${process.platform}/${process.arch}.`, "",
-    "Engine rows compare whole calls against the named committed baseline, including validation, propagation, query planning and output construction. Kernel rows include relation compilation/indexing/projection; the single-column variant disables compound keys. Semijoin rows compare complete propagation passes with a 10,000,000 work allowance. Every variant completed with matching relations, state counts or synthesis verdicts/counts/first witnesses. Timing assertions are not tests.", "",
+    "Engine rows compare whole calls against the named committed baseline, including validation, propagation, query planning and output construction. Kernel rows include relation compilation/indexing/projection; only the separator variant enables elimination. Semijoin rows compare complete propagation passes with a 10,000,000 work allowance. Every variant completed with matching relations, state counts or synthesis verdicts/counts/first witnesses. Timing assertions are not tests.", "",
     "| Engine case | Median ms before → after | Speedup | Work or search states before → after |", "|---|---:|---:|---:|"];
   for (const a of records.filter(r => r.variant === "before")) {
     const b = records.find(r => r.case === a.case && r.variant === "after");
@@ -126,7 +134,9 @@ try {
   }
   lines.push("", "| Kernel case | Variant | Row candidates | Search states | Median ms |", "|---|---|---:|---:|---:|");
   for (const r of records.filter(r => r.case.startsWith("kernel/"))) lines.push(`| ${r.case} | ${r.variant} | ${r.rowCandidates} | ${r.states} | ${r.medianMs.toFixed(3)} |`);
-  lines.push("", "Independent hidden factors retain all global constraints and multiply exact internal-state counts; no boundary outputs are discarded. The output and state-sample sizes remain bounded. Timings include overhead, so the small connected control and synthesis cases expose regressions as well as improvements. These are synthetic workloads, not universal speed guarantees or physical validation.", "",
+  lines.push("", "| Elimination case | Planning and evaluation work | Allocated cells | Separator width | Message rows |", "|---|---:|---:|---:|---:|");
+  for (const r of records.filter(r => r.elimination?.applied)) lines.push(`| ${r.case}/${r.variant} | ${r.elimination.work} | ${r.elimination.cells} | ${r.elimination.separatorWidth} | ${r.elimination.messageRows} |`);
+  lines.push("", "Independent hidden factors retain all global constraints and multiply exact internal-state counts; no boundary outputs are discarded. Separator messages count assignments of removed variables and retain bounded valid samples; this does not merge component/resource choices. Elimination has a separate bounded preprocessing allowance, like domain propagation; its work/cells are reported above, while search-state counts measure join visits. The output and state-sample sizes remain bounded. Timings include overhead, so the small connected control and synthesis cases expose regressions as well as improvements. These are synthetic workloads, not universal speed guarantees or physical validation.", "",
     `Reproduce with \`node --import tsx scripts/benchmark-relations.mjs --base ${values.base} --output ${values.output}\`. Raw samples, counters and source hashes are in \`latest.json\`.`, "");
   const output = path.resolve(root, values.output); fs.mkdirSync(output, { recursive: true });
   fs.writeFileSync(path.join(output, "latest.json"), JSON.stringify(report, null, 2) + "\n");

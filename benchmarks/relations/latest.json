@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31T05:16:09.647Z",
+  "generatedAt": "2026-10-31T11:24:58.322Z",
   "baselineCommit": "d7184d93bd966dc8171a9d0196a98e41e6fed6e3",
   "iterations": 7,
   "warmupsPerVariant": 1,
@@ -10,31 +10,32 @@
     "cpu": "unknown"
   },
   "sourceSha256": {
-    "src/act-relations.ts": "4ae181db2b70eb8f14a5119bcc54eb3b9b669b46fc2dd0bc12aa59026ae1fa14",
+    "src/act-relations.ts": "fe100df00bc1fae3fbaaf9ba64efe1b3922085b21c68bd4ef6fc6388c66bb830",
     "src/act-relation-index.ts": "361d12fd533e623db8b8ea25bdf4504ef24ad45da5fb5d2891101b22e232148e",
+    "src/act-relation-elimination.ts": "173a021d20b5a9c2001abf129b5faa5e3ed6dea5c6f97b1828198f852bad229a",
     "src/act-propagation.ts": "d0e507c3941bd741386b5efaab590bf40bc774e7bbb8eb01b2acb7a0d7cacaff",
     "src/act-relation-model.ts": "0ed055b565c0e003597202253b30953f39fa54763e655ccbe662f463d58dc996",
     "src/act-behavior.ts": "3b9517af4a924a32bd4c134214e90373686adf299f9ff6f2ed807e5ffe6af944",
     "src/act-global.ts": "2b74e3f2ac4a812939087c1734e850c1dfe76a13b563eea594cc1c5a3bdc0b83",
     "src/act-synthesis-pruning.ts": "47202af37528f86fc0593c57c0aa7b90aefedf5b0593329e8509b138d2c915ad",
-    "src/act-synthesis.ts": "8d5027f24ba263712ac5712e216fdc7b35f577b1bc8c80142de79aab9e957ef3",
-    "tests/support/relations.ts": "5f920ad9ffbcf52635a7b4610f15bffe1700b7aaa8030e15f604a59bda277a67",
-    "tests/support/synthesis.ts": "846a2e45626393c2f6bab3edc5ef3f28ef70f3e5a41cb3dba36bc125bee9590f",
-    "scripts/benchmark-relations.mjs": "1a9f4a2739d9c971ca146805a2e5f788ed0820b5c032525086d0d88152cebfda"
+    "src/act-synthesis.ts": "923199523617e32cff05e2c6424c5c5ab732398b48c412748ab2f93c4dd35016",
+    "tests/support/relations.ts": "fee5338bf0501f955825d43a4412942882cde843b3b4db8f174068cf0810fa76",
+    "tests/support/synthesis.ts": "77af81b08ac249b7b81ef3b28ff419a77747b3af905563bbed2414dff8426c81",
+    "scripts/benchmark-relations.mjs": "693176c4c168e276627e5fe543bd4bac4c6653780a5e23f228588b22b33d05cb"
   },
   "records": [
     {
       "case": "kernel/indexed-chain",
       "variant": "scan",
-      "medianMs": 4.289402999999993,
+      "medianMs": 3.8684860000000185,
       "samplesMs": [
-        4.570011999999963,
-        4.230842999999993,
-        4.240363000000002,
-        3.329289000000017,
-        4.678749000000039,
-        4.289402999999993,
-        4.3175469999999905
+        4.762899000000004,
+        3.7367869999999925,
+        3.8684860000000185,
+        3.6153939999999807,
+        4.055095999999992,
+        3.271677000000011,
+        3.9295419999999694
       ],
       "states": 1440,
       "inputRows": 1344,
@@ -46,20 +47,31 @@
       "factorEvaluations": 96,
       "factorCacheHits": 0,
       "outputCombinations": 96,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/indexed-chain",
       "variant": "index only",
-      "medianMs": 1.602292000000034,
+      "medianMs": 1.2418900000000122,
       "samplesMs": [
-        2.4204219999999737,
-        1.602292000000034,
-        1.2838120000000117,
-        2.0255730000000085,
-        1.2784510000000182,
-        1.661395999999968,
-        1.1898749999999723
+        1.5326929999999948,
+        1.4396679999999833,
+        1.2086570000000165,
+        1.1376630000000318,
+        1.2166890000000308,
+        1.9035299999999893,
+        1.2418900000000122
       ],
       "states": 1440,
       "inputRows": 1344,
@@ -71,20 +83,31 @@
       "factorEvaluations": 96,
       "factorCacheHits": 0,
       "outputCombinations": 96,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/indexed-chain",
       "variant": "single-column",
-      "medianMs": 1.4906599999999912,
+      "medianMs": 1.2525929999999903,
       "samplesMs": [
-        1.8115080000000034,
-        1.4906599999999912,
-        1.5477960000000053,
-        1.2242269999999849,
-        1.2175880000000348,
-        3.0836400000000026,
-        1.169539000000043
+        1.5265329999999722,
+        1.4299080000000117,
+        1.1502719999999726,
+        1.5303409999999644,
+        1.159744000000046,
+        1.2525929999999903,
+        1.170848000000035
       ],
       "states": 1440,
       "inputRows": 1344,
@@ -96,20 +119,31 @@
       "factorEvaluations": 96,
       "factorCacheHits": 0,
       "outputCombinations": 96,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/indexed-chain",
       "variant": "factors only",
-      "medianMs": 4.405034999999998,
+      "medianMs": 3.722692000000052,
       "samplesMs": [
-        4.648364000000015,
-        4.139450000000011,
-        4.405034999999998,
-        4.285739000000035,
-        4.656587999999999,
-        4.149323000000038,
-        4.471867999999972
+        3.739188000000013,
+        3.8176369999999906,
+        3.6236509999999953,
+        3.4952650000000176,
+        3.6740669999999795,
+        3.722692000000052,
+        3.7321159999999622
       ],
       "states": 1440,
       "inputRows": 1344,
@@ -121,20 +155,31 @@
       "factorEvaluations": 96,
       "factorCacheHits": 0,
       "outputCombinations": 96,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/indexed-chain",
       "variant": "index + factors",
-      "medianMs": 1.5944039999999973,
+      "medianMs": 1.1618080000000077,
       "samplesMs": [
-        3.245912999999973,
-        1.5944039999999973,
-        1.6554929999999786,
-        2.4186789999999974,
-        1.1808829999999944,
-        1.2427549999999883,
-        1.1766910000000053
+        2.4266250000000014,
+        1.1349280000000022,
+        1.1618080000000077,
+        1.1347509999999943,
+        1.0940160000000105,
+        1.1942080000000033,
+        1.1825440000000071
       ],
       "states": 1440,
       "inputRows": 1344,
@@ -146,20 +191,67 @@
       "factorEvaluations": 96,
       "factorCacheHits": 0,
       "outputCombinations": 96,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/indexed-chain",
+      "variant": "separator elimination",
+      "medianMs": 1.662631000000033,
+      "samplesMs": [
+        1.662631000000033,
+        1.891050000000007,
+        1.1292159999999853,
+        1.1810409999999933,
+        1.2801299999999856,
+        2.2991839999999684,
+        1.7412719999999808
+      ],
+      "states": 1440,
+      "inputRows": 1344,
+      "rowCandidates": 1344,
+      "indexLookups": 1344,
+      "indexCells": 2688,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 96,
+      "factorCacheHits": 0,
+      "outputCombinations": 96,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-estimated-join",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/tuple-chain",
       "variant": "scan",
-      "medianMs": 8.666182000000049,
+      "medianMs": 8.552118000000064,
       "samplesMs": [
-        9.166247999999996,
-        8.666182000000049,
-        8.39187800000002,
-        8.735286999999971,
-        8.801526999999965,
-        7.9299239999999145,
-        8.219510000000014
+        8.45547700000003,
+        8.415331999999921,
+        8.608486999999968,
+        8.627463999999918,
+        8.58594299999993,
+        8.552118000000064,
+        8.056558999999993
       ],
       "states": 1536,
       "inputRows": 1280,
@@ -171,20 +263,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/tuple-chain",
       "variant": "index only",
-      "medianMs": 1.713604000000032,
+      "medianMs": 2.1408779999999297,
       "samplesMs": [
-        2.089157,
-        2.0340209999999956,
-        2.1497659999999996,
-        1.713604000000032,
-        1.5881319999999732,
-        1.557235999999989,
-        1.5387079999999287
+        2.959688999999969,
+        1.9179299999999557,
+        1.5664859999999408,
+        1.7675760000000764,
+        2.577220000000011,
+        3.149532000000022,
+        2.1408779999999297
       ],
       "states": 1536,
       "inputRows": 1280,
@@ -196,20 +299,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/tuple-chain",
       "variant": "single-column",
-      "medianMs": 2.6483420000000137,
+      "medianMs": 2.579394999999977,
       "samplesMs": [
-        2.685814999999991,
-        2.6483420000000137,
-        2.2409340000000384,
-        2.9585519999999406,
-        2.923735000000079,
-        2.200326000000018,
-        2.1578289999999924
+        2.579394999999977,
+        3.618161999999927,
+        3.3773909999999887,
+        2.837782999999945,
+        2.2894880000000057,
+        2.241023000000041,
+        2.207999000000086
       ],
       "states": 1536,
       "inputRows": 1280,
@@ -221,20 +335,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/tuple-chain",
       "variant": "factors only",
-      "medianMs": 9.332648000000063,
+      "medianMs": 8.973147999999924,
       "samplesMs": [
-        10.150874999999985,
-        9.44842499999993,
-        8.808695000000057,
-        8.218212999999992,
-        8.50797399999999,
-        9.348119999999994,
-        9.332648000000063
+        9.072958000000028,
+        8.67653699999994,
+        9.244159999999965,
+        7.893741999999975,
+        9.073133999999982,
+        8.973147999999924,
+        8.231218000000013
       ],
       "states": 1536,
       "inputRows": 1280,
@@ -246,20 +371,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/tuple-chain",
       "variant": "index + factors",
-      "medianMs": 1.6297650000000203,
+      "medianMs": 1.5915099999999711,
       "samplesMs": [
-        2.634247000000016,
-        1.620307999999909,
-        1.6693159999999807,
-        1.6472360000000208,
-        1.6297650000000203,
-        1.5133959999999433,
-        1.5672200000000203
+        2.058957000000021,
+        1.6439750000000686,
+        1.5833809999999175,
+        2.5567550000000665,
+        1.5401650000000018,
+        1.5915099999999711,
+        1.542997000000014
       ],
       "states": 1536,
       "inputRows": 1280,
@@ -271,20 +407,67 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/tuple-chain",
+      "variant": "separator elimination",
+      "medianMs": 1.6149020000000291,
+      "samplesMs": [
+        2.647172000000012,
+        1.5795100000000275,
+        1.5136209999999437,
+        1.6149020000000291,
+        1.5057649999999967,
+        1.692136000000005,
+        2.944425000000024
+      ],
+      "states": 1536,
+      "inputRows": 1280,
+      "rowCandidates": 1280,
+      "indexLookups": 1280,
+      "indexCells": 3840,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 256,
+      "factorCacheHits": 0,
+      "outputCombinations": 256,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/hidden-factors",
       "variant": "scan",
-      "medianMs": 6.461377000000084,
+      "medianMs": 6.435160999999994,
       "samplesMs": [
-        7.625876000000062,
-        6.461377000000084,
-        6.542594000000008,
-        6.3995049999999765,
-        6.358895999999959,
-        6.560865000000035,
-        6.3609919999998965
+        7.5833220000000665,
+        6.873342999999977,
+        6.3501039999999875,
+        6.398441000000048,
+        6.476794000000041,
+        6.362744000000021,
+        6.435160999999994
       ],
       "states": 32768,
       "inputRows": 29,
@@ -296,20 +479,31 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/hidden-factors",
       "variant": "index only",
-      "medianMs": 6.458063999999922,
+      "medianMs": 6.501162000000022,
       "samplesMs": [
-        6.5698090000000775,
-        6.86406599999998,
-        6.458063999999922,
-        6.453551999999945,
-        6.418353000000025,
-        6.428992999999991,
-        6.479840999999965
+        6.764894000000027,
+        7.332149000000072,
+        6.466216999999915,
+        6.501162000000022,
+        6.454344999999989,
+        6.56561099999999,
+        6.433992999999987
       ],
       "states": 32768,
       "inputRows": 29,
@@ -321,20 +515,31 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/hidden-factors",
       "variant": "single-column",
-      "medianMs": 0.07076900000004116,
+      "medianMs": 0.0759050000000343,
       "samplesMs": [
-        0.08638400000006641,
-        0.3787849999999935,
-        0.0747839999999087,
-        0.06924900000001344,
-        0.07076900000004116,
-        0.06780800000001364,
-        0.06747199999995246
+        0.09548900000004323,
+        0.1304010000000062,
+        0.08104100000002745,
+        0.07166500000005271,
+        0.07454499999994368,
+        0.07384100000001581,
+        0.0759050000000343
       ],
       "states": 45,
       "inputRows": 29,
@@ -346,20 +551,31 @@
       "factorEvaluations": 15,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/hidden-factors",
       "variant": "factors only",
-      "medianMs": 0.05259200000000419,
+      "medianMs": 0.054033000000003995,
       "samplesMs": [
-        0.05532899999991514,
-        0.060048000000051616,
-        0.0524639999999863,
-        0.06700799999998708,
-        0.052559999999971296,
-        0.05259200000000419,
-        0.05169599999999264
+        0.061040999999931955,
+        0.0639210000000503,
+        0.05348900000001322,
+        0.07163299999990613,
+        0.052976999999941654,
+        0.05168099999991682,
+        0.054033000000003995
       ],
       "states": 45,
       "inputRows": 29,
@@ -371,20 +587,31 @@
       "factorEvaluations": 15,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/hidden-factors",
       "variant": "index + factors",
-      "medianMs": 0.05198399999994763,
+      "medianMs": 0.05257700000004206,
       "samplesMs": [
-        0.05198399999994763,
-        0.056960000000003674,
-        0.051104000000009364,
-        0.05168000000003303,
-        0.05268799999998919,
-        0.07300799999995888,
-        0.051024999999981446
+        0.0560169999999971,
+        0.05267300000002706,
+        0.051377000000002226,
+        0.05097699999998895,
+        0.08284899999989648,
+        0.050625000000081855,
+        0.05257700000004206
       ],
       "states": 45,
       "inputRows": 29,
@@ -396,20 +623,67 @@
       "factorEvaluations": 15,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/hidden-factors",
+      "variant": "separator elimination",
+      "medianMs": 0.05292900000006284,
+      "samplesMs": [
+        0.057216999999923246,
+        0.05292900000006284,
+        0.05211300000007668,
+        0.052464999999983775,
+        0.053809000000001106,
+        0.052353000000039174,
+        0.49730299999998806
+      ],
+      "states": 45,
+      "inputRows": 29,
+      "rowCandidates": 29,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 15,
+      "factorEvaluations": 15,
+      "factorCacheHits": 0,
+      "outputCombinations": 1,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/boundary-factors",
       "variant": "scan",
-      "medianMs": 1.0010579999999436,
+      "medianMs": 1.032591000000025,
       "samplesMs": [
-        1.004179000000022,
-        1.1603229999999485,
-        1.0010579999999436,
-        0.9882750000000442,
-        0.9946740000000318,
-        1.9429649999999583,
-        0.9917629999999917
+        1.0876309999999876,
+        1.8279609999999593,
+        1.0107019999999238,
+        1.032591000000025,
+        1.0053739999999607,
+        1.7911759999999504,
+        0.9937419999999975
       ],
       "states": 2304,
       "inputRows": 16,
@@ -421,20 +695,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/boundary-factors",
       "variant": "index only",
-      "medianMs": 1.0012030000000323,
+      "medianMs": 1.0188950000000432,
       "samplesMs": [
-        1.0294430000000148,
-        2.397958000000017,
-        0.9858419999999342,
-        1.9430770000000166,
-        0.996338000000037,
-        1.0012030000000323,
-        0.9769149999999627
+        1.0059820000000173,
+        0.9969899999999825,
+        1.0193260000000919,
+        1.0420459999999139,
+        1.0231340000000273,
+        1.0188950000000432,
+        0.9991329999999152
       ],
       "states": 2304,
       "inputRows": 16,
@@ -446,20 +731,31 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/boundary-factors",
       "variant": "single-column",
-      "medianMs": 0.8545940000000201,
+      "medianMs": 0.872092000000066,
       "samplesMs": [
-        0.838626999999974,
-        0.8524190000000544,
-        0.949218999999971,
-        0.8545940000000201,
-        0.8354739999999765,
-        0.9536990000000287,
-        1.920741000000021
+        0.8467160000000149,
+        0.8305880000000343,
+        0.872092000000066,
+        0.9278369999999541,
+        0.8738519999999426,
+        0.864908000000014,
+        1.5793499999999767
       ],
       "states": 288,
       "inputRows": 16,
@@ -471,20 +767,31 @@
       "factorEvaluations": 16,
       "factorCacheHits": 2032,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/boundary-factors",
       "variant": "factors only",
-      "medianMs": 0.828514000000041,
+      "medianMs": 0.8432920000000195,
       "samplesMs": [
-        0.8259699999999839,
-        0.8214100000000144,
-        0.8967389999999114,
-        0.8290419999999585,
-        0.828514000000041,
-        0.8518579999999929,
-        0.6088340000000017
+        0.8435479999999416,
+        0.8360280000000557,
+        0.8412430000000768,
+        2.729413999999906,
+        0.8437719999999445,
+        0.8432920000000195,
+        0.8406830000000127
       ],
       "states": 288,
       "inputRows": 16,
@@ -496,20 +803,31 @@
       "factorEvaluations": 16,
       "factorCacheHits": 2032,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "kernel/boundary-factors",
       "variant": "index + factors",
-      "medianMs": 0.8166740000000345,
+      "medianMs": 0.8764449999999897,
       "samplesMs": [
-        0.8159869999999501,
-        0.8166740000000345,
-        1.671028000000092,
-        0.836785999999961,
-        0.8243230000000494,
-        0.8158739999998943,
-        0.5821620000000394
+        1.8151449999999159,
+        0.8393240000000333,
+        0.8462680000000091,
+        1.077615000000037,
+        0.8764449999999897,
+        1.0182859999999891,
+        0.8420919999999796
       ],
       "states": 288,
       "inputRows": 16,
@@ -521,35 +839,889 @@
       "factorEvaluations": 16,
       "factorCacheHits": 2032,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/boundary-factors",
+      "variant": "separator elimination",
+      "medianMs": 0.8395960000000287,
+      "samplesMs": [
+        0.8374360000000252,
+        0.8384909999999763,
+        0.8395960000000287,
+        0.9533890000000156,
+        1.713608000000022,
+        0.8382840000000442,
+        2.549667999999997
+      ],
+      "states": 288,
+      "inputRows": 16,
+      "rowCandidates": 32,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 8,
+      "factorEvaluations": 16,
+      "factorCacheHits": 2032,
+      "outputCombinations": 256,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "scan",
+      "medianMs": 3.8935579999999845,
+      "samplesMs": [
+        6.94126499999993,
+        3.9256540000000086,
+        3.839700999999991,
+        3.63909000000001,
+        3.788387999999941,
+        4.2823000000000775,
+        3.8935579999999845
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "index only",
+      "medianMs": 3.8883579999999256,
+      "samplesMs": [
+        4.165193999999929,
+        9.862296000000015,
+        3.6530109999999922,
+        4.367980999999986,
+        3.817237000000091,
+        3.7592840000000933,
+        3.8883579999999256
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "single-column",
+      "medianMs": 3.8874459999999544,
+      "samplesMs": [
+        3.8874459999999544,
+        4.108841000000098,
+        3.810084999999958,
+        4.039128000000005,
+        3.6432190000000446,
+        3.976214999999911,
+        3.6897149999999783
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "factors only",
+      "medianMs": 3.786899999999946,
+      "samplesMs": [
+        3.7137629999999717,
+        4.009862999999996,
+        3.6406259999999975,
+        3.7624519999999393,
+        3.786899999999946,
+        3.861126000000013,
+        3.8175569999999652
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "index + factors",
+      "medianMs": 3.7771569999999883,
+      "samplesMs": [
+        3.986823999999956,
+        3.7228830000000244,
+        3.7771569999999883,
+        3.808644999999956,
+        3.6645469999999705,
+        3.6763710000000174,
+        3.941814999999906
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-chain",
+      "variant": "separator elimination",
+      "medianMs": 0.6662010000000009,
+      "samplesMs": [
+        0.9358689999999115,
+        0.742986999999971,
+        0.6662010000000009,
+        0.7561389999999619,
+        0.619305000000054,
+        0.6410170000000335,
+        0.5925359999999955
+      ],
+      "states": 209,
+      "inputRows": 48,
+      "rowCandidates": 276,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 17386,
+        "cells": 7528,
+        "states": 209,
+        "messages": 23,
+        "messageRows": 92,
+        "separatorWidth": 2
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "scan",
+      "medianMs": 3.660194000000047,
+      "samplesMs": [
+        3.869604999999865,
+        3.660194000000047,
+        3.4776480000000447,
+        3.6709149999999227,
+        3.507680000000164,
+        3.691571999999951,
+        3.490400000000136
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "index only",
+      "medianMs": 3.64664300000004,
+      "samplesMs": [
+        3.4653760000001057,
+        3.681378999999879,
+        3.64664300000004,
+        3.5263210000000527,
+        3.6146420000000035,
+        3.689234999999826,
+        3.842388999999912
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "single-column",
+      "medianMs": 3.664402000000109,
+      "samplesMs": [
+        3.746003999999857,
+        3.6586589999999433,
+        3.50358499999993,
+        3.664402000000109,
+        3.7027239999999892,
+        3.624770000000126,
+        3.7569959999998446
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "factors only",
+      "medianMs": 3.5282730000001266,
+      "samplesMs": [
+        3.6516670000000886,
+        3.4880960000000414,
+        3.627761999999848,
+        3.5116319999999632,
+        3.5282730000001266,
+        3.6272979999998824,
+        3.495632000000114
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "index + factors",
+      "medianMs": 3.651683000000048,
+      "samplesMs": [
+        3.477135999999973,
+        3.651683000000048,
+        3.559154000000035,
+        3.669826999999941,
+        3.647186000000147,
+        3.7283879999999954,
+        3.770371999999952
+      ],
+      "states": 16382,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-star",
+      "variant": "separator elimination",
+      "medianMs": 0.2581159999999727,
+      "samplesMs": [
+        0.27749199999993834,
+        0.2586599999999635,
+        0.4404700000000048,
+        0.2555880000002162,
+        0.2581159999999727,
+        0.25569900000004964,
+        0.2561310000000958
+      ],
+      "states": 86,
+      "inputRows": 48,
+      "rowCandidates": 96,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 2447,
+        "cells": 900,
+        "states": 86,
+        "messages": 12,
+        "messageRows": 24,
+        "separatorWidth": 1
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "scan",
+      "medianMs": 3.4536639999998897,
+      "samplesMs": [
+        3.1753239999998186,
+        3.871077000000014,
+        6.126100999999835,
+        3.2070360000000164,
+        3.36291099999994,
+        3.4536639999998897,
+        3.4704639999999927
+      ],
+      "states": 12286,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "index only",
+      "medianMs": 3.248205000000098,
+      "samplesMs": [
+        3.9339270000000397,
+        3.248205000000098,
+        4.395997000000079,
+        5.31815400000005,
+        3.135627000000113,
+        3.148730999999998,
+        3.1518039999998564
+      ],
+      "states": 12286,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "single-column",
+      "medianMs": 3.458255999999892,
+      "samplesMs": [
+        3.587953999999854,
+        3.9188859999999295,
+        3.2255170000000817,
+        3.252958000000035,
+        3.3490070000000287,
+        3.491121000000021,
+        3.458255999999892
+      ],
+      "states": 12286,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "factors only",
+      "medianMs": 3.2459489999998823,
+      "samplesMs": [
+        3.144010999999864,
+        3.2459489999998823,
+        3.4538399999999,
+        3.2705570000000534,
+        3.1587150000000292,
+        3.434303,
+        3.133739000000105
+      ],
+      "states": 12286,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "index + factors",
+      "medianMs": 3.435118999999986,
+      "samplesMs": [
+        3.402720000000045,
+        4.3200429999999415,
+        3.2169890000000123,
+        5.5961889999998675,
+        3.435118999999986,
+        3.1264439999999922,
+        3.4409760000000915
+      ],
+      "states": 12286,
+      "inputRows": 48,
+      "rowCandidates": 32760,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 2,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
+    },
+    {
+      "case": "kernel/separator-cycle",
+      "variant": "separator elimination",
+      "medianMs": 0.5845520000000306,
+      "samplesMs": [
+        0.5959439999999177,
+        0.5742479999998977,
+        0.6797209999999723,
+        0.5845520000000306,
+        0.5554480000000694,
+        0.5109029999998711,
+        0.5870480000000953
+      ],
+      "states": 203,
+      "inputRows": 48,
+      "rowCandidates": 272,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 16364,
+        "cells": 7018,
+        "states": 203,
+        "messages": 23,
+        "messageRows": 90,
+        "separatorWidth": 2
+      }
+    },
+    {
+      "case": "behavior/separator-chain",
+      "variant": "before",
+      "medianMs": 3.0698979999999665,
+      "samplesMs": [
+        8.639623999999912,
+        3.0698979999999665,
+        4.3375160000000506,
+        3.259805000000142,
+        2.672709000000168,
+        2.7144700000001194,
+        2.1961109999999735
+      ],
+      "states": 24574,
+      "propagationWork": 1584
+    },
+    {
+      "case": "behavior/separator-chain",
+      "variant": "after",
+      "medianMs": 1.2222410000001673,
+      "samplesMs": [
+        1.2417930000001434,
+        1.0640940000000683,
+        1.2222410000001673,
+        1.7215439999999944,
+        1.1174399999999878,
+        1.0170539999999164,
+        1.7015120000000934
+      ],
+      "states": 213,
+      "propagationWork": 1584,
+      "inputRows": 50,
+      "rowCandidates": 284,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 4,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 17458,
+        "cells": 7534,
+        "states": 213,
+        "messages": 23,
+        "messageRows": 92,
+        "separatorWidth": 2
+      }
+    },
+    {
+      "case": "behavior/separator-star",
+      "variant": "before",
+      "medianMs": 2.534690999999839,
+      "samplesMs": [
+        2.2240140000001247,
+        2.302735999999868,
+        2.6239560000001347,
+        2.3623049999998784,
+        2.534690999999839,
+        2.882951999999932,
+        2.606563999999935
+      ],
+      "states": 24576,
+      "propagationWork": 5066
+    },
+    {
+      "case": "behavior/separator-star",
+      "variant": "after",
+      "medianMs": 1.0165580000000318,
+      "samplesMs": [
+        0.9681889999999385,
+        1.959626999999955,
+        1.0183340000000953,
+        1.1513109999998505,
+        1.0165580000000318,
+        0.894076000000041,
+        0.948381000000154
+      ],
+      "states": 90,
+      "propagationWork": 5066,
+      "inputRows": 52,
+      "rowCandidates": 104,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 2585,
+        "cells": 934,
+        "states": 90,
+        "messages": 12,
+        "messageRows": 24,
+        "separatorWidth": 1
+      }
+    },
+    {
+      "case": "behavior/separator-cycle",
+      "variant": "before",
+      "medianMs": 1.9691000000000258,
+      "samplesMs": [
+        1.9691000000000258,
+        1.6658149999998386,
+        1.7217200000000048,
+        1.9896439999999984,
+        2.0404439999999795,
+        2.246174999999994,
+        1.6731750000001284
+      ],
+      "states": 16384,
+      "propagationWork": 1824
+    },
+    {
+      "case": "behavior/separator-cycle",
+      "variant": "after",
+      "medianMs": 0.984557999999879,
+      "samplesMs": [
+        1.0192939999999453,
+        0.9536930000001576,
+        0.984557999999879,
+        0.9063330000001315,
+        1.0376779999999144,
+        0.9509900000000471,
+        1.0705269999998563
+      ],
+      "states": 207,
+      "propagationWork": 1824,
+      "inputRows": 52,
+      "rowCandidates": 280,
+      "indexLookups": 0,
+      "indexCells": 0,
+      "indexFallbacks": 0,
+      "factors": 1,
+      "factorEvaluations": 0,
+      "factorCacheHits": 0,
+      "outputCombinations": 2,
+      "countOverflow": false,
+      "elimination": {
+        "attempted": true,
+        "applied": true,
+        "reason": "complete",
+        "work": 16524,
+        "cells": 7052,
+        "states": 207,
+        "messages": 23,
+        "messageRows": 90,
+        "separatorWidth": 2
+      }
     },
     {
       "case": "semijoin/overlap-128",
       "variant": "before",
-      "medianMs": 2.1259260000000495,
+      "medianMs": 2.015707999999904,
       "samplesMs": [
-        2.1259260000000495,
-        0.43774500000006356,
-        1.9867409999999381,
-        2.3650460000000066,
-        2.329605999999899,
-        1.907077000000072,
-        3.1156879999999774
+        1.9769069999999829,
+        1.965547000000015,
+        2.3476489999998194,
+        2.5055059999999685,
+        2.015707999999904,
+        2.738341999999875,
+        1.9578189999999722
       ],
       "work": 33937
     },
     {
       "case": "semijoin/overlap-128",
       "variant": "after",
-      "medianMs": 0.08838500000001659,
+      "medianMs": 0.09004899999990812,
       "samplesMs": [
-        0.1872640000000274,
-        0.17270399999995334,
-        0.0840810000000829,
-        0.0867359999999735,
-        0.0742089999999962,
-        0.08838500000001659,
-        0.13046399999996083
+        0.10340999999993983,
+        0.08864200000016353,
+        0.09500900000011825,
+        0.09004899999990812,
+        0.07636900000011337,
+        0.11915300000009665,
+        0.08121699999992416
       ],
       "work": 1814,
       "rowComparisons": 0,
@@ -561,15 +1733,15 @@
     {
       "case": "semijoin/overlap-128",
       "variant": "scan reference",
-      "medianMs": 2.0191249999999172,
+      "medianMs": 2.014635999999882,
       "samplesMs": [
-        2.073765999999978,
-        2.8100560000000314,
-        2.008277000000021,
-        1.9806770000000142,
-        1.9862929999999324,
-        2.0191249999999172,
-        2.0590459999999666
+        2.8273830000000544,
+        1.9755950000001121,
+        2.210318000000143,
+        1.9865870000000996,
+        3.1339479999999185,
+        2.0038520000000517,
+        2.014635999999882
       ],
       "work": 33937,
       "rowComparisons": 16384,
@@ -581,15 +1753,15 @@
     {
       "case": "behavior/overlap-128",
       "variant": "before",
-      "medianMs": 3.263176000000044,
+      "medianMs": 2.912953000000016,
       "samplesMs": [
-        4.319370999999933,
-        4.223403000000076,
-        3.263176000000044,
-        3.7412890000000516,
-        3.2010649999999714,
-        2.8501829999999018,
-        2.8016720000000532
+        2.912953000000016,
+        1.9801230000000487,
+        1.3430430000000797,
+        2.0530690000000504,
+        2.9622490000001562,
+        3.660707000000002,
+        3.0774189999999635
       ],
       "states": 1,
       "propagationWork": 36514,
@@ -598,15 +1770,15 @@
     {
       "case": "behavior/overlap-128",
       "variant": "after",
-      "medianMs": 1.217059000000063,
+      "medianMs": 1.0833749999999327,
       "samplesMs": [
-        1.7951410000000578,
-        1.6887399999999388,
-        1.217059000000063,
-        1.5172039999999924,
-        0.9580019999999649,
-        0.8638430000000881,
-        0.930945999999949
+        1.0833749999999327,
+        1.8351769999999306,
+        1.0588950000001205,
+        0.9225089999999909,
+        0.981901999999991,
+        1.148048000000017,
+        1.160319999999956
       ],
       "states": 1,
       "propagationWork": 4391,
@@ -627,35 +1799,46 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 0,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "semijoin/overlap-512",
       "variant": "before",
-      "medianMs": 8.970695999999975,
+      "medianMs": 8.991563999999926,
       "samplesMs": [
-        14.96743200000003,
-        5.783824000000095,
-        5.294302000000016,
-        5.613341999999989,
-        9.285544000000073,
-        9.555016999999907,
-        8.970695999999975
+        6.55079499999988,
+        29.248916999999892,
+        5.436139000000139,
+        5.464858999999933,
+        8.991563999999926,
+        10.564785999999913,
+        10.121579999999994
       ],
       "work": 528913
     },
     {
       "case": "semijoin/overlap-512",
       "variant": "after",
-      "medianMs": 0.36142499999994016,
+      "medianMs": 0.3722459999999046,
       "samplesMs": [
-        0.36142499999994016,
-        0.3819690000000264,
-        0.3365129999999681,
-        0.35148800000001756,
-        0.31937700000003133,
-        0.36401599999999235,
-        0.3843209999999999
+        0.4107420000000275,
+        0.33123700000010103,
+        0.39163699999994606,
+        0.3121480000002066,
+        0.3722459999999046,
+        0.3657330000000911,
+        0.4320540000001074
       ],
       "work": 7190,
       "rowComparisons": 0,
@@ -667,15 +1850,15 @@
     {
       "case": "semijoin/overlap-512",
       "variant": "scan reference",
-      "medianMs": 6.1096639999999525,
+      "medianMs": 7.70025099999998,
       "samplesMs": [
-        6.38468899999998,
-        5.886831000000029,
-        6.1096639999999525,
-        7.147297999999978,
-        5.936351999999943,
-        6.445200999999997,
-        5.767070999999987
+        6.440281000000141,
+        6.407272999999805,
+        10.202284999999847,
+        37.49525500000004,
+        6.094867999999906,
+        7.70025099999998,
+        35.873631999999816
       ],
       "work": 528913,
       "rowComparisons": 262144,
@@ -687,15 +1870,15 @@
     {
       "case": "behavior/overlap-512",
       "variant": "before",
-      "medianMs": 10.19063499999993,
+      "medianMs": 13.993666000000076,
       "samplesMs": [
-        10.857549000000063,
-        9.791722000000163,
-        10.19063499999993,
-        16.704491999999846,
-        18.509569000000056,
-        9.341721000000007,
-        8.949703
+        13.243768000000046,
+        14.041331000000127,
+        13.928609000000051,
+        14.018594000000121,
+        13.643709000000172,
+        13.993666000000076,
+        15.533846999999923
       ],
       "states": 1,
       "propagationWork": 539170,
@@ -704,15 +1887,15 @@
     {
       "case": "behavior/overlap-512",
       "variant": "after",
-      "medianMs": 4.648907999999892,
+      "medianMs": 4.356620000000021,
       "samplesMs": [
-        4.951389000000063,
-        5.178413000000091,
-        7.211458999999877,
-        4.3117869999998675,
-        4.648907999999892,
-        4.110010999999986,
-        4.156459000000041
+        5.160663999999997,
+        4.3832290000000285,
+        4.089111999999886,
+        3.7598760000000766,
+        4.259499000000005,
+        4.778402000000142,
+        4.356620000000021
       ],
       "states": 1,
       "propagationWork": 17447,
@@ -733,35 +1916,46 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 0,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "semijoin/overlap-1024",
       "variant": "before",
-      "medianMs": 21.16965499999992,
+      "medianMs": 32.3987360000001,
       "samplesMs": [
-        21.774314000000004,
-        20.858887000000095,
-        21.16965499999992,
-        22.134906,
-        21.402168000000074,
-        20.624037999999928,
-        20.82751099999996
+        31.332529999999906,
+        33.36755000000039,
+        32.95015199999989,
+        32.3987360000001,
+        35.601244999999835,
+        31.232641000000058,
+        31.77021599999989
       ],
       "work": 2106385
     },
     {
       "case": "semijoin/overlap-1024",
       "variant": "after",
-      "medianMs": 0.7242899999998826,
+      "medianMs": 0.6498970000002373,
       "samplesMs": [
-        0.7370900000000802,
-        0.7242899999998826,
-        0.7769469999998364,
-        0.7757939999999053,
-        0.6294740000000729,
-        0.6879539999999906,
-        0.7048019999999724
+        0.5997999999999593,
+        0.5489040000002205,
+        0.6498970000002373,
+        0.6614330000002155,
+        0.5820400000002337,
+        0.9793419999996331,
+        0.9175650000001951
       ],
       "work": 14358,
       "rowComparisons": 0,
@@ -773,15 +1967,15 @@
     {
       "case": "semijoin/overlap-1024",
       "variant": "scan reference",
-      "medianMs": 32.12864400000012,
+      "medianMs": 24.933912999999848,
       "samplesMs": [
-        23.629134000000022,
-        24.36036799999988,
-        32.12864400000012,
-        32.36058100000014,
-        23.84836600000017,
-        32.19083599999999,
-        36.503791999999976
+        24.172111000000086,
+        24.07265299999972,
+        24.933912999999848,
+        24.31048099999998,
+        24.98005699999976,
+        39.675028999999995,
+        50.10086999999976
       ],
       "work": 2106385,
       "rowComparisons": 1048576,
@@ -793,15 +1987,15 @@
     {
       "case": "behavior/overlap-1024",
       "variant": "before",
-      "medianMs": 42.04591900000014,
+      "medianMs": 45.12768099999994,
       "samplesMs": [
-        52.859850999999935,
-        50.33248400000002,
-        37.09484900000007,
-        41.778029999999944,
-        41.66132599999992,
-        42.04591900000014,
-        42.61065600000006
+        61.81176800000003,
+        61.88442500000019,
+        40.159180000000106,
+        44.261957000000166,
+        44.82604399999991,
+        45.50907899999993,
+        45.12768099999994
       ],
       "states": 1025,
       "propagationWork": 1000001,
@@ -810,15 +2004,15 @@
     {
       "case": "behavior/overlap-1024",
       "variant": "after",
-      "medianMs": 9.819722000000183,
+      "medianMs": 9.83885599999985,
       "samplesMs": [
-        10.688715999999886,
-        10.977165000000014,
-        10.556683999999905,
-        9.761561999999913,
-        9.212248000000045,
-        9.819722000000183,
-        9.4001209999999
+        10.024539000000004,
+        10.056379000000106,
+        10.13641299999972,
+        9.594325000000026,
+        9.798839999999927,
+        9.83885599999985,
+        9.503203000000212
       ],
       "states": 1,
       "propagationWork": 34855,
@@ -839,20 +2033,31 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 0,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "behavior/tuple-chain",
       "variant": "before",
-      "medianMs": 23.885551000000305,
+      "medianMs": 24.438403000000108,
       "samplesMs": [
-        24.809265999999752,
-        25.092049999999745,
-        42.132526999999754,
-        22.12242699999979,
-        23.38876500000015,
-        23.885551000000305,
-        23.46892600000001
+        24.47653100000025,
+        24.67435800000021,
+        24.438403000000108,
+        23.09390399999984,
+        24.18491099999983,
+        24.44510599999967,
+        23.617941999999857
       ],
       "states": 1536,
       "propagationWork": 829571,
@@ -861,15 +2066,15 @@
     {
       "case": "behavior/tuple-chain",
       "variant": "after",
-      "medianMs": 7.752788000000237,
+      "medianMs": 7.2984050000000025,
       "samplesMs": [
-        8.465958000000228,
-        9.634457999999995,
-        7.7507409999998345,
-        7.752788000000237,
-        7.571570999999949,
-        8.884743000000071,
-        7.30121999999983
+        8.24030700000003,
+        8.641720000000078,
+        7.342262000000119,
+        7.10443400000031,
+        7.28434100000004,
+        7.2984050000000025,
+        7.187043999999787
       ],
       "states": 1536,
       "propagationWork": 43203,
@@ -890,35 +2095,46 @@
       "factorEvaluations": 256,
       "factorCacheHits": 0,
       "outputCombinations": 256,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "behavior/hidden-factors",
       "variant": "before",
-      "medianMs": 3.0201999999999316,
+      "medianMs": 2.58453099999997,
       "samplesMs": [
-        4.4563319999997475,
-        2.833270999999968,
-        3.0201999999999316,
-        3.5933059999997568,
-        3.0393199999998615,
-        2.80834300000015,
-        2.9078000000004067
+        2.757814000000053,
+        2.6732849999998507,
+        2.5820040000003246,
+        2.58453099999997,
+        2.568786999999702,
+        2.6198120000003655,
+        2.5157790000002933
       ],
       "states": 32769
     },
     {
       "case": "behavior/hidden-factors",
       "variant": "after",
-      "medianMs": 0.3478730000001633,
+      "medianMs": 0.3260530000002291,
       "samplesMs": [
-        0.44200099999989106,
-        0.3000489999999445,
-        0.35944100000006074,
-        0.3059849999999642,
-        0.40713700000014796,
-        0.2922889999999825,
-        0.3478730000001633
+        0.45475900000019465,
+        0.31931600000007165,
+        0.3685169999998834,
+        0.30048400000032416,
+        0.3466929999999593,
+        0.304164000000128,
+        0.3260530000002291
       ],
       "states": 46,
       "inputRows": 30,
@@ -930,35 +2146,46 @@
       "factorEvaluations": 15,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "behavior/small-connected-control",
       "variant": "before",
-      "medianMs": 0.03067200000032244,
+      "medianMs": 0.029281000000082713,
       "samplesMs": [
-        0.044464999999945576,
-        0.035808000000088214,
-        0.02942399999983536,
-        0.03156799999987925,
-        0.028991999999561813,
-        0.03067200000032244,
-        0.029231999999865366
+        0.04364899999973204,
+        0.03480100000024322,
+        0.030384000000140077,
+        0.029281000000082713,
+        0.02780799999982264,
+        0.02916899999991074,
+        0.028127999999924214
       ],
       "states": 3
     },
     {
       "case": "behavior/small-connected-control",
       "variant": "after",
-      "medianMs": 0.0344319999999243,
+      "medianMs": 0.03523300000006202,
       "samplesMs": [
-        0.043695999999727064,
-        0.034799999999904685,
-        0.04863999999997759,
-        0.033056000000215136,
-        0.0344319999999243,
-        0.03265700000019933,
-        0.034192000000075495
+        0.04281600000012986,
+        0.0355360000003202,
+        0.03588899999977002,
+        0.03355199999987235,
+        0.03523300000006202,
+        0.03393599999981234,
+        0.034337000000050466
       ],
       "states": 3,
       "inputRows": 2,
@@ -970,35 +2197,46 @@
       "factorEvaluations": 1,
       "factorCacheHits": 0,
       "outputCombinations": 1,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "global/disconnected-contradiction",
       "variant": "before",
-      "medianMs": 1.2582110000003013,
+      "medianMs": 1.267714000000069,
       "samplesMs": [
-        4.200522999999976,
-        1.5863249999997606,
-        1.2582110000003013,
-        1.1648350000000391,
-        1.3553159999996751,
-        1.1415069999998195,
-        1.1372189999997317
+        3.7946289999999863,
+        1.267714000000069,
+        1.259552999999869,
+        1.4610760000000482,
+        1.1715840000001663,
+        1.1757769999999255,
+        1.3184660000001713
       ],
       "work": 50983
     },
     {
       "case": "global/disconnected-contradiction",
       "variant": "after",
-      "medianMs": 0.18910399999958827,
+      "medianMs": 0.19825899999977992,
       "samplesMs": [
-        0.34124900000006164,
-        0.18422400000008565,
-        0.18910399999958827,
-        0.23332900000013979,
-        0.1936000000000604,
-        0.1531209999998282,
-        0.15497599999980594
+        0.3726769999998396,
+        0.17153800000005504,
+        0.20357100000001083,
+        0.21347500000001673,
+        0.19825899999977992,
+        0.15214600000035716,
+        0.16541000000006534
       ],
       "work": 307,
       "inputRows": 44,
@@ -1010,20 +2248,31 @@
       "factorEvaluations": 0,
       "factorCacheHits": 0,
       "outputCombinations": 0,
-      "countOverflow": false
+      "countOverflow": false,
+      "elimination": {
+        "attempted": false,
+        "applied": false,
+        "reason": "small-query",
+        "work": 0,
+        "cells": 0,
+        "states": 0,
+        "messages": 0,
+        "messageRows": 0,
+        "separatorWidth": 0
+      }
     },
     {
       "case": "synthesis/safety",
       "variant": "before",
-      "medianMs": 4.4515480000000025,
+      "medianMs": 4.674928999999793,
       "samplesMs": [
-        7.327107000000069,
-        4.4515480000000025,
-        4.855356999999913,
-        4.735388999999941,
-        3.9290179999998145,
-        4.205803000000287,
-        4.4210519999996905
+        5.222999999999956,
+        5.116150999999718,
+        3.969206999999642,
+        4.17996200000016,
+        4.674928999999793,
+        4.922195999999985,
+        3.6731549999999515
       ],
       "fullEvaluations": 1,
       "combinationsAvoided": 255,
@@ -1032,15 +2281,15 @@
     {
       "case": "synthesis/safety",
       "variant": "after",
-      "medianMs": 5.288766000000123,
+      "medianMs": 4.713232999999946,
       "samplesMs": [
-        5.898079999999936,
-        5.677694999999858,
-        4.628940000000057,
-        5.288766000000123,
-        5.561983000000055,
-        4.735020999999961,
-        4.57548399999996
+        6.4856260000001384,
+        4.868740000000344,
+        4.713232999999946,
+        5.452730999999858,
+        4.638304000000062,
+        4.433533000000352,
+        4.2475469999999405
       ],
       "fullEvaluations": 1,
       "combinationsAvoided": 255,
@@ -1049,15 +2298,15 @@
     {
       "case": "synthesis/coverage",
       "variant": "before",
-      "medianMs": 1.407075999999961,
+      "medianMs": 1.32024199999978,
       "samplesMs": [
-        1.7504359999998087,
-        1.4952360000002045,
-        1.3937479999999596,
-        1.4287239999998746,
-        1.3249479999999494,
-        1.407075999999961,
-        1.3113630000002559
+        1.5301810000000842,
+        2.5869480000001204,
+        1.3834120000001349,
+        1.32024199999978,
+        1.310530000000199,
+        1.3150260000002163,
+        1.25009799999998
       ],
       "fullEvaluations": 1,
       "combinationsAvoided": 242,
@@ -1066,15 +2315,15 @@
     {
       "case": "synthesis/coverage",
       "variant": "after",
-      "medianMs": 1.6075559999999314,
+      "medianMs": 1.4424830000002657,
       "samplesMs": [
-        1.7984369999999217,
-        1.5818600000002334,
-        2.1589020000001256,
-        1.5903720000001158,
-        1.6075559999999314,
-        2.19466199999988,
-        1.5640360000002147
+        1.6225509999999304,
+        1.4424830000002657,
+        1.5675260000002709,
+        1.4284669999997277,
+        1.8804740000000493,
+        1.3820350000000872,
+        1.395715999999993
       ],
       "fullEvaluations": 1,
       "combinationsAvoided": 242,
@@ -1083,15 +2332,15 @@
     {
       "case": "synthesis/memoization",
       "variant": "before",
-      "medianMs": 43.12273800000003,
+      "medianMs": 41.45068600000013,
       "samplesMs": [
-        54.079997999999705,
-        48.19137499999988,
-        47.87311799999998,
-        43.12273800000003,
-        40.971484000000146,
-        39.426984000000175,
-        38.898551000000225
+        46.22352000000001,
+        41.45068600000013,
+        42.834224999999606,
+        41.19405800000004,
+        37.66501699999981,
+        41.112521000000015,
+        41.8839710000002
       ],
       "fullEvaluations": 256,
       "combinationsAvoided": 0,
@@ -1100,15 +2349,15 @@
     {
       "case": "synthesis/memoization",
       "variant": "after",
-      "medianMs": 44.66159000000016,
+      "medianMs": 43.829629999999725,
       "samplesMs": [
-        51.75941699999976,
-        48.004845999999816,
-        45.50720799999999,
-        38.1322439999999,
-        41.92990299999974,
-        39.30747999999994,
-        44.66159000000016
+        51.72482799999989,
+        43.829629999999725,
+        44.00545699999975,
+        39.84535099999994,
+        39.1015809999999,
+        38.193231999999625,
+        44.92126099999996
       ],
       "fullEvaluations": 256,
       "combinationsAvoided": 0,
@@ -1117,15 +2366,15 @@
     {
       "case": "synthesis/coupled",
       "variant": "before",
-      "medianMs": 9.097944999999982,
+      "medianMs": 10.13849300000038,
       "samplesMs": [
-        11.353309999999965,
-        9.599096999999801,
-        9.097944999999982,
-        9.99279400000023,
-        8.777383999999984,
-        8.964071000000331,
-        8.793126999999913
+        10.382848000000195,
+        9.790936000000329,
+        12.28541800000039,
+        8.83631399999922,
+        11.036952000000383,
+        10.13849300000038,
+        8.351188000000548
       ],
       "fullEvaluations": 32,
       "combinationsAvoided": 32,
@@ -1134,19 +2383,53 @@
     {
       "case": "synthesis/coupled",
       "variant": "after",
-      "medianMs": 9.704506000000038,
+      "medianMs": 10.973288000000139,
       "samplesMs": [
-        10.484555,
-        11.112701000000015,
-        10.20322699999997,
-        9.19133600000032,
-        9.704506000000038,
-        8.482422000000042,
-        9.400440999999773
+        12.382058999999572,
+        10.973288000000139,
+        10.427711999999701,
+        11.040391999999883,
+        11.092969000000267,
+        10.00938700000006,
+        10.655139999999847
       ],
       "fullEvaluations": 32,
       "combinationsAvoided": 32,
       "work": 30946
+    },
+    {
+      "case": "synthesis/separators",
+      "variant": "before",
+      "medianMs": 2.0917090000002645,
+      "samplesMs": [
+        2.0749729999997726,
+        2.111356999999771,
+        1.868905999999697,
+        2.0917090000002645,
+        2.461105999999745,
+        3.3460469999999987,
+        2.041164000000208
+      ],
+      "fullEvaluations": 3,
+      "combinationsAvoided": 0,
+      "work": 5303
+    },
+    {
+      "case": "synthesis/separators",
+      "variant": "after",
+      "medianMs": 2.17478200000005,
+      "samplesMs": [
+        2.210462000000007,
+        4.236874000000171,
+        3.691219000000274,
+        1.9995950000002267,
+        1.9808590000002368,
+        1.8555940000005648,
+        2.17478200000005
+      ],
+      "fullEvaluations": 3,
+      "combinationsAvoided": 0,
+      "work": 2397
     }
   ]
 }

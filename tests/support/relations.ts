@@ -2,12 +2,26 @@ import type { FunctionModel } from "../../src/act.js";
 import type { ScopedRelation } from "../../src/act-relations.js";
 
 /** Synthetic algebra fixtures, independent of empirical engineering data. */
-export function relationFixture(kind: "indexed-chain" | "hidden-factors" | "boundary-factors" | "tuple-chain" | "overlap-contradiction", count: number) {
+export function relationFixture(kind: "indexed-chain" | "hidden-factors" | "boundary-factors" | "tuple-chain" | "overlap-contradiction" | "separator-chain" | "separator-star" | "separator-cycle", count: number) {
   const values = kind === "indexed-chain" || kind === "tuple-chain" || kind === "overlap-contradiction"
     ? Array.from({ length: kind === "indexed-chain" ? 96 : kind === "tuple-chain" ? 16 : count }, (_, i) => String(i)) : ["0", "1"];
   const domains: string[][] = [], sets: ScopedRelation[] = [], boundary: number[] = [], observed: number[] = [];
   const variable = () => { domains.push(values); return domains.length - 1; };
-  if (kind === "tuple-chain") {
+  if (kind === "separator-star") {
+    const root = variable(); boundary.push(root); observed.push(root);
+    for (let i = 0; i < count; i++) {
+      const leaf = variable();
+      sets.push({ vars: [root, leaf], rows: values.flatMap(x => values.map(y => [[root, x], [leaf, y]])) });
+    }
+  } else if (kind === "separator-chain" || kind === "separator-cycle") {
+    const root = variable(); boundary.push(root); let from = root;
+    for (let i = 0; i < count; i++) {
+      const to = kind === "separator-cycle" && i === count - 1 ? root : variable(), noise = variable();
+      sets.push({ vars: [from, to, noise], rows: values.flatMap(x => values.map(y =>
+        [[from, x], [to, String(Number(x) ^ Number(y))], [noise, y]])) }); from = to;
+    }
+    observed.push(from);
+  } else if (kind === "tuple-chain") {
     let from = [variable(), variable()]; boundary.push(...from);
     for (let i = 0; i < count; i++) {
       const to = [variable(), variable()];
@@ -36,11 +50,17 @@ export function relationFixture(kind: "indexed-chain" | "hidden-factors" | "boun
     for (let i = 0; i < count; i++) { const v = variable(); sets.push({ vars: [v], rows: values.map(x => [[v, x]]) }); }
   }
   let model: FunctionModel | undefined;
-  if (kind === "tuple-chain" || kind === "overlap-contradiction") {
+  if (kind === "tuple-chain" || kind === "overlap-contradiction" || kind.startsWith("separator-")) {
     const p = (id: string) => ({ id, carrier: "symbol" });
     const ports = (vars: number[]) => vars.map(v => p(`v${v}`));
     model = { domain: "software", carriers: [{ id: "symbol", layer: "information", dimension: "symbol", values }], boxes: [], wires: [] };
     const owner = new Map<number, string>();
+    // A shared external input is one port fanned out through an explicit identity box.
+    for (const v of boundary.filter(v => sets.filter(s => s.vars.includes(v)).length > 1)) {
+      const id = `boundary${v}`;
+      model.boxes.push({ id, name: id, role: "environment", inputs: [p("input")], outputs: ports([v]),
+        behavior: values.map(x => ({ in: { input: x }, out: { [`v${v}`]: x } })) }); owner.set(v, id);
+    }
     sets.forEach((set, i) => {
       const id = `part${i}`;
       const inputs = set.vars.filter(v => owner.has(v) || boundary.includes(v)), outputs = set.vars.filter(v => !inputs.includes(v));
@@ -52,7 +72,8 @@ export function relationFixture(kind: "indexed-chain" | "hidden-factors" | "boun
         to: { box: id, port: `v${v}` }, carrier: "symbol", polarity: "useful" });
       for (const v of outputs) owner.set(v, id);
     });
-    model.boxes.push({ id: "product", name: "Observer", role: "product", inputs: ports(observed) });
+    model.boxes.push({ id: "product", name: "Observer", role: "product", inputs: ports(observed),
+      ...(kind.startsWith("separator-") ? { behavior: values.map(x => ({ in: { [`v${observed[0]}`]: x }, out: {} })) } : {}) });
     for (const v of observed) model.wires.push({ id: `output${v}`, from: { box: owner.get(v)!, port: `v${v}` },
       to: { box: "product", port: `v${v}` }, carrier: "symbol", polarity: "useful" });
   }

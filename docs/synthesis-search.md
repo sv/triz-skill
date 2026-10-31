@@ -68,6 +68,7 @@ tree-decomposition or hierarchical subsystem solver.
   "optimizations": {
     "indexed_relations": true,
     "connected_factors": true,
+    "separator_elimination": true,
     "backward_residual": true,
     "choice_propagation": true,
     "memoize_boundaries": true
@@ -79,6 +80,11 @@ tree-decomposition or hierarchical subsystem solver.
 These fields supplement the existing model, contract, libraries and work/state limits.
 Individual switches support ablation and debugging. `max_pruning_work: 0` disables compilation
 through the normal fallback while allowing boundary memoization.
+
+`separator_elimination` controls the shared [separator evaluator](separator-elimination.md).
+It counts hidden states and preserves joint boundary behavior; it never merges resource modes
+or changes the satisfying-design count. Its separately bounded preprocessing work is reported
+in the behavior result's `relationStats.elimination`.
 
 - `candidateSpace.size` is the original Cartesian space (`sizeExact` is its integer string).
 - `enumerated` counts complete implementations passed to the engineering validator.

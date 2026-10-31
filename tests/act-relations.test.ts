@@ -126,7 +126,7 @@ test("all projection/index ablations match independent exhaustive valuations on 
 });
 
 test("independent hidden factors preserve multiplicative counts without materializing internal products", () => {
-  const fixture = relationFixture("hidden-factors", 12), before = new RelationPlan(fixture.sets, { indexed: false, decompose: false });
+  const fixture = relationFixture("hidden-factors", 12), before = new RelationPlan(fixture.sets, { indexed: false, decompose: false, elimination: "off" });
   const after = new RelationPlan(fixture.sets), a = { explored: 0, max: 100000 }, b = { explored: 0, max: 100000 };
   const expected = before.project(fixture.domains, fixture.boundary, fixture.observed, 10, a)!;
   const actual = after.project(fixture.domains, fixture.boundary, fixture.observed, 10, b)!;

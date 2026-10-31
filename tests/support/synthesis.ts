@@ -1,13 +1,30 @@
 import type { FunctionModel } from "../../src/act.js";
 import type { SynthesisRequest } from "../../src/act-synthesis.js";
 import type { z } from "zod";
+import { relationFixture } from "./relations.js";
 
 export type SynthesisInput = z.input<typeof SynthesisRequest>;
-export type SynthesisCase = "safety" | "coverage" | "memoization" | "coupled";
+export type SynthesisCase = "safety" | "coverage" | "memoization" | "coupled" | "separators";
 
 /** Synthetic finite relations, not measured engineering data. Separate product observers
  * keep the model declaration linear while preserving the full joint output relation. */
 export function synthesisFixture(kind: SynthesisCase, count: number): SynthesisInput {
+  if (kind === "separators") {
+    const model = relationFixture("separator-chain", count).model!;
+    model.boxes.unshift({ id: "source", name: "Input", role: "environment", inputs: [{ id: "in", carrier: "symbol" }],
+      outputs: [{ id: "out", carrier: "symbol" }], behavior: ["0", "1"].map(x => ({ in: { in: x }, out: { out: x } })) });
+    model.wires.unshift({ id: "feed", from: { box: "source", port: "out" }, to: { box: "part0", port: "v0" }, carrier: "symbol", polarity: "useful" });
+    for (const box of model.boxes) box.feasibility = [{
+      requires: box.role === "environment" ? {} : Object.fromEntries((box.inputs ?? []).map(p => [p.id, 1])),
+      provides: Object.fromEntries((box.outputs ?? []).map(p => [p.id, 1])),
+    }];
+    const target = structuredClone(model), hole = model.boxes.find(b => b.id === `part${count - 1}`)!;
+    const alternatives = [0, 1, 2].map(cost => ({ id: `cost-${cost}`, behavior: hole.behavior!, feasibility: { ...hole.feasibility![0], cost: { usd: cost } } }));
+    delete hole.behavior; delete hole.feasibility;
+    return { model, holes: [{ box: hole.id, alternatives }], contract: { target, acceptable: [{ carrier: "symbol", values: ["0", "1"] }], budget: { usd: 1 } },
+      implementation: synthesisFixture("coupled", 1).implementation, max_states: 100_000, max_work: 1_000_000, max_pruning_work: 0,
+      optimizations: { backward_residual: false, choice_propagation: false } };
+  }
   const values = kind === "memoization" ? ["0", "1", "2", "3"] : ["0", "1"];
   const copy = values.map(x => ({ in: { in: x }, out: { out: x } }));
   const independent = values.flatMap(x => values.map(y => ({ in: { in: x }, out: { out: y } })));

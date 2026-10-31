@@ -1,4 +1,5 @@
 import { RelationTupleIndex } from "./act-relation-index.js";
+import { eliminateProject, eliminationStats, type EliminationOptions, type EliminationStats } from "./act-relation-elimination.js";
 
 /** Shared finite scoped relations. Variables are typed by the adapter's finite domains;
  * rows are conjunctions, tables are disjunctions, and tables join on variable equality.
@@ -6,12 +7,13 @@ import { RelationTupleIndex } from "./act-relation-index.js";
 export type RelationBinding = Array<[number, string]>;
 export type ScopedRelation = { vars: number[]; rows: RelationBinding[] };
 export type RelationBudget = { explored: number; max: number; spend?: (amount: number) => void };
-export type RelationOptions = { indexed?: boolean; compoundIndexes?: boolean; decompose?: boolean; maxIndexCells?: number; smallFirst?: boolean };
+export type RelationOptions = EliminationOptions & { indexed?: boolean; compoundIndexes?: boolean; decompose?: boolean; maxIndexCells?: number; smallFirst?: boolean };
 export type RelationStats = {
   inputRows: number; rowCandidates: number; indexLookups: number; indexCells: number;
   indexFallbacks: number; factors: number; factorEvaluations: number; factorCacheHits: number;
   outputCombinations: number;
   countOverflow: boolean;
+  elimination: EliminationStats;
 };
 type Row = { binding: RelationBinding; original: number };
 type Table = { vars: number[]; rows: Row[]; values?: ReadonlyMap<number, string>[]; indexes: Map<string, RelationTupleIndex> };
@@ -22,7 +24,7 @@ export type ProjectedRow = { input: string[]; outputs: Map<string, string[]>; st
  * Original row ids survive for consumers that need provenance. */
 export class RelationPlan {
   readonly stats: RelationStats = { inputRows: 0, rowCandidates: 0, indexLookups: 0, indexCells: 0,
-    indexFallbacks: 0, factors: 0, factorEvaluations: 0, factorCacheHits: 0, outputCombinations: 0, countOverflow: false };
+    indexFallbacks: 0, factors: 0, factorEvaluations: 0, factorCacheHits: 0, outputCombinations: 0, countOverflow: false, elimination: eliminationStats() };
   private readonly tables: Table[];
   private readonly orders = new Map<string, number[]>();
   private readonly components: number[][];
@@ -154,12 +156,25 @@ export class RelationPlan {
     return true;
   }
 
+  private eliminationCandidate(boundary: number[], observed: number[]): boolean {
+    if (this.options.elimination === "off") return false;
+    if (this.options.elimination === "always") return true;
+    if (!this.components.some(ids => ids.length >= 8)) return false;
+    const pinned = new Set([...boundary, ...observed]), hidden = new Set<number>();
+    for (const table of this.tables) for (const v of table.vars) {
+      if (!pinned.has(v)) hidden.add(v);
+      if (hidden.size >= 4) return true;
+    }
+    return false;
+  }
+
   /** Exact boundary relation and state counts. Adapters supply domain-valid, complete,
    * deduplicated table rows (sparse row selection is supported by enumerate, not this collector);
    * each factor is enumerated on its own boundary, then outputs/counts/samples are combined.
    * Output Cartesian products remain bounded; internal products are never materialized. */
   project(domains: string[][], boundary: number[], observed: number[], samples: number,
     budget: RelationBudget): Map<string, ProjectedRow> | undefined {
+    this.stats.elimination = eliminationStats();
     const covered = new Set([...boundary, ...this.tables.flatMap(t => t.vars)]);
     const free = domains.flatMap((values, v) => covered.has(v) ? []
       : [{ vars: [v], rows: values.map(x => [[v, x] as [number, string]]) }]);
@@ -168,6 +183,29 @@ export class RelationPlan {
       const complete = new RelationPlan([...this.tables.map(t => ({ vars: t.vars, rows: t.rows.map(r => r.binding) })), ...free], this.options);
       const result = complete.project(domains, boundary, observed, samples, budget);
       Object.assign(this.stats, complete.stats); return result;
+    }
+    if (this.eliminationCandidate(boundary, observed)) {
+      const plans = new WeakMap<ScopedRelation[], RelationPlan>();
+      const result = eliminateProject(this.tables.map(t => ({ vars: t.vars, rows: t.rows.map(r => r.binding) })),
+        domains, boundary, observed, samples, budget, this.options, this.stats.elimination,
+        (sets, assignment, emit, local) => {
+          let plan = plans.get(sets);
+          if (!plan) {
+            plan = new RelationPlan(sets, { ...this.options, elimination: "off", decompose: false,
+              maxIndexCells: Math.max(0, (this.options.maxIndexCells ?? 200_000) - this.stats.indexCells) }, local.spend);
+            plans.set(sets, plan);
+          }
+          const before = { ...plan.stats };
+          try { return plan.enumerate(assignment, emit, local); }
+          finally {
+            for (const k of ["rowCandidates", "indexLookups", "indexCells", "indexFallbacks"] as const) this.stats[k] += plan.stats[k] - before[k];
+          }
+        });
+      if (result.status === "overflow") { this.stats.countOverflow = true; return undefined; }
+      if (result.status === "complete") {
+        this.stats.outputCombinations = [...result.table.values()].reduce((n, r) => n + r.outputs.size, 0);
+        return result.table;
+      }
     }
     const assignment: Array<string | undefined> = Array(domains.length).fill(undefined);
     const valuations = boundary.reduce((n, v) => n * domains[v].length, 1);

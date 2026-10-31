@@ -4,6 +4,7 @@ import { FunctionModel, BehaviorRow, FeasibilityRow, checkModel } from "./act.js
 import { FiniteContract, ImplementationMetadata, EngineeringBudget, engineeringCap, engineeringInvalid, evaluateImplementation, modelWork } from "./act-contract.js";
 import { fail, issue, type Failure } from "./act-issues.js";
 import { BehaviorEvaluationCache } from "./act-behavior.js";
+import type { RelationOptions } from "./act-relations.js";
 import { SynthesisPruner, choiceMask, choiceIndices, combinationCount, pruningStats, type ChoiceConstraints } from "./act-synthesis-pruning.js";
 
 const Id = z.string().min(1);
@@ -23,7 +24,7 @@ export const SynthesisRequest = z.strictObject({
   max_work: z.number().int().min(1).max(1_000_000).optional(),
   max_states: z.number().int().min(1).max(100_000).optional(),
   strategy: z.enum(["optimized", "exhaustive"]).default("optimized").describe("Exhaustive is the reference Cartesian search; optimized prunes coupled choice constraints and reuses exact boundary summaries"),
-  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), indexed_relations: z.boolean().optional(), connected_factors: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
+  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), indexed_relations: z.boolean().optional(), connected_factors: z.boolean().optional(), separator_elimination: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
   max_pruning_work: z.number().int().min(0).max(1_000_000).default(100_000).describe("Per compilation/propagation allowance within max_work, reserving at least three quarters of remaining work for validation; exhaustion falls back without speculative pruning"),
 });
 
@@ -55,8 +56,9 @@ export function synthesizeFinite(input: unknown) {
   const checkedTarget = checkModel(s.contract.target, "$.contract.target");
   if (!checkedTarget.ok) return fail(checkedTarget.issues);
   const optimized = s.strategy === "optimized";
-  const relationOptions = { indexed: optimized && s.optimizations?.indexed_relations !== false,
-    decompose: optimized && s.optimizations?.connected_factors !== false, smallFirst: optimized };
+  const relationOptions: RelationOptions = { indexed: optimized && s.optimizations?.indexed_relations !== false,
+    decompose: optimized && s.optimizations?.connected_factors !== false, smallFirst: optimized,
+    elimination: optimized && s.optimizations?.separator_elimination !== false ? "auto" : "off" };
   const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false, 200_000, relationOptions);
   const pruning = pruningStats();
   const holeIds = new Set(ids);

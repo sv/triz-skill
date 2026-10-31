@@ -83,8 +83,9 @@ can change which tied internal samples are shown; their validity, distinctness a
 are preserved. These static summaries do not establish dynamic or resource equivalence.
 
 Connected queries use a direct streaming collector to avoid factor-cache/reconstruction overhead.
-Variable elimination across separators and join-tree completeness checking are not implemented
-by this connected-component decomposition.
+Larger branching queries can now use [separator elimination](separator-elimination.md) before
+this fallback. It summarizes internal assignments across connected separators; join-tree
+completeness checking and symbolic primitive recognition remain separate work.
 
 ## Controls, counters and budgets
 
@@ -94,6 +95,7 @@ pruning and boundary memoization. Internal behavior/global-separation APIs accep
 options for tests; these do not add caller-supplied checked summaries to the public model schema.
 `indexed_relations: false` also selects the scan semijoin implementation. The internal
 `compoundIndexes: false` option isolates single-column join indexing for benchmarks.
+`separator_elimination: false` disables separator summaries; exhaustive mode disables them too.
 
 Successful behavior summaries and global-separation results include `relationStats`: input rows,
 row candidates, index lookups/storage/fallbacks, factor evaluations/cache hits, output combinations
