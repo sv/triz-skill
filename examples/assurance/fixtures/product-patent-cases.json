@@ -1,0 +1,74 @@
+{
+  "checked_on": "2026-10-31",
+  "scope": "Selected source-backed response contracts and one finite engineering calculation; no measured product performance or complete patent model.",
+  "classification_baseline": {
+    "commit": "732753ecf82acdc8c72f2283a9ce37a279426f3f",
+    "role_overrides": [{"id": 72, "kind": "response"}],
+    "note": "The original role cleanup changed only entry 72. Reconstruction retains ids 1-74 using current family storage; the frozen compatibility test protects their contracts, descriptions and evidence."
+  },
+  "cases": [
+    {
+      "id": "voice-coil-stage",
+      "name": "H2W VCS20-020-CR-001-XY voice-coil stage",
+      "sources": [{
+        "url": "https://cdn.h2wtech.com/product/voice-coil-stages/VCS20-020-CR-001-XY",
+        "locator": "Product specification table: resistance at 20 C, force constant and continuous force",
+        "supports": "A resistive coil produces force and dissipates electrical power. Published values are 3.5 ohm, 6.1 N/A and 8.9 N continuous force."
+      }],
+      "paths": [[74, 65], [74, 64]],
+      "reject_paths": [[3, 65]],
+      "assumptions": ["Steady DC, fixed coil geometry, stationary stage and resistance at 20 C; motional back EMF and transient inductance are excluded."],
+      "not_covered": ["Closed-loop controller, motion dynamics, encoder, friction and coil temperature evolution."]
+    },
+    {
+      "id": "thermoelectric-refrigerator",
+      "name": "LG thermoelectric refrigerator disclosure, US11300331B2",
+      "sources": [
+        {
+          "url": "https://patents.google.com/patent/US11300331B2/en",
+          "locator": "Description of thermoelectric module 3 and claims 1 and 7",
+          "supports": "The disclosed refrigerator combines a thermoelectric element, cooling and heat sinks, and fan assemblies. The patent also describes controlling heated-air recirculation."
+        },
+        {
+          "url": "https://thermal.ferrotec.com/technology/thermoelectric-reference-guide/thermalref05/",
+          "locator": "Sections 5.1 and 5.2",
+          "supports": "A thermoelectric system must reject pumped heat and electrical heating; conduction and convection are separately useful heat-transfer responses."
+        }
+      ],
+      "paths": [[8], [61], [62], [64]],
+      "reject_paths": [[8, 61], [61, 62], [64, 73]],
+      "assumptions": ["The selected responses require separately declared operating interval, boundary temperatures, thermal paths, electrical loading and fluid conditions."],
+      "not_covered": ["Coupled hot/cold energy balances, heat-rate/time conversion, fan curve, recirculation geometry and gasket effectiveness. A list of matched effects does not verify these patent features."]
+    },
+    {
+      "id": "electrodynamic-screen",
+      "name": "Transparent electrodynamic screen disclosure, US9433336B2",
+      "sources": [
+        {
+          "url": "https://patents.google.com/patent/US9433336B2/en",
+          "locator": "Abstract and description of three-phase excitation and particle forces",
+          "supports": "A patterned, insulated electrode array uses phased excitation to lift and transport dust through electrostatic and dielectrophoretic forces."
+        },
+        {
+          "url": "https://ntrs.nasa.gov/citations/20150016082",
+          "locator": "History and Flight Development of the Electrodynamic Dust Shield, abstract and operating description",
+          "supports": "NASA describes traveling-field dust transport using the two force responses. This is supporting mechanism evidence, not identification of the patent with a NASA product."
+        }
+      ],
+      "paths": [[59], [71], [72]],
+      "reject_paths": [[59, 71], [71, 72]],
+      "assumptions": ["Specified particle charge/polarizability, electrode geometry, phased drive, adhesion and surface conditions."],
+      "not_covered": ["Drive-to-field synthesis, simultaneous force balance, particle trajectories and measured dust-clearing efficiency. The two force responses are not a serial recipe."]
+    }
+  ],
+  "voice_coil_calculation": {
+    "resistance_ohm_at_20_C": "3.5",
+    "force_constant_N_per_A": "6.1",
+    "continuous_force_N": "8.9",
+    "selected_currents_A": ["-1", "0", "1"],
+    "expected_voltage_V": ["-3.5", "0", "3.5"],
+    "expected_force_N": ["-6.1", "0", "6.1"],
+    "expected_Joule_heat_W": ["3.5", "0", "3.5"],
+    "scope": "Calculated points under the stated linear DC model using published coefficients; these are not manufacturer measurements at the selected points."
+  }
+}

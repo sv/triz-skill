@@ -8,5 +8,5 @@
   // worker.ts is bundled by wrangler (esbuild) with its JSON imports kept outside
   // src/; tsc emits only the stdio server + shared modules for the npm package.
   "include": ["src"],
-  "exclude": ["src/worker.ts"]
+  "exclude": ["src/worker.ts", "src/knowledge-bundle.ts"]
 }

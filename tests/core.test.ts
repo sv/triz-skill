@@ -16,6 +16,10 @@ const bundled = {
   "tool-router.json": JSON.parse(fs.readFileSync(path.join(dataDir, "tool-router.json"), "utf8")),
   "effects.json": JSON.parse(fs.readFileSync(path.join(dataDir, "effects.json"), "utf8")),
 };
+const manifest = JSON.parse(fs.readFileSync(path.join(dataDir, "knowledge.json"), "utf8"));
+Object.assign(bundled, { "knowledge.json": manifest }, Object.fromEntries(
+  manifest.packs.map((file: string) => [file, JSON.parse(fs.readFileSync(path.join(dataDir, file), "utf8"))]),
+));
 
 test("core fails closed before a provider is installed", () => {
   // The fs provider may already be installed if data.js was imported by another
@@ -37,7 +41,7 @@ test("core serves lookups from an injected static provider (hosted-mode parity)"
   const eff = core.effects("convert temperature difference into voltage");
   assert.ok(eff.effects.slice(0, 5).some((e) => e.name === "Seebeck effect"));
   assert.equal(core.toolCatalog().length, 37);
-  assert.equal(core.effects().effects.length, 60);
+  assert.equal(core.effects().effects.length, 78);
 });
 
 test("useProvider resets caches between providers", () => {
@@ -45,9 +49,22 @@ test("useProvider resets caches between providers", () => {
   assert.equal(core.parameters().length, 39);
   core.useProvider((file) => ({
     ...((bundled as Record<string, unknown>)[file] as object),
-    parameters: [{ id: 1, name: "only one" }],
+    parameters: bundled["parameters.json"].parameters.map((p: core.Parameter) => p.id === 1 ? { ...p, name: "changed first label" } : p),
   }));
-  assert.equal(core.parameters().length, 1);
+  assert.equal(core.parameters().length, 39);
+  assert.equal(core.getParameter(1)?.name, "changed first label");
   // restore for any later tests in this process
   core.useProvider((file) => (bundled as Record<string, unknown>)[file]);
+});
+
+test("canonical parameter loading fails closed for an incomplete injected table", () => {
+  core.useProvider(file => file === "parameters.json"
+    ? { parameters: bundled["parameters.json"].parameters.slice(1) }
+    : (bundled as Record<string, unknown>)[file]);
+  try {
+    assert.throws(() => core.parameters(), /39/);
+  } finally {
+    core.useProvider(file => (bundled as Record<string, unknown>)[file]);
+  }
+  assert.equal(core.parameters().length, 39);
 });
