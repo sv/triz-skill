@@ -28,22 +28,22 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { createMcpHandler } from "agents/mcp/server";
 import { toolSpecs, bindV2 } from "./tools.js";
-import { useProvider, type DataFile } from "./core.js";
+import { useProvider } from "./core.js";
+import { bundledKnowledge } from "./knowledge-bundle.js";
 import parametersJson from "../skills/triz-innovation/data/parameters.json" with { type: "json" };
 import principlesJson from "../skills/triz-innovation/data/principles.json" with { type: "json" };
 import matrixJson from "../skills/triz-innovation/data/matrix.json" with { type: "json" };
 import evalsJson from "../skills/triz-innovation/data/evals.json" with { type: "json" };
 import toolRouterJson from "../skills/triz-innovation/data/tool-router.json" with { type: "json" };
-import effectsJson from "../skills/triz-innovation/data/effects.json" with { type: "json" };
 import pkg from "../package.json" with { type: "json" };
 
-const bundled: Record<DataFile, unknown> = {
+const bundled: Record<string, unknown> = {
   "parameters.json": parametersJson,
   "principles.json": principlesJson,
   "matrix.json": matrixJson,
   "evals.json": evalsJson,
   "tool-router.json": toolRouterJson,
-  "effects.json": effectsJson,
+  ...bundledKnowledge,
 };
 useProvider((file) => bundled[file]);
 

@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "_meta": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "parameters": {
+      "minItems": 39,
+      "maxItems": 39,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 39
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aliases": {
+            "description": "Alternate labels; not automatic quantity or domain mappings",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "clarification": {
+            "description": "Repository-authored guidance for interpreting the historical category",
+            "type": "string",
+            "minLength": 1
+          },
+          "distinguish_from": {
+            "description": "Nearby canonical categories to consider separately, not equivalent ids",
+            "maxItems": 38,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 39
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "parameters"
+  ],
+  "additionalProperties": false,
+  "title": "Classical TRIZ 39 engineering parameters"
+}

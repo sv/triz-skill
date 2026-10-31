@@ -1,0 +1,46 @@
+{
+  "format": "triz-knowledge-pack-v1",
+  "id": "universal",
+  "domain": "universal",
+  "title": "Shared measurement vocabulary",
+  "source": {
+    "citation": "Repository definitions of abstract measurement quantities; no empirical mechanism is asserted.",
+    "license": "MIT"
+  },
+  "review": {
+    "status": "curated",
+    "note": "Vocabulary definitions only; application-specific measurement and acceptability require declarations."
+  },
+  "limitations": [
+    "Shared measurement vocabulary does not establish causation, an effect or a matrix mapping."
+  ],
+  "parameters": [
+    {
+      "id": "universal:duration",
+      "name": "Duration",
+      "quantity": "duration",
+      "si": {
+        "T": 1
+      },
+      "description": "Elapsed time over an explicitly selected interval.",
+      "layer": "temporal"
+    },
+    {
+      "id": "universal:count",
+      "name": "Count",
+      "quantity": "count",
+      "si": {},
+      "description": "Number of explicitly defined items or events in a selected scope.",
+      "layer": "information"
+    },
+    {
+      "id": "universal:fraction",
+      "name": "Fraction",
+      "quantity": "fraction",
+      "si": {},
+      "description": "A specified subset count divided by its specified nonzero total count.",
+      "layer": "information"
+    }
+  ],
+  "effects": []
+}

@@ -51,11 +51,30 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-Six existing entries have typings derived from their recorded statement or function fields,
-identified in `source`. Field-change and current tokens use an explicit shared vocabulary;
-the induction typing covers the changing-field clause only. Other entries stay
-untyped. No redistributable external input/output catalogue was verified; this remains a data gap.
+37 entries have explicit conditional typings identified in `source`, using 35 declared physical
+quantities. The original six quantity tokens are preserved, with explicit SI where the quantity
+has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
+and current tokens use shared vocabulary; the induction typing covers the changing-field clause
+only. Optical/field excitations with ambiguous quantitative meaning stay opaque. Energy and
+power, temperature change and spatial difference, and same-dimensional stress and pressure
+retain distinct types. Other entries stay untyped. No external input/output catalogue is imported.
 See the checked source and rights notes in the agent reference's `sources.md`.
+
+The versioned [knowledge packs](../skills/triz-innovation/references/knowledge-packs.md) register
+universal and domain quantity parameters, provenance, review status and effect relationships.
+`triz_knowledge` lists these definitions; every installed pack feeds effect lookup and chain
+discovery by default. Optional domain filtering includes universal entries. Canonical matrix
+parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
+records the 74-entry physical starter set and remaining evidence gaps.
+
+`triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,
+and registry quantity/SI/layer declarations. Optional parameter `bindings` declare finite values,
+levels and resource allocation; `boundary` declares available source values and accepted product
+values; `declarations` supplies per-effect implementation rows. No finite semantics is invented.
+The generated insertion uses existing typed-rewrite checks and optional finite Lean typing
+certificates. With declared rows, the result enters behavior, resource, weakness and other model
+checks under their existing assumptions. `pnpm example:effects` demonstrates this with actual
+photovoltaic/Ohmic/Joule entries and an explicitly synthetic finite interpretation.
 
 `triz_effect_chains` accepts `resources: [{quantity,si?}]` or a `model`, `output: {quantity,si?}`,
 optional explicit typed `effects`, `conditions` met, `k` (default 4, maximum 12), `max_steps`, and

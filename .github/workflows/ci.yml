@@ -33,9 +33,13 @@ jobs:
       - name: Install Graphviz
         run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends graphviz
 
+      - run: pnpm knowledge:check
+
       - run: pnpm typecheck
 
       - run: pnpm build
+
+      - run: pnpm example:effects
 
       - name: MCP handshake smoke test (dist)
         run: node scripts/smoke-mcp.mjs dist/server.js

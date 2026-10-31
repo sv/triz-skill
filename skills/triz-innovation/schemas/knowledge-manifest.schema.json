@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "format": {
+      "type": "string",
+      "const": "triz-knowledge-manifest-v1"
+    },
+    "packs": {
+      "minItems": 1,
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(?:effects\\.json|knowledge\\/[a-z][a-z0-9-]*\\.json)$"
+      }
+    }
+  },
+  "required": [
+    "format",
+    "packs"
+  ],
+  "additionalProperties": false,
+  "title": "TRIZ knowledge manifest"
+}

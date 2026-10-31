@@ -14,6 +14,7 @@ import { BondGraphRequest, bondGraph } from "./act-bond.js";
 import { SI } from "./act-dimensions.js";
 import { EffectField, EffectPort, EffectChainsRequest, effectChains, inferredEffectHints } from "./act-effects.js";
 import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
+import { EffectSetupRequest, setupEffectModel } from "./knowledge-setup.js";
 import { ComponentSearchRequest, searchComponents } from "./act-component-search.js";
 import { GENERAL_CATALOGUE } from "./act-component-catalogue.js";
 import * as triz from "./core.js";
@@ -316,7 +317,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
   const specs: ToolSpec[] = [
     {
       name: "triz_parameter",
-      description: "Get a canonical TRIZ engineering parameter (1-39). Omit id to list all 39.",
+      description: "Get a canonical TRIZ engineering parameter (1-39). Omit id to list all 39. Entries include alternate labels, interpretation guidance and nearby categories to distinguish where recorded. These historical matrix categories are separate from typed domain quantities.",
       shape: { id: z.number().int().min(1).max(39).optional().describe("Parameter number 1-39; omit to list all") },
       handler: async ({ id }: { id?: number }) => text(id == null ? triz.parameters() : triz.getParameter(id) ?? { error: "no parameter " + id }),
     },
@@ -361,19 +362,31 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
       handler: async ({ stage }: { stage?: triz.ToolStage }) => text(triz.toolCatalog(stage)),
     },
     {
+      name: "triz_knowledge",
+      description: "List installed universal and domain knowledge packs, provenance, review status and explicit quantity parameters. Uses all packs by default. A domain filter includes universal definitions. These parameters are separate from the canonical 39 matrix parameters; domain mappings never invoke the matrix automatically.",
+      shape: {
+        query: z.string().optional().describe("Search quantity parameter definitions"),
+        domain: z.string().optional().describe("Optional domain plus universal definitions; omit to use all"),
+      },
+      handler: async ({ query, domain }: { query?: string; domain?: string }) => text(triz.knowledgeCatalog(query, domain)),
+    },
+    {
       name: "triz_effects",
-      description: "Search the curated effects database by text, or exact typed input/output quantity, field and output SI dimension. Only explicitly typed entries match typed filters. Search by required function (e.g. 'convert temperature difference into voltage', 'store heat', 'sense strain') or list by category: physical, chemical, geometric. Effects are classical textbook phenomena; selecting and substantiating one remains a synthesis step, never a lookup verdict.",
+      description: "Search effects from all installed knowledge packs by text or exact typed input/output quantity, field and output SI dimension. Optional domain filtering includes universal effects; pack and category filters are exact. Results include sources, limitations and declared review status. Only explicitly typed entries match typed filters. Selecting and substantiating a mechanism remains a synthesis step.",
       shape: {
         input: z.string().optional(), output: z.string().optional(), field: EffectField.optional(), si: SI.optional(),
         query: z.string().optional().describe("Function keywords to search for, e.g. 'store heat' or 'sense magnetic field'"),
-        category: z.enum(["physical", "chemical", "geometric"]).optional().describe("Restrict results to one category"),
+        category: z.string().optional().describe("Restrict results to one category, e.g. physical, chemical, geometric, algorithmic"),
+        domain: z.string().optional().describe("Restrict to this domain plus universal effects; omit to search all packs"),
+        pack: z.string().optional().describe("Restrict to one installed pack id"),
       },
-      handler: async ({ query, category, ...typed }: { query?: string; category?: "physical" | "chemical" | "geometric"; input?: string; output?: string; field?: z.infer<typeof EffectField>; si?: z.infer<typeof SI> }) =>
+      handler: async ({ query, category, ...typed }: { query?: string; category?: string; input?: string; output?: string; field?: z.infer<typeof EffectField>; si?: z.infer<typeof SI>; domain?: string; pack?: string }) =>
         text(triz.effects(query, category, typed)),
     },
     { name: "triz_bond_graph", description:"Assign effort/flow causality on declared energy subsystems by bounded propagation and search; report derivative causality and direct algebraic dependency cycles, and export constitutive equation structure. No numeric simulation.",shape:BondGraphRequest.shape,handler:async(args:z.input<typeof BondGraphRequest>)=>text(bondGraph(args)) },
     { name: "triz_lifecycle", description: "Solve finite declared maintenance actions by exact rational average-cost equations under explicit per-dimension or weighted objectives. Include declared per-state holding costs once per decision step. Return stationary policy, gain, bias, occupancy and availability; box-local availability uses the request acceptable list, not global states. Undeclared probabilities return T3 ranges; unsupported multichain cases and caps are undecided.", shape:LifecycleRequest.shape,handler:async(args:z.input<typeof LifecycleRequest>)=>{const r=lifecycle(args);return text({...r,...(args.certificate&&r.ok&&r.verdict==="optimal"?{certificates:r.solutions!.map((_,i)=>certificateField(lifecycleCertificate(args,i)))}:{})});} },
     { name: "triz_effect_chains", description: "Search bounded typed effect chains from declared resources to a required quantity; every wiring diagram passes checkModel. Ranking: length, conditions met, field changes, declaration order. Capped search is undecided. Physical sufficiency is not claimed.", shape: EffectChainsRequest.shape, handler: async (args: z.input<typeof EffectChainsRequest>) => { if(args.model){const checked=act.checkModel(args.model,"$.model");if(!checked.ok)return text(fail(checked.issues));}return text(effectChains(args,args.effects?[]:triz.typedEffects())); } },
+    { name: "triz_effect_setup", description: "Build a composable function model from registered effect ids using explicit quantity, SI and carrier-layer declarations. Optional parameter bindings supply finite values/levels; boundary availability/acceptance and per-effect behavior/resource rows remain caller declarations. Return a checked rewrite and provenance; certificate:true generates the existing finite Lean typing certificate. Missing conditions remain hypotheses.", shape: EffectSetupRequest.shape, handler: async (args: z.input<typeof EffectSetupRequest>) => { const r = setupEffectModel(args, triz.knowledge()); return text({ ...r, ...(args.certificate && r.ok ? { certificate: certificateField(modelCertificate(r.model)) } : {}) }); } },
     { name: "triz_effect_insert", description:"Insert a selected typed effect chain between existing output/input ports, with explicit replacement of an existing supplier. Return the checked model, added carriers, replayable rewrite and effect citations/conditions. With certificate:true, return a finite Lean typing certificate. Behavior and resource rows are only caller declarations; physical sufficiency is not inferred.",shape:EffectInsertRequest.shape,handler:async(args:z.input<typeof EffectInsertRequest>)=>{const r=insertEffectChain(args,()=>triz.typedEffects());return text({...r,...(args.certificate&&r.ok&&"model" in r?{certificate:certificateField(modelCertificate(r.model))}:{})});} },
     { name: "triz_component_catalogue",description:"Return the shared domain-independent general catalogue of polymorphic mathematical identity/fanout relations. Bind its type parameter T to a declared model carrier for component search. Domains and tags are organization metadata; physical implementations and resource modes require declarations.",shape:{},handler:async()=>text({ok:true,catalogue:GENERAL_CATALOGUE,note:"Abstract relations with repository MIT definitions, not empirical physical components. No resource costs or feasibility modes are asserted."}) },
     { name: "triz_component_search", description:"Automatically construct components, chains and multi-input networks from finite typed and reusable domain-independent catalogues, including general, with explicit type bindings. Search component choices and wiring up to instance/component/work bounds; optional whole-model contracts check finite behavior, acceptable values, harms and resources. With certificate:true, certify the first network's typing and supported whole-model behavior comparison. Complete absence applies only to the declared bounded catalogue; capped search is undecided.",shape:ComponentSearchRequest.shape,handler:async(args:z.input<typeof ComponentSearchRequest>)=>{const r=searchComponents(args);const first=r.ok&&"candidates" in r?r.candidates[0]:undefined;return text({...r,...(args.certificate&&first?{certificates:{typing:certificateField(modelCertificate(first.model)),...(args.contract?{behavior:certificateField(behaviorCertificate(args.contract.target,first.model,{scope:"whole",maxStates:args.max_states}))}:{})}}:{})});} },

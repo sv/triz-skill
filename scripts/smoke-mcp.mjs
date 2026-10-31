@@ -34,6 +34,13 @@ const json = async (name, args) => {
   return JSON.parse(r.content[0].text);
 };
 
+const knowledge = await json("triz_knowledge", {});
+if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 38) fail("knowledge packs or quantity definitions missing");
+if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
+const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
+if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
+if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");
+
 // Source import stays a draft through the actual stdio schema/handler boundary.
 const imported = await json("triz_import_source", { format: "bom-csv", source: {
   id: "synthetic.csv", text: "id,name,parent_id\nroot,Assembly,\npart,Component,root\n",

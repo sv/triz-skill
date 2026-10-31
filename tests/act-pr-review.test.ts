@@ -28,6 +28,8 @@ test("empty effect resources fail closed and chains never reuse an effect", () =
 });
 test("inferred effect hints use unknown tool inputs and share one cap", () => {
   const m=interfaceModel();m.carriers[0].effect_quantity="temperature difference";m.carriers[1].effect_quantity="voltage";
+  const declared = data.typedEffects().find(e => e.id === 7)!;
+  m.carriers[0].si = declared.input.si; m.carriers[1].si = declared.output.si;
   m.boxes.push({id:"unknown",name:"Unknown",role:"tool",inputs:[{id:"i",carrier:"a"}],outputs:[{id:"o",carrier:"z"}]});
   const r=inferredEffectHints(m,data.typedEffects());
   assert.equal(r.complete,true);assert.equal(r.hints.length,1);assert.equal(r.hints[0].box,"unknown");
@@ -50,6 +52,7 @@ test("insertion verifies curated effect provenance and labels supplied declarati
   const seebeck=library.find(e=>e.id===7)!;
   const forged=insertEffectChain({model:m,from:{box:"s",port:"o"},to:{box:"p",port:"i"},chain:[{...e,id:7,source:seebeck.source,typed_from:seebeck.typed_from}]},library);assert.equal(forged.ok,false);
   m.carriers[0].effect_quantity=seebeck.input.quantity;m.carriers[1].effect_quantity=seebeck.output.quantity;
+  m.carriers[0].si=seebeck.input.si;m.carriers[1].si=seebeck.output.si;
   const verified=insertEffectChain({model:m,from:{box:"s",port:"o"},to:{box:"p",port:"i"},chain:[seebeck]},library);
   assert.ok(verified.ok && "effects" in verified);assert.equal(verified.effects[0].provenance,"catalogue-verified");
 });

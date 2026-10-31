@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Regenerate the committed JSON Schemas: the function model from src/act.ts, the rewrite rule
- * from src/act-rule.ts, and reusable component catalogues from src/act-component-catalogue.ts.
+ * from src/act-rule.ts, reusable component catalogues, knowledge packs and canonical parameters.
  *
  *   node --import tsx scripts/gen-schema.mjs        (pnpm schema)
  *
@@ -13,10 +13,12 @@ import { fileURLToPath } from "node:url";
 import { functionModelJsonSchema } from "../src/act.ts";
 import { ruleJsonSchema } from "../src/act-rule.ts";
 import { catalogueJsonSchema } from "../src/act-component-catalogue.ts";
+import { knowledgePackJsonSchema, knowledgeManifestJsonSchema } from "../src/knowledge.ts";
+import { canonicalParametersJsonSchema } from "../src/parameters.ts";
 
 const dir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../skills/triz-innovation/schemas");
 fs.mkdirSync(dir, { recursive: true });
-for (const [file, schema] of [["function-model.schema.json", functionModelJsonSchema()], ["rule.schema.json", ruleJsonSchema()], ["component-catalogue.schema.json",catalogueJsonSchema()]]) {
+for (const [file, schema] of [["function-model.schema.json", functionModelJsonSchema()], ["rule.schema.json", ruleJsonSchema()], ["component-catalogue.schema.json",catalogueJsonSchema()], ["knowledge-pack.schema.json", knowledgePackJsonSchema()], ["knowledge-manifest.schema.json", knowledgeManifestJsonSchema()], ["parameters.schema.json", canonicalParametersJsonSchema()]]) {
   const target = path.join(dir, file);
   fs.writeFileSync(target, JSON.stringify(schema, null, 2) + "\n");
   console.log(`wrote ${path.relative(process.cwd(), target)}`);
