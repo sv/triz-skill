@@ -123,7 +123,7 @@ test("same-type generators remain discoverable separately from the zero-length i
     assert.ok(nonempty.chains.every(c => c.effects.length === 1));
     assert.ok(nonempty.chains.some(c => c.effects[0].id === id));
     const setup = setupEffectModel({ chain: [id], domain: "physical" }, data.knowledge());
-    assert.ok(setup.ok && setup.model.boxes.length === 3);
+    assert.ok(setup.ok && setup.model.boxes.length === (id === 35 ? 5 : 3));
   }
   const force = data.typedEffects().find(e => e.id === 49)!.input;
   const twice = effectChains({ resources: [force], output: force, min_length: 2, k: 2 }, data.typedEffects());

@@ -1,6 +1,6 @@
 import { sameDimension, type SI } from "./act-dimensions.js";
 import type { TypedEffect } from "./act-effects.js";
-import { compileKnowledge, KnowledgeManifest, typedKnowledgeEffects, type RegisteredEffect } from "./knowledge.js";
+import { compileKnowledge, KnowledgeManifest, typedKnowledgeEffects, type RegisteredEffect, type EffectAssessmentDecision } from "./knowledge.js";
 import { CanonicalParameters, type Parameter } from "./parameters.js";
 export type { Parameter } from "./parameters.js";
 /**
@@ -91,8 +91,13 @@ export function knowledgeCatalog(query?: string, domain?: string) {
     tokens.every(t => `${p.id} ${p.name} ${p.quantity} ${p.description}`.toLowerCase().includes(t)));
   return {
     packs: all.packs.filter(p => !domain || p.domain === "universal" || p.domain === domain)
-      .map(({ parameters, effects, families, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length })),
+      .map(({ parameters, effects, families, models, boundary_mappings, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length, model_count: models.length, boundary_mapping_count: boundary_mappings.length })),
     families: all.families.filter(f => !domain || f.domain === "universal" || f.domain === domain),
+    models: all.models.filter(m => (!domain || m.domain === "universal" || m.domain === domain) &&
+      tokens.every(t => `${m.id} ${m.name} ${m.description}`.toLowerCase().includes(t))),
+    model_count: all.models.length,
+    boundary_mappings: all.boundary_mappings.filter(m => (!domain || m.domain === "universal" || m.domain === domain) && tokens.every(t => `${m.id} ${m.name} ${m.description}`.toLowerCase().includes(t))),
+    boundary_mapping_count: all.boundary_mappings.length,
     counts: all.counts,
     taxonomy: all.taxonomy,
     counts_scope: "all-installed-packs",
@@ -246,11 +251,12 @@ export function resolve(improving: number, worsening: number) {
   };
 }
 
-export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite"} = {}) {
+export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite"|"configuration";assessment?: EffectAssessmentDecision} = {}) {
   const all = effectsAll();
   let list = category ? all.filter((e) => e.category === category) : all;
   list = list.filter(e => (!typed.domain || e.domain === "universal" || e.domain === typed.domain) && (!typed.pack || e.pack === typed.pack));
   list = list.filter(e => (!typed.kind || e.kind === typed.kind) && (!typed.form || e.definition.form === typed.form));
+  list = list.filter(e => !typed.assessment || e.model_assessment?.decision === typed.assessment);
   list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field || e.fields?.includes(typed.field)) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
   if (query) {
     const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);

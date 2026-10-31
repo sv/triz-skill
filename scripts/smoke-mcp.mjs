@@ -35,17 +35,43 @@ const json = async (name, args) => {
 };
 
 const knowledge = await json("triz_knowledge", {});
-if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 68) fail("knowledge packs or quantity definitions missing");
+if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 91 || knowledge.model_count !== 19 || knowledge.boundary_mapping_count !== 2) fail("knowledge packs, quantity definitions or model templates missing");
 if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
-if (knowledge.families.length !== 8 || knowledge.counts.independent_contracts !== 70 || knowledge.counts.searchable !== 78) fail("shared interface separation/counts missing");
+if (knowledge.families.length !== 8 || knowledge.counts.independent_contracts !== 66 || knowledge.counts.configurations !== 4 || knowledge.counts.searchable !== 78) fail("shared interface separation/counts missing");
 if (knowledge.taxonomy.roles.response !== 69 || knowledge.taxonomy.roles.mechanism !== 9) fail("response/mechanism taxonomy missing");
 if (!knowledge.taxonomy.field_groups.find(g => g.field === "magnetic")?.entry_ids.includes(65)) fail("magnetic response missing from its field group");
 const mechanisms = await json("triz_effects", { kind: "mechanism", field: "electric" });
 if (!mechanisms.effects.some(e => e.id === 72)) fail("traveling-field transport is not classified as a mechanism");
+const splitModels = await json("triz_effects", { assessment: "split-models" });
+if (JSON.stringify(splitModels.effects.map(e => e.id)) !== JSON.stringify([16, 20, 33, 35, 46, 47])) fail("compound/clause assessment filter missing");
+if (splitModels.effects.some(e => e.model_assessment.status !== "assessment-only")) fail("advisory assessments claimed stronger verification");
+const unregisteredFacet = await json("triz_effects", { output: "optical retardance" });
+if (unregisteredFacet.matched !== 0) fail("an unregistered assessment facet became an effect");
+const multiport = await json("triz_component_catalogue", { source: "knowledge", models: ["physical:photoelastic-retardance", "physical:retardance-analyzer"] });
+if (!multiport.ok || multiport.catalogue.entries.length !== 2 || multiport.models.some(m => m.configured || !m.unmetConditions.length)) fail("multiport catalogue lost its boundaries or assumptions");
+const sourceTypes = ["physical:principal-stress-difference", "physical:incident-irradiance"];
+const assembly = await json("triz_component_search", {
+  model: { domain: "physical", carriers: multiport.catalogue.carriers, boxes: [
+    { id: "source", name: "Resources", role: "environment", outputs: sourceTypes.map((carrier, i) => ({ id: `r${i}`, carrier })) },
+    { id: "target", name: "Readout", role: "product", inputs: [{ id: "in", carrier: "physical:irradiance" }] },
+  ], wires: [] },
+  resources: sourceTypes.map((_, i) => ({ box: "source", port: `r${i}` })), targets: [{ box: "target", port: "in" }],
+  catalogues: [{ catalogue: multiport.catalogue }], max_components: 2, require_all_resources: true, certificate: true,
+});
+if (assembly.verdict !== "candidates" || assembly.candidates[0]?.components.length !== 2 || !assembly.certificates?.typing || assembly.candidates[0].components.some(c => !c.catalogueOrigin?.conditions?.length)) fail("registered model catalogue did not enter typed configuration search/certification");
 const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
 const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
 if (!familySetup.ok || familySetup.certificate?.format !== "lean" || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
+const windCatalogue = await json("triz_component_catalogue", { source: "knowledge", effects: [33] });
+if (!windCatalogue.ok || windCatalogue.catalogue.entries.length !== 3 || windCatalogue.named_configurations?.length !== 1) fail("named configuration became an opaque catalogue generator");
+const wind = await json("triz_effect_setup", { chain: [33], domain: "physical", certificate: true });
+if (!wind.ok || wind.model.boxes.length !== 5 || wind.setup.context_inputs.length !== 2 || wind.certificate?.format !== "lean") fail("named configuration did not expand with explicit context and a typing certificate");
+if (wind.model.boxes.some(b => b.behavior || b.transition || b.feasibility)) fail("named configuration invented an implementation");
+const forceObservation = await json("triz_component_catalogue", { source: "knowledge", effects: [59] });
+if (!forceObservation.ok || forceObservation.catalogue.entries.length !== 2 || forceObservation.boundary_mappings?.length !== 1 || !forceObservation.named_configurations[0]?.catalogue_complete) fail("directed force observation did not enter the named catalogue");
+const observedForce = await json("triz_effect_setup", { chain: [59], domain: "physical", certificate: true });
+if (!observedForce.ok || observedForce.model.boxes.length !== 4 || observedForce.setup.boundary_mappings?.length !== 1 || observedForce.certificate?.format !== "lean") fail("named force view did not materialize its sourced output observation");
 const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
 if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");

@@ -126,6 +126,12 @@ quantity boundaries and explicit per-step implementation rows remain visible. Th
 
 ## Product and patent validation
 
+The follow-up [compound/clause audit](../skills/triz-innovation/references/effects-decomposition.md)
+records 34 detailed decisions without changing these executable contracts: 15 retain-compound,
+six split-models and 13 retain-response. Assessments review the full named function, while its
+registered typing can cover only one selected clause. Missing facets are not generators, and a
+recommended decomposition supplies neither an executable recipe nor a physical equivalence proof.
+
 `pnpm example:effects-products` checks three selected real cases using a frozen, source-linked
 [fixture](../examples/assurance/fixtures/product-patent-cases.json). It checks the contracts before
 and after the field/mechanism cleanup, while the separate compatibility snapshot protects all
@@ -320,3 +326,19 @@ proposal/verification, followed by quantitative resource and probability contrac
 frontier mechanisms should enter expert-curated draft packs with their operating regime and
 controlling inputs preserved. Their engineering value should be tested through a specified
 before/after task and a negative control, as in the examples above.
+
+## Multiport and stateful configurations
+
+The six split groups now have 18 separate model templates and 23 additional boundary/state
+quantities. The 78 unary lookups remain intact. See the [eight-patent before/after comparison](effects-configurations.md)
+for name-blind configuration discovery, reused ion-force/flow components, temporal controls,
+source locators and formalization limits.
+
+The subsequent [named-composition reduction](effects-configurations.md#named-composition-reduction)
+converts entry 33 to an expanded model network, reducing the above historical count of 70
+independent unary declarations to 69 while preserving all 78 discovery names.
+
+Further justified observations and the lifted analyzer clause convert entries 20/35/59 too,
+reducing the independent unary count to 66. The [expanded comparison](effects-configurations.md#additional-patent-boundary-cases)
+retains all fully expressed original candidates and adds three resource-complete boundary cases;
+three former opaque superconductivity shortcuts are reported separately.

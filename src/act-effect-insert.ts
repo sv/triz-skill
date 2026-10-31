@@ -111,6 +111,8 @@ export function insertEffectChain(input: unknown, catalogue: z.infer<typeof Type
   for (const [i,e] of a.chain.entries()) {
     library ??= typeof catalogue === "function" ? catalogue() : catalogue;
     const curated = library.find(c => c.id === e.id);
+    if (curated?.realization || e.realization)
+      return reject(`$.chain[${i}]`, "Named configurations cannot be inserted as opaque generators", "Use triz_effect_setup to expand the registered model network and expose its context inputs.");
     if (curated && !(matches(e.input,curated.input) && matches(curated.input,e.input) &&
       matches(e.output,curated.output) && matches(curated.output,e.output) && e.field === curated.field &&
       JSON.stringify([...e.conditions].sort()) === JSON.stringify([...curated.conditions].sort()) &&

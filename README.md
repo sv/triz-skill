@@ -145,7 +145,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_absorber_assignments` | Evaluate complete absorber assignments over every compatible output endpoint |
 | `triz_synthesize` | Search fixed-wiring finite component libraries jointly across several holes |
 | `triz_component_search` | Find components, chains or multi-input assemblies by searching catalogue instances and wiring against typed ports and optional finite property/resource contracts |
-| `triz_component_catalogue` | Get the shared general catalogue; reusable libraries combine across domains through explicit type bindings |
+| `triz_component_catalogue` | Get general relations or registered multiport/stateful effect models; configure explicit types and implementation rows |
 | `triz_effect_chains` | Search bounded typed effect chains from explicit resources; hypotheses require substantiation |
 | `triz_lifecycle` | Solve declared maintenance policies and holding costs; ambiguous optimal-policy occupancy remains undecided |
 | `triz_bond_graph` | Check structural effort/flow causality, forced derivative storage and equation dependencies |
@@ -496,8 +496,10 @@ construction.
   default. Expert contributions add versioned JSON packs with attributed review status;
   `pnpm knowledge` validates their union and updates hosted imports. Canonical matrix parameters
   remain the original 39.
-- Eight shared interface families factor 22 named cases into 14 signatures, giving 70 independently
+- Eight shared interface families factor 22 named cases into 14 signatures, with 52 direct definitions giving 66 independently
   declared interfaces while retaining all 78 searchable entries and their case-specific evidence.
+  Four named configurations derive their boundaries from registered multiport models; two
+  explicit forward observations forget qualified current/force types without unit conversion.
   Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
   no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.
 - `triz_knowledge` reports field groups separately from the 69 response and nine mechanism
@@ -507,6 +509,10 @@ construction.
   See the [validation scope](docs/effects-evidence.md#product-and-patent-validation).
   `pnpm example:effects-recent-patents` checks nine 2025–2026 publications, four added response
   clauses, further interface sharing, and explicit state/probability limitations.
+- [Compound/clause assessments](skills/triz-innovation/references/effects-decomposition.md)
+  identify 15 named functions to retain as compounds, six entries needing separate clause models,
+  and 13 coupled responses to retain. Query them with `triz_effects.assessment`; missing facets
+  remain advisory and do not change the 78-entry executable catalogue.
 - The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
   every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
   wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.

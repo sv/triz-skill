@@ -26,6 +26,8 @@ export const EffectPort = z.strictObject({
 export const TypedEffect = z.strictObject({
   id: z.union([z.string().min(1), z.number().int()]),
   name: z.string(),
+  realization: z.literal("named-configuration").optional().describe("Conditional discovery summary; setup must expand the registered model network"),
+  realization_conditions: z.array(z.string()).optional().describe("Constituent model assumptions of a named configuration; included in discovery hypotheses"),
   input: EffectPort,
   output: EffectPort,
   field: EffectField,
@@ -152,6 +154,7 @@ export function effectChains(
     unmetConditions: string[];
     fieldChanges: number;
     model: Model;
+    requiresExpansion?: boolean;
   }> = [];
   const visit = (resource: Port, current: Port, chain: TypedEffect[]) => {
     if (chain.length >= a.k) return;
@@ -163,7 +166,7 @@ export function effectChains(
       if (next.length >= a.min_length && matches(effect.output, a.output)) {
         const model = diagram(resource, next);
         if (!checkModel(model).ok) throw new Error("ill-typed effect diagram");
-        const conditions = [...new Set(next.flatMap((e) => e.conditions))];
+        const conditions = [...new Set(next.flatMap((e) => [...e.conditions, ...(e.realization_conditions ?? [])]))];
         found.push({
           effects: next,
           resource,
@@ -173,6 +176,7 @@ export function effectChains(
             .slice(1)
             .filter((e, i) => e.field !== next[i].field).length,
           model,
+          ...(next.some(e => e.realization) ? { requiresExpansion: true } : {}),
         });
       }
       if (next.length < a.k) visit(resource, effect.output, next);
@@ -222,7 +226,7 @@ export function effectChains(
     truncated: found.length > a.limit,
     chains: found.slice(0, a.limit),
     basis: [],
-    note: "Typed wiring hypotheses only. Magnitudes, efficiency, scale, missing resources, and physical sufficiency require substantiation.",
+    note: "Typed wiring hypotheses only. Named configuration boxes are conditional boundary summaries: expand them with triz_effect_setup before implementation. Magnitudes, efficiency, scale, missing resources, and physical sufficiency require substantiation.",
   };
 }
 
