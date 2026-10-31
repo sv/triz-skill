@@ -120,7 +120,7 @@ they have several inputs, outputs or state. The existing `ComponentCatalogue` su
 interfaces and explicit type bindings; the prototypes exercise it. A universal unary `thing → thing`
 type would discard the structure that makes these patterns useful.
 
-## Recent discoveries and constructions that may unlock new architectures
+## Recent results: distinguish response classes, realizations and constructions
 
 The following is a shortlist, not a ranking of scientific importance. Mathematical and computing
 entries are constructions/theorems or algorithms, rather than empirical physical effects. Every
@@ -129,7 +129,7 @@ row needs a precise interpretation and its own evidence before becoming an engin
 | Result and dates | Architectural opportunity | Candidate contract and current limit |
 |---|---|---|
 | [Odd elasticity](https://www.nature.com/articles/s41567-020-0795-y), preprint 2019 / paper 2020 | Active mechanical materials with nonconservative, nonreciprocal elastic response | Multi-axis strain → stress, with active supply and work accounting; research constitutive model, not passive free energy |
-| [Temporal reflection and frequency translation](https://www.nature.com/articles/s41567-023-01975-y), preprint 2022 / experiment published 2023 | Control waveforms by switching a medium in time, adding a temporal design degree of freedom | Wave + switching/pump protocol → transformed wave; demonstrated in a switched transmission-line metamaterial, not a general arbitrary-frequency device |
+| [Temporal reflection and frequency translation](https://www.nature.com/articles/s41567-023-01975-y), new photonic realization published 2023; theoretical ancestry 1958 | Control waveforms by switching a medium in time, adding a temporal design degree of freedom | Wave + switching/pump protocol → transformed wave; demonstrated in a switched transmission-line metamaterial, not a general arbitrary-frequency device |
 | [Altermagnetic spin splitting](https://www.nature.com/articles/s41586-023-06907-7), 2024 experiment | Candidate spin-selective components without ferromagnetic net magnetization | Magnetic order, momentum and material → spin-resolved response; observed band structure, with device use requiring further evidence |
 | [Good quantum LDPC codes](https://arxiv.org/abs/2111.03654), 2021 / STOC 2022; [radial single-shot codes](https://journals.aps.org/prxquantum/abstract/10.1103/67xf-zdjb), April 2026 | Alternative protected quantum memories and different qubit/measurement overheads | Encode → specified quantum noise → syndrome/decoder → recovery; the 2026 performance is numerical. Classical finite relations cannot certify quantum-channel correctness |
 | [Almost-linear max/min-cost flow](https://arxiv.org/abs/2203.00671), 2022; [deterministic version](https://arxiv.org/abs/2309.16629), 2023 | New asymptotic options for large constrained routing and resource allocation | Integral capacitated graph → feasible optimal flow; distinguish a checkable flow/optimality witness from implementation complexity and practical speed |
@@ -142,6 +142,39 @@ Twist-controlled moiré materials are another important family: the [2018 magic-
 experiment](https://www.nature.com/articles/nature26160) showed tunable correlated and superconducting
 states. The useful new design control is stack geometry/twist and carrier density; recording only
 another `current → current` entry would hide that capability.
+
+## Novelty audit: which are new effects and which are compositions?
+
+The shortlist does not establish any new fundamental interaction. “New to our catalogue,” “newly
+identified effective response,” “first demonstrated implementation,” and “new construction with a
+stronger guarantee” must be recorded separately. Most computing examples are constructions or
+architectures composed from existing operations. Their importance can be a new preservation
+property or an improved resource bound rather than a new observable physical mechanism.
+
+| Example | Classification | What is actually new |
+|---|---|---|
+| Odd elasticity | Newly characterized effective constitutive response / theoretical framework | An active stress–strain response with additional nonconservative moduli; realizations use interacting active elements |
+| Altermagnetic spin splitting | Newly identified magnetic symmetry/response class, experimentally confirmed | A spin-splitting mechanism compatible with vanishing net magnetization in the specified material symmetry class |
+| Temporal reflection demonstration | New realization of an older predicted effect | The photonic implementation overcomes rapid spatially uniform switching constraints; its [paper](https://arxiv.org/pdf/2208.07236) cites Morgenthaler’s [1958 work](https://doi.org/10.1109/TMTT.1958.1124533) as foundational |
+| Quantum LDPC/radial codes | Mathematical code constructions and guarantees | Different achievable rate, distance, locality and decoding properties under stated assumptions |
+| Almost-linear min-cost flow | Algorithm with a new complexity guarantee | A composed optimization/data-structure method with an improved asymptotic bound |
+| Speculative decoding | Algorithmic composition with a distribution-preservation guarantee | Cheap proposal + parallel target evaluation + probability-correct rejection/replacement; ordinary speculation predates it |
+| Nova/MicroNova | Cryptographic construction | Folding/accumulation with a specified soundness and verification-cost contract |
+| FlashAttention | Algorithm and hardware schedule | Tiling, online normalization and recomputation organized to reduce data movement; later versions adapt pipelines to hardware |
+| Mamba | Model architecture | Selective state updates integrated with an efficient execution algorithm |
+
+A precise composition may still unlock a system that was previously impractical. The useful
+comparison is its externally visible contract and resource budget against the stated baseline.
+The number of constituent techniques is not a measure of novelty. Our hysteresis and repetition
+examples demonstrate the value of modeling known compositions; they are not discoveries.
+
+For a future database extension, physical response generators should remain distinct from
+reusable composite implementations. A composite should carry its component/wiring graph,
+assumptions, semantic contract and resource costs; any claimed new guarantee should identify its
+proof or experimental evidence. Candidate metadata should distinguish `response-class`,
+`realization`, `construction`, and `resource-improvement`, with separate prediction and
+demonstration dates. These are proposed distinctions, not fields already implemented in the
+knowledge-pack schema. No candidate in this report has been silently promoted to a new primitive.
 
 ## How to make future entries useful
 
