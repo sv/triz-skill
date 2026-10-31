@@ -15,6 +15,7 @@ import { SI } from "./act-dimensions.js";
 import { EffectField, EffectPort, EffectChainsRequest, effectChains, inferredEffectHints } from "./act-effects.js";
 import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
 import { EffectSetupRequest, setupEffectModel } from "./knowledge-setup.js";
+import { EffectAssessmentDecision } from "./knowledge.js";
 import { ComponentSearchRequest, searchComponents } from "./act-component-search.js";
 import { GENERAL_CATALOGUE } from "./act-component-catalogue.js";
 import * as triz from "./core.js";
@@ -363,7 +364,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
     },
     {
       name: "triz_knowledge",
-      description: "List installed universal and domain knowledge packs, provenance, review status, explicit quantity parameters, shared interface families and definition counts. Taxonomy separately reports response/mechanism/recipe roles and field groups with entry ids; fields do not supply response contracts and counts do not measure independent physical laws. Uses all packs by default. A domain filter includes universal definitions; counts and taxonomy describe all installed packs. These parameters are separate from the canonical 39 matrix parameters; domain mappings never invoke the matrix automatically.",
+      description: "List installed universal and domain knowledge packs, provenance, review status, explicit quantity parameters, shared interface families and definition counts. Taxonomy reports selected typing roles, field groups and advisory retain/split assessments of whole named functions; assessment groups can cover more than the selected typing. Fields supply no response contract and counts do not measure independent physical laws. Uses all packs by default. A domain filter includes universal definitions; counts and taxonomy describe all installed packs. These parameters are separate from the canonical 39 matrix parameters; domain mappings never invoke the matrix automatically.",
       shape: {
         query: z.string().optional().describe("Search quantity parameter definitions"),
         domain: z.string().optional().describe("Optional domain plus universal definitions; omit to use all"),
@@ -372,7 +373,7 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
     },
     {
       name: "triz_effects",
-      description: "Search effects from all installed knowledge packs by text or exact typed input/output quantity, field and output SI dimension. Filter kind for responses/mechanisms/composites and form for direct declarations, family specializations or recipes. Optional domain filtering includes universal effects; pack and category filters are exact. Results retain named cases, sources, limitations and review status. Composite recipes expose their steps and expand through triz_effect_setup; chain search uses their constituents.",
+      description: "Search effects from all installed knowledge packs by text or exact typed input/output quantity, field and output SI dimension. Filter kind for modeling role, form for definition storage, or assessment for named functions to retain as responses/compounds or split into distinct models. Assessments describe the whole named function; the selected typing may cover only one facet. Unregistered facets are advisory and never become generators or executable recipes. Optional domain filtering includes universal effects; pack and category filters are exact. Results retain named cases, sources, limitations and review status. Composite recipes expose their steps and expand through triz_effect_setup; chain search uses their constituents.",
       shape: {
         input: z.string().optional(), output: z.string().optional(), field: EffectField.optional(), si: SI.optional(),
         query: z.string().optional().describe("Function keywords to search for, e.g. 'store heat' or 'sense magnetic field'"),
@@ -381,8 +382,9 @@ export function toolSpecs(opts: { graph?: GraphModule; layout?: LayoutLoader; lo
         pack: z.string().optional().describe("Restrict to one installed pack id"),
         kind: z.enum(["response", "mechanism", "composite"]).optional().describe("Declared modeling role, not a claim of scientific novelty"),
         form: z.enum(["direct", "specialization", "composite"]).optional().describe("Direct declaration, shared family interface, or executable serial recipe"),
+        assessment: EffectAssessmentDecision.optional().describe("Advisory retain-response, retain-compound or split-models decision; does not alter executable contracts"),
       },
-      handler: async ({ query, category, ...typed }: { query?: string; category?: string; input?: string; output?: string; field?: z.infer<typeof EffectField>; si?: z.infer<typeof SI>; domain?: string; pack?: string; kind?: "response"|"mechanism"|"composite"; form?: "direct"|"specialization"|"composite" }) =>
+      handler: async ({ query, category, ...typed }: { query?: string; category?: string; input?: string; output?: string; field?: z.infer<typeof EffectField>; si?: z.infer<typeof SI>; domain?: string; pack?: string; kind?: "response"|"mechanism"|"composite"; form?: "direct"|"specialization"|"composite"; assessment?: z.infer<typeof EffectAssessmentDecision> }) =>
         text(triz.effects(query, category, typed)),
     },
     { name: "triz_bond_graph", description:"Assign effort/flow causality on declared energy subsystems by bounded propagation and search; report derivative causality and direct algebraic dependency cycles, and export constitutive equation structure. No numeric simulation.",shape:BondGraphRequest.shape,handler:async(args:z.input<typeof BondGraphRequest>)=>text(bondGraph(args)) },

@@ -126,6 +126,12 @@ quantity boundaries and explicit per-step implementation rows remain visible. Th
 
 ## Product and patent validation
 
+The follow-up [compound/clause audit](../skills/triz-innovation/references/effects-decomposition.md)
+records 34 detailed decisions without changing these executable contracts: 15 retain-compound,
+six split-models and 13 retain-response. Assessments review the full named function, while its
+registered typing can cover only one selected clause. Missing facets are not generators, and a
+recommended decomposition supplies neither an executable recipe nor a physical equivalence proof.
+
 `pnpm example:effects-products` checks three selected real cases using a frozen, source-linked
 [fixture](../examples/assurance/fixtures/product-patent-cases.json). It checks the contracts before
 and after the field/mechanism cleanup, while the separate compatibility snapshot protects all

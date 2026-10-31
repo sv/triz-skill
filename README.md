@@ -507,6 +507,10 @@ construction.
   See the [validation scope](docs/effects-evidence.md#product-and-patent-validation).
   `pnpm example:effects-recent-patents` checks nine 2025–2026 publications, four added response
   clauses, further interface sharing, and explicit state/probability limitations.
+- [Compound/clause assessments](skills/triz-innovation/references/effects-decomposition.md)
+  identify 15 named functions to retain as compounds, six entries needing separate clause models,
+  and 13 coupled responses to retain. Query them with `triz_effects.assessment`; missing facets
+  remain advisory and do not change the 78-entry executable catalogue.
 - The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
   every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
   wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.

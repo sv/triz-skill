@@ -42,6 +42,12 @@ The original six quantity tokens are retained, but their new explicit SI declara
 matching: hand-authored resources/carriers must include the retrieved SI where required.
 `triz_effect_setup` copies those declarations directly and avoids reconstructing them from names.
 
+For compound-versus-split decisions, see [effects decomposition](effects-decomposition.md).
+`triz_effects` accepts `assessment: "retain-response" | "retain-compound" | "split-models"`;
+`triz_knowledge.taxonomy.model_assessments` groups the reviewed and unassessed ids. Optional
+`model_assessment` metadata reviews the whole named function and explicitly scopes the current
+typing. Its facets are advisory references, not inferred generators or executable recipes.
+
 ## Set up a categorical model
 
 Call `triz_effect_setup` with registered effect ids in order and an explicit model domain:

@@ -42,6 +42,11 @@ if (knowledge.taxonomy.roles.response !== 69 || knowledge.taxonomy.roles.mechani
 if (!knowledge.taxonomy.field_groups.find(g => g.field === "magnetic")?.entry_ids.includes(65)) fail("magnetic response missing from its field group");
 const mechanisms = await json("triz_effects", { kind: "mechanism", field: "electric" });
 if (!mechanisms.effects.some(e => e.id === 72)) fail("traveling-field transport is not classified as a mechanism");
+const splitModels = await json("triz_effects", { assessment: "split-models" });
+if (JSON.stringify(splitModels.effects.map(e => e.id)) !== JSON.stringify([16, 20, 33, 35, 46, 47])) fail("compound/clause assessment filter missing");
+if (splitModels.effects.some(e => e.model_assessment.status !== "assessment-only")) fail("advisory assessments claimed stronger verification");
+const unregisteredFacet = await json("triz_effects", { output: "optical retardance" });
+if (unregisteredFacet.matched !== 0) fail("an unregistered assessment facet became an effect");
 const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
 const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });

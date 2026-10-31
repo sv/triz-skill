@@ -18,7 +18,10 @@ const knowledge = data.knowledge();
 // Compare arrow availability using current engine and exact vocabulary on both sides.
 // New quantity names can be queried in the old library, but supply no implicit arrows.
 const baselinePacks = structuredClone(knowledge.packs);
-for (const p of baselinePacks) p.effects = p.effects.filter(e => typeof e.id !== "number" || e.id <= fixture.baseline.last_effect_id);
+for (const p of baselinePacks) {
+  p.effects = p.effects.filter(e => typeof e.id !== "number" || e.id <= fixture.baseline.last_effect_id);
+  for (const e of p.effects) delete e.model_assessment; // Assessments postdate the baseline and can link new clauses.
+}
 const before = compileKnowledge(baselinePacks);
 const libraries = [before, knowledge].map(k => typedKnowledgeEffects(k.effects));
 const find = id => knowledge.effects.find(e => e.id === id);

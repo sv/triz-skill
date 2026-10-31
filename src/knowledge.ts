@@ -33,6 +33,22 @@ export const KnowledgeParameter = z.strictObject({
   })).default([]).describe("Explicit hypotheses; never extend or automatically query the canonical matrix"),
 });
 const EffectId = z.union([QualifiedId, z.number().int().positive()]);
+export const EffectAssessmentDecision = z.enum(["retain-response", "retain-compound", "split-models"]);
+export type EffectAssessmentDecision = z.infer<typeof EffectAssessmentDecision>;
+export const EffectModelAssessment = z.strictObject({
+  decision: EffectAssessmentDecision,
+  selected_clause: Text.describe("Scope of the existing registered typing, not the whole named application"),
+  rationale: Text,
+  facets: z.array(z.strictObject({
+    name: Text,
+    effect: EffectId.optional().describe("An existing registered clause only; omission means this facet has no registered typing"),
+  })).min(2).max(20).optional(),
+  source: KnowledgeSource,
+  status: z.literal("assessment-only").describe("Architectural judgment; neither a recipe nor a physical equivalence proof"),
+}).superRefine((a, ctx) => {
+  if (a.decision !== "retain-response" && !a.facets)
+    ctx.addIssue({ code: "custom", message: "Compound and split assessments must name at least two facets" });
+});
 const Description = {
   id: EffectId,
   name: Text,
@@ -43,6 +59,7 @@ const Description = {
   provenance: KnowledgeSource.optional(),
   review: KnowledgeReview.optional(),
   limitations: z.array(Text).optional(),
+  model_assessment: EffectModelAssessment.optional(),
   related_effects: z.array(z.strictObject({
     id: EffectId,
     relation: z.enum(["specializes", "uses", "related"]),
@@ -137,7 +154,12 @@ export function effectTaxonomy(effects: readonly RegisteredEffect[]) {
     roles,
     field_groups: fieldGroups,
     without_field: effects.filter(e => !e.field && !e.fields?.length).map(e => e.id),
-    note: "Fields classify entries; they do not supply response contracts. Roles describe selected responses, designed mechanisms or serial recipes, not scientific novelty or irreducible laws. A recipe may belong to several field groups.",
+    model_assessments: {
+      ...Object.fromEntries(EffectAssessmentDecision.options.map(decision =>
+        [decision, effects.filter(e => e.model_assessment?.decision === decision).map(e => e.id)])) as Record<EffectAssessmentDecision, Array<string | number>>,
+      unassessed: effects.filter(e => !e.model_assessment).map(e => e.id),
+    },
+    note: "Fields classify entries; they do not supply response contracts. Roles describe selected responses, designed mechanisms or serial recipes, not scientific novelty or irreducible laws. Model assessments review the whole named function and may cover more than its selected typing; they are advisory. A recipe may belong to several field groups.",
   };
 }
 
@@ -255,6 +277,13 @@ export function compileKnowledge(raw: unknown[]) {
   for (const e of effects) for (const ref of e.related_effects ?? []) {
     if (!effectIds.has(ref.id) || ref.id === e.id)
       throw new Error(`Effect ${e.id} has an unknown or self-referential related effect: ${ref.id}`);
+  }
+  for (const e of effects) for (const facet of e.model_assessment?.facets ?? []) {
+    if (facet.effect === undefined) continue;
+    const target = resolved.get(facet.effect);
+    if (!target) throw new Error(`Effect ${e.id} model assessment references unknown effect ${facet.effect}`);
+    if (!target.input_parameter || !target.output_parameter)
+      throw new Error(`Effect ${e.id} model assessment references untyped effect ${facet.effect}`);
   }
   const specializations = effects.filter(e => e.definition.form === "specialization").length;
   const composites = effects.filter(e => e.definition.form === "composite").length;
