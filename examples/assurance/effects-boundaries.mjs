@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
-import { compareBehavior, externalBehavior } from "../../src/act-behavior.ts";
+import { BehaviorEvaluationCache, compareBehavior, externalBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics } from "../../src/act-dynamics.ts";
 import { modelCertificate, behaviorCertificate, dynamicsCertificate } from "../../src/act-cert.ts";
 import { discovery } from "./effects-configurations.mjs";
@@ -30,10 +30,13 @@ function reference(model, effect, rows, primaryValues) {
 }
 export function validateBoundaryModels(k) {
   const certificates = {}, relations = [];
+  const options = { scope: "whole", evaluationCache: new BehaviorEvaluationCache() };
   const store = (name, cert) => { assert.ok(cert.ok, JSON.stringify(cert)); certificates[name] = cert; };
   const check = (name, baseline, model) => {
-    const result = compareBehavior(baseline, model, { scope: "whole" });
+    const result = compareBehavior(baseline, model, options);
     assert.ok(result.ok && result.verdict === "preserved", JSON.stringify(result));
+    const scan = compareBehavior(baseline, model, { ...options, relationOptions: { indexed: false, decompose: false, elimination: "off" } });
+    assert.ok(scan.ok && scan.verdict === "preserved" && scan.inputValuations === result.inputValuations, JSON.stringify(scan));
     store(`${name}Typing`, modelCertificate(model));
     store(`${name}Behavior`, behaviorCertificate(baseline, model, { scope: "whole" }));
     relations.push({ name, verdict: result.verdict });
@@ -51,7 +54,7 @@ export function validateBoundaryModels(k) {
   check("LinearAnalyzer", aref, analyzer.model);
   const dark = structuredClone(analyzer.model);
   for (const row of dark.boxes.find(b => b.id === "resource").behavior) row.out["context-0-illumination"] = "0";
-  const darkRelation = externalBehavior(dark, { scope: "whole" });
+  const darkRelation = externalBehavior(dark, options);
   assert.ok(darkRelation.ok && darkRelation.decided && darkRelation.relation.every(row => row.outputs.every(out => out[0] === "0")));
   // Selected charge q=2 pC, field ±100 kV/m: the example force component is ±0.2 uN.
   const force = setupEffectModel({ chain: [59], domain: "physical", bindings: bindings({
@@ -63,8 +66,8 @@ export function validateBoundaryModels(k) {
   const fref = reference(force.model, 59, fr, fr);
   check("ParticleForceObservation", fref, force.model);
   const altered = structuredClone(force.model);
-  altered.boxes.find(b => b.id === "effect-0-observe-observed").behavior[0].out.out = "0.2uN";
-  const wrong = compareBehavior(fref, altered, { scope: "whole" });
+  altered.boxes.find(b => b.id === force.setup.boundary_mappings[0].box).behavior[0].out.out = "0.2uN";
+  const wrong = compareBehavior(fref, altered, options);
   assert.ok(wrong.ok && wrong.verdict !== "preserved", "sign-changing force relabeling must fail the reference relation");
   // Stateful phase is retained. The DC-clause relation is supported only in the selected superconducting envelope.
   const currents = ["0A", "1A"];
@@ -77,7 +80,7 @@ export function validateBoundaryModels(k) {
       "0/transport": { behavior: currents.map(drive => ({ in: { phase: "sc", drive }, out: { transmitted: drive } })) },
     } }, k);
   assert.ok(sc.ok, JSON.stringify(sc));
-  const snapshot = structuredClone(sc.model), phase = snapshot.boxes.find(b => b.id === "effect-0-phase");
+  const snapshot = structuredClone(sc.model), phase = snapshot.boxes.find(b => b.id === sc.setup.model_sources.find(s => s.model === p("superconducting-phase")).node);
   // Explicit restriction to stable SC-state rows. This is not an implicit erasure of dynamics.
   phase.behavior = phase.transition.filter(row => row.state === "sc" && row.next === "sc").map(({ in: input, out }) => ({ in: input, out }));
   delete phase.state; delete phase.initial; delete phase.transition;
@@ -90,7 +93,7 @@ export function validateBoundaryModels(k) {
   store("DCObservationStatefulTrace", dynamicsCertificate(sc.model, protocol));
   const outside = structuredClone(snapshot);
   for (const row of outside.boxes.find(b => b.id === "resource").behavior) row.out["context-0-temperature"] = "hot";
-  const unsupported = externalBehavior(outside, { scope: "whole" });
+  const unsupported = externalBehavior(outside, options);
   assert.ok(unsupported.ok && unsupported.decided && unsupported.relation.every(row => row.outputs.length === 0));
   // This denotes an unsupported SC clause outside its envelope; it does not say normal wires carry no current.
   const cases = JSON.parse(fs.readFileSync(new URL("./fixtures/boundary-patent-cases.json", import.meta.url), "utf8")).cases;
@@ -103,6 +106,7 @@ export function validateBoundaryModels(k) {
     assert.ok(c.priority_on <= c.published_on && c.published_on <= "2026-10-31");
     return { ...c, before: old.result.verdict, after: current.result.verdict, candidates: current.result.satisfyingCount };
   });
+  assert.ok(options.evaluationCache.stats.hits > 0, "shared summaries should reuse unchanged finite boundaries while rejecting changed models");
   return { report: { finite_relations: relations, zero_illumination_checked: true, force_sign_corruption_rejected: true,
     phase_state_retained: true, out_of_envelope_unsupported: true, patent_cases: patentCases }, certificates };
 }

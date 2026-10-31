@@ -103,6 +103,12 @@ replace the composition with an opaque relation. Bind every constituent quantity
 using values from explicit carrier domains. Recipes retain integration hypotheses/provenance
 and expand to at most 12 actual model/effect boxes.
 
+Scalar and named setup share one builder. Named networks lower to typed inner diagrams and use
+the existing checked hierarchy substitution for fresh names and boundary rewiring. Read instance
+ids from `effects[].nodes`, `setup.model_sources[].node` and `setup.boundary_mappings[].box`;
+declaration keys such as `0/ionize` are unchanged. Shared inputs, output aliases and unused output
+ports retain their original wiring/relations; no implementation is summarized away.
+
 Optional `KnowledgePack.boundary_mappings` defines sourced forward observations with qualified `id`,
 `name`, `description`, `input_parameter`, `output_parameter`, `relation:"forget-refinement"`,
 `rationale`, conditions, limitations, provenance and optional review. Mappings must be non-identity,

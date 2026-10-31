@@ -82,6 +82,27 @@ test("a serial recipe containing a named configuration retains integration hypot
   assert.ok(setup.setup.sources.some(e => e.id === "physical:wind-pressure"));
 });
 
+test("hierarchy lowering preserves shared primary pins, output aliases, hidden outputs and fresh observation ids", () => {
+  const pack = configPack(), wind = pack.effects.find((e: any) => e.id === 33).configuration;
+  wind.outputs.push({ id: "alias", from: { ...wind.outputs[0].from } }, { id: "internal-force", from: { node: "momentum", port: "force" } });
+  pack.models.find((m: any) => m.id === "physical:gas-flow-response").outputs.push({ id: "diagnostic", parameter: "physical:fluid-velocity" });
+  const force = pack.effects.find((e: any) => e.id === 59).configuration;
+  const old = force.nodes[0].id; force.nodes[0].id = "observe-0";
+  for (const p of force.inputs) for (const t of p.targets) if (t.node === old) t.node = "observe-0";
+  for (const p of force.outputs) if (p.from.node === old) p.from.node = "observe-0";
+  const registry = compileKnowledge([pack]);
+  for (const id of [33, 35, 59]) {
+    const setup = setupEffectModel({ chain: [id], domain: "physical" }, registry);
+    assert.ok(setup.ok, JSON.stringify(setup));
+    assert.ok(setup.model.boxes.every(b => !b.inner && !b.behavior));
+    const replay = rewrite({ ...setup.model, boxes: setup.model.boxes.slice(0, 2), wires: [] }, setup.rewrite);
+    assert.ok(replay.ok); assert.deepEqual(replay.model, setup.model);
+    if (id === 35) assert.equal(setup.model.wires.filter(w => w.from.box === "resource" && w.from.port === "out").length, 2);
+    if (id === 33) assert.equal(setup.model.boxes.find(b => b.id === "effect-0/flow")!.outputs!.length, 2);
+    if (id === 59) assert.notEqual(setup.setup.model_sources![0].node, setup.setup.boundary_mappings![0].box);
+  }
+});
+
 test("a software configuration instantiates one stateful template twice under one type environment", () => {
   const signal = "software:signal", memory = "software:memory", model = "software:delay", effect = "software:double-delay";
   const source = { citation: "Synthetic cross-domain regression", license: "MIT" };
@@ -112,8 +133,15 @@ test("a software configuration instantiates one stateful template twice under on
   assert.deepEqual(setup.model.carriers, catalogue.catalogue.carriers);
   const component = catalogue.catalogue.entries[0];
   assert.ok("component" in component);
-  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0-first"), { ...component.component, id: "effect-0-first" });
-  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0-second")!.initial, ["1"]);
+  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0/first"), { ...component.component, id: "effect-0/first" });
+  assert.deepEqual(setup.model.boxes.find(b => b.id === "effect-0/second")!.initial, ["1"]);
+  const repeated = setupEffectModel({ ...options, chain: [effect, effect], node_declarations: {
+    ...options.node_declarations, "1/first": second, "1/second": first,
+  } }, registry);
+  assert.ok(repeated.ok, JSON.stringify(repeated));
+  assert.deepEqual(repeated.model.boxes.filter(b => b.role === "tool").map(b => [b.id, b.initial]), [
+    ["effect-0/first", ["0"]], ["effect-0/second", ["1"]], ["effect-1/first", ["1"]], ["effect-1/second", ["0"]],
+  ]);
   const invalid = setupEffectModel({ ...options, node_declarations: { ...options.node_declarations,
     "0/second": { behavior: [{ in: { in: "0" }, out: { out: "0" } }] } } }, registry);
   assert.equal(invalid.ok, false);

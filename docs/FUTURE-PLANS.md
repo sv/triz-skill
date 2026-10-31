@@ -1,7 +1,7 @@
 # Engine roadmap
 
 This is the single prioritized backlog. Status was reconciled against reference main
-`68556e9` on 2026-10-31; local synthesis changes are identified separately below.
+`abd8693` on 2026-11-01; PR #55 effects changes remain under review.
 [Assurance requirements](assurance-requirements.md) owns acceptance and proof obligations,
 [delivered assurance](categorical-assurance.md) owns current guarantees, and the
 [theory map](theory-map.md#what-is-not-claimed) records their limits. See the
@@ -91,9 +91,9 @@ coverage. Its detailed adversarial cases live only in
 | C1 | Implemented, #42 | Wire-equivalence quotient for finite certificates |
 | C2 | Carrier quantity kinds implemented, #42 | Cost aggregation across ideality, feasibility, windows, refinement and isomorphism; conversion/conservation adapters |
 | C3 | Open | Declared value orders, port-level signed SCCs and conditional lattice steady-state results |
-| C4 | Implemented in local PR #52 changes | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
+| C4 | Merged in #52 | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
 | C5 | Implemented, #42 | Horizon-free time-invariant finite saturation; schedules and work caps retain bounded/undecided scope |
-| C6 | Indexed table evaluation in local PR #52 changes | Total-function recognition and feedback-cut propagation remain open |
+| C6 | Indexed table evaluation merged in #52 | Total-function recognition and feedback-cut propagation remain open |
 | C7 | Abstract gluing theorem implemented, #51 | Check join-tree witnesses and connect a constructive reducer/solver to the theorem |
 | C8 | Open | Optional totality/input-enabledness lint with explicit feedback hypotheses |
 
@@ -137,22 +137,22 @@ review status; an Agents snapshot does not supply imperative transition semantic
 
 | ID | Status | Next slice |
 |---|---|---|
-| S1 | Finite min-fill separator elimination in local #52 | Checked runtime correspondence; stronger orders and shared decomposition plans; extend beyond behavior projection |
-| S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in local #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
+| S1 | Finite min-fill separator elimination merged in #52 | Checked runtime correspondence; stronger orders and shared decomposition plans; extend beyond behavior projection |
+| S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
 | S3 | Exact stateless single-mode contracts implemented | Local residual synthesis, explicitly coupled multi-mode contracts, then dynamics |
-| S4 | Request-local synthesis cache in local changes | Checked warm starts/content-hash subsystem reuse across requests |
+| S4 | Request-local synthesis cache merged in #52 | Checked warm starts/content-hash subsystem reuse across requests |
 | S5 | Open; C5/Q5 available | Observable- and reward-preserving bisimulation before dynamic products |
 | S6 | Open | Checked symbolic summaries for recognized mathematical primitives |
 
-The local changes add backward residual filtering, propagation over component choices and exact
+PR #52 adds backward residual filtering, propagation over component choices and exact
 boundary memoization for stateless fixed-wiring synthesis, plus a shared finite relation layer,
 joint-tuple indexed joins, indexed correlation propagation, connected-factor evaluation and
 [separator elimination](separator-elimination.md) with exact counts and bounded samples.
 See [shared relations](shared-relations.md).
 Exhaustive comparison, ablations, rollback caps and measurements are documented in
 [synthesis search](synthesis-search.md) and
-[benchmarks](../benchmarks/synthesis/latest.md). They are not merged-main capabilities in the
-reference revision, a formal proof of the TypeScript optimizer, or lifecycle/topology optimization.
+[benchmarks](../benchmarks/synthesis/latest.md). These finite optimizations are merged in the reference revision; they do not supply a formal
+proof of the TypeScript optimizer or lifecycle/topology optimization.
 
 S1 remains exponential in treewidth; dense feedback still hits caps. S2 preserves complete
 solutions but cannot establish global consistency by itself. S3 must check summaries or provide

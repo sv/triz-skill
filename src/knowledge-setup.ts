@@ -1,10 +1,10 @@
 /** Instantiate registered effect generators without inventing finite behavior or resource rows. */
 import { z } from "zod";
-import { FunctionModel, type FunctionModel as Model } from "./act.js";
-import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
+import { FunctionModel } from "./act.js";
+import { EffectInsertRequest } from "./act-effect-insert.js";
 import { fail, issue } from "./act-issues.js";
 import { compileKnowledge, typedKnowledgeEffects } from "./knowledge.js";
-import { bindKnowledgeParameters, KnowledgeBindings, ModelImplementation } from "./knowledge-models.js";
+import { KnowledgeBindings, ModelImplementation } from "./knowledge-models.js";
 import { setupConfigurationChain } from "./knowledge-configuration-setup.js";
 
 const Text = z.string().min(1);
@@ -43,35 +43,7 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
     if (entries[i - 1].output_parameter !== entries[i].input_parameter)
       return reject(`$.chain[${origins[i]}]`, "Adjacent effects reference different quantity parameters", "Use triz_effect_chains to discover a compatible chain; equal SI dimensions alone do not establish compatibility.");
   }
-  if (entries.some(e => e.definition.form === "configuration")) return setupConfigurationChain(a, knowledge, entries, requested.map(e => e!));
-  if (Object.keys(a.node_declarations).length || Object.keys(a.context_values).length)
+  if (!entries.some(e => e.definition.form === "configuration") && (Object.keys(a.node_declarations).length || Object.keys(a.context_values).length))
     return reject("$.node_declarations", "Configuration options supplied without a named configuration", "Use ordinary declarations for direct effects.");
-  const path = [entries[0].input_parameter!, ...entries.map(e => e.output_parameter!)];
-  const bound = bindKnowledgeParameters(path, a.bindings, knowledge.parameters);
-  if (!bound.ok) return bound;
-  const { carriers } = bound;
-  const model: Model = {
-    domain: a.domain, ...(a.system ? { system: a.system } : {}), carriers,
-    boxes: [
-      { id: "resource", name: "Declared resource", role: "environment", outputs: [{ id: "out", carrier: path[0] }],
-        ...(a.boundary ? { behavior: a.boundary.source_values.map(v => ({ in: {}, out: { out: v } })) } : {}) },
-      { id: "required", name: "Required output", role: "product", inputs: [{ id: "in", carrier: path.at(-1)! }],
-        ...(a.boundary ? { behavior: a.boundary.accepted_values.map(v => ({ in: { in: v }, out: {} })) } : {}) },
-    ], wires: [],
-  };
-  const chain = expanded.map(id => library.find(e => e.id === id)!);
-  const result = insertEffectChain({ model, from: { box: "resource", port: "out" }, to: { box: "required", port: "in" },
-    chain, intermediate_carriers: path.slice(1, -1), declarations: a.declarations, conditions: a.conditions }, library);
-  if (!result.ok) return result;
-  const conditions = [...new Set([...result.unmetConditions, ...requested.flatMap(e => e!.conditions ?? []).filter(c => !a.conditions.includes(c))])];
-  const sourceMap = new Map<string | number, typeof entries[number]>();
-  const collect = (entry: typeof entries[number]) => {
-    if (sourceMap.has(entry.id)) return;
-    sourceMap.set(entry.id, entry);
-    if (entry.definition.form === "composite") for (const id of entry.definition.steps)
-      collect(knowledge.effects.find(e => e.id === id)!);
-  };
-  requested.forEach(e => collect(e!));
-  return { ...result, unmetConditions: conditions, setup: { parameter_ids: path, effect_ids: a.chain, expanded_effect_ids: expanded,
-    sources: [...sourceMap.values()].map(e => ({ id: e.id, definition: e.definition, provenance: e.provenance, review: e.review, limitations: e.limitations })) } };
+  return setupConfigurationChain(a, knowledge, entries, requested.map(e => e!));
 }

@@ -88,6 +88,13 @@ substitutions. Boundary controls cover Malus points at 0°/45°/90° and zero il
 qE and sign corruption, incompatible/reversed observations, and unsupported SC envelopes.
 The steady SC comparison fixes phase; the configured model retains a separate stateful trace.
 
+Setup uses the same checked hierarchy substitution as other open diagrams; scalar and named
+effects share one assembly path. The Lean foundations are `external_seq` and
+`external_substituteWired` in [Semantics](../theory/Semantics.lean) and [Hierarchy](../theory/Hierarchy.lean).
+The TypeScript lowering is regression-tested, not extracted from Lean. After merging #52, the
+boundary checks also compare indexed/factored evaluation with the shared engine's scan fallback
+and reuse its bounded request-local summaries; corruptions still invalidate those summaries.
+
 `--cert-dir DIR` emits eight patent typing certificates from the configuration runner and nine
 from the reduction runner (four typings, four selected finite equivalences, one stateful current
 trace). CI checks Lean acceptance and tamper rejection. Focused tests also check two typings,

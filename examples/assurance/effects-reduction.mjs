@@ -58,7 +58,7 @@ export function validateNamedReduction() {
   const compared = compareBehavior(reference, model, { scope: "whole" });
   assert.ok(compared.ok && compared.verdict === "preserved", JSON.stringify(compared));
   const broken = structuredClone(model);
-  broken.boxes.find(b => b.id === "effect-0-flow").behavior[1].out.flow = "0";
+  broken.boxes.find(b => b.id === expanded.setup.model_sources.find(s => s.model === p("gas-flow-response")).node).behavior[1].out.flow = "0";
   const mismatch = compareBehavior(reference, broken, { scope: "whole" });
   assert.ok(mismatch.ok && mismatch.verdict !== "preserved", "a broken force-to-flow calibration must change the relation");
   const missing = structuredClone(options); delete missing.context_values["0/field"];
