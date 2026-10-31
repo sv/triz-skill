@@ -131,6 +131,7 @@ satisfying counts and first witnesses. Timings include
 preprocessing and request-local cache construction, with one warmup and seven rotated samples
 per variant. No timing threshold is used as a correctness test.
 
-See [the before/after and ablation tables](../benchmarks/synthesis/latest.md) and
-[raw samples, counters, runtime and source hashes](../benchmarks/synthesis/latest.json).
+See [the before/after and ablation summary](../benchmarks/synthesis/latest.md).
+The benchmark command generates full raw samples, counters and source hashes locally in
+`benchmarks/synthesis/latest.json` (git-ignored).
 The fixtures are synthetic algorithm exercises; motor/cyclone case-study data is not included.
