@@ -38,6 +38,32 @@ function differential(input: SynthesisInput) {
   return solve(input);
 }
 
+test("caps during initial encoding and alternative validation retain pre-search candidate metadata", () => {
+  const cases = JSON.parse(fs.readFileSync(new URL("../examples/assurance/requests.json", import.meta.url), "utf8"));
+  const input = cases.find((c: { tool: string }) => c.tool === "triz_synthesize").args;
+  for (const strategy of ["exhaustive", "optimized", "symbolic"] as const) {
+    let previousWork = -1;
+    for (const max_work of [1, 40, 50]) {
+      const r = synthesizeFinite({ ...input, strategy, max_work });
+      assert.ok(r.ok && r.verdict === "undecided" && "reason" in r && r.reason === "work-cap");
+      assert.deepEqual(r.candidateSpace, { size: null, enumerated: 0, complete: false, scope: "Declared finite libraries on fixed wiring; cap reached before search." });
+      assert.ok(r.work > previousWork); previousWork = r.work;
+    }
+  }
+});
+
+test("explicitly disabled symbolic pruning reports its reason on small and larger requests", () => {
+  for (const n of [2, 6]) {
+    const input = synthesisFixture("coupled", n), reference = solve(input, "exhaustive");
+    const r = solve({ ...input, optimizations: { backward_residual: false, choice_propagation: false } });
+    assert.equal(r.searchStats.symbolic.status, "disabled");
+    assert.equal(r.searchStats.symbolic.reason, "pruning-disabled");
+    assert.equal(r.searchStats.symbolic.work, 0);
+    assert.equal(r.satisfyingCount, reference.satisfyingCount);
+    assert.deepEqual(r.witness?.choices, reference.witness?.choices);
+  }
+});
+
 test("small requests reuse optimized search, including the unchanged shipped synthesis example", () => {
   const cases = JSON.parse(fs.readFileSync(new URL("../examples/assurance/requests.json", import.meta.url), "utf8"));
   const input = cases.find((c: { tool: string }) => c.tool === "triz_synthesize").args;

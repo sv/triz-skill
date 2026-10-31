@@ -46,9 +46,9 @@ try {
     const kernelMs = performance.now() - checkStart;
     // Corrupt a primitive relation, a composition, a support label, and a carrier identity.
     const corruptions = ["relation", "composition", "support", "carrier", "missing-stages", "extra-layer", "repeated-hole", "fixed-choice-count", "tuple-arity", "port-arity"];
-    for (const kind of corruptions) {
+    for (const region of result.symbolicCertificates.keys()) for (const kind of corruptions) {
       const bad = structuredClone(result.symbolicCertificates);
-      const c = bad[0];
+      const c = bad[region];
       if (kind === "relation") c.stages[0].primitives[0].rows.pop();
       if (kind === "composition") c.layers[1][0].image[0] = 999;
       if (kind === "support") c.stages[0].edges[0].choices = [];
@@ -65,7 +65,7 @@ try {
       fs.writeFileSync(path.join(tmp, "Tampered.lean"), exportSymbolicLean(bad));
       run("Tampered.lean", [], false);
     }
-    records.push({ request: i, holes: input.holes.length, encodingAndSynthesisMs: encodingMs, certificateBytes: Buffer.byteLength(text), kernelCheckMs: kernelMs, tamperedRejected: corruptions.length });
+    records.push({ request: i, holes: input.holes.length, regions: result.symbolicCertificates.length, encodingAndSynthesisMs: encodingMs, certificateBytes: Buffer.byteLength(text), kernelCheckMs: kernelMs, tamperedRejected: corruptions.length * result.symbolicCertificates.length });
   }
   console.log(JSON.stringify({ localOnly: true, reusableLawsCompileAndAuditMs: lawsMs,
     lawTheoremsAudited: [...stripComments(source).matchAll(/^theorem (\w+)/gm)].map(m => m[1]), standardAxiomsOnly: true, records }, null, 2));

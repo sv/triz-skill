@@ -52,7 +52,7 @@ export function synthesizeFinite(input: unknown) {
     for (const a of h.alternatives) {
       const { producible: _producible, ...rest } = b;
       const declaration = { domain: s.model.domain, carriers: s.model.carriers, wires: [], boxes: [{ ...rest, behavior: a.behavior, feasibility: [a.feasibility], ...(a.cost !== undefined ? { cost: a.cost } : {}) }] };
-      if (!budget.spend(modelWork(declaration))) return engineeringCap(budget);
+      if (!budget.spend(modelWork(declaration))) return { ...engineeringCap(budget), candidateSpace: { size: null, enumerated: 0, complete: false, scope: "Declared finite libraries on fixed wiring; cap reached before search." } };
       const valid = checkModel(declaration, `$.holes[${i}].alternatives`);
       if (!valid.ok) return fail(valid.issues);
     }
@@ -82,6 +82,7 @@ export function synthesizeFinite(input: unknown) {
     ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation) : undefined;
   if (optimized && !canPrune) { pruning.status = "fallback"; pruning.reason = "pre-behavior-validation"; }
   if (s.strategy === "symbolic" && !canPrune) { symbolic.status = "fallback"; symbolic.reason = "pre-behavior-validation"; }
+  else if (s.strategy === "symbolic" && !residual && !propagation) { symbolic.reason = "pruning-disabled"; }
   else if (s.strategy === "symbolic" && smallContext) { symbolic.status = "fallback"; symbolic.reason = "small-context"; }
   const asNumber = (n: bigint) => n <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(n) : null;
   const selected = new Map<string, (typeof s.holes)[number]["alternatives"][number]>();

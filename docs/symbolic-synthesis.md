@@ -1,5 +1,10 @@
 # Checked symbolic synthesis
 
+This implements the bounded serial slice of [roadmap S6](FUTURE-PLANS.md#s6-checked-symbolic-summaries).
+The [broader design proposal in #52](https://github.com/sv/triz-skill/blob/8560e2508f0f7484d3ba9f56077682c2c6705ffc/docs/symbolic-summary-design.md)
+also covers extensions that remain open; integration with its shared relation kernel is pending
+that PR's landing.
+
 `triz_synthesize` accepts `strategy: "symbolic"` alongside `"optimized"` (the default)
 and `"exhaustive"` (the reference). Symbolic compilation composes finite maps **before**
 the optimized solver enumerates union behavior traces. It is opt-in because preprocessing
@@ -58,6 +63,8 @@ Edge masks are precomputed. A request-local cache keys completed residual result
 region's reachable terminal-map set **and every uncovered choice domain**. Arrays are copied;
 backward propagation reruns on concrete domains. Capped passes are not cached. A full cache
 continues uncached; `optimizations.memoize_symbolic: false` disables it for comparison.
+Disabling both `backward_residual` and `choice_propagation` reports symbolic status `disabled`
+with reason `pruning-disabled`.
 When choosing an already-forced singleton leaves the entire domain vector unchanged, search
 inherits the parent's necessary constraints instead of filtering again. This also holds after
 rollback: inherited domains remain a sound superset. Every concrete leaf is still validated.
@@ -99,7 +106,8 @@ or allowance exhaustion discards compilation before residual enumeration.
 and checks them locally using `decide +kernel`. The encoding includes UTF-16 carrier/port
 identities, full value tuples, primitive relations, stage/layer counts, unique box/hole
 references, tuple/port arities, choice counts and all support transitions. Tamper tests require
-a kernel-proved false proposition; process errors/timeouts are not rejection evidence. CI runs
+a kernel-proved false proposition for each corruption of each region; process errors/timeouts
+are not rejection evidence. CI runs
 these checks and `lake build --wfail`. For a private request:
 
 ```sh
