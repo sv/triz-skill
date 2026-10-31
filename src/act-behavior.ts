@@ -1,3 +1,7 @@
+import { RelationPlan, type RelationOptions, type RelationStats, type ProjectedRow } from "./act-relations.js";
+import { modelRelations, portVariables } from "./act-relation-model.js";
+export { bindRow, portVariables, type Binding, type PortVariables } from "./act-relation-model.js";
+import type { Binding } from "./act-relation-model.js";
 import { MAX_PROPAGATION_WORK, propagateRows, semijoinRows, type PropagationStatus } from "./act-propagation.js";
 import { cheapestCover } from "./act-graded.js";
 /**
@@ -47,7 +51,11 @@ import { at as jp, fail, issue, quoted, rebase, where, type Failure as BaseFailu
 export type Box = FunctionModel["boxes"][number];
 /** `upstream` retains the legacy projection assumption; `whole` composes every declared box. */
 export type BehaviorScope = "upstream" | "whole";
-export type BehaviorOptions = { maxStates?: number; scope?: BehaviorScope; fullRelation?: boolean };
+export type BehaviorOptions = { maxStates?: number; scope?: BehaviorScope; fullRelation?: boolean;
+  /** Internal, request-local reuse of exact evaluations; never a caller-supplied assertion. */
+  evaluationCache?: BehaviorEvaluationCache;
+  /** Internal ablations; public synthesis controls map to these options. */
+  relationOptions?: RelationOptions };
 /** A complete joint assignment of the operating inputs, identified by endpoint rather than order. */
 export type OperatingSituation = Array<{ box: string; port: string; value: string }>;
 /** Explicit joint weights; zero weights are permitted, and every situation must be listed once. */
@@ -132,63 +140,44 @@ export function plan(model: FunctionModel, observe: Endpoint[], opts: { scope?: 
   };
 }
 
-interface Row { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number; }
-interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, Row>; explored: number; propagation: PropagationStatus; }
+interface Evaluation { ok: true; inputs: Typed[]; variables: Typed[]; table: Map<string, ProjectedRow>; explored: number; propagation: PropagationStatus; relationStats: RelationStats; }
 
-export interface PortVariables {
-  variables: Array<Typed & { side: "in" | "out" }>;
-  /** The variable a port belongs to. */
-  at: (box: string, side: "in" | "out", port: string) => number;
-  /** Variables with no output port: the unwired input ports. */
-  boundary: number[];
+/** Bounded, request-local boundary summaries. Resources are deliberately excluded from the
+ * key: they do not change the declared steady-state relation and are checked independently.
+ * Internal valuations are retained for existing diagnostics. Only complete evaluations cache;
+ * a smaller state allowance cannot reuse an evaluation that exceeded that allowance. */
+export class BehaviorEvaluationCache {
+  private readonly entries = new Map<string, Evaluation>();
+  private cells = 0;
+  readonly stats = { hits: 0, computations: 0, work: 0, entries: 0 };
+  constructor(readonly enabled = true, readonly maxCells = 200_000, readonly relationOptions: RelationOptions = {}) {}
+  evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, options = this.relationOptions): Evaluation | Failure {
+    const key = this.enabled ? JSON.stringify([
+      model.carriers.map(c => [c.id, c.values]),
+      p.composed.map(b => [b.id, b.inputs, b.outputs, b.behavior]),
+      model.wires.map(w => [w.from, w.to]), observe, options,
+    ]) : "";
+    const cached = this.entries.get(key);
+    if (cached && cached.explored <= max) {
+      this.stats.hits++; this.stats.work++;
+      return cached;
+    }
+    this.stats.computations++;
+    const result = evaluate(model, p, observe, max, options);
+    this.stats.work += result.ok ? result.explored : max;
+    if (this.enabled && result.ok && this.entries.size < 128 && !cached) {
+      const cells = key.length + [...result.table.values()].reduce((n, r) =>
+        n + r.input.length + r.outputs.size * observe.length + r.states.length * result.variables.length, 0);
+      if (this.cells + cells <= this.maxCells) {
+        this.entries.set(key, result); this.cells += cells; this.stats.entries++;
+      }
+    }
+    return result;
+  }
 }
 
-/**
- * Ports joined by wires are one variable, represented by its output port when it has one. Covers
- * the ports of `boxes` and the `extra` input ports; every wire into them must come from `boxes`.
- */
-export function portVariables(model: FunctionModel, boxes: Box[], extra: Typed[] = []): PortVariables {
-  const parent = new Map<string, string>();
-  const info = new Map<string, Typed & { side: "in" | "out" }>();
-  const find = (k: string): string => {
-    while (parent.get(k) !== k) { parent.set(k, parent.get(parent.get(k)!)!); k = parent.get(k)!; }
-    return k;
-  };
-  const add = (e: Typed, side: "in" | "out") => {
-    const k = portKey(e.box, side, e.port);
-    if (!parent.has(k)) { parent.set(k, k); info.set(k, { ...e, side }); }
-  };
-  for (const b of boxes) {
-    for (const q of b.inputs ?? []) add({ box: b.id, port: q.id, carrier: q.carrier }, "in");
-    for (const q of b.outputs ?? []) add({ box: b.id, port: q.id, carrier: q.carrier }, "out");
-  }
-  for (const d of extra) add(d, "in");
-  for (const w of model.wires) {
-    const t = portKey(w.to.box, "in", w.to.port);
-    if (parent.has(t)) parent.set(find(t), find(portKey(w.from.box, "out", w.from.port)));
-  }
-  const index = new Map<string, number>();
-  const variables: Array<Typed & { side: "in" | "out" }> = [];
-  for (const [k, e] of info) {
-    const r = find(k);
-    if (!index.has(r)) { index.set(r, variables.length); variables.push(e); }
-    else if (e.side === "out" && variables[index.get(r)!].side === "in") variables[index.get(r)!] = e;
-  }
-  return {
-    variables,
-    at: (box, side, port) => index.get(find(portKey(box, side, port)))!,
-    boundary: variables.flatMap((e, i) => (e.side === "in" ? [i] : [])),
-  };
-}
-
-/** A row as (variable, value) bindings over the box's ports, inputs first. */
-export type Binding = Array<[number, string]>;
-export function bindRow(b: Box, row: { in: Record<string, string>; out: Record<string, string> }, at: PortVariables["at"]): Binding {
-  return [
-    ...(b.inputs ?? []).map((q) => [at(b.id, "in", q.id), row.in[q.id]] as [number, string]),
-    ...(b.outputs ?? []).map((q) => [at(b.id, "out", q.id), row.out[q.id]] as [number, string]),
-  ];
-}
+const evaluateObserved = (model: FunctionModel, p: Plan, observe: Observed[], max: number, cache?: BehaviorEvaluationCache, options?: RelationOptions) =>
+  cache ? cache.evaluate(model, p, observe, max, options) : evaluate(model, p, observe, max, options);
 
 /**
  * Backtracking join: every way to pick one row per set that agrees with the bound entries of
@@ -197,35 +186,7 @@ export function bindRow(b: Box, row: { in: Record<string, string>; out: Record<s
  * Every search node counts against `budget`; past `budget.max` the join stops and returns false.
  */
 export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assign: Array<string | undefined>, done: (picked: number[]) => void, budget: { explored: number; max: number }): boolean {
-  const bound = new Set(assign.flatMap((x, i) => (x === undefined ? [] : [i])));
-  const pending = sets.map((s, i) => ({ ...s, i })), order: typeof pending = [];
-  while (pending.length) {
-    const score = (x: (typeof pending)[number]) => x.vars.filter((i) => bound.has(i)).length;
-    let best = 0;
-    pending.forEach((x, i) => { if (score(x) > score(pending[best])) best = i; });
-    const [next] = pending.splice(best, 1);
-    order.push(next);
-    for (const i of next.vars) bound.add(i);
-  }
-  const picked: number[] = new Array(sets.length);
-  let overflow = false;
-  const join = (depth: number) => {
-    if (overflow || ++budget.explored > budget.max) { overflow = true; return; }
-    if (depth === order.length) { done(picked); return; }
-    order[depth].rows.forEach((binding, r) => {
-      const touched: number[] = [];
-      let consistent = true;
-      for (const [i, x] of binding) {
-        if (assign[i] === undefined) { assign[i] = x; touched.push(i); }
-        else if (assign[i] !== x) { consistent = false; break; }
-      }
-      picked[order[depth].i] = r;
-      if (consistent) join(depth + 1);
-      for (const i of touched) assign[i] = undefined;
-    });
-  };
-  join(0);
-  return !overflow;
+  return new RelationPlan(sets, { indexed: false, decompose: false, smallFirst: false }).enumerate(assign, done, budget);
 }
 
 /**
@@ -233,74 +194,43 @@ export function joinRows(sets: Array<{ vars: number[]; rows: Binding[] }>, assig
  * variable; each composed box contributes its relation; a backtracking join enumerates every
  * consistent valuation. Fails closed when the boundary valuations or the search states pass `max`.
  */
-function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number): Evaluation | Failure {
+function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: number, options: RelationOptions = {}): Evaluation | Failure {
   // Output-side probes are ports of composed boxes, so only input-side observations are extra.
-  const { variables, at: v, boundary } = portVariables(model, p.composed, observe.filter((d) => (d.side ?? "in") === "in"));
-  const domain = new Map(model.carriers.map((c) => [c.id, c.values ?? []]));
-  const valuations = product(boundary.map((i) => domain.get(variables[i].carrier)!.length));
+  const { ports, domains, sets } = modelRelations(model, p.composed, observe.filter(d => (d.side ?? "in") === "in"));
+  const { variables, at: v, boundary } = ports;
+  const valuations = product(boundary.map(i => domains[i].length));
   if (valuations > max) return capFail(`the boundary inputs have ${valuations} valuations; the cap is ${max}. Declare fewer values or split the model`);
-
-  // Each composed box as deduplicated rows of (variable, value) bindings.
-  const rowsOf = (b: Box) => {
-    const seen = new Map<string, Binding>();
-    for (const r of b.behavior!) {
-      const binding = bindRow(b, r, v);
-      seen.set(tupleKey(binding.map(([, x]) => x)), binding);
-    }
-    return [...seen.values()];
-  };
-  const sets = p.composed.map((b) => {
-    const rows = rowsOf(b);
-    return { rows, vars: [...new Set(rows[0].map(([i]) => i))] };
-  });
 
   // Keep every boundary valuation and its empty table row; only the joined relations are pruned.
   // A preprocessing cap falls back to the original sets without charging the search budget; the
   // status is reported, so a state cap after a fallback names the unpruned join as its cause.
-  const pruning = propagateRows(sets, variables.map((q) => domain.get(q.carrier)!));
+  const pruning = propagateRows(sets, domains);
   const overlaps = pruning.status !== "complete" ? undefined
     : pruning.sets.some(set => !set.rows.length)
       ? { sets: pruning.sets, status: "complete" as const, work: 0 }
-      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work);
+      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work, options);
   const propagation: PropagationStatus = {
     status: pruning.status === "complete" && overlaps?.status === "complete" ? "complete" : "fallback",
     work: pruning.work + (overlaps?.work ?? 0),
+    ...(overlaps && "stats" in overlaps ? { semijoin: overlaps.stats } : {}),
   };
   const propagated = propagation.status === "complete" ? overlaps!.sets : sets;
 
   const out = observe.map((d) => v(d.box, d.side ?? "in", d.port));
-  const table = new Map<string, Row>();
-  const assign: Array<string | undefined> = new Array(variables.length).fill(undefined);
+  const relations = new RelationPlan(propagated, options);
   const budget = { explored: 0, max };
-  let overflow = false;
-  for (let n = 0; n < valuations && !overflow; n++) {
-    let rest = n;
-    const input = boundary.map((i) => {
-      const vals = domain.get(variables[i].carrier)!;
-      const x = vals[rest % vals.length];
-      rest = Math.floor(rest / vals.length);
-      return x;
-    });
-    boundary.forEach((i, j) => { assign[i] = input[j]; });
-    const row: Row = { input, outputs: new Map(), states: [], count: 0 };
-    table.set(tupleKey(input), row);
-    overflow = !joinRows(propagated, assign, () => {
-      const y = out.map((i) => assign[i]!);
-      row.outputs.set(tupleKey(y), y);
-      if (row.states.length < LISTED_STATES) row.states.push(assign.map((x) => x!));
-      row.count++;
-    }, budget);
-  }
-  if (overflow) {
+  const table = relations.project(domains, boundary, out, LISTED_STATES, budget);
+  if (!table) {
     const unpruned = propagation.status === "fallback";
     return {
-      ...capFail(`the steady-state search passed ${max} states${unpruned ? `, over unpruned rows: arc-consistency pruning stopped at its own work limit (${MAX_PROPAGATION_WORK}) and was discarded` : ""}. Declare fewer values or split the model`, "$.model",
+      ...capFail(relations.stats.countOverflow ? "the exact steady-state count exceeds the safe integer reporting range. Split the model or reduce the state domains."
+        : `the steady-state search passed ${max} states${unpruned ? `, over unpruned rows: arc-consistency pruning stopped at its own work limit (${MAX_PROPAGATION_WORK}) and was discarded` : ""}. Declare fewer values or split the model`, "$.model",
         unpruned ? "Declare fewer values or behaviour rows on the composed boxes, or split the model: pruning gave up before the search, so both the pruning and the search see the whole tables." : "Declare fewer values on the carriers inside loops, or split the model."),
       propagation,
     };
   }
   const typed = (e: Typed) => ({ box: e.box, port: e.port, carrier: e.carrier });
-  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored, propagation };
+  return { ok: true, inputs: boundary.map((i) => typed(variables[i])), variables: variables.map(typed), table, explored: budget.explored, propagation, relationStats: relations.stats };
 }
 
 const sorted = (m: Map<string, string[]>) => [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, t]) => t);
@@ -319,7 +249,7 @@ function summary(e: Evaluation, p: Plan, fullRelation = false) {
     composed: p.composed.map((b) => b.id),
     downstream: p.downstream,
     partialDownstream: p.partialDownstream,
-    statesExplored: e.explored, propagation: e.propagation,
+    statesExplored: e.explored, propagation: e.propagation, relationStats: e.relationStats,
     basis: SERIES, scope: p.scope, assumption: assumption(p.scope),
   };
 }
@@ -355,7 +285,7 @@ function externalBehaviorScoped(model: FunctionModel, opts: BehaviorOptions) {
       note: `Declare behavior for ${p.missing.map((id) => `'${id}'`).join(", ")}: they are composed in the selected scope, so the relation depends on them.`,
     };
   }
-  const e = evaluate(model, p, deliverables, opts.maxStates ?? MAX_STATES);
+  const e = evaluateObserved(model, p, deliverables, opts.maxStates ?? MAX_STATES, opts.evaluationCache, opts.relationOptions);
   if (!e.ok) return e;
   const factorisations = factorisationsOf(p.composed);
   return {
@@ -456,9 +386,9 @@ function compareBehaviorScoped(baseline: FunctionModel, concept: FunctionModel, 
     };
   }
   const max = opts.maxStates ?? MAX_STATES;
-  const b = evaluate(baseline, before, deliverables, max);
+  const b = evaluateObserved(baseline, before, deliverables, max, opts.evaluationCache, opts.relationOptions);
   if (!b.ok) return { ...rebase(fail(b.issues), [["$.model", "$.compare_to"]], "baseline: "), ...(b.propagation ? { propagation: b.propagation } : {}) };
-  const c = evaluate(concept, after, observed, max);
+  const c = evaluateObserved(concept, after, observed, max, opts.evaluationCache, opts.relationOptions);
   if (!c.ok) return { ...rebase(fail(c.issues), [], "concept: "), ...(c.propagation ? { propagation: c.propagation } : {}) };
 
   // The concept's boundary inputs in baseline ids; each model's own carriers give its domain.
@@ -632,7 +562,7 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
     ok: true as const, verdict: "undecided" as const, reason: "missing-behavior" as const, missingBehavior: p.missing,
     note: "Declare behavior for every box composed in the selected scope before checking nonblocking and output acceptability.",
   };
-  const e = evaluate(model, p, target, opts.maxStates ?? MAX_STATES);
+  const e = evaluateObserved(model, p, target, opts.maxStates ?? MAX_STATES, opts.evaluationCache, opts.relationOptions);
   if (!e.ok) return capped(e);
   const domains = e.inputs.map((q) => model.carriers.find((c) => c.id === q.carrier)!.values!);
   const selected = new Set<string>();
@@ -663,7 +593,7 @@ function operationalAdequacyScoped(model: FunctionModel, acceptable: Acceptable[
     requiredSituationCount: selected.size, checkedAllBoundaryInputs: opts.requiredInputs === undefined,
     blockedInputCount: blocked.length, blockedInputs: blocked.slice(0, LISTED),
     unacceptableInputCount: unacceptable.length, unacceptableOutputs: unacceptable.slice(0, LISTED),
-    statesExplored: e.explored, propagation: e.propagation,
+    statesExplored: e.explored, propagation: e.propagation, relationStats: e.relationStats,
     note: "Adequacy requires a steady state at every required input and acceptable values in every possible deliverable output there. Equal partial relations may both fail this requirement. Acceptance and nonblocking are checked only at the required complete input assignments; this does not establish dynamic convergence or physical feasibility.",
   };
 }
