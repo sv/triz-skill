@@ -26,10 +26,12 @@ then solves each independent factor for a witness.
 
 ## Indexed evaluation
 
-A query plan builds bounded single-column indexes on demand for bound variables. It chooses
-a selective candidate bucket, retains declaration order and checks every candidate's remaining
-equalities. Wildcard candidates stay in their original order. Deterministic rows therefore need
-less scanning when their inputs are bound, without assuming that every relation is a function.
+A query plan builds bounded tuple indexes on demand for bound variables. Several bound ports
+use a joint key, preserving their correlation instead of scanning a single-column bucket and
+discarding the mismatches. Single-column indexes remain available when the joint key cannot
+fit the storage allowance. Every candidate's remaining equalities are checked; wildcard candidates
+stay in declaration order. This also applies to partial and nondeterministic complete relations,
+without assuming that every relation is a function.
 The join planner prioritizes bound overlaps and then smaller tables; declaration order breaks
 remaining ties. The legacy scan wrapper retains its earlier declaration-order planning for
 independent reference checks.
@@ -38,8 +40,30 @@ Tables with fewer than eight rows use scanning; building a hash index costs more
 queries. Index storage has a 200,000-cell default allowance. Exhausting that allowance uses the
 scan path, with identical semantics. Indexes and query orders are request-local.
 
+[act-relation-index.ts](../src/act-relation-index.ts) supplies the same exact tuple buckets to
+evaluation and correlation propagation. Keys encode whole string tuples, including empty values,
+punctuation and prototype names. The normalized maps are retained only for tables large enough
+to use an index; tiny/scan tables retain array rows for the ordinary join loop.
+
 This is indexed finite-table evaluation. No identity/XOR/affine law is inferred from labels,
 numeric levels or a sample of rows.
+
+## Indexed correlation propagation
+
+Pairwise semijoins restrict each table to rows supported by its neighbors on their shared
+variables. On complete rows, a hash lookup of the entire overlap replaces a nested comparison
+of each row pair: building and probing an index takes work linear in the two row counts times
+the overlap width. Correlations survive because a support must match the whole tuple.
+
+The existing worklist still revisits only affected neighbors. An index is shared by revisions
+that query the same supporting table and overlap, and discarded whenever that table shrinks.
+Removed rows therefore cannot supply stale support. A partial query scans instead; sparse
+support rows stay in the candidate list and undergo the ordinary compatibility check.
+
+The pass bounds cumulative index allocations at 200,000 estimated cells, including rebuilt
+indexes, and charges construction, probes and candidate checks to its propagation allowance.
+Storage exhaustion scans; work exhaustion discards the entire pass. Cyclic networks still need
+the exact join: even a complete semijoin fixed point need not have a global solution.
 
 ## Connected-factor decomposition
 
@@ -68,11 +92,15 @@ by this connected-component decomposition.
 `false` for an ablation. `strategy: "exhaustive"` disables the new paths as well as component-choice
 pruning and boundary memoization. Internal behavior/global-separation APIs accept relation-plan
 options for tests; these do not add caller-supplied checked summaries to the public model schema.
+`indexed_relations: false` also selects the scan semijoin implementation. The internal
+`compoundIndexes: false` option isolates single-column join indexing for benchmarks.
 
 Successful behavior summaries and global-separation results include `relationStats`: input rows,
 row candidates, index lookups/storage/fallbacks, factor evaluations/cache hits, output combinations
 and count-overflow status. `statesExplored` still measures search states; it is not a CPU or
 allocation counter. Indexing can reduce row candidates without changing the visited states.
+Behavior's `propagation.semijoin` reports support row comparisons, index builds, probes, cells
+and storage fallbacks separately from the subsequent join counters.
 
 Behavior keeps its existing separate propagation allowance and state limit. Synthesis compilation
 and global separation charge shared-plan setup, index construction and row checking to their work
@@ -88,6 +116,10 @@ including disconnected and zero-port contradictions, repeated variables, wildcar
 variables, correlated observations and caps. Existing whole-port semantic tests and synthesis
 oracles exercise the model adapters; synthesis tests also compare all new ablations with exhaustive
 component choices. MCP smoke exercises the new options across the protocol boundary.
+An additional 300 larger propagation cases compare indexed and scan results against independent
+finite valuations; 200 larger multi-input projection cases check counts, correlated observations
+and samples. Tests cover invalidation while eight or more rows survive, wildcard/partial
+queries, whole-pass rollback and insufficient index storage.
 
 The mathematical basis includes `external_par` and `mem_steadyStates_par` in
 [Semantics.lean](../theory/Semantics.lean). These results justify the abstract product structure;
@@ -99,3 +131,9 @@ then measures scan/index/factor ablations of the shared kernel. Raw samples and 
 are retained. Synthetic cases include small connected controls and the existing synthesis
 workloads, so the report includes overhead and regressions. Full output enumeration remains
 output-sensitive, and connected dense constraints can still be expensive.
+
+The [incremental tuple-index report](../benchmarks/tuple-index/latest.md) compares against
+`3178d4b`, the first shared-relation implementation. It includes multi-input chains and overlap
+contradictions at three table sizes, complete-pass scan controls and the existing small synthesis
+cases. The 1,024-row contradiction exhausts the old default propagation allowance; indexed
+propagation finishes and avoids the unpruned join. Exact outputs and counts match in every run.

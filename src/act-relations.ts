@@ -1,10 +1,12 @@
+import { RelationTupleIndex } from "./act-relation-index.js";
+
 /** Shared finite scoped relations. Variables are typed by the adapter's finite domains;
  * rows are conjunctions, tables are disjunctions, and tables join on variable equality.
  * Sparse rows are wildcards. No physical, probabilistic or cost semantics is inferred. */
 export type RelationBinding = Array<[number, string]>;
 export type ScopedRelation = { vars: number[]; rows: RelationBinding[] };
 export type RelationBudget = { explored: number; max: number; spend?: (amount: number) => void };
-export type RelationOptions = { indexed?: boolean; decompose?: boolean; maxIndexCells?: number; smallFirst?: boolean };
+export type RelationOptions = { indexed?: boolean; compoundIndexes?: boolean; decompose?: boolean; maxIndexCells?: number; smallFirst?: boolean };
 export type RelationStats = {
   inputRows: number; rowCandidates: number; indexLookups: number; indexCells: number;
   indexFallbacks: number; factors: number; factorEvaluations: number; factorCacheHits: number;
@@ -12,11 +14,10 @@ export type RelationStats = {
   countOverflow: boolean;
 };
 type Row = { binding: RelationBinding; original: number };
-type Index = { values: Map<string, number[]>; wildcard: number[] };
-type Table = { vars: number[]; rows: Row[]; indexes: Map<number, Index> };
+type Table = { vars: number[]; rows: Row[]; values?: ReadonlyMap<number, string>[]; indexes: Map<string, RelationTupleIndex> };
 export type ProjectedRow = { input: string[]; outputs: Map<string, string[]>; states: string[][]; count: number };
 
-/** A query plan owns immutable normalized rows and bounded, reusable single-column indexes.
+/** A query plan owns immutable normalized rows and bounded, reusable tuple indexes.
  * Indexes select candidates only: every bound value and repeated-variable equality is checked.
  * Original row ids survive for consumers that need provenance. */
 export class RelationPlan {
@@ -29,6 +30,9 @@ export class RelationPlan {
     this.tables = sets.map(set => {
       spend?.(1 + set.vars.length);
       const scope = new Set(set.vars), rows: Row[] = [];
+      // Keep the normalization maps only when this table can use an index. Tiny/scan
+      // tables retain their compact array rows and avoid Map iteration on the hot path.
+      const indexRows: Map<number, string>[] | undefined = options.indexed !== false && set.rows.length >= 8 ? [] : undefined;
       for (const [original, row] of set.rows.entries()) {
         spend?.(1 + row.length); this.stats.inputRows++;
         const values = new Map<number, string>();
@@ -38,9 +42,9 @@ export class RelationPlan {
           if (values.has(v) && values.get(v) !== x) valid = false;
           values.set(v, x);
         }
-        if (valid) rows.push({ original, binding: [...values] });
+        if (valid) { rows.push({ original, binding: [...values] }); indexRows?.push(values); }
       }
-      return { vars: [...scope], rows, indexes: new Map() };
+      return { vars: [...scope], rows, values: indexRows, indexes: new Map() };
     });
     if (options.decompose === false) {
       this.components = [this.tables.map((_, i) => i)]; this.stats.factors = 1; return;
@@ -64,34 +68,28 @@ export class RelationPlan {
     this.stats.factors = this.components.length;
   }
 
-  private candidates(t: Table, assign: Array<string | undefined>, budget: RelationBudget): number[] | undefined {
+  private candidates(t: Table, assign: Array<string | undefined>, budget: RelationBudget): readonly number[] | undefined {
     // On tiny relations scanning is cheaper than constructing a hash index. This is only
     // a query-planning choice; all candidates still undergo the same equality checks.
     if (this.options.indexed === false || t.rows.length < 8) return undefined;
-    let best: number[] | undefined;
-    for (const v of t.vars) {
-      const value = assign[v];
-      if (value === undefined) continue;
-      let index = t.indexes.get(v);
+    let best: readonly number[] | undefined;
+    const bound = t.vars.filter(v => assign[v] !== undefined);
+    const keys = bound.length > 1 && this.options.compoundIndexes !== false ? [bound, ...bound.map(v => [v])] : bound.map(v => [v]);
+    for (const vars of keys) {
+      const key = JSON.stringify(vars);
+      let index = t.indexes.get(key);
       if (!index) {
-        const cells = t.rows.reduce((n, r) => n + 1 + r.binding.length, 0);
+        const cells = t.rows.length * (1 + vars.length);
         if (this.stats.indexCells + cells > (this.options.maxIndexCells ?? 200_000)) { this.stats.indexFallbacks++; continue; }
-        budget.spend?.(cells);
+        index = new RelationTupleIndex(vars, t.values!, budget.spend);
         this.stats.indexCells += cells;
-        index = { values: new Map(), wildcard: [] };
-        t.rows.forEach((r, i) => {
-          const x = r.binding.find(([w]) => w === v)?.[1];
-          if (x === undefined) index!.wildcard.push(i);
-          else { if (!index!.values.has(x)) index!.values.set(x, []); index!.values.get(x)!.push(i); }
-        });
-        t.indexes.set(v, index);
+        t.indexes.set(key, index);
       }
-      this.stats.indexLookups++; budget.spend?.(1);
-      const matches = index.values.get(value) ?? [];
-      // Merge in declaration order; do not change first witnesses by putting wildcards last.
-      const rows = !index.wildcard.length ? matches : [...matches, ...index.wildcard].sort((a, b) => a - b);
+      this.stats.indexLookups++; budget.spend?.(1 + vars.length);
+      const rows = index.candidates(v => assign[v])!;
       if (!best || rows.length < best.length) best = rows;
-      if (best.length <= 1) break;
+      // A full-tuple bucket is contained in every single-column candidate set.
+      if ((vars.length === bound.length && index.complete) || best.length <= 1) break;
     }
     return best;
   }

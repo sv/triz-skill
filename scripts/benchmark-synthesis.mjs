@@ -52,7 +52,7 @@ for (const [kind, count] of cases) {
       pruning: result.searchStats.pruning, medianMs: median(times), minMs: Math.min(...times), maxMs: Math.max(...times), samplesMs: times });
   }
 }
-const sourceFiles = ["src/act-synthesis.ts", "src/act-synthesis-pruning.ts", "src/act-behavior.ts", "src/act-contract.ts", "src/act-relations.ts", "src/act-relation-model.ts", "tests/support/synthesis.ts", "scripts/benchmark-synthesis.mjs"];
+const sourceFiles = ["src/act-synthesis.ts", "src/act-synthesis-pruning.ts", "src/act-behavior.ts", "src/act-propagation.ts", "src/act-contract.ts", "src/act-relations.ts", "src/act-relation-index.ts", "src/act-relation-model.ts", "tests/support/synthesis.ts", "scripts/benchmark-synthesis.mjs"];
 const report = { generatedAt: new Date().toISOString(), runtime: { node: process.version, platform: process.platform, arch: process.arch, cpu: os.cpus()[0]?.model },
   iterations, warmupsPerVariant: 1, sourceSha256: Object.fromEntries(sourceFiles.map(file => [file, createHash("sha256").update(fs.readFileSync(path.join(root, file))).digest("hex")])),
   scope: "Synthetic finite fixed-wiring libraries. All variants completed under the same 1,000,000 work and 10,000 state limits; counts, verdicts and first witnesses match exhaustive search. Timings include parsing, preprocessing, validation, caching and result construction. Each request gets a fresh cache.", records };

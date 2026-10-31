@@ -41,7 +41,9 @@ Full citations and reading limits are in the [research note](formal-triz-literat
   ports. The current [contract checker](../src/act-subsystem-contract.ts) checks single-mode
   stateless declarations by recomputing their finite behavior.
 
-Connected-factor evaluation now avoids materializing independent internal products. It does not
+Shared tuple indexes now reduce bound-input join candidates and replace quadratic complete-row
+overlap checks during correlation propagation. Connected-factor evaluation avoids materializing
+independent internal products. These improvements do not
 merge equivalent component-choice prefixes or eliminate variables across connected separators.
 
 The proposed gain is to avoid materializing internal traces and repeatedly exploring equivalent

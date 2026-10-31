@@ -17,6 +17,55 @@ function exhaustive(sets: ScopedRelation[], domains: string[][]) {
 const signature = (table: NonNullable<ReturnType<RelationPlan["project"]>>) => [...table.values()]
   .map(r => [r.input, [...r.outputs.keys()].sort(), r.count]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 
+test("compound indexes avoid single-column candidates while retaining exact outputs and provenance", () => {
+  const f = relationFixture("tuple-chain", 5);
+  const run = (compoundIndexes: boolean, maxIndexCells?: number) => {
+    const plan = new RelationPlan(f.sets, { compoundIndexes, maxIndexCells }), budget = { explored: 0, max: 100_000 };
+    const table = plan.project(f.domains, f.boundary, f.observed, 10, budget);
+    assert.ok(table); return { table, stats: plan.stats };
+  };
+  const single = run(false), compound = run(true), scan = run(true, 0);
+  assert.deepEqual(signature(compound.table), signature(single.table));
+  assert.deepEqual(signature(compound.table), signature(scan.table));
+  assert.equal(compound.stats.rowCandidates * 16, single.stats.rowCandidates);
+  assert.ok(scan.stats.indexFallbacks > 0);
+  const rows: ScopedRelation[] = [{ vars: [0, 1], rows: [
+    [], [[0, ""]], [[1, "__proto__"]], [[0, ""], [1, "__proto__"]],
+    [[0, "a,b"], [1, "[\"x\"]"]], [[0, "a"], [1, "b,[\"x\"]"]],
+    [[0, "bad"], [0, "other"]], [[0, ""]], [[1, "__proto__"]],
+  ] }];
+  const collect = (indexed: boolean) => {
+    const plan = new RelationPlan(rows, { indexed }), found: unknown[] = [], a = ["", "__proto__"];
+    assert.equal(plan.enumerate(a, ids => { found.push([[...ids], [...a]]); }, { explored: 0, max: 100 }), true);
+    assert.deepEqual(a, ["", "__proto__"]); return found;
+  };
+  assert.deepEqual(collect(true), collect(false));
+});
+
+test("multi-column indexed projections match exhaustive assignments on 200 larger tables", () => {
+  let seed = 6151, lookups = 0;
+  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed >>> 8; };
+  const domains = Array.from({ length: 4 }, () => ["0", "1", "2"]);
+  for (let n = 0; n < 200; n++) {
+    const sets: ScopedRelation[] = [[0, 1, 2], [1, 2, 3]].map(vars => ({ vars,
+      rows: Array.from({ length: 27 }, (_, row) => vars.map((v, i) => [v, String(Math.floor(row / 3 ** i) % 3)] as [number, string]))
+        .filter(() => rand() % 4 !== 0) }));
+    const all = exhaustive(sets, domains);
+    for (const options of [{}, { compoundIndexes: false }, { indexed: false }, { maxIndexCells: 20 }]) {
+      const plan = new RelationPlan(sets, options), table = plan.project(domains, [0, 1], [2, 3, 2], 10, { explored: 0, max: 10_000 });
+      assert.ok(table); lookups += plan.stats.indexLookups;
+      for (const row of table.values()) {
+        const expected = all.filter(a => a[0] === row.input[0] && a[1] === row.input[1]);
+        assert.equal(row.count, expected.length);
+        assert.deepEqual([...row.outputs.keys()].sort(), [...new Set(expected.map(a => JSON.stringify([a[2], a[3], a[2]])))].sort());
+        assert.equal(new Set(row.states.map(a => JSON.stringify(a))).size, row.states.length);
+        assert.ok(row.states.every(a => expected.some(b => JSON.stringify(a) === JSON.stringify(b))));
+      }
+    }
+  }
+  assert.ok(lookups > 0);
+});
+
 test("indexed joins preserve sparse/repeated-variable row selections, provenance and caller assignments", () => {
   const sets: ScopedRelation[] = [
     { vars: [0, 1], rows: [[[0, "0"], [0, "1"]], [[0, "0"]], [[1, "1"]], [[0, "1"], [1, "0"]]] },

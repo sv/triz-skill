@@ -138,7 +138,7 @@ review status; an Agents snapshot does not supply imperative transition semantic
 | ID | Status | Next slice |
 |---|---|---|
 | S1 | Open; C1 available | Variable elimination over a port-class tree decomposition, initially min-fill |
-| S2 | Finite row/domain pruning implemented; semijoins in #51 | Verify/validate runtime correspondence; retain exact solving after local consistency |
+| S2 | Finite row/domain pruning implemented; semijoins in #51, indexed overlap supports in local #52 | Verify/validate runtime correspondence; retain exact solving after local consistency |
 | S3 | Exact stateless single-mode contracts implemented | Local residual synthesis, explicitly coupled multi-mode contracts, then dynamics |
 | S4 | Request-local synthesis cache in local changes | Checked warm starts/content-hash subsystem reuse across requests |
 | S5 | Open; C5/Q5 available | Observable- and reward-preserving bisimulation before dynamic products |
@@ -146,7 +146,8 @@ review status; an Agents snapshot does not supply imperative transition semantic
 
 The local changes add backward residual filtering, propagation over component choices and exact
 boundary memoization for stateless fixed-wiring synthesis, plus a shared finite relation layer,
-indexed joins and connected-factor evaluation. See [shared relations](shared-relations.md).
+joint-tuple indexed joins, indexed correlation propagation and connected-factor evaluation.
+See [shared relations](shared-relations.md).
 Exhaustive comparison, ablations, rollback caps and measurements are documented in
 [synthesis search](synthesis-search.md) and
 [benchmarks](../benchmarks/synthesis/latest.md). They are not merged-main capabilities in the

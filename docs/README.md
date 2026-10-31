@@ -26,8 +26,9 @@ The roadmap distinguishes the reference main revision from local changes awaitin
 - [Component discovery](component-discovery.md): typed catalogues and bounded assembly search.
 - [Synthesis search](synthesis-search.md): residual filtering, choice propagation, memoization,
   exhaustive comparison and [benchmarks](../benchmarks/synthesis/latest.md).
-- [Shared finite relations](shared-relations.md): indexed evaluation, connected-factor
-  decomposition and [before/after benchmarks](../benchmarks/relations/latest.md).
+- [Shared finite relations](shared-relations.md): indexed evaluation and correlation propagation,
+  connected-factor decomposition, [before/after benchmarks](../benchmarks/relations/latest.md)
+  and [incremental tuple-index results](../benchmarks/tuple-index/latest.md).
 - [Typed effects and lifecycle](typed-effects-lifecycle.md): dimensions, effect chains, costed
   dynamics and maintenance policies.
 - [Bond graphs](bond-graphs.md): structural power/causality scope.

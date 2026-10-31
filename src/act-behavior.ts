@@ -208,10 +208,11 @@ function evaluate(model: FunctionModel, p: Plan, observe: Observed[], max: numbe
   const overlaps = pruning.status !== "complete" ? undefined
     : pruning.sets.some(set => !set.rows.length)
       ? { sets: pruning.sets, status: "complete" as const, work: 0 }
-      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work);
+      : semijoinRows(pruning.sets, MAX_PROPAGATION_WORK - pruning.work, options);
   const propagation: PropagationStatus = {
     status: pruning.status === "complete" && overlaps?.status === "complete" ? "complete" : "fallback",
     work: pruning.work + (overlaps?.work ?? 0),
+    ...(overlaps && "stats" in overlaps ? { semijoin: overlaps.stats } : {}),
   };
   const propagated = propagation.status === "complete" ? overlaps!.sets : sets;
 
