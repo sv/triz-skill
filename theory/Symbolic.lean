@@ -27,6 +27,28 @@ theorem typed_composition {A : Type u} {B : Type v} {C : Type w} (f : A → B) (
   apply propext
   simp [comp, graph]
 
+/-- A recognized joint map can be precomposed with an explicit typed interface reindexing.
+The reindexing is data; equal carrier cardinalities do not supply it. -/
+theorem typed_reindex_composition {A : Type u} {B : Type v} {C : Type w}
+    (reindex : A → B) (f : B → C) (rows : Rel B C) (recognized : rows = graph f) :
+    comp (graph reindex) rows = graph (fun a => f (reindex a)) := by
+  rw [recognized, typed_composition]
+  rfl
+
+/-- Pulling a necessary boundary condition back to concrete choices preserves every engineering
+solution. No assertion identifies engineering properties of choices in the same fiber. -/
+theorem boundary_pruning_pullback {C : Type u} {S : Type v}
+    (summary : C → S) (engineering : C → Prop) (necessary : S → Prop)
+    (sound : ∀ c, engineering c → necessary (summary c)) (c : C) :
+    engineering c ↔ engineering c ∧ necessary (summary c) :=
+  ⟨fun h => ⟨h, sound c h⟩, And.left⟩
+
+/-- Only the pure boundary filter is reused. Concrete choice domains and diagnostics are not
+cached by this law. The executable cache still requires independent differential checks. -/
+theorem boundary_filter_reuse {C : Type u} {S : Type v} {R : Type w}
+    (summary : C → S) (filter : S → R) (a b : C) (same : summary a = summary b) :
+    filter (summary a) = filter (summary b) := congrArg filter same
+
 /-- Substitution in an arbitrary context, including disconnected/feedback constraints.
 Nothing assumes that the rest of the model is total or acyclic. -/
 theorem boundary_substitution {A : Type u} {B : Type v} {X : Type w}
@@ -140,10 +162,10 @@ theorem two_maps_distinct {A : Type} (f : A → A) (nontrivial : ∃ x, f x ≠ 
 /-! Executable certificate encoding. UTF-16 code-unit lists preserve explicit carrier/value identity;
 all indices are local to those domains. No native_decide/bv_decide is used. -/
 structure MapTable where
-  source : List Nat
-  target : List Nat
-  inputs : List (List Nat)
-  outputs : List (List Nat)
+  source : List (List Nat)
+  target : List (List Nat)
+  inputs : List (List (List Nat))
+  outputs : List (List (List Nat))
   image : List Nat
   deriving DecidableEq, Inhabited, Repr
 
@@ -163,13 +185,16 @@ structure Stage where
   box : List Nat
   hole : Option Nat
   choiceCount : Nat
+  inputPorts : List (List Nat)
+  outputPorts : List (List Nat)
   primitives : List Primitive
   edges : List Edge
   deriving DecidableEq, Inhabited, Repr
 
 def validMap (m : MapTable) : Prop :=
   m.inputs ≠ [] ∧ m.outputs ≠ [] ∧ m.inputs.Nodup ∧ m.outputs.Nodup ∧
-    m.image.length = m.inputs.length ∧ ∀ y ∈ m.image, y < m.outputs.length
+    m.image.length = m.inputs.length ∧ (∀ y ∈ m.image, y < m.outputs.length) ∧
+    (∀ x ∈ m.inputs, x.length = m.source.length) ∧ (∀ y ∈ m.outputs, y.length = m.target.length)
 instance (m : MapTable) : Decidable (validMap m) := by unfold validMap; infer_instance
 
 def graphRows (m : MapTable) := (List.range m.inputs.length).map (fun x => (x, m.image[x]!))
@@ -227,7 +252,9 @@ def stageOK (before after : List MapTable) (s : Stage) : Prop :=
   (∀ p ∈ s.primitives, primitiveOK p) ∧ (∀ e ∈ s.edges, edgeOK before after s e) ∧
   (∀ f ∈ List.range before.length, ∀ c ∈ List.range s.primitives.length, (supports s f c).length = 1) ∧
   (∀ t ∈ List.range after.length, t ∈ s.edges.map Edge.dst) ∧
-  s.choiceCount = s.primitives.length ∧ (s.hole = none → s.choiceCount = 1)
+  s.choiceCount = s.primitives.length ∧ (s.hole = none → s.choiceCount = 1) ∧
+  s.inputPorts.Nodup ∧ s.outputPorts.Nodup ∧
+  ∀ p ∈ s.primitives, p.map.source.length = s.inputPorts.length ∧ p.map.target.length = s.outputPorts.length
 instance (before after : List MapTable) (s : Stage) : Decidable (stageOK before after s) := by
   unfold stageOK; infer_instance
 

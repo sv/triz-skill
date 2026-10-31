@@ -11,7 +11,8 @@ running its original enumeration under a proof tactic.
   "max_symbolic_work": 100000,
   "max_symbolic_cells": 200000,
   "max_pruning_work": 100000,
-  "include_symbolic_certificate": true
+  "include_symbolic_certificate": true,
+  "optimizations": { "memoize_symbolic": true }
 }
 ```
 
@@ -22,25 +23,31 @@ can become slower with symbolic preprocessing.
 
 ## Supported regions and recognition
 
-A recognized primitive is a stateless, non-product box with exactly one input and one output,
-finite declared carrier domains, and a **complete total deterministic joint behavior relation**.
-All alternatives at a hole must qualify to include that box. Duplicate identical rows do not
-change the relation. Partial relations, nondeterministic outputs, state machines, missing
-behavior and multi-port boxes remain with the existing relational solver.
+A recognized primitive is a stateless, non-product box whose **complete joint behavior table**
+is a total deterministic map between bounded products of declared carrier domains. Zero-port
+interfaces have the unit domain containing one empty tuple. This includes multi-input/multi-output
+maps, arity-changing maps, identities, permutations, constants, non-injective maps and involutions.
+Duplicate identical rows do not change the relation. Partial or nondeterministic relations,
+state machines, missing behavior and oversized Cartesian domains stay with the existing solver.
+Completeness means all joint input tuples, not just every value at each port separately.
 
-The compiler uses explicit input/output port identities, carrier ids, value arrays and every
-declared joint row. Names, tags, domain labels, dimensions, units and the spelling of values
-provide no semantic evidence. An identity, permutation, constant map, non-injective map or
-two-value involution is recognized by its table. A converter between distinct carriers is an
-explicit map between their values, never an inferred bijection from equal domain sizes.
-Composition requires the exact intermediate carrier id and value domain, not just cardinality.
+The compiler uses explicit port identities, ordered carrier-id lists, value tuples and every
+joint row. Names, tags, domain labels, dimensions, units and the spelling of values provide no
+semantic evidence. Equal carrier cardinalities never identify types. Product types are structured
+lists of carrier ids; a scalar carrier whose name resembles a product encoding remains distinct.
 
-Maximal paths connect recognized boxes only across a single outgoing/single incoming wire.
-A region contains at least two boxes and at least one hole. It can include fixed recognized
-boxes. Product observations and all external contacts are preserved; no interior port has an
-additional external wire. Cycles without a serial head stay in the relational solver. Fan-in,
-fan-out, feedback, disconnected components and multi-port correlations outside a region remain
-in the context, even if part of a surrounding network can be summarized.
+Maximal serial regions connect recognized boxes only where the wires form a complete bijection
+from all preceding output ports to all following input ports, with exactly one wire at each port.
+The compiler reindexes the entire input tuple using that explicit wire permutation. It does not
+compose independent projections or infer routing from declaration order. A box's input/output
+arity may change; the next box consumes its full output interface. New virtual output names avoid
+collisions with head input names, and every outside wire is checked against its original tail port.
+
+A region contains at least two boxes and one hole, and can include fixed recognized boxes.
+Product observations and all external contacts are preserved. Cycles without a serial head stay
+in the relational solver. Fan-in, fan-out, feedback, disconnected components and joint constraints
+outside a region remain in the context. Cartesian-domain work is reserved before allocation;
+allowance exhaustion discards compilation and falls back without an impossibility claim.
 
 Before using a region, an independent checker binds its encoding back to the original full
 row declarations, domains, port types, hole indices and serial wiring. Sparse arrays and non-integer indices are rejected;
@@ -50,8 +57,13 @@ resource-mode and whole-model checks are retained.
 
 ## Maps and compact choice supports
 
-A prefix state is the explicit map from the region's initial carrier to its current carrier.
-Composition computes the next map and interns extensionally identical maps within that prefix.
+A prefix state is the explicit joint map from the region's initial typed product to its current
+typed product. `source`/`target` contain ordered carrier-id lists; `inputs`/`outputs` contain
+explicit value tuples, and each stage records its input/output port order.
+Each stage groups extensionally identical primitive maps before composition, retaining every
+original alternative index on the grouped edge. Composition computes each distinct map pair once
+and interns extensionally identical prefix maps. Counts and declaration-order concrete witnesses
+retain duplicate labels, including choices with different costs or requirements.
 A layered DAG records transitions with the **original alternative indices** as labels. Several
 choices can share an edge; different histories can share a state. No list of full concrete
 implementations or their internal valuations is constructed to represent those supports.
@@ -70,6 +82,15 @@ outside the region. For each search branch:
 1. A forward DAG pass computes terminal maps reachable under the current concrete choice domains.
 2. The coupled residual removes impossible virtual choices using whole-context safety/coverage.
 3. A backward DAG pass removes concrete alternatives without a path to a surviving terminal map.
+
+Edge choice masks are compiled once. A bounded request-local cache reuses **only completed
+virtual residual-filter results**, keyed by the exact reachable terminal-map domains of every
+region plus every uncovered choice domain. Concrete domains are still propagated backward on
+each call; engineering properties and internal diagnostics are never cached by this quotient.
+Different concrete prefixes can therefore reuse the same boundary obligation without sharing
+engineering verdicts. Positive and negative cached results are copied before use. Capped passes
+are not cached, and cache exhaustion simply continues uncached. Set
+`optimizations.memoize_symbolic: false` for ablation or diagnosis.
 
 This propagates target requirements without expanding a terminal map's supports into all
 concrete choice combinations or all original union traces. Multiple regions remain coupled by
@@ -103,7 +124,8 @@ Its reusable proofs use structural induction, `simp`, explicit witnesses and sel
 | Obligation | Lean statements |
 |---|---|
 | Recognition against complete finite relations | `recognition_correct`, `checked_recognition`, `checked_total`, `checked_deterministic` |
-| Composition with an explicit intermediate type | `typed_composition`, `checked_composition`, `checked_composition_relation` |
+| Composition and explicit typed input reindexing | `typed_composition`, `typed_reindex_composition`, `checked_composition`, `checked_composition_relation` |
+| Pullback of necessary boundary pruning and pure-filter reuse | `boundary_pruning_pullback`, `boundary_filter_reuse` |
 | Boundary substitution in an arbitrary constrained context | `boundary_substitution` |
 | Complete layered regions and unique concrete hole references | `regionOK`, `checked_region_stage` |
 | Grouped labels retain concrete supports | `grouped_supports_correct`, `checked_supports`, `checked_edge_relation` |
@@ -119,15 +141,15 @@ There are two distinct checking stages:
   work are included in synthesis measurements. Check failure or exhaustion discards compilation.
 - **Build/offline:** `pnpm check:symbolic` compiles the reusable laws once, generates certificates
   from actual TypeScript synthesis output and checks complete regions, including primitive relations, prefix maps, stage/layer counts,
-  unique box/hole references, choice counts and support transitions in the local Lean kernel using `decide +kernel`. It separately audits every
+  unique box/hole references, port and tuple arities, choice counts and support transitions in the local Lean kernel using `decide +kernel`. It separately audits every
   theorem's axioms by exact declaration identity and rejects altered relations, maps, carrier
   identities, supports, missing stages, extra layers and repeated holes. A process failure,
   timeout, resource error or missing audit is not accepted as evidence of rejection. CI runs
   this in addition to the full theory build. For a local request file use
   `node --import tsx scripts/check-symbolic.mjs --input /absolute/request.json`.
 
-The numeric Lean encoding preserves all carrier/value strings as UTF-16 code-unit lists and
-keeps value indices local to each declared carrier. Arbitrary labels cannot become Lean syntax.
+The numeric Lean encoding preserves carrier and port lists and complete value tuples, encoding
+each string as UTF-16 code units. Tuple indices remain local to each explicitly typed product. Arbitrary labels cannot become Lean syntax.
 The generated checks cover complete **region certificates**, not just independent stages or
 an illustrative parity law.
 No project or case data is sent to a theorem-proving service. This checker never invokes the
@@ -157,7 +179,9 @@ obey `max_pruning_work` and the same quarter-reservation rule. Failed speculativ
 charged. Construction failure discards every partial region and invokes the current optimized
 compiler; backward-pass exhaustion returns the original choice domains atomically.
 
-`max_symbolic_cells` bounds the serialized retained region certificates in characters. The
+`max_symbolic_cells` bounds retained region certificate characters, precomputed mask characters,
+and cached virtual-domain key/result characters together. The virtual residual cache also has a
+hard limit of 128 entries; a full cache continues uncached. The
 existing boundary cache remains capped at 128 entries and 200,000 cells/key characters. These
 are logical storage bounds, not measured JavaScript heap byte limits. Transient construction
 is also limited by work accounting. An overall cap returns `undecided`, `complete:false`;
@@ -165,7 +189,8 @@ it never establishes impossibility.
 
 `searchStats.symbolic` reports fallback reasons, construction/check/backward times, work,
 certificate work, states, grouped transitions, prefix widths, support multiplicities, state
-interning hits, retained encoding size and pass rollbacks. `pruning.contextStates` counts
+interning hits, actual primitive compositions and compositions avoided by grouping, residual
+filter calls/cache hits/entries/storage, retained symbolic size and pass rollbacks. `pruning.contextStates` counts
 union traces actually emitted, including attempts discarded on fallback; `targetStates` counts
 target traces. `boundarySummaries.behaviorTraces` counts emitted validation traces, including
 partial searches that subsequently hit a cap. Boundary cache hits avoid enumeration and are
@@ -184,17 +209,22 @@ maps, compensating permutations, distinct engineering modes, multiple regions, m
 correlations, fan-in/feedback, disconnected inconsistent loops, malformed declarations, smaller
 state allowances, memory/work caps, atomic rollback, sparse-certificate tampering and different internal diagnostics.
 Backward pruning is additionally checked against literal whole-port solutions under all 343
-nonempty partial choice domains in each of two contexts, including one with restricted inputs.
+nonempty partial choice domains in each of two contexts, including one with restricted inputs. Joint maps add all 49 nonempty partial domains for a
+two-hole typed interface, with caching both enabled and disabled. Cache saturation, immutable
+results, negative reuse, port permutations, tuple arity and unit domains have dedicated checks.
+A partial diagonal relation with complete per-port projections stays outside recognized regions.
 The existing whole-port oracle retains its own literal port-valuation enumeration; it imports
 no symbolic recognition, composition, certificates or DAG logic. Its 80 seeded cases now compare
 both optimized and symbolic search against exhaustive search and that independent oracle.
 
 [Measured results](../benchmarks/synthesis/latest.md) and [raw samples](../benchmarks/synthesis/latest.json)
-include seven rotated samples, ablations, all emitted trace counts, full validations, cache hits,
+include seven rotated samples, a symbolic residual-cache ablation, all emitted trace counts,
+full validations, distinct primitive compositions, boundary/residual cache hits,
 DAG sizes, work/storage bounds, phase/heap observations, source hashes and separate offline
 proof costs. A binary copy/involution chain retains exactly two maps after each hole prefix
 when both choices are available and the involution is nontrivial. Tests count `100^10` labeled
-implementations with 21 states and 38 grouped edges, without expanding those implementations.
+implementations with 21 states and 38 grouped edges, without expanding those implementations. Grouping now
+computes 38 primitive compositions for that fixture, avoiding 1,862 repeated compositions.
 
 The recorded ten-hole chain reduces union traces from 2,048 to 4 and full validations from
 1,024 to 512 against current optimized search. Optimized compilation exhausts its allowance on
@@ -203,6 +233,12 @@ benchmark report gives current median timings including the additional checks. D
 cases enumerate the same union traces and can become slower; small chains and repeated identical
 implementations also often pay more preprocessing than they save. These observations support
 opting into this path for sharing-heavy regions rather than changing the optimized default.
+
+The eight-hole joint chain reduces union traces from 1,024 to 8 and full validations from
+256 to 128: optimized median 109.33 ms versus symbolic 70.41 ms. On the ten-hole unary chain,
+residual caching reduces filter calls from 1,535 to 2, with 1,533 hits; its end-to-end median
+moves from 175.25 ms without that cache to 173.76 ms with it. Full validation still dominates
+these small benchmarks, so fewer residual calls need not produce a comparable runtime gain.
 
 This is a bounded symbolic synthesis improvement. Distinct disjoint transpositions demonstrate
 exponentially many prefix maps, and full engineering validation can remain exponential even

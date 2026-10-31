@@ -23,11 +23,11 @@ export const SynthesisRequest = z.strictObject({
   })).min(1).max(10),
   max_work: z.number().int().min(1).max(1_000_000).optional(),
   max_states: z.number().int().min(1).max(100_000).optional(),
-  strategy: z.enum(["symbolic", "optimized", "exhaustive"]).default("optimized").describe("Symbolic checks and composes finite serial maps before union trace enumeration; optimized uses coupled residuals; exhaustive retains the reference Cartesian search"),
+  strategy: z.enum(["symbolic", "optimized", "exhaustive"]).default("optimized").describe("Symbolic checks and composes typed joint serial maps before union trace enumeration; optimized uses coupled residuals; exhaustive retains the reference Cartesian search"),
   max_symbolic_work: z.number().int().min(0).max(1_000_000).default(100_000),
-  max_symbolic_cells: z.number().int().min(0).max(1_000_000).default(200_000).describe("Maximum retained symbolic certificate characters; exhaustion discards the compilation"),
+  max_symbolic_cells: z.number().int().min(0).max(1_000_000).default(200_000).describe("Maximum retained symbolic certificate, mask and residual-cache characters; exhaustion discards compilation or skips cache insertion"),
   include_symbolic_certificate: z.boolean().optional().describe("Return the checked finite-map DAG encoding for independent local Lean checking"),
-  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
+  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), memoize_symbolic: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
   max_pruning_work: z.number().int().min(0).max(1_000_000).default(100_000).describe("Per compilation/propagation allowance within max_work, reserving at least three quarters of remaining work for validation; exhaustion falls back without speculative pruning"),
 });
 
@@ -71,7 +71,7 @@ export function synthesizeFinite(input: unknown) {
   const residual = s.optimizations?.backward_residual !== false, propagation = s.optimizations?.choice_propagation !== false;
   const symbolic = symbolicStats();
   const symbolicPruner = s.strategy === "symbolic" && canPrune && (residual || propagation)
-    ? SymbolicPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, symbolic, s.max_symbolic_work, s.max_symbolic_cells, residual, propagation, s.max_pruning_work) : undefined;
+    ? SymbolicPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, symbolic, s.max_symbolic_work, s.max_symbolic_cells, residual, propagation, s.max_pruning_work, s.optimizations?.memoize_symbolic !== false) : undefined;
   const pruner = !symbolicPruner && optimized && canPrune && (residual || propagation)
     ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation) : undefined;
   if (optimized && !canPrune) { pruning.status = "fallback"; pruning.reason = "pre-behavior-validation"; }

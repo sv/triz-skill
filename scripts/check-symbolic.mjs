@@ -11,6 +11,7 @@ import { synthesizeFinite } from "../src/act-synthesis.ts";
 import { exportSymbolicLean, symbolicLeanProblems } from "../src/act-symbolic-lean.ts";
 import { synthesisFixture } from "../tests/support/synthesis.ts";
 import { distinctMapFixture, sharedMapFixture, typedMapFixture } from "../tests/support/symbolic.ts";
+import { jointSynthesisFixture, correlatedSynthesisFixture, closedJointSynthesisFixture } from "../tests/support/joint-synthesis.ts";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "triz-symbolic-"));
 const lean = process.env.TRIZ_SYMBOLIC_LEAN ?? "lean";
@@ -30,7 +31,7 @@ try {
   run("Symbolic.lean", ["-o", "Symbolic.olean"]);
   const lawsMs = performance.now() - compileStart;
   const inputFlag = process.argv.indexOf("--input");
-  const requests = inputFlag < 0 ? [...[2, 4, 6].map(n => synthesisFixture("coupled", n)), typedMapFixture(), distinctMapFixture(3), sharedMapFixture(2, 4)]
+  const requests = inputFlag < 0 ? [...[2, 4, 6].map(n => synthesisFixture("coupled", n)), typedMapFixture(), distinctMapFixture(3), sharedMapFixture(2, 4), jointSynthesisFixture(3), correlatedSynthesisFixture(), closedJointSynthesisFixture()]
     : [JSON.parse(fs.readFileSync(process.argv[inputFlag + 1], "utf8"))];
   const records = [];
   for (const [i, input] of requests.entries()) {
@@ -44,14 +45,14 @@ try {
     run(`Request${i}.lean`);
     const kernelMs = performance.now() - checkStart;
     // Corrupt a primitive relation, a composition, a support label, and a carrier identity.
-    const corruptions = ["relation", "composition", "support", "carrier", "missing-stages", "extra-layer", "repeated-hole", "fixed-choice-count"];
+    const corruptions = ["relation", "composition", "support", "carrier", "missing-stages", "extra-layer", "repeated-hole", "fixed-choice-count", "tuple-arity", "port-arity"];
     for (const kind of corruptions) {
       const bad = structuredClone(result.symbolicCertificates);
       const c = bad[0];
       if (kind === "relation") c.stages[0].primitives[0].rows.pop();
       if (kind === "composition") c.layers[1][0].image[0] = 999;
       if (kind === "support") c.stages[0].edges[0].choices = [];
-      if (kind === "carrier") c.layers[1][0].target += "different";
+      if (kind === "carrier") c.layers[1][0].target[0] += "different";
       if (kind === "missing-stages") c.stages = [];
       if (kind === "extra-layer") c.layers.push(c.layers.at(-1));
       if (kind === "repeated-hole") {
@@ -59,6 +60,8 @@ try {
         c.stages.find(s => s !== hole).hole = hole.hole;
       }
       if (kind === "fixed-choice-count") c.stages[0].choiceCount++;
+      if (kind === "tuple-arity") c.layers[0][0].inputs[0].push("extra");
+      if (kind === "port-arity") c.stages.find(s => s.inputPorts.length).inputPorts.pop();
       fs.writeFileSync(path.join(tmp, "Tampered.lean"), exportSymbolicLean(bad));
       run("Tampered.lean", [], false);
     }

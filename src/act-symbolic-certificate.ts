@@ -2,10 +2,10 @@
  * Indices are local to explicitly named carriers; equal sizes never identify types.
  * The same encoding can be exported to theory/Symbolic.lean for kernel checking. */
 import type { FunctionModel } from "./act.js";
-export type FiniteMap = { source: string; target: string; inputs: string[]; outputs: string[]; image: number[] };
+export type FiniteMap = { source: string[]; target: string[]; inputs: string[][]; outputs: string[][]; image: number[] };
 export type PrimitiveCertificate = { map: FiniteMap; rows: Array<[number, number]> };
 export type SummaryEdge = { from: number; to: number; primitive: number; choices: number[] };
-export type SummaryStage = { box: string; hole: number | null; primitives: PrimitiveCertificate[]; choiceCount: number; edges: SummaryEdge[] };
+export type SummaryStage = { box: string; hole: number | null; inputPorts: string[]; outputPorts: string[]; primitives: PrimitiveCertificate[]; choiceCount: number; edges: SummaryEdge[] };
 export type RegionCertificate = { stages: SummaryStage[]; layers: FiniteMap[][] };
 export type CertificateCharge = (amount: number) => void;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -13,61 +13,82 @@ const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b
 const dense = (xs: unknown): xs is unknown[] => Array.isArray(xs)
   && Array.from({ length: xs.length }, (_, i) => Object.hasOwn(xs, i)).every(Boolean);
 
-/** Bind the normalized encoding back to complete original declarations, independently
- * of the recognizer. No names/labels/units participate in semantic recognition. */
+/** Independent mixed-radix encoding of a complete joint carrier domain. */
+function declaredProduct(model: FunctionModel, ports: NonNullable<FunctionModel["boxes"][number]["inputs"]>, charge: CertificateCharge) {
+  const domains = ports.map(p => model.carriers.find(c => c.id === p.carrier)?.values);
+  if (domains.some(d => !d?.length)) return;
+  const size = domains.reduce((n, d) => n * d!.length, 1);
+  if (!Number.isSafeInteger(size) || size > 1_000_000) return;
+  charge(1 + size * (1 + ports.length));
+  return Array.from({ length: size }, (_, n) => {
+    const tuple: string[] = new Array(ports.length);
+    for (let j = ports.length - 1; j >= 0; j--) { tuple[j] = domains[j]![n % domains[j]!.length]; n = Math.floor(n / domains[j]!.length); }
+    return tuple;
+  });
+}
+const namesExactly = (row: Record<string, string>, ports: string[]) => Object.keys(row).length === ports.length && ports.every(p => Object.hasOwn(row, p));
+
+/** Bind the normalized encoding back to COMPLETE original joint declarations and explicit
+ * wire permutations. Neither equal cardinalities nor independent port projections suffice. */
 export function checkRegionDeclarations(c: RegionCertificate, model: FunctionModel,
   holes: Array<{ box: string; alternatives: Array<{ behavior: NonNullable<FunctionModel["boxes"][number]["behavior"]> }> }>, charge: CertificateCharge = () => {}) {
   if (!checkRegionCertificate(c, charge)) return false;
-  const ids = c.stages.map(s => s.box);
-  if (new Set(ids).size !== ids.length) return false;
   for (const [i, s] of c.stages.entries()) {
     charge(1 + model.boxes.length + model.wires.length);
     const b = model.boxes.find(b => b.id === s.box);
-    if (!b || b.inputs?.length !== 1 || b.outputs?.length !== 1 || b.role === "product" || b.inner || b.state || b.initial || b.transition) return false;
+    if (!b || b.role === "product" || b.inner || b.state || b.initial || b.transition) return false;
+    const ins = s.inputPorts.map(id => b.inputs?.find(p => p.id === id));
+    const outs = s.outputPorts.map(id => b.outputs?.find(p => p.id === id));
+    if (ins.length !== (b.inputs?.length ?? 0) || outs.length !== (b.outputs?.length ?? 0) || ins.some(p => !p) || outs.some(p => !p)) return false;
+    const inputs = declaredProduct(model, ins as NonNullable<typeof b.inputs>, charge), outputs = declaredProduct(model, outs as NonNullable<typeof b.outputs>, charge);
+    if (!inputs || !outputs) return false;
+    const inputIndex = new Map(inputs.map((x, i) => [JSON.stringify(x), i])), outputIndex = new Map(outputs.map((x, i) => [JSON.stringify(x), i]));
     const h = holes.findIndex(h => h.box === b.id);
     if (s.hole !== (h < 0 ? null : h)) return false;
     const declarations = h < 0 ? [b.behavior] : holes[h].alternatives.map(a => a.behavior);
     if (declarations.length !== s.primitives.length) return false;
     for (const [j, rows] of declarations.entries()) {
       const p = s.primitives[j], m = p.map;
-      if (!rows || m.source !== b.inputs[0].carrier || m.target !== b.outputs[0].carrier
-        || !equal(m.inputs, model.carriers.find(c => c.id === m.source)?.values)
-        || !equal(m.outputs, model.carriers.find(c => c.id === m.target)?.values) || rows.length !== p.rows.length) return false;
+      if (!rows || !equal(m.source, ins.map(p => p!.carrier)) || !equal(m.target, outs.map(p => p!.carrier))
+        || !equal(m.inputs, inputs) || !equal(m.outputs, outputs) || rows.length !== p.rows.length) return false;
       for (const [r, row] of rows.entries()) {
-        charge(1 + m.inputs.length + m.outputs.length);
-        if (!equal(Object.keys(row.in), [b.inputs[0].id]) || !equal(Object.keys(row.out), [b.outputs[0].id])
-          || !equal(p.rows[r], [m.inputs.indexOf(row.in[b.inputs[0].id]), m.outputs.indexOf(row.out[b.outputs[0].id])])) return false;
+        charge(1 + ins.length + outs.length);
+        if (!namesExactly(row.in, s.inputPorts) || !namesExactly(row.out, s.outputPorts)
+          || !equal(p.rows[r], [inputIndex.get(JSON.stringify(s.inputPorts.map(p => row.in[p]))), outputIndex.get(JSON.stringify(s.outputPorts.map(p => row.out[p])))])) return false;
       }
     }
     if (i) {
-      const incoming = model.wires.filter(w => w.to.box === b.id), previous = c.stages[i - 1].box;
-      const outgoing = model.wires.filter(w => w.from.box === previous);
-      const from = model.boxes.find(b => b.id === previous)!;
-      if (incoming.length !== 1 || outgoing.length !== 1 || incoming[0] !== outgoing[0]
-        || incoming[0].from.port !== from.outputs![0].id || incoming[0].to.port !== b.inputs[0].id
-        || incoming[0].carrier !== b.inputs[0].carrier || incoming[0].carrier !== from.outputs![0].carrier) return false;
+      const previous = c.stages[i - 1], from = model.boxes.find(b => b.id === previous.box)!;
+      const incoming = model.wires.filter(w => w.to.box === b.id), outgoing = model.wires.filter(w => w.from.box === from.id);
+      if (incoming.length !== s.inputPorts.length || outgoing.length !== previous.outputPorts.length || incoming.length !== outgoing.length || !incoming.length) return false;
+      for (const [j, port] of s.inputPorts.entries()) {
+        const wire = incoming.find(w => w.from.box === from.id && w.from.port === previous.outputPorts[j] && w.to.port === port);
+        if (!wire || wire.carrier !== ins[j]!.carrier || wire.carrier !== from.outputs!.find(p => p.id === previous.outputPorts[j])!.carrier) return false;
+      }
     }
   }
   return true;
 }
 
 export function checkRegionCertificate(c: RegionCertificate, charge: CertificateCharge = () => {}) {
+  const strings = (xs: unknown): xs is string[] => dense(xs) && xs.every(x => typeof x === "string");
   const validMap = (m: FiniteMap) => {
-    if (!m || typeof m.source !== "string" || typeof m.target !== "string"
-      || !dense(m.inputs) || !dense(m.outputs) || !dense(m.image)) return false;
-    charge(1 + m.inputs.length + m.outputs.length + m.image.length);
-    return m.inputs.length > 0 && m.outputs.length > 0 && new Set(m.inputs).size === m.inputs.length
-      && new Set(m.outputs).size === m.outputs.length && m.image.length === m.inputs.length
-      && m.inputs.every(x => typeof x === "string") && m.outputs.every(x => typeof x === "string")
-      && m.image.every(y => Number.isSafeInteger(y) && y >= 0 && y < m.outputs.length);
+    if (!m || !strings(m.source) || !strings(m.target) || !dense(m.inputs) || !dense(m.outputs) || !dense(m.image)) return false;
+    charge(1 + m.inputs.length * (1 + m.source.length) + m.outputs.length * (1 + m.target.length) + m.image.length);
+    return m.inputs.length > 0 && m.outputs.length > 0
+      && m.inputs.every(x => strings(x) && x.length === m.source.length) && m.outputs.every(x => strings(x) && x.length === m.target.length)
+      && new Set(m.inputs.map(x => JSON.stringify(x))).size === m.inputs.length && new Set(m.outputs.map(x => JSON.stringify(x))).size === m.outputs.length
+      && m.image.length === m.inputs.length && m.image.every(y => Number.isSafeInteger(y) && y >= 0 && y < m.outputs.length);
   };
   if (!c || !dense(c.stages) || !dense(c.layers) || !c.stages.length || c.layers.length !== c.stages.length + 1
     || c.layers.some(l => !dense(l)) || c.layers[0].length !== 1
-    || c.stages.some(s => !s || !dense(s.primitives) || !dense(s.edges))) return false;
+    || c.stages.some(s => !s || typeof s.box !== "string" || !dense(s.primitives) || !dense(s.edges)
+      || !strings(s.inputPorts) || !strings(s.outputPorts) || new Set(s.inputPorts).size !== s.inputPorts.length || new Set(s.outputPorts).size !== s.outputPorts.length)
+    || new Set(c.stages.map(s => s.box)).size !== c.stages.length) return false;
   const holes = c.stages.flatMap(s => s.hole === null ? [] : [s.hole]);
   if (new Set(holes).size !== holes.length || holes.some(h => !Number.isInteger(h) || h < 0)) return false;
   const root = c.layers[0][0];
-  if (!validMap(root) || root.source !== root.target || !equal(root.inputs, root.outputs) || root.image.some((y, x) => y !== x)) return false;
+  if (!validMap(root) || !equal(root.source, root.target) || !equal(root.inputs, root.outputs) || root.image.some((y, x) => y !== x)) return false;
   for (let i = 0; i < c.stages.length; i++) {
     const s = c.stages[i], before = c.layers[i], after = c.layers[i + 1];
     if (!s.primitives.length || !Number.isInteger(s.choiceCount) || s.choiceCount < 1 || s.choiceCount !== s.primitives.length || !after.length
@@ -75,7 +96,7 @@ export function checkRegionCertificate(c: RegionCertificate, charge: Certificate
     for (const state of after) if (!validMap(state)) return false;
     // A graph is exactly the ENTIRE declared relation, including duplicate rows.
     for (const p of s.primitives) {
-      if (!p || !validMap(p.map) || !dense(p.rows) || p.rows.some(r => !dense(r) || r.length !== 2
+      if (!p || !validMap(p.map) || p.map.source.length !== s.inputPorts.length || p.map.target.length !== s.outputPorts.length || !dense(p.rows) || p.rows.some(r => !dense(r) || r.length !== 2
         || !r.every(x => Number.isSafeInteger(x) && x >= 0))) return false;
       const pairs = new Set(p.rows.map(([x, y]) => {
         charge(1);
@@ -92,8 +113,8 @@ export function checkRegionCertificate(c: RegionCertificate, charge: Certificate
       if (!e || ![e.from, e.to, e.primitive].every(n => Number.isSafeInteger(n) && n >= 0) || !dense(e.choices)) return false;
       charge(1 + e.choices.length);
       const a = before[e.from], b = after[e.to], p = s.primitives[e.primitive]?.map;
-      if (!a || !b || !p || !e.choices.length || a.target !== p.source || !equal(a.outputs, p.inputs)
-        || a.source !== b.source || p.target !== b.target || !equal(a.inputs, b.inputs) || !equal(p.outputs, b.outputs)) return false;
+      if (!a || !b || !p || !e.choices.length || !equal(a.target, p.source) || !equal(a.outputs, p.inputs)
+        || !equal(a.source, b.source) || !equal(p.target, b.target) || !equal(a.inputs, b.inputs) || !equal(p.outputs, b.outputs)) return false;
       for (let x = 0; x < a.inputs.length; x++) {
         charge(1);
         if (b.image[x] !== p.image[a.image[x]]) return false;
@@ -161,15 +182,18 @@ export function checkBoundarySubstitution(model: FunctionModel,
       positions.set(s.box, { region: r, index });
       if (s.hole !== null) { if (covered.has(s.hole)) return false; covered.add(s.hole); }
     }
-    const head = model.boxes.find(b => b.id === c.stages[0].box), v = virtual[r], maps = c.layers.at(-1)!;
-    if (!head || !v || v.box !== head.id || v.alternatives.length !== maps.length) return false;
+    const head = model.boxes.find(b => b.id === c.stages[0].box), replacement = reduced.boxes.find(b => b.id === head?.id), v = virtual[r], maps = c.layers.at(-1)!;
+    if (!head || !replacement || !v || v.box !== head.id || v.alternatives.length !== maps.length) return false;
+    const outputPorts = replacement.outputs ?? [], last = c.stages.at(-1)!;
+    if (outputPorts.length !== last.outputPorts.length || new Set([...(head.inputs ?? []).map(p => p.id), ...outputPorts.map(p => p.id)]).size !== (head.inputs?.length ?? 0) + outputPorts.length) return false;
     for (const [i, m] of maps.entries()) {
       const a = v.alternatives[i];
-      charge(1 + m.inputs.length);
+      charge(1 + m.inputs.length * (1 + c.stages[0].inputPorts.length + outputPorts.length));
       if (a.id !== `summary-${i}` || a.behavior.length !== m.inputs.length) return false;
       for (const [x, row] of a.behavior.entries()) {
-        if (!equal(Object.keys(row.in), [head.inputs![0].id]) || !equal(Object.keys(row.out), [head.outputs![0].id])
-          || row.in[head.inputs![0].id] !== m.inputs[x] || row.out[head.outputs![0].id] !== m.outputs[m.image[x]]) return false;
+        if (!namesExactly(row.in, c.stages[0].inputPorts) || !namesExactly(row.out, outputPorts.map(p => p.id))
+          || c.stages[0].inputPorts.some((p, j) => row.in[p] !== m.inputs[x][j])
+          || outputPorts.some((p, j) => row.out[p.id] !== m.outputs[m.image[x]][j])) return false;
       }
     }
   }
@@ -178,10 +202,11 @@ export function checkBoundarySubstitution(model: FunctionModel,
   const retained = model.boxes.filter(b => (positions.get(b.id)?.index ?? 0) === 0);
   if (reduced.boxes.length !== retained.length) return false;
   for (const [i, b] of retained.entries()) {
+    if (reduced.boxes[i]?.id !== b.id) return false;
     const p = positions.get(b.id);
-    const expected = !p ? b : { ...b,
-      outputs: [{ ...b.outputs![0], carrier: certificates[p.region].layers.at(-1)![0].target }],
-      behavior: virtual[p.region].alternatives[0].behavior };
+    const tail = p ? model.boxes.find(b => b.id === certificates[p.region].stages.at(-1)!.box)! : undefined;
+    const outputs = p ? certificates[p.region].stages.at(-1)!.outputPorts.map((id, j) => ({ ...tail!.outputs!.find(p => p.id === id)!, id: reduced.boxes[i].outputs![j].id })) : undefined;
+    const expected = !p ? b : { ...b, outputs, behavior: virtual[p.region].alternatives[0].behavior };
     charge(1 + (b.behavior?.length ?? 0) + (b.feasibility?.length ?? 0));
     if (!equal(reduced.boxes[i], expected)) return false;
   }
@@ -196,7 +221,10 @@ export function checkBoundarySubstitution(model: FunctionModel,
     if (!src) expectedWires.push(w);
     else {
       const head = retained.find(b => b.id === certificates[src.region].stages[0].box)!;
-      expectedWires.push({ ...w, from: { box: head.id, port: head.outputs![0].id } });
+      const last = certificates[src.region].stages.at(-1)!, column = last.outputPorts.indexOf(w.from.port);
+      if (column < 0) return false;
+      const replacement = reduced.boxes.find(b => b.id === head.id)!;
+      expectedWires.push({ ...w, from: { box: head.id, port: replacement.outputs![column].id } });
     }
   }
   const { boxes: _oldBoxes, wires: _oldWires, ...oldContext } = model;

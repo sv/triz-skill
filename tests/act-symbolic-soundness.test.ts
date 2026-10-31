@@ -1,6 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { FunctionModel } from "../src/act.js";
 import { synthesizeFinite } from "../src/act-synthesis.js";
 import { SymbolicPruner, symbolicStats } from "../src/act-synthesis-symbolic.js";
 import { checkBoundarySubstitution, checkRegionCertificate, checkRegionDeclarations } from "../src/act-symbolic-certificate.js";
@@ -8,6 +7,8 @@ import { symbolicLeanProblems } from "../src/act-symbolic-lean.js";
 import { EngineeringBudget } from "../src/act-contract.js";
 import { pruningStats } from "../src/act-synthesis-pruning.js";
 import { synthesisFixture } from "./support/synthesis.js";
+
+import { wholePortBoundary as boundary } from "./support/whole-port-oracle.js";
 
 const certificates = (input = synthesisFixture("memoization", 2)) => {
   const r = synthesizeFinite({ ...input, strategy: "symbolic", include_symbolic_certificate: true });
@@ -48,7 +49,7 @@ test("whole-context substitution checking detects lost boxes, wires, engineering
   input.model.boxes.push({ id: "side", name: "Side constraint", role: "tool", behavior: [{ in: {}, out: {} }], feasibility: [{ cost: { usd: 7 } }] });
   const sink = input.model.boxes.find(b => b.id === "product0")!;
   const maps = c.layers.at(-1)!;
-  const virtual = [{ box: head.id, alternatives: maps.map((m, i) => ({ id: `summary-${i}`, behavior: m.inputs.map((x, j) => ({ in: { in: x }, out: { out: m.outputs[m.image[j]] } })) })) }];
+  const virtual = [{ box: head.id, alternatives: maps.map((m, i) => ({ id: `summary-${i}`, behavior: m.inputs.map((x, j) => ({ in: { in: x[0] }, out: { out: m.outputs[m.image[j]][0] } })) })) }];
   const reduced = { ...input.model, boxes: [{ ...head, behavior: virtual[0].alternatives[0].behavior }, sink, input.model.boxes.at(-1)!],
     wires: [{ ...input.model.wires.at(-1)!, from: { box: head.id, port: "out" } }] };
   assert.ok(checkBoundarySubstitution(input.model, input.holes, [c], reduced, virtual));
@@ -64,22 +65,6 @@ test("whole-context substitution checking detects lost boxes, wires, engineering
   assert.equal(checkBoundarySubstitution(input.model, input.holes, [c], reduced, changedVirtual), false);
 });
 
-/** Literal whole-port oracle: no recognition, quotient, joins, cache or pruning helpers. */
-function boundary(model: FunctionModel) {
-  const ports = model.boxes.flatMap(b => (["in", "out"] as const).flatMap(side => (side === "in" ? b.inputs ?? [] : b.outputs ?? []).map(p => ({ box: b.id, side, port: p.id, domain: model.carriers.find(c => c.id === p.carrier)!.values! }))));
-  const find = (box: string, side: "in" | "out", port: string) => ports.findIndex(p => p.box === box && p.side === side && p.port === port);
-  const ins = ports.filter(p => p.side === "in" && !model.wires.some(w => w.to.box === p.box && w.to.port === p.port));
-  const outs = ports.filter(p => p.side === "in" && model.boxes.find(b => b.id === p.box)!.role === "product" && model.wires.some(w => w.to.box === p.box && w.to.port === p.port && w.polarity !== "harmful"));
-  const rows = new Set<string>(), values: string[] = [];
-  const visit = (i: number) => {
-    if (i < ports.length) { for (const x of ports[i].domain) { values[i] = x; visit(i + 1); } return; }
-    if (model.wires.some(w => values[find(w.from.box, "out", w.from.port)] !== values[find(w.to.box, "in", w.to.port)])) return;
-    if (!model.boxes.every(b => b.behavior!.some(r => Object.entries(r.in).every(([p, x]) => values[find(b.id, "in", p)] === x) && Object.entries(r.out).every(([p, x]) => values[find(b.id, "out", p)] === x)))) return;
-    rows.add(JSON.stringify([ins.map(p => values[find(p.box, p.side, p.port)]), outs.map(p => values[find(p.box, p.side, p.port)])]));
-  };
-  visit(0);
-  return [...rows].sort().join(";");
-}
 
 test("backward pruning preserves every oracle solution under all 343 nonempty partial choice domains", () => {
   for (const restricted of [false, true]) {

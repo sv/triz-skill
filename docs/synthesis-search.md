@@ -4,9 +4,10 @@
 and finite component libraries into coupled constraints, then checks surviving complete
 implementations with the existing behavior, adequacy, harm and resource validator.
 `strategy: "exhaustive"` retains the Cartesian reference search.
-`strategy: "symbolic"` first compiles checked serial finite-map DAGs, reducing union traces
-before this residual compiler runs; see [Checked symbolic synthesis](symbolic-synthesis.md). Component/topology discovery
-and lifecycle policy search do not use this optimization yet.
+`strategy: "symbolic"` first compiles checked serial joint-map DAGs and reuses equivalent
+virtual residual domains, reducing union traces before this residual compiler runs; see
+[Checked symbolic synthesis](symbolic-synthesis.md). Component/topology discovery and
+lifecycle policy search do not use this optimization yet.
 
 ## What is computed
 
@@ -124,8 +125,9 @@ node --import tsx scripts/benchmark-synthesis.mjs
 ```
 
 The benchmark runs exhaustive, memoization-only, residual-only, propagation-only, pruning
-without memoization, and fully optimized variants. All must finish under identical limits
-and match exhaustive verdicts, satisfying counts and first witnesses. Timings include
+without memoization, fully optimized, and symbolic variants with residual caching enabled
+and disabled. All must finish under identical limits and match exhaustive verdicts,
+satisfying counts and first witnesses. Timings include
 preprocessing and request-local cache construction, with one warmup and seven rotated samples
 per variant. No timing threshold is used as a correctness test.
 

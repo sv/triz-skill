@@ -8,7 +8,8 @@ const nat = (n: number) => {
   return String(n);
 };
 const nums = (xs: number[]) => list(xs.map(nat));
-const map = (m: FiniteMap) => `⟨${id(m.source)}, ${id(m.target)}, ${list(m.inputs.map(id))}, ${list(m.outputs.map(id))}, ${nums(m.image)}⟩`;
+const ids = (xs: string[]) => list(xs.map(id));
+const map = (m: FiniteMap) => `⟨${ids(m.source)}, ${ids(m.target)}, ${list(m.inputs.map(ids))}, ${list(m.outputs.map(ids))}, ${nums(m.image)}⟩`;
 export function exportSymbolicLean(certificates: RegionCertificate[]) {
   const lines = ["import Symbolic", "", "/- Generated from checked symbolic DAGs. Original declaration/topology encoding remains a trust boundary. -/"];
   certificates.forEach((c, r) => {
@@ -18,7 +19,7 @@ export function exportSymbolicLean(certificates: RegionCertificate[]) {
       const primitives = list(s.primitives.map(p => `⟨${map(p.map)}, ${list(p.rows.map(([x, y]) => `(${nat(x)}, ${nat(y)})`))}⟩`));
       const edges = list(s.edges.map(e => `⟨${nat(e.from)}, ${nat(e.to)}, ${nat(e.primitive)}, ${nums(e.choices)}⟩`));
       const hole = s.hole === null ? "none" : `some ${nat(s.hole)}`;
-      lines.push(`def ${name}Stage${k} : Symbolic.Stage := ⟨${id(s.box)}, ${hole}, ${nat(s.choiceCount)}, ${primitives}, ${edges}⟩`);
+      lines.push(`def ${name}Stage${k} : Symbolic.Stage := ⟨${id(s.box)}, ${hole}, ${nat(s.choiceCount)}, ${ids(s.inputPorts)}, ${ids(s.outputPorts)}, ${primitives}, ${edges}⟩`);
     });
     lines.push(`def ${name}Stages : List Symbolic.Stage := ${list(c.stages.map((_, k) => `${name}Stage${k}`))}`);
     lines.push(`theorem ${name}Checked : Symbolic.regionOK ${name}Layers ${name}Stages := by decide +kernel`);

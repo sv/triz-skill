@@ -157,8 +157,9 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_purpose` | Optional: inspect the invariant, purpose gate, and separation check of one graph node |
 
 `triz_synthesize` preserves exhaustive reference mode and the optimized residual search.
-Use `strategy: "symbolic"` for checked finite-map compilation of stateless serial regions before
-union traces are enumerated. Concrete resource choices remain separate. See
+Use `strategy: "symbolic"` for checked joint finite-map compilation of stateless serial regions before
+union traces are enumerated. Typed port permutations, grouped primitives and bounded residual
+reuse compound boundary sharing; concrete resource choices remain separate. See
 [scope, proofs and trust boundary](docs/symbolic-synthesis.md) and
 [measured benchmarks](benchmarks/synthesis/latest.md).
 

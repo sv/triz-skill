@@ -57,3 +57,19 @@ complete regions; it does not parse FunctionModel inputs, prove JavaScript contr
 establish empirical correctness. See [the detailed scope and proof coverage](symbolic-synthesis.md).
 The benchmark report includes all new checks and separates per-request checking from offline
 proof compilation and kernel certificate checking.
+
+## Generalization follow-up
+
+The same checks now cover bounded joint product domains, explicit wire permutations, changing
+port arities and unit-domain sources. Domain tuples and carrier-id lists are structural data;
+carrier equality is never inferred from cardinality. The independent declaration checker uses
+a mixed-radix domain encoder, separate from the compiler's product construction.
+
+Duplicate primitive maps are grouped before composition, and edge masks are precomputed. A
+bounded cache reuses completed virtual residual results for equal reachable-summary domain
+vectors, with uncovered choices retained as separate dimensions. Original concrete domains
+are propagated backward each time. Tests exercise all partial joint domains, positive and
+negative reuse, result isolation, uncached fallback, 128-entry saturation, typed reindexing,
+arity changes, unit domains, unsupported joint relations and pre-allocation product bounds.
+Generic Lean laws describe typed reindexing and necessary-condition pullback/reuse; they do
+not turn the TypeScript cache or graph edits into verified code.

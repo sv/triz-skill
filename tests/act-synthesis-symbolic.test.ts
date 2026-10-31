@@ -62,7 +62,7 @@ test("support DAG counts 100^10 concrete implementations using two states per pr
   const input = solve(synthesisFixture("coupled", 2)).symbolicCertificates![0];
   const template = input.stages[1];
   let work = 0;
-  const c = compileRegion(Array.from({ length: 10 }, (_, hole) => ({ box: `h${hole}`, hole, choiceCount: 100,
+  const c = compileRegion(Array.from({ length: 10 }, (_, hole) => ({ box: `h${hole}`, hole, inputPorts: template.inputPorts, outputPorts: template.outputPorts, choiceCount: 100,
     primitives: Array.from({ length: 100 }, (_, j) => template.primitives[j % 2]) })), n => { work += n ?? 1; });
   assert.ok(checkRegionCertificate(c));
   assert.deepEqual(c.layers.map(l => l.length), [1, ...Array(10).fill(2)]);
@@ -117,12 +117,12 @@ test("compensating permutations use explicit maps between three different carrie
   const r = differential(input);
   assert.equal(r.satisfyingCount, 2);
   assert.equal(r.searchStats.symbolic.status, "ready");
-  assert.equal(r.symbolicCertificates![0].layers.at(-1)![0].target, "C");
+  assert.deepEqual(r.symbolicCertificates![0].layers.at(-1)![0].target, ["C"]);
   const invalid = structuredClone(input);
   invalid.model.boxes.find(b => b.id === "h1")!.inputs![0].carrier = "C"; // Same size, different carrier.
   assert.equal(synthesizeFinite({ ...invalid, strategy: "symbolic" }).ok, false);
   const c = structuredClone(r.symbolicCertificates![0]);
-  c.stages[2].primitives[0].map.source = "C";
+  c.stages[2].primitives[0].map.source = ["C"];
   assert.equal(checkRegionCertificate(c), false);
 });
 
@@ -268,14 +268,14 @@ test("independent checker rejects altered rows, carriers, compositions, support 
     c => { c.stages[1].edges.push(c.stages[1].edges[0]); },
     c => { c.stages[2].hole = c.stages[1].hole; },
     c => { c.stages[1].hole = null; },
-    c => { c.stages[1].primitives[0].map.source = "other carrier of same size"; },
+    c => { c.stages[1].primitives[0].map.source = ["other carrier of same size"]; },
   ];
   for (const change of mutations) { const bad = structuredClone(c); change(bad); assert.equal(checkRegionCertificate(bad), false); }
   const unrelated = structuredClone(input);
   unrelated.holes[0].alternatives[0].behavior.push({ in: { in: "0" }, out: { out: "1" } });
   assert.equal(checkRegionDeclarations(c, unrelated.model, unrelated.holes), false);
   const hostile = structuredClone(c);
-  for (const layer of hostile.layers) for (const m of layer) { m.source = 'x"\nend\naxiom bad : False'; m.target = m.source; }
+  for (const layer of hostile.layers) for (const m of layer) { m.source = ['x"\nend\naxiom bad : False']; m.target = m.source; }
   const lean = exportSymbolicLean([hostile]);
   assert.ok(!lean.includes("axiom bad"));
   assert.ok(!lean.includes("native_decide"));
