@@ -51,15 +51,49 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-Six existing entries have typings derived from their recorded statement or function fields,
-identified in `source`. Field-change and current tokens use an explicit shared vocabulary;
-the induction typing covers the changing-field clause only. Other entries stay
-untyped. No redistributable external input/output catalogue was verified; this remains a data gap.
+All 78 entries have explicit conditional typings identified in `source`, using 65 declared physical
+quantities. The original six quantity tokens are preserved, with explicit SI where the quantity
+has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
+and current tokens use shared vocabulary; the induction typing covers the changing-field clause
+only. Optical/field excitations with ambiguous quantitative meaning stay opaque. Energy and
+power, temperature change and spatial difference, and same-dimensional stress and pressure
+retain distinct types. Each typing selects one clause, with remaining resources and history as
+conditions. No external input/output catalogue is imported.
 See the checked source and rights notes in the agent reference's `sources.md`.
+
+The versioned [knowledge packs](../skills/triz-innovation/references/knowledge-packs.md) register
+universal and domain quantity parameters, provenance, review status and effect relationships.
+`triz_knowledge` lists these definitions; every installed pack feeds effect lookup and chain
+discovery by default. Optional domain filtering includes universal entries. Canonical matrix
+parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
+records the 78-entry physical starter set and remaining evidence gaps. Eight shared families
+supply 14 signatures for 22 named specializations, alongside 56 direct definitions: 70
+independently declared interfaces. All 74 previous contracts and their case-specific
+assumptions/evidence are preserved; four new sourced clauses fill recent-patent coverage gaps. Kind
+and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
+
+`triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,
+and registry quantity/SI/layer declarations. Recipe ids expand into their typed constituent
+steps before construction, retaining nested hypotheses and source metadata; cycles, incompatible
+ports and oversized expansions fail closed. Recipes are not opaque atomic chain-search entries.
+Optional parameter `bindings` declare finite values,
+levels and resource allocation; `boundary` declares available source values and accepted product
+values; `declarations` supplies per-effect behavior or state/initial/transition rows, optionally
+with resource declarations. Setup and direct effect insertion share this schema; invalid states,
+conflicting behavior/transition declarations and undeclared values fail closed. No finite
+semantics or memory is invented.
+The generated insertion uses existing typed-rewrite checks and optional finite Lean typing
+certificates. With declared rows, the result enters behavior, resource, weakness and other model
+checks under their existing assumptions. Declared state enters `triz_dynamics` and its existing
+trace/certificate checks. `pnpm example:effects` demonstrates actual photovoltaic/Ohmic/Joule
+entries and a delayed-light → TIR → photovoltaic chain using explicitly synthetic finite rows.
 
 `triz_effect_chains` accepts `resources: [{quantity,si?}]` or a `model`, `output: {quantity,si?}`,
 optional explicit typed `effects`, `conditions` met, `k` (default 4, maximum 12), `max_steps`, and
-`limit`. A zero-length identity chain is returned when an available resource already has the required type, including with `k:0`. A model resource needs the explicit `carrier.effect_quantity` type; free `dimension`
+`limit`, plus `min_length` (default 0, at most `k`). A zero-length identity chain is returned when
+an available resource already has the required type and `min_length:0`, including with `k:0`.
+Use `min_length:1` to discover nonempty endomorphisms such as gears or optical guides; equal
+input/output types do not identify a generator with the identity. A model resource needs the explicit `carrier.effect_quantity` type; free `dimension`
 labels are never used as quantities. Effects match the quantity type and every requested SI
 constraint. Empty resource declarations fail closed. A chain cannot reuse an effect id.
 Inferred weakest-spec hints apply only to unknown tools/mediators, use their declared input

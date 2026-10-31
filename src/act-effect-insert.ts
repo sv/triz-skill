@@ -39,17 +39,15 @@ export const EffectInsertRequest = z.strictObject({
     ),
   declarations: z
     .array(
-      z.strictObject({
-        behavior: Box.shape.behavior,
-        producible: Box.shape.producible,
-        feasibility: Box.shape.feasibility,
-        cost: Box.shape.cost,
+      Box.pick({
+        behavior: true, producible: true, feasibility: true, cost: true,
+        state: true, initial: true, transition: true,
       }),
     )
     .max(12)
     .optional()
     .describe(
-      "One optional declared implementation per effect; row ports are in/out",
+      "One explicit implementation per effect: finite behavior or state/initial/transition rows, with optional resource declarations; row ports are in/out and no rows are inferred",
     ),
   flows: z
     .array(Flow)

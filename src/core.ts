@@ -1,5 +1,8 @@
 import { sameDimension, type SI } from "./act-dimensions.js";
 import type { TypedEffect } from "./act-effects.js";
+import { compileKnowledge, KnowledgeManifest, typedKnowledgeEffects, type RegisteredEffect } from "./knowledge.js";
+import { CanonicalParameters, type Parameter } from "./parameters.js";
+export type { Parameter } from "./parameters.js";
 /**
  * Pure TRIZ knowledge core with an injectable data provider.
  *
@@ -9,7 +12,6 @@ import type { TypedEffect } from "./act-effects.js";
  * provider over statically imported JSON. Fails closed if no provider is set.
  */
 
-export interface Parameter { id: number; name: string; }
 export interface Principle { id: number; name: string; classic: string; }
 export interface MatrixCell {
   improving_id: number; worsening_id: number;
@@ -26,24 +28,12 @@ export interface TrizTool {
   /** MCP tools that carry out the checkable or lookup part of this method, where any do. */
   mcp_tools?: string[];
 }
-export interface TrizEffect {
-  id: number;
-  name: string;
-  category: "physical" | "chemical" | "geometric";
-  function: string;
-  statement: string;
-  hints: string[];
-  input?: TypedEffect["input"];
-  output?: TypedEffect["output"];
-  field?: TypedEffect["field"];
-  conditions?: string[];
-  source?: string;
-  typed_from?: "source" | "statement";
-}
+export type TrizEffect = RegisteredEffect;
 
 export type DataFile =
   | "parameters.json" | "principles.json" | "matrix.json"
-  | "evals.json" | "tool-router.json" | "effects.json";
+  | "evals.json" | "tool-router.json" | "effects.json"
+  | "knowledge.json" | `knowledge/${string}.json`;
 export type DataProvider = (file: DataFile) => unknown;
 
 let provider: DataProvider | null = null;
@@ -52,12 +42,13 @@ let _principles: Principle[] | null = null;
 let _matrix: { cells: Record<string, MatrixCell>; _meta: any } | null = null;
 let _evals: any = null;
 let _tools: TrizTool[] | null = null;
-let _effects: TrizEffect[] | null = null;
+let _knowledge: ReturnType<typeof compileKnowledge> | null = null;
 
 /** Install a data provider and reset caches. Hosted runtimes call this once at startup. */
 export function useProvider(p: DataProvider) {
   provider = p;
-  _params = _principles = _evals = _tools = _effects = null;
+  _params = _principles = _evals = _tools = null;
+  _knowledge = null;
   _matrix = null;
 }
 
@@ -71,7 +62,7 @@ function load<T>(file: DataFile): T {
 }
 
 export function parameters(): Parameter[] {
-  return (_params ??= load<{ parameters: Parameter[] }>("parameters.json").parameters);
+  return (_params ??= CanonicalParameters.parse(load("parameters.json")).parameters);
 }
 export function principles(): Principle[] {
   return (_principles ??= load<{ principles: Principle[] }>("principles.json").principles);
@@ -83,7 +74,35 @@ export function evals(): any {
   return (_evals ??= load<any>("evals.json"));
 }
 function effectsAll(): TrizEffect[] {
-  return (_effects ??= load<{ effects: TrizEffect[] }>("effects.json").effects);
+  return knowledge().effects;
+}
+export function knowledge() {
+  if (_knowledge) return _knowledge;
+  const manifest = KnowledgeManifest.parse(load("knowledge.json"));
+  return (_knowledge = compileKnowledge(manifest.packs.map(file => load(file as DataFile))));
+}
+
+/** All installed packs participate by default; domain metadata never infers compatibility. */
+export function knowledgeCatalog(query?: string, domain?: string) {
+  const all = knowledge();
+  const tokens = query?.toLowerCase().split(/\s+/).filter(Boolean) ?? [];
+  const parameters = all.parameters.filter(p =>
+    (!domain || p.domain === "universal" || p.domain === domain) &&
+    tokens.every(t => `${p.id} ${p.name} ${p.quantity} ${p.description}`.toLowerCase().includes(t)));
+  return {
+    packs: all.packs.filter(p => !domain || p.domain === "universal" || p.domain === domain)
+      .map(({ parameters, effects, families, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length })),
+    families: all.families.filter(f => !domain || f.domain === "universal" || f.domain === domain),
+    counts: all.counts,
+    taxonomy: all.taxonomy,
+    counts_scope: "all-installed-packs",
+    parameters,
+    total: all.parameters.length,
+    matched: parameters.length,
+    query: query ?? null,
+    domain: domain ?? null,
+    note: "Knowledge parameters are explicit effect quantity types. Canonical matrix parameters remain 1–39; mappings are hypotheses and never trigger matrix lookups.",
+  };
 }
 export function toolCatalog(stage?: ToolStage): TrizTool[] {
   const all = (_tools ??= load<{ tools: TrizTool[] }>("tool-router.json").tools);
@@ -227,10 +246,12 @@ export function resolve(improving: number, worsening: number) {
   };
 }
 
-export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI} = {}) {
+export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite"} = {}) {
   const all = effectsAll();
   let list = category ? all.filter((e) => e.category === category) : all;
-  list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
+  list = list.filter(e => (!typed.domain || e.domain === "universal" || e.domain === typed.domain) && (!typed.pack || e.pack === typed.pack));
+  list = list.filter(e => (!typed.kind || e.kind === typed.kind) && (!typed.form || e.definition.form === typed.form));
+  list = list.filter(e => (!typed.input || e.input?.quantity === typed.input) && (!typed.output || e.output?.quantity === typed.output) && (!typed.field || e.field === typed.field || e.fields?.includes(typed.field)) && (typed.si === undefined || (e.output?.si !== undefined && sameDimension(e.output.si, typed.si))));
   if (query) {
     const tokens = query.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
     list = list
@@ -251,4 +272,4 @@ export function effects(query?: string, category?: TrizEffect["category"], typed
 }
 
 /** Only explicit complete typings enter chain search. */
-export function typedEffects(): TypedEffect[] { return effectsAll().filter((e): e is TrizEffect & TypedEffect => !!(e.input && e.output && e.field && e.conditions && e.source && e.typed_from)).map(({id,name,input,output,field,conditions,source,typed_from}) => ({id,name,input,output,field,conditions,source,typed_from})); }
+export function typedEffects(): TypedEffect[] { return typedKnowledgeEffects(effectsAll()); }

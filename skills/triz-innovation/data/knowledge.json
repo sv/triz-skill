@@ -1,0 +1,7 @@
+{
+  "format": "triz-knowledge-manifest-v1",
+  "packs": [
+    "knowledge/universal.json",
+    "effects.json"
+  ]
+}

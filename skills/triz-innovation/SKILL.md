@@ -95,6 +95,8 @@ Read only what the task needs:
   [domain-guides.md](references/domain-guides.md);
 - tool routing, the routed tool catalog, and deterministic MCP lookup:
   [tool-selection.md](references/tool-selection.md);
+- cross-domain effects and quantity parameters, or expert contributions to the database:
+  [knowledge-packs.md](references/knowledge-packs.md);
 - exact artifacts, concept templates, MPV analysis, failure prediction, and repair:
   [workflow.md](references/workflow.md);
 - interaction tables built with `triz_build_model`, nested boxes expanded with

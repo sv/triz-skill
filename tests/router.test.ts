@@ -34,7 +34,7 @@ test("every hosted tool is routed or explicitly exempt from method routing", () 
 test("router → tool mapping is pinned", () => {
   const mapped = Object.fromEntries(triz.toolCatalog().filter((t) => t.mcp_tools).map((t) => [t.source_code, t.mcp_tools]));
   assert.deepEqual(mapped, {
-    EDB: ["triz_effects", "triz_effect_chains", "triz_effect_insert", "triz_component_search", "triz_component_catalogue"],
+    EDB: ["triz_knowledge", "triz_effects", "triz_effect_chains", "triz_effect_setup", "triz_effect_insert", "triz_component_search", "triz_component_catalogue"],
     PRINCIPLES: ["triz_principle"],
     SEPARATION: ["triz_separate"],
     SO: ["triz_nine_windows"],

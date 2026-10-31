@@ -304,6 +304,13 @@ numbering is canonical; the English descriptions here are concise paraphrases. T
 table is Altshuller's and widely republished; regenerate it from an explicitly attributed source
 with the importer when needed.
 
+The [2026-10-31 parameter audit](parameters-audit.md) cross-checks all 39 ids and labels against
+[Prakash R. Apte's classical feature list](https://www.ee.iitb.ac.in/~apte/CV_PRA_TRIZ_INTRO.htm).
+Per-entry clarifications and distinction links are repository-authored guidance. The modern
+accuracy/precision distinction cites [JCGM VIM 3, 2.13](https://jcgm.bipm.org/vim/en/2.13.html)
+and [2.15](https://jcgm.bipm.org/vim/en/2.15.html). This vocabulary audit does not resolve the
+matrix workbook provenance gap or validate domain-specific mappings.
+
 ## Assurance extension and future work
 
 The implemented finite capabilities and exact limitations are recorded in
@@ -333,12 +340,20 @@ repository does not implement their general categorical constructions or a Kan u
   permit copying public information unless marked copyrighted. Only unit facts are encoded;
   no derived-unit or physical-domain catalogue is imported. Dimension letters follow the
   schema explicitly requested for this kernel.
-- Existing effects 3, 7, 8, 12, 15 and 34 are typed from their existing `statement` or `function`
+- Existing effects 3, 7, 8, 12 and 34 are typed from their existing `statement` or `function`
   fields in `data/effects.json`, under this repository's MIT license. Local entry citations name
   the fields or clause used. Effect 3 covers the changing-field clause only; effects 3/34 share
   `changing magnetic field`, and 8/15/34 share `current`. These are explicit vocabulary
   normalizations; effect 12's output comes from its function field. No SI dimensions, constants, material
-  assumptions, performance magnitudes or new effects are supplied from memory.
+  assumptions or performance magnitudes are inferred from quantity names.
+- Effect 15 now distinguishes external photoelectric emission from photovoltaic conversion,
+  following [OpenStax's surface-emission and collection-circuit description](https://openstax.org/books/university-physics-volume-3/pages/6-2-photoelectric-effect).
+  The quantity tokens remain `light` → `current`, with explicit surface and collection conditions.
+  The [2026-10-31 catalogue audit](effects-audit.md) records source checks, 14 additions and 37
+  conditional typings. Quantity SI dimensions use NIST SP 811, with opaque excitations left
+  unquantified. Sensible heating and Ohmic conduction cite OpenStax's calorimetry and Ohm's-law
+  sections directly. [Knowledge packs](knowledge-packs.md) preserve per-entry source/review
+  metadata and separate domain quantity definitions from the canonical 39 matrix parameters.
 - A search for Koller/Roth-style input/output catalogues found publications discussing such
   catalogues, including [ICED11](https://www.designsociety.org/download-publication/30605/selection_of_physical_effects_based_on_disturbances_and_robustness_ratios_in_the_early_phases_of_robust_design),
   but no catalogue with verified redistribution terms. No entries were imported. This is a

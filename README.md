@@ -107,13 +107,15 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 
 | Tool | Purpose |
 |---|---|
-| `triz_parameter` | Get one of the 39 engineering parameters; omit `id` to list all |
+| `triz_parameter` | Get one of the 39 engineering parameters with alternate labels and interpretation guidance; omit `id` to list all |
+| `triz_knowledge` | List universal and domain knowledge packs, provenance, review status and explicit quantity parameters; all packs by default |
 | `triz_principle` | Get one of the 40 inventive principles; omit `id` to list all |
 | `triz_matrix` | Retrieve a canonical contradiction-matrix cell; blank cells fail closed |
 | `triz_matrix_multi` | Every (improving × worsening) cell for multi-parameter conflicts, aggregated by recommendation frequency |
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
 | `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage; entries name the MCP tools (`mcp_tools`) that carry out their method |
-| `triz_effects` | Search the curated effects database by required function or category |
+| `triz_effects` | Search all installed effects packs by function, category or typed quantity; optional domain/pack filters |
+| `triz_effect_setup` | Build a typed model from registered effect ids and explicit finite/resource declarations; optionally generate a Lean typing certificate |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_build_model` | Build a typed model from explicitly rated component interactions, with stable ids, lints, and a bounded completeness report |
@@ -493,8 +495,28 @@ construction.
 ## Data provenance and licensing
 
 - The 39 parameters, 40 principles, and the core tool catalog are classical TRIZ vocabulary;
-  the effects starter database (60 entries) is curated from textbook physics, chemistry, and
-  geometry.
+  the effects starter database (78 entries, all with conditional typings) contains repository-authored summaries of physics,
+  chemistry and geometry. See the [catalogue audit](skills/triz-innovation/references/effects-audit.md)
+  for corrections, additions, references and evidence gaps.
+- [Knowledge packs](skills/triz-innovation/references/knowledge-packs.md) separate universal
+  measurement vocabulary from domain quantities and effects. All installed packs are used by
+  default. Expert contributions add versioned JSON packs with attributed review status;
+  `pnpm knowledge` validates their union and updates hosted imports. Canonical matrix parameters
+  remain the original 39.
+- Eight shared interface families factor 22 named cases into 14 signatures, giving 70 independently
+  declared interfaces while retaining all 78 searchable entries and their case-specific evidence.
+  Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
+  no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.
+- `triz_knowledge` reports field groups separately from the 69 response and nine mechanism
+  entries; these are modeling roles, not counts of independent physical laws.
+  `pnpm example:effects-products` checks selected contracts against a real voice-coil stage and
+  two patent disclosures, preserving discovery and rejecting unsupported decompositions.
+  See the [validation scope](docs/effects-evidence.md#product-and-patent-validation).
+  `pnpm example:effects-recent-patents` checks nine 2025–2026 publications, four added response
+  clauses, further interface sharing, and explicit state/probability limitations.
+- The [classical parameter audit](skills/triz-innovation/references/parameters-audit.md) retains
+  every matrix id, clarifies nearby categories and normalizes Force at id 10 with the former
+  wording retained as an alias. Runtime and schema checks protect the closed 1–39 vocabulary.
 - `matrix.json` was imported from a machine-readable workbook. The underlying table is Altshuller's
   and widely republished. To regenerate the file from a source of your own choosing:
 

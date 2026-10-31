@@ -41,6 +41,8 @@ export const EffectChainsRequest = z.strictObject({
   effects: z.array(TypedEffect).max(10_000).optional(),
   conditions: z.array(z.string()).default([]),
   k: z.number().int().min(0).max(12).default(4),
+  min_length: z.number().int().min(0).max(12).default(0)
+    .describe("Minimum number of effects; use 1 to search nonempty chains between the same input/output type"),
   max_steps: z.number().int().min(1).max(1_000_000).default(20_000),
   limit: z.number().int().min(1).max(1000).default(50),
 });
@@ -117,6 +119,8 @@ export function effectChains(
       ),
     );
   const a = parsed.data;
+  if (a.min_length > a.k)
+    return fail([issue("invalid-argument", "$.min_length", "Minimum chain length exceeds k", "Use min_length <= k.")]);
   if (a.model) {
     const c = checkModel(a.model, "$.model");
     if (!c.ok) return fail(c.issues);
@@ -156,7 +160,7 @@ export function effectChains(
       if (chain.some(e => e.id === effect.id)) continue;
       if (!matches(current, effect.input)) continue;
       const next = [...chain, effect];
-      if (matches(effect.output, a.output)) {
+      if (next.length >= a.min_length && matches(effect.output, a.output)) {
         const model = diagram(resource, next);
         if (!checkModel(model).ok) throw new Error("ill-typed effect diagram");
         const conditions = [...new Set(next.flatMap((e) => e.conditions))];
@@ -177,7 +181,7 @@ export function effectChains(
   try {
     for (const resource of resources) {
       if (++steps > a.max_steps) throw new Error("cap");
-      if (matches(resource, a.output)) {
+      if (a.min_length === 0 && matches(resource, a.output)) {
         const model = diagram(resource, []);
         if (!checkModel(model).ok)
           throw new Error("ill-typed effect identity diagram");

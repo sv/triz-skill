@@ -25,11 +25,13 @@ run `npx -y -p triz-mcp triz …`. Do not read `src/` to learn a tool's argument
 | `triz_tool_catalog(stage?)` | List the broader toolset, optionally by stage |
 | `triz_component_search(model, resources, targets, catalogue, contract?, implementation?)` | Discover component instances and wiring with desired typed ports and optional finite property/resource contracts |
 | `triz_component_catalogue()` | Get shared polymorphic identity/fan-out relations; use `catalogues` and type bindings to combine reusable libraries across domains |
-| `triz_effect_chains(resources, output, effects?, k?)` | Find bounded typed hypotheses without reusing an effect; empty resource declarations fail closed |
+| `triz_effect_chains(resources, output, effects?, k?, min_length?)` | Find bounded typed hypotheses without reusing an effect; min_length:1 finds nonempty same-type chains; empty resources fail closed |
 | `triz_lifecycle(model, box?, weights?, acceptable?)` | Check exact average-cost policies, explicit holding costs and stationary availability; tied transition choices remain undecided |
 | `triz_bond_graph(model, max_steps?)` | Structural energy causality, universally forced derivative storage and equation dependencies |
 | `triz_effect_insert(model, from, to, chain, replace_wire?)` | Insert a discovered chain, retain sources/conditions and return a checked replayable rewrite |
-| `triz_effects(query?, category?)` | Search the curated effects database by required function |
+| `triz_knowledge(query?, domain?)` | Inspect installed universal/domain quantity definitions, provenance and reviews |
+| `triz_effects(query?, category?, domain?, pack?)` | Search all installed effects packs by required function; optional domain filtering includes universal effects |
+| `triz_effect_setup(chain, domain, bindings?, boundary?, declarations?, certificate?)` | Instantiate registered effects or expanded recipes as a typed model; per-step behavior, state/initial/transition and resources remain explicit declarations |
 | `triz_route(stage, signals?)` | Route a problem to candidate tools |
 | `triz_evals()` | Return public lookup and synthetic reasoning regressions |
 | `triz_build_model(domain, components[], interactions[], flows?)` | Build stable typed ports and functions from subject/action/object interactions; every carrier and polarity must be supplied; reports unrecorded pairs, isolated components, and product reach |
