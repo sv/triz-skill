@@ -1,116 +1,62 @@
 # Which effects to retain as compounds and which models to split
 
-Assessment date: 2026-10-31, following the merge of PR #53. The 78 names and selected
-contracts were screened for abstraction mismatches. Thirty-four nontrivial decisions are
-recorded in `effects.json`: 15 retain-compound, six split-models and 13 retain-response.
-The other 44 have no new detailed assessment. The original effect names, unary typings, assumptions and evidence records remain intact.
-The implementation adds 19 multiport/stateful templates and 23 quantity types for the six split groups. Two sourced forward observations expose refined
-DC-current and particle-force signals at their broader current/force boundaries.
-
-These are architectural judgments at the current engineering resolution. Sources support
-the phenomena and distinctions; they do not prove our proposed decomposition. An effect's
-`kind` describes its selected registered typing, while `model_assessment` reviews the whole
-named function, which can include additional behavior. For example, entry 60 currently types
-temperature change to mismatch stress; its name also refers to detachment, a compound goal.
+Assessment date: 2026-10-31. `effects.json` records 34 sourced decisions: 15 retain-compound,
+six split-models and 13 retain-response; 44 entries remain unassessed. All 78 names and selected
+discovery contracts/evidence remain available. Four implementations now derive from named
+configurations; 19 multiport/stateful templates and two forward observations support composition.
 
 ## Decision rule
 
-- **Split models** when the entry bundles different observable contracts: different input/output
-  quantities, process direction, temporal behavior, state or system boundary. Preserve the
-  umbrella name for discovery; do not create duplicate scalar arrows for temporal variants.
-- **Retain a compound mechanism** when its useful function depends on geometry, simultaneous
-  interactions, balances, contact conditions or feedback. Identify its parts, but retain the
-  named search target. A list of parts is not an executable serial recipe.
-- **Retain a coupled response** when a material or interaction model supplies the useful
-  engineering abstraction. Shared microscopic physics does not eliminate calibration, material
-  state or operating regimes. This decision does not claim fundamental irreducibility.
+- **Split models** for different quantities, directions, state/history or system boundaries.
+  Preserve the umbrella search name; temporal variants need state, not duplicate scalar arrows.
+- **Retain compounds** whose useful function needs geometry, simultaneous interactions,
+  balances, contact or feedback. A list of parts is not an executable serial recipe.
+- **Retain responses** where a material/interaction law is the useful engineering abstraction.
+  Common microscopic physics does not remove calibration, regimes or history.
 
-## Six entries needing distinct clause models
+These are architectural assessments, not irreducibility or equivalence proofs. `kind` describes
+the selected typing; `model_assessment` reviews the broader named function. Entry 60, for example,
+types mismatch stress while detachment additionally needs adhesion/fracture behavior.
 
-| Id / search umbrella | Keep these models distinct | What is currently typed |
-|---|---|---|
-| 16, photoluminescence and phosphorescence | Prompt fluorescence, triplet phosphorescence and separated-charge recombination implementations | Light → light only; no emission lifetime or state law is inferred. Phosphorescence is a subtype of photoluminescence, so the current name is an umbrella with a subtype, not two independent effects. [NIST](https://www.nist.gov/glossary-term/47276), [IUPAC fluorescence](https://goldbook.iupac.org/terms/view/F02453) |
-| 20, polarization | Analyzer transmission versus stress-induced birefringence/retardance | Analyzer angle → irradiance. A photoelastic model needs material, optical-path and wavelength assumptions and its own stress/retardance boundary. [Polarization](https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization), [original photoelasticity measurements](https://arxiv.org/abs/2208.00769) |
-| 33, corona discharge and ionic wind | Electrical ionization/discharge current versus neutral-gas flow | Voltage → fluid velocity under supplied corona conditions. Keep ionic wind as a compound mechanism; ion generation and ion-neutral momentum exchange are distinct parts, not a ready-made unary chain. [Ionic-wind measurements](https://doi.org/10.1103/PhysRevFluids.3.063701), [electroaerodynamic aircraft](https://www.nature.com/articles/s41586-018-0707-9) |
-| 35, superconductivity | DC transport versus magnetic/Meissner response | Current → current inside the superconducting envelope. The contracts should share a material-state model; zero DC resistance does not itself provide magnetic expulsion, pinning or levitation behavior. [Superconductors](https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors) |
-| 46, sublimation and deposition | Solid → vapor versus vapor → solid process models | Heat → sublimated mass. Deposition needs its own inventory, mass-transfer and heat-rejection conditions; reversing an arrow or a sign is insufficient. [Phase transitions](https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions) |
-| 47, molecular-sieve separation | Membrane permeation versus an adsorbent-bed cycle | Feed composition → membrane permeate composition. A bed needs uptake, breakthrough and regeneration state; adsorption 32 alone does not supply the complete bed. [DOE membrane example](https://www.energy.gov/science/bes/articles/traffic-cop-molecules), [DOE adsorption cycles](https://www.energy.gov/sites/default/files/2022-10/CCUS-Chap_5-030521.pdf) |
+## Six split groups
 
-The six groups now have separate templates in `effects.json.models`. These are engineering
-boundaries, not new independent physical primitives. Their source-backed conditions remain
-hypotheses until an implementation supplies calibration, state transitions and resource rows.
-The selected clauses remain discoverable. Entry 33 now expands into a registered named composition;
-its old independent unary implementation is removed. Entries 20, 35 and 59 also become named
-realizations: one lifted analyzer model and two existing response models with explicit
-forward observations replace their independently stored scalar clauses. Fifteen assessed compounds remain named mechanisms.
+| Id / umbrella | Separate models and retained scope |
+|---|---|
+| 16, photoluminescence | Prompt fluorescence, triplet phosphorescence and separated-charge recombination differ in history. Light → light supplies no lifetime law. |
+| 20, polarization | Analyzer transmission differs from stress-induced retardance. Photoelasticity needs material, path and wavelength; the analyzer now has explicit illumination. |
+| 33, corona/ionic wind | Charge generation, ion-neutral force and gas flow compose with explicit pressure/field. Beam, photoelectron and corona sources remain distinct. |
+| 35, superconductivity | DC transport and magnetic response share phase. Zero DC resistance supplies neither Meissner/levitation behavior nor zero system losses. |
+| 46, sublimation/deposition | Heat → sublimated mass differs from vapor capture with heat rejection. Reversing an arrow or sign is insufficient. |
+| 47, molecular sieves | Membrane permeation differs from cyclic-bed uptake, breakthrough and regeneration. Adsorption 32 does not supply a complete bed. |
 
-Use `triz_component_catalogue` with `source: "knowledge"`, then pass the returned catalogue to
-`triz_component_search`. This supports multi-input wiring, shared material state and explicit
-finite dynamics without forcing a network into a serial recipe. See the
-[setup contract](knowledge-packs.md#multiport-and-stateful-configurations) and
-[patent comparison](../../../docs/effects-configurations.md). No Physlib import is required for
-these finite typing/behavior checks; continuous constitutive-law proofs would need additional
-formal models and evidence.
+Each template/facet retains its sources and limitations in [effects.json](../data/effects.json).
+Entry 33 expands into three models; 20 replaces its scalar clause with an illuminated analyzer;
+35/59 reuse existing models with sourced current/force observations. Independent unary interfaces
+fall to 66. These engineering boundaries and 23 added quantity/state types are not new physical laws.
 
-## Fifteen named functions to retain as compounds
+## Retained functions
 
-| Entries | Why retain the mechanism | Boundary of the existing clause |
-|---|---|---|
-| 30, acoustic levitation | Radiation force, weight/other forces and spatial trapping must work together | A force response at a declared position is not a stability or levitation proof. |
-| 40, sacrificial protection | Material consumption, galvanic/electrolyte coupling and protection potential must agree | Current → anode-consumption rate does not establish protection of the other structure. |
-| 41, colorimetric assay | Chemical response, optical absorption and calibrated readout are coupled | Concentration → absorbance requires declared chemistry and calibration. |
-| 49–56, wedge, lever, screw, gears, flexure, conic focus, cellular structures and origami | Geometry, boundary constraints and material/interaction laws define each implementation | Shared force, displacement or light interfaces preserve neither geometry nor actual behavior by themselves. |
-| 57–58, vibration release and back-pulse cleaning | Excitation/flow, contact dynamics and adhesion determine release | The declared release clause does not establish a complete cleaning cycle. |
-| 60, thermal-mismatch detachment | Expansion, constraint stress and fracture/adhesion are coupled | The selected stress output is not a detached-mass output. |
-| 72, traveling-field dust transport | Phased drive, electrostatic/DEP forces, adhesion and particle dynamics form a mechanism | Force responses 59 and 71 act together; `[59,71]` is not a serial recipe. [NASA operating description](https://ntrs.nasa.gov/citations/20150016082) |
+| Decision | Entries and reason |
+|---|---|
+| Retain compound | 30 levitation; 40 sacrificial protection; 41 colorimetric assay; 49–56 geometric mechanisms; 57/58 release and cleaning; 60 mismatch detachment; 72 traveling-field transport. Their selected responses alone do not establish the full function. |
+| Retain response | 6 vaporization cooling, 42 chemiluminescence and 45 photopolymerization retain their conditional phase/chemical laws. Generic transport or polymerization 39 cannot replace them. |
+| Retain paired clauses | 2/75 piezoelectric sensing/actuation, 7/8 Seebeck/Peltier, 9/10 shape memory/superelasticity and 76/77 caloric responses retain distinct boundaries, material/branch calibration and history. The pairs are not inferred inverses. |
+| Retain bounded response | 31 covers collapse of an existing bubble, not inception/growth. 34 covers induced current; `[34,64]` may heat, but braking also needs motion/force/feedback. |
 
-Do not replace these entries with generic names such as "conversion" or "force". That would
-move their geometry and constitutive assumptions into hidden parameters and lose useful
-discovery targets. Entry 33 demonstrates replacing an opaque generator while preserving its name as a view.
-Further replacements need exact boundaries, explicit context/state, preserved discovery and
-justified implementation behavior.
+Do not replace geometry or constitutive laws with generic “force”/“conversion” names and hidden
+parameters. In particular, `[59,71]` is not a serial recipe for traveling-field dust transport.
 
-## Coupled responses to retain at this resolution
+## Use and validation
 
-- **Vaporization cooling (6), chemiluminescence (42) and photopolymerization (45):** keep their
-  conditional phase-change or photochemical responses. Complete coolers/curing systems need
-  transport and kinetics, but listing microscopic stages does not supply calibrated submodels.
-  In particular, polymerization 39 alone does not provide a light-to-conversion contract.
-- **Direct/converse piezoelectricity (2/75):** already separate sensing and actuation clauses.
-  Retain both; an engineering transducer model may share material parameters without making
-  the two arrows inverses.
-- **Seebeck/Peltier (7/8):** retain distinct electrical and thermal boundaries. A coupled
-  thermoelectric model is a useful later factorization, with heat rejection and losses explicit.
-- **Shape memory/superelasticity (9/10):** retain thermal recovery and unloading-driven response
-  separately, with phase/history state. Neither is supplied by a generic spring or expansion law.
-- **Cavitation (31):** retain the bounded collapse response for a pre-existing bubble. Inception
-  and growth need stateful fluid/phase models; a staged physical story does not provide serial
-  interfaces or an independent collapse primitive.
-- **Eddy currents (34):** retain the changing-excitation → current clause. `[34,64]` is a typed
-  heating candidate under its circuit assumptions; braking additionally needs force, motion and
-  feedback, so current generation alone does not certify braking.
-- **Magnetocaloric/electrocaloric response (76/77):** retain separately typed field changes and
-  material/branch calibration. Shared thermodynamic structure does not provide a material law.
+`triz_effects` accepts `assessment: "split-models"`, `"retain-compound"` or `"retain-response"`;
+`triz_knowledge.taxonomy.model_assessments` includes unassessed ids across all installed packs.
+Every assessment has `status: "assessment-only"`. Facet `effect` references must be typed;
+`models` references must belong to the parent. Self/reciprocal observational links are allowed,
+but neither kind of link becomes a generator, recipe, substitution or equivalence proof.
 
-## Using the assessments
-
-```json
-{"assessment": "split-models"}
-```
-
-Pass this to `triz_effects`; use `retain-compound` or `retain-response` for the other reviewed
-groups. `triz_knowledge.taxonomy.model_assessments` lists the ids and the unassessed remainder.
-These groups have the same all-installed-packs scope as the other taxonomy fields.
-
-Each assessment names the selected clause, rationale, source and optional facets. A facet's
-`effect` is a validated reference to an existing typed clause; it is not a substitution proof,
-causal edge or recipe step. A facet may also list `models`, validated references to multiport templates linked to that
-parent effect. Neither reference supplies a realization proof. Self and
-reciprocal observational links are permitted; recipe-cycle rules do not apply to them.
-Every assessment has `status: "assessment-only"`; no stronger verification status is accepted.
-
-Tests ensure that removing all assessments yields the same typed library and setup results,
-that assessment metadata never becomes a unary generator, and that the legacy compatibility snapshot still
-passes. All 78 named cases remain, with 66 independently declared unary interfaces and four
-derived named configurations. The separate model registry adds explicit boundaries and setup; it proves no physical
-equivalence or minimal-basis claim.
+Tests remove assessments and verify unchanged discovery/setup, preserve legacy contract hashes,
+and reject invalid references. Use the [catalogue/setup contract](knowledge-packs.md#multiport-and-stateful-configurations)
+for explicit wiring and state. The [patent comparisons](../../../docs/effects-configurations.md)
+check preserved names, resource-complete configurations and finite behavior. Further removals
+require those checks and sourced boundary/regime justification. Equal units or fields alone do
+not justify a merge; continuous constitutive-law proofs need additional models beyond finite Lean checks.

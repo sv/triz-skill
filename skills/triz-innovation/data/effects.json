@@ -1252,762 +1252,328 @@
       "id": "physical:photoelastic-retardance",
       "name": "Stress-induced optical retardance",
       "description": "Stress-optic response along a specified path; optical-path difference is a modulation parameter, not optical power.",
-      "parents": [
-        20
-      ],
+      "parents": [20],
       "inputs": [
-        {
-          "id": "stress",
-          "parameter": "physical:principal-stress-difference"
-        }
+        {"id": "stress", "parameter": "physical:principal-stress-difference"}
       ],
       "outputs": [
-        {
-          "id": "retardance",
-          "parameter": "physical:optical-path-difference"
-        }
+        {"id": "retardance", "parameter": "physical:optical-path-difference"}
       ],
-      "conditions": [
-        "Declared transparent material stress-optic coefficient, path thickness and wavelength",
-        "Resolved principal axes and stress distribution along the optical path"
-      ],
-      "provenance": {
-        "citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "No stress inference or optical intensity is supplied; retardance can be ambiguous modulo wavelength."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared transparent material stress-optic coefficient, path thickness and wavelength", "Resolved principal axes and stress distribution along the optical path"],
+      "provenance": {"citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["No stress inference or optical intensity is supplied; retardance can be ambiguous modulo wavelength."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:retardance-analyzer",
       "name": "Retardance optical readout",
       "description": "A specified polarizer/retarder/analyzer arrangement converts path retardance and incident light into transmitted irradiance.",
-      "parents": [
-        20
-      ],
+      "parents": [20],
       "inputs": [
-        {
-          "id": "retardance",
-          "parameter": "physical:optical-path-difference"
-        },
-        {
-          "id": "illumination",
-          "parameter": "physical:incident-irradiance"
-        }
+        {"id": "retardance", "parameter": "physical:optical-path-difference"},
+        {"id": "illumination", "parameter": "physical:incident-irradiance"}
       ],
       "outputs": [
-        {
-          "id": "transmitted",
-          "parameter": "physical:irradiance"
-        }
+        {"id": "transmitted", "parameter": "physical:irradiance"}
       ],
-      "conditions": [
-        "Declared wavelength, polarizer/analyzer orientation and optical losses",
-        "Declared retardance branch and detector response"
-      ],
-      "provenance": {
-        "citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Does not invert a periodic intensity response to unique stress."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared wavelength, polarizer/analyzer orientation and optical losses", "Declared retardance branch and detector response"],
+      "provenance": {"citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Does not invert a periodic intensity response to unique stress."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:vapor-deposition",
       "name": "Cold-surface vapor-to-solid capture",
       "description": "Net capture of condensable vapor as solid with available cooling capacity, under fixed surface conditions.",
-      "parents": [
-        46
-      ],
+      "parents": [46],
       "inputs": [
-        {
-          "id": "vapor",
-          "parameter": "physical:vapor-mass-rate"
-        },
-        {
-          "id": "cooling",
-          "parameter": "physical:heat-rejection-capacity"
-        }
+        {"id": "vapor", "parameter": "physical:vapor-mass-rate"},
+        {"id": "cooling", "parameter": "physical:heat-rejection-capacity"}
       ],
       "outputs": [
-        {
-          "id": "deposit",
-          "parameter": "physical:deposited-solid-mass-rate"
-        }
+        {"id": "deposit", "parameter": "physical:deposited-solid-mass-rate"}
       ],
-      "conditions": [
-        "Specified species and surface temperature/pressure support vapor-to-solid deposition",
-        "Capture coefficient, latent heat, sensible heat and parasitic heat loads are declared",
-        "Cooling removes the declared deposition heat load"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/US20240369052A1/en (Fig. 1 condensed layer 90, ice mass on cryopanel 41); https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Not the inverse of heat-to-sublimated-mass; excludes hydrogen cryosorption and sputter target/plasma generation."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Specified species and surface temperature/pressure support vapor-to-solid deposition", "Capture coefficient, latent heat, sensible heat and parasitic heat loads are declared", "Cooling removes the declared deposition heat load"],
+      "provenance": {"citation": "https://patents.google.com/patent/US20240369052A1/en (Fig. 1 condensed layer 90, ice mass on cryopanel 41); https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Not the inverse of heat-to-sublimated-mass; excludes hydrogen cryosorption and sputter target/plasma generation."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:prompt-fluorescence",
       "name": "Prompt fluorescence",
       "description": "Memoryless light excitation to emission approximation at a declared coarse time step.",
-      "parents": [
-        16
-      ],
+      "parents": [16],
       "inputs": [
-        {
-          "id": "excitation",
-          "parameter": "physical:light"
-        }
+        {"id": "excitation", "parameter": "physical:light"}
       ],
       "outputs": [
-        {
-          "id": "emission",
-          "parameter": "physical:emitted-light"
-        }
+        {"id": "emission", "parameter": "physical:emitted-light"}
       ],
-      "conditions": [
-        "Declared emitter, excitation/emission spectra and quantum yield",
-        "Observation step is long compared with the fluorescence lifetime"
-      ],
-      "provenance": {
-        "citation": "https://goldbook.iupac.org/terms/view/F02453",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "No afterglow or stored energy is implied."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared emitter, excitation/emission spectra and quantum yield", "Observation step is long compared with the fluorescence lifetime"],
+      "provenance": {"citation": "https://goldbook.iupac.org/terms/view/F02453", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["No afterglow or stored energy is implied."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:phosphorescent-emission",
       "name": "Phosphorescent emission",
       "description": "Stateful triplet-mediated emission; lifetime and transition probabilities remain declared.",
-      "parents": [
-        16
-      ],
+      "parents": [16],
       "inputs": [
-        {
-          "id": "excitation",
-          "parameter": "physical:light"
-        }
+        {"id": "excitation", "parameter": "physical:light"}
       ],
       "outputs": [
-        {
-          "id": "emission",
-          "parameter": "physical:emitted-light"
-        }
+        {"id": "emission", "parameter": "physical:emitted-light"}
       ],
-      "conditions": [
-        "Declared triplet-state material, quenching, lifetime and observation step"
-      ],
-      "provenance": {
-        "citation": "https://goldbook.iupac.org/terms/view/P04569",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Persistent luminescence is not necessarily phosphorescence; no universal decay law is supplied."
-      ],
+      "conditions": ["Declared triplet-state material, quenching, lifetime and observation step"],
+      "provenance": {"citation": "https://goldbook.iupac.org/terms/view/P04569", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Persistent luminescence is not necessarily phosphorescence; no universal decay law is supplied."],
       "state_parameter": "physical:triplet-excitation-state",
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:charge-recombination-emission",
       "name": "Separated-charge recombination emission",
       "description": "Light creates separated donor/acceptor charges whose later recombination can emit after excitation stops.",
-      "parents": [
-        16
-      ],
+      "parents": [16],
       "inputs": [
-        {
-          "id": "excitation",
-          "parameter": "physical:light"
-        }
+        {"id": "excitation", "parameter": "physical:light"}
       ],
       "outputs": [
-        {
-          "id": "emission",
-          "parameter": "physical:emitted-light"
-        }
+        {"id": "emission", "parameter": "physical:emitted-light"}
       ],
-      "conditions": [
-        "Declared donor/acceptor material, charge storage/recombination kinetics and observation step"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/US12590245B2/en (donor/acceptor transfer and carrier recombination description)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "The finite state abstraction is implementation-specific; no triplet lifetime or patent efficiency is inferred."
-      ],
+      "conditions": ["Declared donor/acceptor material, charge storage/recombination kinetics and observation step"],
+      "provenance": {"citation": "https://patents.google.com/patent/US12590245B2/en (donor/acceptor transfer and carrier recombination description)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["The finite state abstraction is implementation-specific; no triplet lifetime or patent efficiency is inferred."],
       "state_parameter": "physical:separated-charge-state",
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:superconducting-phase",
       "name": "Superconducting phase/branch response",
       "description": "One shared phase signal conditions electrical transport and magnetic readout of the same material.",
-      "parents": [
-        35
-      ],
+      "parents": [35],
       "inputs": [
-        {
-          "id": "temperature",
-          "parameter": "physical:temperature"
-        },
-        {
-          "id": "field",
-          "parameter": "physical:magnetic-flux-density"
-        },
-        {
-          "id": "drive",
-          "parameter": "physical:current"
-        }
+        {"id": "temperature", "parameter": "physical:temperature"},
+        {"id": "field", "parameter": "physical:magnetic-flux-density"},
+        {"id": "drive", "parameter": "physical:current"}
       ],
       "outputs": [
-        {
-          "id": "phase",
-          "parameter": "physical:superconducting-phase"
-        }
+        {"id": "phase", "parameter": "physical:superconducting-phase"}
       ],
-      "conditions": [
-        "Declared material, geometry and critical temperature/field/current surface",
-        "Declared phase history, hysteresis branch and observation step"
-      ],
-      "provenance": {
-        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "A three-regime finite abstraction does not model vortex dynamics, full transition curves or cooling power."
-      ],
+      "conditions": ["Declared material, geometry and critical temperature/field/current surface", "Declared phase history, hysteresis branch and observation step"],
+      "provenance": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["A three-regime finite abstraction does not model vortex dynamics, full transition curves or cooling power."],
       "state_parameter": "physical:superconducting-phase",
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:meissner-screening",
       "name": "Phase-qualified magnetic screening",
       "description": "Maps shared material phase and external field to a specified local field.",
-      "parents": [
-        35
-      ],
+      "parents": [35],
       "inputs": [
-        {
-          "id": "phase",
-          "parameter": "physical:superconducting-phase"
-        },
-        {
-          "id": "field",
-          "parameter": "physical:magnetic-flux-density"
-        }
+        {"id": "phase", "parameter": "physical:superconducting-phase"},
+        {"id": "field", "parameter": "physical:magnetic-flux-density"}
       ],
       "outputs": [
-        {
-          "id": "local-field",
-          "parameter": "physical:local-magnetic-flux-density"
-        }
+        {"id": "local-field", "parameter": "physical:local-magnetic-flux-density"}
       ],
-      "conditions": [
-        "Declared material, geometry, pickup location and calibrated screening by phase",
-        "Type-II mixed-state penetration and critical limits are explicitly bounded where applicable"
-      ],
-      "provenance": {
-        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Zero DC resistance alone does not establish Meissner screening; excludes a complete pickup/SQUID circuit."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared material, geometry, pickup location and calibrated screening by phase", "Type-II mixed-state penetration and critical limits are explicitly bounded where applicable"],
+      "provenance": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Zero DC resistance alone does not establish Meissner screening; excludes a complete pickup/SQUID circuit."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:phase-qualified-dc-transport",
       "name": "Phase-qualified DC transport",
       "description": "Electrical transport uses the same material phase signal as magnetic response.",
-      "parents": [
-        35
-      ],
+      "parents": [35],
       "inputs": [
-        {
-          "id": "phase",
-          "parameter": "physical:superconducting-phase"
-        },
-        {
-          "id": "drive",
-          "parameter": "physical:current"
-        }
+        {"id": "phase", "parameter": "physical:superconducting-phase"},
+        {"id": "drive", "parameter": "physical:current"}
       ],
       "outputs": [
-        {
-          "id": "transmitted",
-          "parameter": "physical:transmitted-dc-current"
-        }
+        {"id": "transmitted", "parameter": "physical:transmitted-dc-current"}
       ],
-      "conditions": [
-        "Declared circuit, contacts, material dimensions and critical current",
-        "Declared phase-specific current/voltage relation and losses"
-      ],
-      "provenance": {
-        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "No zero AC loss, magnetic levitation or inverse response is asserted."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared circuit, contacts, material dimensions and critical current", "Declared phase-specific current/voltage relation and losses"],
+      "provenance": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["No zero AC loss, magnetic levitation or inverse response is asserted."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:corona-ionization",
       "name": "Corona gas charge generation",
       "description": "A bounded corona regime supplies gas ions; drift and neutral flow are separate models.",
-      "parents": [
-        33
-      ],
+      "parents": [33],
       "inputs": [
-        {
-          "id": "voltage",
-          "parameter": "physical:voltage"
-        },
-        {
-          "id": "pressure",
-          "parameter": "physical:gas-pressure"
-        }
+        {"id": "voltage", "parameter": "physical:voltage"},
+        {"id": "pressure", "parameter": "physical:gas-pressure"}
       ],
       "outputs": [
-        {
-          "id": "ions",
-          "parameter": "physical:ion-current"
-        }
+        {"id": "ions", "parameter": "physical:ion-current"}
       ],
-      "conditions": [
-        "Declared gas, electrode geometry/polarity, humidity and calibrated corona inception/breakdown limits"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "No ions outside the declared corona regime; not interchangeable with electron-beam or photoelectron generation."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared gas, electrode geometry/polarity, humidity and calibrated corona inception/breakdown limits"],
+      "provenance": {"citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["No ions outside the declared corona regime; not interchangeable with electron-beam or photoelectron generation."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:electron-beam-ionization",
       "name": "Electron-beam gas charge generation",
       "description": "Incident beam ionizes/attaches in gas; reuses the same downstream ion-force and flow boundaries.",
-      "parents": [
-        33
-      ],
+      "parents": [33],
       "inputs": [
-        {
-          "id": "beam",
-          "parameter": "physical:electron-beam-current"
-        },
-        {
-          "id": "voltage",
-          "parameter": "physical:voltage"
-        },
-        {
-          "id": "pressure",
-          "parameter": "physical:gas-pressure"
-        }
+        {"id": "beam", "parameter": "physical:electron-beam-current"},
+        {"id": "voltage", "parameter": "physical:voltage"},
+        {"id": "pressure", "parameter": "physical:gas-pressure"}
       ],
       "outputs": [
-        {
-          "id": "ions",
-          "parameter": "physical:ion-current"
-        }
+        {"id": "ions", "parameter": "physical:ion-current"}
       ],
-      "conditions": [
-        "Declared beam energy/current, exit window, gas species, pressure and charge yield"
-      ],
-      "provenance": {
-        "citation": "https://patents.justia.com/patent/20260237975 (abstract and electron beam exit-window/ion-accelerating electrode description)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Vacuum source and window engineering are external; circuit current is not automatically beam current."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared beam energy/current, exit window, gas species, pressure and charge yield"],
+      "provenance": {"citation": "https://patents.justia.com/patent/20260237975 (abstract and electron beam exit-window/ion-accelerating electrode description)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Vacuum source and window engineering are external; circuit current is not automatically beam current."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:photoelectron-gas-charging",
       "name": "Photoelectron gas charge generation",
       "description": "Emitted electrons attach/ionize in a declared gas region; the surface photoelectric effect remains a separate source.",
-      "parents": [
-        33,
-        15
-      ],
+      "parents": [33, 15],
       "inputs": [
-        {
-          "id": "electrons",
-          "parameter": "physical:current"
-        },
-        {
-          "id": "pressure",
-          "parameter": "physical:gas-pressure"
-        }
+        {"id": "electrons", "parameter": "physical:current"},
+        {"id": "pressure", "parameter": "physical:gas-pressure"}
       ],
       "outputs": [
-        {
-          "id": "ions",
-          "parameter": "physical:ion-current"
-        }
+        {"id": "ions", "parameter": "physical:ion-current"}
       ],
-      "conditions": [
-        "Input current is declared photoelectron emission, with specified energy, gas species, attachment/ionization and collection efficiency"
-      ],
-      "provenance": {
-        "citation": "https://patents.justia.com/patent/20260002524 (photoelectric emitter and atmospheric ion transport description)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "A generic circuit current does not establish gas ionization; no discharge threshold or photoemission yield is inferred."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Input current is declared photoelectron emission, with specified energy, gas species, attachment/ionization and collection efficiency"],
+      "provenance": {"citation": "https://patents.justia.com/patent/20260002524 (photoelectric emitter and atmospheric ion transport description)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["A generic circuit current does not establish gas ionization; no discharge threshold or photoemission yield is inferred."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:ion-neutral-force",
       "name": "Ion-neutral momentum transfer",
       "description": "Gas ion transport under an electric field transfers momentum to neutral gas in a specified drift region.",
-      "parents": [
-        33
-      ],
+      "parents": [33],
       "inputs": [
-        {
-          "id": "ions",
-          "parameter": "physical:ion-current"
-        },
-        {
-          "id": "field",
-          "parameter": "physical:electric-field"
-        }
+        {"id": "ions", "parameter": "physical:ion-current"},
+        {"id": "field", "parameter": "physical:electric-field"}
       ],
       "outputs": [
-        {
-          "id": "force",
-          "parameter": "physical:gas-body-force"
-        }
+        {"id": "force", "parameter": "physical:gas-body-force"}
       ],
-      "conditions": [
-        "Declared gas mobility/collision regime, drift length, field distribution and charge transport"
-      ],
-      "provenance": {
-        "citation": "https://doi.org/10.1103/PhysRevFluids.3.063701 ; https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "An integrated gas force is not a particle force or a predicted thrust efficiency."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared gas mobility/collision regime, drift length, field distribution and charge transport"],
+      "provenance": {"citation": "https://doi.org/10.1103/PhysRevFluids.3.063701 ; https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["An integrated gas force is not a particle force or a predicted thrust efficiency."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:gas-flow-response",
       "name": "Forced gas flow response",
       "description": "Gas body force produces a bounded velocity response under fixed flow geometry and resistance.",
-      "parents": [
-        33
-      ],
+      "parents": [33],
       "inputs": [
-        {
-          "id": "force",
-          "parameter": "physical:gas-body-force"
-        }
+        {"id": "force", "parameter": "physical:gas-body-force"}
       ],
       "outputs": [
-        {
-          "id": "flow",
-          "parameter": "physical:fluid-velocity"
-        }
+        {"id": "flow", "parameter": "physical:fluid-velocity"}
       ],
-      "conditions": [
-        "Declared gas density/viscosity, geometry, pressure boundary and force-to-flow calibration"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "No universal force-to-speed law; momentum/energy and load must be checked for each implementation."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared gas density/viscosity, geometry, pressure boundary and force-to-flow calibration"],
+      "provenance": {"citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["No universal force-to-speed law; momentum/energy and load must be checked for each implementation."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:particle-electric-force",
       "name": "Charged-particle electric force",
       "description": "Electric field acts on a specified charged particle population; charging is an input.",
-      "parents": [
-        33,
-        59
-      ],
+      "parents": [33, 59],
       "inputs": [
-        {
-          "id": "charge",
-          "parameter": "physical:particle-charge"
-        },
-        {
-          "id": "field",
-          "parameter": "physical:electric-field"
-        }
+        {"id": "charge", "parameter": "physical:particle-charge"},
+        {"id": "field", "parameter": "physical:electric-field"}
       ],
       "outputs": [
-        {
-          "id": "force",
-          "parameter": "physical:particle-electric-force"
-        }
+        {"id": "force", "parameter": "physical:particle-electric-force"}
       ],
-      "conditions": [
-        "Declared particle charge distribution and electric field at particle positions"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Not gas momentum transfer or dielectrophoresis on neutral polarizable particles."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared particle charge distribution and electric field at particle positions"],
+      "provenance": {"citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Not gas momentum transfer or dielectrophoresis on neutral polarizable particles."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:force-flow-particle-release",
       "name": "Combined force/flow particle release",
       "description": "Particle force assists detachment while gas flow transports released material over a declared interval.",
-      "parents": [
-        33,
-        59
-      ],
+      "parents": [33, 59],
       "inputs": [
-        {
-          "id": "flow",
-          "parameter": "physical:fluid-velocity"
-        },
-        {
-          "id": "force",
-          "parameter": "physical:particle-electric-force"
-        }
+        {"id": "flow", "parameter": "physical:fluid-velocity"},
+        {"id": "force", "parameter": "physical:particle-electric-force"}
       ],
       "outputs": [
-        {
-          "id": "released",
-          "parameter": "physical:released-mass"
-        }
+        {"id": "released", "parameter": "physical:released-mass"}
       ],
-      "conditions": [
-        "Declared adhesion/cohesion, particle sizes/charges, drag, panel orientation and collection boundary",
-        "Declared release observation interval and available dust mass"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "A coupled cleaning response is retained; no serial recipe or moving-wave electrodynamic-shield equivalence is claimed."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared adhesion/cohesion, particle sizes/charges, drag, panel orientation and collection boundary", "Declared release observation interval and available dust mass"],
+      "provenance": {"citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["A coupled cleaning response is retained; no serial recipe or moving-wave electrodynamic-shield equivalence is claimed."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:heated-purge-regeneration",
       "name": "Heated purge resource preparation",
       "description": "A declared purge stream at a specified temperature provides regeneration capability.",
-      "parents": [
-        47
-      ],
+      "parents": [47],
       "inputs": [
-        {
-          "id": "purge",
-          "parameter": "physical:purge-molar-flow"
-        },
-        {
-          "id": "temperature",
-          "parameter": "physical:temperature"
-        }
+        {"id": "purge", "parameter": "physical:purge-molar-flow"},
+        {"id": "temperature", "parameter": "physical:temperature"}
       ],
       "outputs": [
-        {
-          "id": "resource",
-          "parameter": "physical:regeneration-resource"
-        }
+        {"id": "resource", "parameter": "physical:regeneration-resource"}
       ],
-      "conditions": [
-        "Declared purge species/composition, temperature, pressure, heat source and usable flow"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Capability is not a conserved physical flow; declare feasibility rows for heat and purge budgets. No vacuum regeneration is implied."
-      ],
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "conditions": ["Declared purge species/composition, temperature, pressure, heat source and usable flow"],
+      "provenance": {"citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Capability is not a conserved physical flow; declare feasibility rows for heat and purge budgets. No vacuum regeneration is implied."],
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:cyclic-adsorbent-bed",
       "name": "Finite-capacity cyclic adsorbent bed",
       "description": "Selective adsorption, loading/breakthrough and commanded heated-purge regeneration share one bed state.",
-      "parents": [
-        47,
-        32
-      ],
+      "parents": [47, 32],
       "inputs": [
-        {
-          "id": "feed",
-          "parameter": "physical:feed-mole-fraction"
-        },
-        {
-          "id": "flow",
-          "parameter": "physical:feed-molar-flow"
-        },
-        {
-          "id": "command",
-          "parameter": "physical:regeneration-command"
-        },
-        {
-          "id": "regeneration",
-          "parameter": "physical:regeneration-resource"
-        }
+        {"id": "feed", "parameter": "physical:feed-mole-fraction"},
+        {"id": "flow", "parameter": "physical:feed-molar-flow"},
+        {"id": "command", "parameter": "physical:regeneration-command"},
+        {"id": "regeneration", "parameter": "physical:regeneration-resource"}
       ],
       "outputs": [
-        {
-          "id": "product",
-          "parameter": "physical:product-mole-fraction"
-        },
-        {
-          "id": "loading",
-          "parameter": "physical:adsorbed-amount"
-        }
+        {"id": "product", "parameter": "physical:product-mole-fraction"},
+        {"id": "loading", "parameter": "physical:adsorbed-amount"}
       ],
-      "conditions": [
-        "Declared adsorbent, feed species/composition, capacity, temperature/pressure and mass transfer",
-        "Declared adsorption/purge schedule, feed interruption, regeneration completeness and observation step"
-      ],
-      "provenance": {
-        "citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)",
-        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
-      },
-      "limitations": [
-        "Not the membrane-permeate typing of effect 47; a single bed cannot promise continuous product during regeneration. Split-feed/multiple-bed cooling and cycle efficiency are outside this template."
-      ],
+      "conditions": ["Declared adsorbent, feed species/composition, capacity, temperature/pressure and mass transfer", "Declared adsorption/purge schedule, feed interruption, regeneration completeness and observation step"],
+      "provenance": {"citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)", "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"},
+      "limitations": ["Not the membrane-permeate typing of effect 47; a single bed cannot promise continuous product during regeneration. Split-feed/multiple-bed cooling and cycle efficiency are outside this template."],
       "state_parameter": "physical:adsorbent-loading",
-      "review": {
-        "status": "draft",
-        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
-        "reviewers": []
-      }
+      "review": {"status": "draft", "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.", "reviewers": []}
     },
     {
       "id": "physical:linear-analyzer-transmission",
       "name": "Linear analyzer transmission",
       "description": "Malus-law readout with incident irradiance explicit. This replaces the independently stored analyzer-angle clause of effect 20.",
-      "parents": [
-        20
-      ],
+      "parents": [20],
       "inputs": [
-        {
-          "id": "angle",
-          "parameter": "physical:polarizer-angle"
-        },
-        {
-          "id": "illumination",
-          "parameter": "physical:incident-irradiance"
-        }
+        {"id": "angle", "parameter": "physical:polarizer-angle"},
+        {"id": "illumination", "parameter": "physical:incident-irradiance"}
       ],
       "outputs": [
-        {
-          "id": "transmitted",
-          "parameter": "physical:irradiance"
-        }
+        {"id": "transmitted", "parameter": "physical:irradiance"}
       ],
-      "conditions": [
-        "linearly polarized incident beam with specified irradiance",
-        "specified analyzer, wavelength and extinction assumptions",
-        "relative angle measured between incident polarization and analyzer axis"
-      ],
-      "provenance": {
-        "citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-authored selected clause and quantity declarations",
-        "license": "MIT (repository-authored declaration; external reference text is not reproduced)"
-      },
-      "review": {
-        "status": "draft",
-        "note": "Source-backed multi-input lifting of the existing selected analyzer clause; finite rows and calibration remain implementation declarations.",
-        "reviewers": []
-      },
-      "limitations": [
-        "Selected linear polarizer/analyzer geometry, wavelength and extinction. Does not infer retardance or uniquely invert intensity to angle."
-      ]
+      "conditions": ["linearly polarized incident beam with specified irradiance", "specified analyzer, wavelength and extinction assumptions", "relative angle measured between incident polarization and analyzer axis"],
+      "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"},
+      "review": {"status": "draft", "note": "Source-backed multi-input lifting of the existing selected analyzer clause; finite rows and calibration remain implementation declarations.", "reviewers": []},
+      "limitations": ["Selected linear polarizer/analyzer geometry, wavelength and extinction. Does not infer retardance or uniquely invert intensity to angle."]
     }
   ],
   "boundary_mappings": [

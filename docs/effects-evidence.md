@@ -329,16 +329,8 @@ before/after task and a negative control, as in the examples above.
 
 ## Multiport and stateful configurations
 
-The six split groups now have 18 separate model templates and 23 additional boundary/state
-quantities. The 78 unary lookups remain intact. See the [eight-patent before/after comparison](effects-configurations.md)
-for name-blind configuration discovery, reused ion-force/flow components, temporal controls,
-source locators and formalization limits.
-
-The subsequent [named-composition reduction](effects-configurations.md#named-composition-reduction)
-converts entry 33 to an expanded model network, reducing the above historical count of 70
-independent unary declarations to 69 while preserving all 78 discovery names.
-
-Further justified observations and the lifted analyzer clause convert entries 20/35/59 too,
-reducing the independent unary count to 66. The [expanded comparison](effects-configurations.md#additional-patent-boundary-cases)
-retains all fully expressed original candidates and adds three resource-complete boundary cases;
-three former opaque superconductivity shortcuts are reported separately.
+The [configuration and reduction report](effects-configurations.md) covers 19 templates,
+23 added boundary/state quantities, two forward observations and four named configurations.
+All 78 names remain; independent unary interfaces fall to 66. It records the eight-patent
+comparison, three additional boundary cases, preserved topologies, removed opaque shortcuts,
+source locators, temporal controls and the limits of finite validation.

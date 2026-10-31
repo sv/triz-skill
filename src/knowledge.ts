@@ -53,7 +53,7 @@ export const EffectModelAssessment = z.strictObject({
 }).superRefine((a, ctx) => {
   if (a.decision !== "retain-response" && !a.facets)
     ctx.addIssue({ code: "custom", message: "Compound and split assessments must name at least two facets" });
-});
+}).meta({ id: "EffectModelAssessment" });
 const Description = {
   id: EffectId,
   name: Text,

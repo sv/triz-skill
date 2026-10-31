@@ -890,99 +890,7 @@
                 }
               },
               "model_assessment": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "retain-response",
-                      "retain-compound",
-                      "split-models"
-                    ]
-                  },
-                  "selected_clause": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Scope of the existing registered typing, not the whole named application"
-                  },
-                  "rationale": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "facets": {
-                    "minItems": 2,
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "effect": {
-                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                            },
-                            {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          ]
-                        },
-                        "models": {
-                          "description": "Related multiport model templates; not a realization or equivalence proof",
-                          "minItems": 1,
-                          "maxItems": 20,
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                          }
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "source": {
-                    "type": "object",
-                    "properties": {
-                      "citation": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "license": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "citation",
-                      "license"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "status": {
-                    "type": "string",
-                    "const": "assessment-only",
-                    "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
-                  }
-                },
-                "required": [
-                  "decision",
-                  "selected_clause",
-                  "rationale",
-                  "source",
-                  "status"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/EffectModelAssessment"
               },
               "related_effects": {
                 "type": "array",
@@ -1318,99 +1226,7 @@
                 }
               },
               "model_assessment": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "retain-response",
-                      "retain-compound",
-                      "split-models"
-                    ]
-                  },
-                  "selected_clause": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Scope of the existing registered typing, not the whole named application"
-                  },
-                  "rationale": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "facets": {
-                    "minItems": 2,
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "effect": {
-                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                            },
-                            {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          ]
-                        },
-                        "models": {
-                          "description": "Related multiport model templates; not a realization or equivalence proof",
-                          "minItems": 1,
-                          "maxItems": 20,
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                          }
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "source": {
-                    "type": "object",
-                    "properties": {
-                      "citation": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "license": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "citation",
-                      "license"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "status": {
-                    "type": "string",
-                    "const": "assessment-only",
-                    "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
-                  }
-                },
-                "required": [
-                  "decision",
-                  "selected_clause",
-                  "rationale",
-                  "source",
-                  "status"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/EffectModelAssessment"
               },
               "related_effects": {
                 "type": "array",
@@ -1608,99 +1424,7 @@
                 }
               },
               "model_assessment": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "retain-response",
-                      "retain-compound",
-                      "split-models"
-                    ]
-                  },
-                  "selected_clause": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Scope of the existing registered typing, not the whole named application"
-                  },
-                  "rationale": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "facets": {
-                    "minItems": 2,
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "effect": {
-                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                            },
-                            {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          ]
-                        },
-                        "models": {
-                          "description": "Related multiport model templates; not a realization or equivalence proof",
-                          "minItems": 1,
-                          "maxItems": 20,
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                          }
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "source": {
-                    "type": "object",
-                    "properties": {
-                      "citation": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "license": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "citation",
-                      "license"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "status": {
-                    "type": "string",
-                    "const": "assessment-only",
-                    "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
-                  }
-                },
-                "required": [
-                  "decision",
-                  "selected_clause",
-                  "rationale",
-                  "source",
-                  "status"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/EffectModelAssessment"
               },
               "related_effects": {
                 "type": "array",
@@ -1901,99 +1625,7 @@
                 }
               },
               "model_assessment": {
-                "type": "object",
-                "properties": {
-                  "decision": {
-                    "type": "string",
-                    "enum": [
-                      "retain-response",
-                      "retain-compound",
-                      "split-models"
-                    ]
-                  },
-                  "selected_clause": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Scope of the existing registered typing, not the whole named application"
-                  },
-                  "rationale": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "facets": {
-                    "minItems": 2,
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "effect": {
-                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                            },
-                            {
-                              "type": "integer",
-                              "exclusiveMinimum": 0,
-                              "maximum": 9007199254740991
-                            }
-                          ]
-                        },
-                        "models": {
-                          "description": "Related multiport model templates; not a realization or equivalence proof",
-                          "minItems": 1,
-                          "maxItems": 20,
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
-                          }
-                        }
-                      },
-                      "required": [
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "source": {
-                    "type": "object",
-                    "properties": {
-                      "citation": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "license": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "citation",
-                      "license"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "status": {
-                    "type": "string",
-                    "const": "assessment-only",
-                    "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
-                  }
-                },
-                "required": [
-                  "decision",
-                  "selected_clause",
-                  "rationale",
-                  "source",
-                  "status"
-                ],
-                "additionalProperties": false
+                "$ref": "#/$defs/EffectModelAssessment"
               },
               "related_effects": {
                 "type": "array",
@@ -2295,5 +1927,102 @@
     "effects"
   ],
   "additionalProperties": false,
+  "$defs": {
+    "EffectModelAssessment": {
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "retain-response",
+            "retain-compound",
+            "split-models"
+          ]
+        },
+        "selected_clause": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Scope of the existing registered typing, not the whole named application"
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 1
+        },
+        "facets": {
+          "minItems": 2,
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              },
+              "effect": {
+                "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                  },
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  }
+                ]
+              },
+              "models": {
+                "description": "Related multiport model templates; not a realization or equivalence proof",
+                "minItems": 1,
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "source": {
+          "type": "object",
+          "properties": {
+            "citation": {
+              "type": "string",
+              "minLength": 1
+            },
+            "license": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "citation",
+            "license"
+          ],
+          "additionalProperties": false
+        },
+        "status": {
+          "type": "string",
+          "const": "assessment-only",
+          "description": "Architectural judgment; neither a recipe nor a physical equivalence proof"
+        }
+      },
+      "required": [
+        "decision",
+        "selected_clause",
+        "rationale",
+        "source",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
   "title": "TRIZ knowledge pack"
 }

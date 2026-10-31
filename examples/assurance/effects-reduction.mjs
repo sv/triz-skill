@@ -5,7 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as data from "../../src/data.ts";
-import { compileKnowledge, typedKnowledgeEffects } from "../../src/knowledge.ts";
+import { typedKnowledgeEffects } from "../../src/knowledge.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { compareBehavior } from "../../src/act-behavior.ts";
@@ -17,7 +17,6 @@ import { validateBoundaryModels } from "./effects-boundaries.mjs";
 export function validateNamedReduction() {
   const current = data.knowledge(), baseline = reductionBaseline(current);
   const before = baseline.knowledge, old = before.packs;
-  const fixture = JSON.parse(fs.readFileSync(new URL("../../tests/fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
   const queries = [...new Set(before.effects.flatMap(e => [e.name, e.function, ...e.hints]))];
   const lookup = packs => {
     const files = { "knowledge.json": { format: "triz-knowledge-manifest-v1", packs: ["knowledge/universal.json", "effects.json"] },
@@ -52,7 +51,7 @@ export function validateNamedReduction() {
   resource.behavior = ["0", "1"].map(v => ({ in: { voltage: v }, out: { out: v, "context-0-pressure": "normal", "context-0-field": "drift" } }));
   const reference = structuredClone(model);
   reference.boxes = reference.boxes.filter(b => ["resource", "required"].includes(b.id));
-  reference.boxes.push({ id: "legacy", name: fixture.effect.name, role: "tool", inputs: [{ id: "in", carrier: p("voltage") }], outputs: [{ id: "out", carrier: p("fluid-velocity") }], behavior: rows("in", "out") });
+  reference.boxes.push({ id: "legacy", name: before.effects.find(e => e.id === 33).name, role: "tool", inputs: [{ id: "in", carrier: p("voltage") }], outputs: [{ id: "out", carrier: p("fluid-velocity") }], behavior: rows("in", "out") });
   const wire = (id, from, to, carrier) => ({ id, from, to, carrier, polarity: "useful" });
   reference.wires = [wire("start", { box: "resource", port: "out" }, { box: "legacy", port: "in" }, p("voltage")),
     wire("finish", { box: "legacy", port: "out" }, { box: "required", port: "in" }, p("fluid-velocity"))];
