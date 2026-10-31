@@ -3,8 +3,8 @@
 Assessment date: 2026-10-31, following the merge of PR #53. The 78 names and selected
 contracts were screened for abstraction mismatches. Thirty-four nontrivial decisions are
 recorded in `effects.json`: 15 retain-compound, six split-models and 13 retain-response.
-The other 44 have no new detailed assessment. No effect, quantity, typing, assumption,
-evidence record or existing lookup name is removed or changed by this audit.
+The other 44 have no new detailed assessment. The original effect names, unary typings, assumptions and evidence records remain intact.
+The implementation adds 18 multiport/stateful templates and 23 quantity types for the six split groups.
 
 These are architectural judgments at the current engineering resolution. Sources support
 the phenomena and distinctions; they do not prove our proposed decomposition. An effect's
@@ -28,23 +28,25 @@ temperature change to mismatch stress; its name also refers to detachment, a com
 
 | Id / search umbrella | Keep these models distinct | What is currently typed |
 |---|---|---|
-| 16, photoluminescence and phosphorescence | Fluorescence and phosphorescence temporal/spectral implementations | Light → light only; no emission lifetime or state law is inferred. Phosphorescence is a subtype of photoluminescence, so the current name is an umbrella with a subtype, not two independent effects. [NIST](https://www.nist.gov/glossary-term/47276), [IUPAC fluorescence](https://goldbook.iupac.org/terms/view/F02453) |
+| 16, photoluminescence and phosphorescence | Prompt fluorescence, triplet phosphorescence and separated-charge recombination implementations | Light → light only; no emission lifetime or state law is inferred. Phosphorescence is a subtype of photoluminescence, so the current name is an umbrella with a subtype, not two independent effects. [NIST](https://www.nist.gov/glossary-term/47276), [IUPAC fluorescence](https://goldbook.iupac.org/terms/view/F02453) |
 | 20, polarization | Analyzer transmission versus stress-induced birefringence/retardance | Analyzer angle → irradiance. A photoelastic model needs material, optical-path and wavelength assumptions and its own stress/retardance boundary. [Polarization](https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization), [original photoelasticity measurements](https://arxiv.org/abs/2208.00769) |
 | 33, corona discharge and ionic wind | Electrical ionization/discharge current versus neutral-gas flow | Voltage → fluid velocity under supplied corona conditions. Keep ionic wind as a compound mechanism; ion generation and ion-neutral momentum exchange are distinct parts, not a ready-made unary chain. [Ionic-wind measurements](https://doi.org/10.1103/PhysRevFluids.3.063701), [electroaerodynamic aircraft](https://www.nature.com/articles/s41586-018-0707-9) |
 | 35, superconductivity | DC transport versus magnetic/Meissner response | Current → current inside the superconducting envelope. The contracts should share a material-state model; zero DC resistance does not itself provide magnetic expulsion, pinning or levitation behavior. [Superconductors](https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors) |
 | 46, sublimation and deposition | Solid → vapor versus vapor → solid process models | Heat → sublimated mass. Deposition needs its own inventory, mass-transfer and heat-rejection conditions; reversing an arrow or a sign is insufficient. [Phase transitions](https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions) |
 | 47, molecular-sieve separation | Membrane permeation versus an adsorbent-bed cycle | Feed composition → membrane permeate composition. A bed needs uptake, breakthrough and regeneration state; adsorption 32 alone does not supply the complete bed. [DOE membrane example](https://www.energy.gov/science/bes/articles/traffic-cop-molecules), [DOE adsorption cycles](https://www.energy.gov/sites/default/files/2022-10/CCUS-Chap_5-030521.pdf) |
 
-Splitting these models does not require inventing new independent physical primitives. Their
-missing facets remain unregistered. Named umbrella entries and their existing conditional
-clauses remain usable while domain experts contribute the additional models.
+The six groups now have separate templates in `effects.json.models`. These are engineering
+boundaries, not new independent physical primitives. Their source-backed conditions remain
+hypotheses until an implementation supplies calibration, state transitions and resource rows.
+The existing unary clauses remain usable. Fifteen assessed compounds remain named mechanisms.
 
-The first implementation targets are **20 (photoelasticity)** and **46 (deposition)**, which
-need clearly distinct quantity boundaries and operating assumptions. **16** then needs separate
-calibrated temporal implementations, using the existing stateful kernel. **35** needs an explicit
-magnetic-response model sharing material state. **33** and **47** need coupled discharge/flow
-and bed-transport/regeneration realizations; forcing those into the current serial recipe form
-would omit necessary coupling and state.
+Use `triz_component_catalogue` with `source: "knowledge"`, then pass the returned catalogue to
+`triz_component_search`. This supports multi-input wiring, shared material state and explicit
+finite dynamics without forcing a network into a serial recipe. See the
+[setup contract](knowledge-packs.md#multiport-and-stateful-configurations) and
+[patent comparison](../../../docs/effects-configurations.md). No Physlib import is required for
+these finite typing/behavior checks; continuous constitutive-law proofs would need additional
+formal models and evidence.
 
 ## Fifteen named functions to retain as compounds
 
@@ -97,12 +99,12 @@ These groups have the same all-installed-packs scope as the other taxonomy field
 
 Each assessment names the selected clause, rationale, source and optional facets. A facet's
 `effect` is a validated reference to an existing typed clause; it is not a substitution proof,
-causal edge or recipe step. A facet without that field has no registered typing. Self and
+causal edge or recipe step. A facet may also list `models`, validated references to multiport templates linked to that
+parent effect. Neither reference supplies a realization proof. Self and
 reciprocal observational links are permitted; recipe-cycle rules do not apply to them.
 Every assessment has `status: "assessment-only"`; no stronger verification status is accepted.
 
 Tests ensure that removing all assessments yields the same typed library and setup results,
-that missing facets never become generators, and that the legacy compatibility snapshot still
-passes. This audit leaves all 78 named cases and 70 interface declarations intact. It identifies
-where separate contracts or coupled realizations should be authored next; it proves no new
-physical equivalence and makes no minimal-basis claim.
+that assessment metadata never becomes a unary generator, and that the legacy compatibility snapshot still
+passes. This audit leaves all 78 named cases and 70 interface declarations intact. The separate model registry adds explicit boundaries and setup; it proves no physical
+equivalence or minimal-basis claim.

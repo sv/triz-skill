@@ -91,8 +91,11 @@ export function knowledgeCatalog(query?: string, domain?: string) {
     tokens.every(t => `${p.id} ${p.name} ${p.quantity} ${p.description}`.toLowerCase().includes(t)));
   return {
     packs: all.packs.filter(p => !domain || p.domain === "universal" || p.domain === domain)
-      .map(({ parameters, effects, families, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length })),
+      .map(({ parameters, effects, families, models, _meta, ...metadata }) => ({ ...metadata, parameter_count: parameters.length, effect_count: effects.length, family_count: families.length, model_count: models.length })),
     families: all.families.filter(f => !domain || f.domain === "universal" || f.domain === domain),
+    models: all.models.filter(m => (!domain || m.domain === "universal" || m.domain === domain) &&
+      tokens.every(t => `${m.id} ${m.name} ${m.description}`.toLowerCase().includes(t))),
+    model_count: all.models.length,
     counts: all.counts,
     taxonomy: all.taxonomy,
     counts_scope: "all-installed-packs",

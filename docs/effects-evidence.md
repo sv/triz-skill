@@ -326,3 +326,10 @@ proposal/verification, followed by quantitative resource and probability contrac
 frontier mechanisms should enter expert-curated draft packs with their operating regime and
 controlling inputs preserved. Their engineering value should be tested through a specified
 before/after task and a negative control, as in the examples above.
+
+## Multiport and stateful configurations
+
+The six split groups now have 18 separate model templates and 23 additional boundary/state
+quantities. The 78 unary lookups remain intact. See the [eight-patent before/after comparison](effects-configurations.md)
+for name-blind configuration discovery, reused ion-force/flow components, temporal controls,
+source locators and formalization limits.

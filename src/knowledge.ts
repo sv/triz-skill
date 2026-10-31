@@ -41,7 +41,8 @@ export const EffectModelAssessment = z.strictObject({
   rationale: Text,
   facets: z.array(z.strictObject({
     name: Text,
-    effect: EffectId.optional().describe("An existing registered clause only; omission means this facet has no registered typing"),
+    effect: EffectId.optional().describe("An existing unary effect clause; neither a substitution nor an equivalence proof"),
+    models: z.array(QualifiedId).min(1).max(20).optional().describe("Related multiport model templates; not a realization or equivalence proof"),
   })).min(2).max(20).optional(),
   source: KnowledgeSource,
   status: z.literal("assessment-only").describe("Architectural judgment; neither a recipe nor a physical equivalence proof"),
@@ -111,6 +112,25 @@ const KnowledgeComposite = z.strictObject({
   source: Text,
 });
 export const KnowledgeEntry = z.union([KnowledgeEffect, KnowledgeSpecialization, KnowledgeComposite]);
+const ModelPort = z.strictObject({ id: Slug, parameter: QualifiedId });
+/** Multiport boundaries are separate from the backwards-compatible unary effect library. */
+export const KnowledgeModel = z.strictObject({
+  id: QualifiedId,
+  name: Text,
+  description: Text,
+  parents: z.array(EffectId).min(1).max(20),
+  inputs: z.array(ModelPort).min(1).max(16),
+  outputs: z.array(ModelPort).min(1).max(16),
+  state_parameter: QualifiedId.optional().describe("Meaning of internal history; configured implementations must declare state, initial and transition"),
+  conditions: z.array(Text).min(1),
+  provenance: KnowledgeSource,
+  review: KnowledgeReview.optional(),
+  limitations: z.array(Text).min(1),
+}).superRefine((m, ctx) => {
+  const ports = [...m.inputs, ...m.outputs].map(p => p.id);
+  if (new Set(ports).size !== ports.length)
+    ctx.addIssue({ code: "custom", message: "Model port ids must be unique across both sides" });
+});
 export const KnowledgePack = z.strictObject({
   format: z.literal("triz-knowledge-pack-v1"),
   id: Slug,
@@ -121,6 +141,7 @@ export const KnowledgePack = z.strictObject({
   limitations: z.array(Text).min(1),
   parameters: z.array(KnowledgeParameter).max(10_000),
   families: z.array(KnowledgeFamily).max(10_000).default([]),
+  models: z.array(KnowledgeModel).max(10_000).default([]),
   effects: z.array(KnowledgeEntry).max(10_000),
   _meta: z.record(z.string(), z.unknown()).optional(),
 });
@@ -134,6 +155,7 @@ export const KnowledgeManifest = z.strictObject({
 
 export type KnowledgePack = z.infer<typeof KnowledgePack>;
 export type RegisteredParameter = z.infer<typeof KnowledgeParameter> & { pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview> };
+export type RegisteredModel = z.infer<typeof KnowledgeModel> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> };
 export type EffectDefinition = { form: "direct" } | { form: "specialization"; family: string; signature: string } | { form: "composite"; steps: Array<string | number> };
 export type RegisteredEffect = Omit<z.infer<typeof KnowledgeEffect>, "kind"> & {
   kind?: "response" | "mechanism" | "composite";
@@ -174,6 +196,7 @@ export function compileKnowledge(raw: unknown[]) {
   const packs = raw.map(p => KnowledgePack.parse(p));
   const parameters: RegisteredParameter[] = [];
   const effects: RegisteredEffect[] = [];
+  const models: RegisteredModel[] = [];
   const families: Array<z.infer<typeof KnowledgeFamily> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> }> = [];
   const packIds = new Set<string>(), parameterIds = new Map<string, RegisteredParameter>();
   const quantities = new Set<string>(), effectIds = new Set<string | number>();
@@ -274,11 +297,29 @@ export function compileKnowledge(raw: unknown[]) {
     return e;
   };
   for (const id of records.keys()) effects.push(resolve(id));
+  const modelIds = new Map<string, RegisteredModel>();
+  for (const pack of packs) for (const m of pack.models) {
+    if (!m.id.startsWith(`${pack.id}:`)) throw new Error(`Model ${m.id} must use pack namespace ${pack.id}`);
+    if (modelIds.has(m.id)) throw new Error(`Duplicate knowledge model id: ${m.id}`);
+    for (const ref of [...m.inputs, ...m.outputs].map(p => p.parameter).concat(m.state_parameter ? [m.state_parameter] : []))
+      if (!parameterIds.has(ref)) throw new Error(`Model ${m.id} references unknown parameter ${ref}`);
+    for (const ref of m.parents)
+      if (!effectIds.has(ref)) throw new Error(`Model ${m.id} references unknown parent effect ${ref}`);
+    const registered = { ...m, pack: pack.id, domain: pack.domain, review: m.review ?? pack.review,
+      limitations: [...pack.limitations, ...m.limitations] };
+    models.push(registered);
+    modelIds.set(m.id, registered);
+  }
   for (const e of effects) for (const ref of e.related_effects ?? []) {
     if (!effectIds.has(ref.id) || ref.id === e.id)
       throw new Error(`Effect ${e.id} has an unknown or self-referential related effect: ${ref.id}`);
   }
   for (const e of effects) for (const facet of e.model_assessment?.facets ?? []) {
+    for (const ref of facet.models ?? []) {
+      const m = modelIds.get(ref);
+      if (!m) throw new Error(`Effect ${e.id} model assessment references unknown model ${ref}`);
+      if (!m.parents.includes(e.id)) throw new Error(`Model ${ref} does not name parent effect ${e.id}`);
+    }
     if (facet.effect === undefined) continue;
     const target = resolved.get(facet.effect);
     if (!target) throw new Error(`Effect ${e.id} model assessment references unknown effect ${facet.effect}`);
@@ -288,7 +329,7 @@ export function compileKnowledge(raw: unknown[]) {
   const specializations = effects.filter(e => e.definition.form === "specialization").length;
   const composites = effects.filter(e => e.definition.form === "composite").length;
   const direct = effects.length - specializations - composites;
-  return { packs, parameters, effects, families, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
+  return { packs, parameters, effects, families, models, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
     independent_contracts: effects.filter(e => e.definition.form === "direct" && e.input && e.output).length + families.reduce((n, f) => n + f.signatures.length, 0), searchable: effects.length } };
 }
 

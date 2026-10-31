@@ -51,8 +51,8 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-All 78 entries have explicit conditional typings identified in `source`, using 65 declared physical
-quantities. The original six quantity tokens are preserved, with explicit SI where the quantity
+All 78 entries have explicit conditional unary typings identified in `source`, using the original
+65 physical quantities. An additional 23 quantity/state types support 18 separate multiport models. The original six quantity tokens are preserved, with explicit SI where the quantity
 has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
 and current tokens use shared vocabulary; the induction typing covers the changing-field clause
 only. Optical/field excitations with ambiguous quantitative meaning stay opaque. Energy and
@@ -71,6 +71,14 @@ supply 14 signatures for 22 named specializations, alongside 56 direct definitio
 independently declared interfaces. All 74 previous contracts and their case-specific
 assumptions/evidence are preserved; four new sourced clauses fill recent-patent coverage gaps. Kind
 and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
+
+For multi-input or stateful configurations, use `triz_component_catalogue` with
+`source: "knowledge"` and pass its catalogue to `triz_component_search`. The 18 registered
+models support optical retardance/readout, vapor deposition, temporal emission, shared
+superconducting phase, alternative ion sources with gas/particle forces, and cyclic bed
+regeneration. [Setup and limitations](../skills/triz-innovation/references/knowledge-packs.md#multiport-and-stateful-configurations)
+and [modern-patent validation](effects-configurations.md) distinguish typed configurations
+from implementation dynamics and empirical performance.
 
 `triz_effect_setup` builds a model directly from a chain of registered ids, an explicit domain,
 and registry quantity/SI/layer declarations. Recipe ids expand into their typed constituent

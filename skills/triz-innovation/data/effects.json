@@ -757,7 +757,185 @@
       }
     },
     {"id": "physical:magnetic-flux-density-change", "name": "Magnetic flux density change", "quantity": "magnetic flux density change", "description": "Specified finite change between applied magnetic flux density endpoints; not the opaque time-varying excitation token or a magnetic field rate.", "si": "kg*s^-2*A^-1", "layer": "energy", "provenance": {"citation": "https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.1931.pdf ; repository-defined quantity scope", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}},
-    {"id": "physical:electric-field-change", "name": "Electric field change", "quantity": "electric field change", "description": "Specified finite change between electric field strength endpoints; not voltage, an instantaneous field value or a field rate.", "si": "kg*m*s^-3*A^-1", "layer": "energy", "provenance": {"citation": "https://patents.google.com/patent/WO2026087545A1/en ; repository-defined quantity scope", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}}
+    {"id": "physical:electric-field-change", "name": "Electric field change", "quantity": "electric field change", "description": "Specified finite change between electric field strength endpoints; not voltage, an instantaneous field value or a field rate.", "si": "kg*m*s^-3*A^-1", "layer": "energy", "provenance": {"citation": "https://patents.google.com/patent/WO2026087545A1/en ; repository-defined quantity scope", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}},
+    {
+      "id": "physical:principal-stress-difference",
+      "name": "Principal stress difference",
+      "description": "Resolved principal-stress difference for a specified optical path; not an arbitrary scalar stress.",
+      "quantity": "principal stress difference",
+      "layer": "energy",
+      "si": "kg*m^-1*s^-2"
+    },
+    {
+      "id": "physical:incident-irradiance",
+      "name": "Incident irradiance",
+      "description": "Optical irradiance incident on a specified retarder/analyzer. Distinct from its transmitted irradiance.",
+      "quantity": "incident irradiance",
+      "layer": "energy",
+      "si": "kg*s^-3"
+    },
+    {
+      "id": "physical:vapor-mass-rate",
+      "name": "Incoming condensable vapor mass rate",
+      "description": "Rate of the selected vapor species arriving at a cold surface, not accumulated mass.",
+      "quantity": "vapor mass rate",
+      "layer": "material",
+      "si": "kg/s"
+    },
+    {
+      "id": "physical:heat-rejection-capacity",
+      "name": "Available heat rejection capacity",
+      "description": "Cooling capacity available at the declared surface temperature; not thermal energy supplied to sublimate a solid.",
+      "quantity": "heat rejection capacity",
+      "layer": "energy",
+      "si": "kg*m^2*s^-3"
+    },
+    {
+      "id": "physical:deposited-solid-mass-rate",
+      "name": "Deposited solid mass rate",
+      "description": "Net solid capture rate of the selected species at a cold surface, excluding liquid condensation and adsorption.",
+      "quantity": "deposited solid mass rate",
+      "layer": "material",
+      "si": "kg/s"
+    },
+    {
+      "id": "physical:emitted-light",
+      "name": "Emitted luminescent light",
+      "description": "Emission from an excited material, distinguished from incident excitation; spectrum, power and time step remain declared.",
+      "quantity": "emitted light",
+      "layer": "energy"
+    },
+    {
+      "id": "physical:triplet-excitation-state",
+      "name": "Triplet excitation state",
+      "description": "Internal excited-state population abstraction for phosphorescence; not separated-charge storage.",
+      "quantity": "triplet excitation state",
+      "layer": "information"
+    },
+    {
+      "id": "physical:separated-charge-state",
+      "name": "Separated charge state",
+      "description": "Internal donor/acceptor separated-charge population abstraction; recombination can emit after excitation stops.",
+      "quantity": "separated charge state",
+      "layer": "information"
+    },
+    {
+      "id": "physical:superconducting-phase",
+      "name": "Superconducting material phase",
+      "description": "Shared declared material phase/branch, including normal, transition and Meissner regimes where calibrated.",
+      "quantity": "superconducting phase",
+      "layer": "information"
+    },
+    {
+      "id": "physical:local-magnetic-flux-density",
+      "name": "Local magnetic flux density",
+      "description": "Field at a declared material interior or pickup location; geometry and external field are explicit assumptions.",
+      "quantity": "local magnetic flux density",
+      "layer": "energy",
+      "si": "kg*s^-2*A^-1"
+    },
+    {
+      "id": "physical:transmitted-dc-current",
+      "name": "Transmitted DC current",
+      "description": "DC current transmitted through a phase-qualified material segment; not an assertion of magnetic screening.",
+      "quantity": "transmitted dc current",
+      "layer": "energy",
+      "si": "A"
+    },
+    {
+      "id": "physical:gas-pressure",
+      "name": "Ionization-region gas pressure",
+      "description": "Absolute pressure in a specified gas ionization region; not an adsorbate partial pressure or a pressure difference.",
+      "quantity": "gas pressure",
+      "layer": "energy",
+      "si": "kg*m^-1*s^-2"
+    },
+    {
+      "id": "physical:ion-current",
+      "name": "Gas ion current",
+      "description": "Charge transport by gas ions in a declared drift region, distinguished from an electrode circuit or electron beam current.",
+      "quantity": "ion current",
+      "layer": "energy",
+      "si": "A"
+    },
+    {
+      "id": "physical:electron-beam-current",
+      "name": "Electron beam current",
+      "description": "Electron current incident on gas after the exit window; electron energy and species remain conditions.",
+      "quantity": "electron beam current",
+      "layer": "energy",
+      "si": "A"
+    },
+    {
+      "id": "physical:gas-body-force",
+      "name": "Ion-to-neutral gas body force",
+      "description": "Integrated momentum-transfer force on the neutral gas in a specified volume; not force on a dust particle.",
+      "quantity": "gas body force",
+      "layer": "energy",
+      "si": "kg*m*s^-2"
+    },
+    {
+      "id": "physical:particle-charge",
+      "name": "Particle electric charge",
+      "description": "Charge on a specified dust particle or declared population; charging is not supplied implicitly.",
+      "quantity": "particle charge",
+      "layer": "energy",
+      "si": "A*s"
+    },
+    {
+      "id": "physical:particle-electric-force",
+      "name": "Electric force on particles",
+      "description": "Electric force on the declared charged particles, distinguished from gas body force even though SI dimensions agree.",
+      "quantity": "particle electric force",
+      "layer": "energy",
+      "si": "kg*m*s^-2"
+    },
+    {
+      "id": "physical:purge-molar-flow",
+      "name": "Regeneration purge molar flow",
+      "description": "Available purge stream flow of a declared composition, distinct from feed flow.",
+      "quantity": "purge molar flow",
+      "layer": "material",
+      "si": "mol/s"
+    },
+    {
+      "id": "physical:feed-molar-flow",
+      "name": "Adsorbent feed molar flow",
+      "description": "Incoming feed stream flow for a finite bed/cycle; not a feed mole fraction.",
+      "quantity": "feed molar flow",
+      "layer": "material",
+      "si": "mol/s"
+    },
+    {
+      "id": "physical:regeneration-command",
+      "name": "Bed regeneration command",
+      "description": "Declared control mode such as adsorb or regenerate; a command alone supplies neither purge gas nor heat.",
+      "quantity": "regeneration command",
+      "layer": "information"
+    },
+    {
+      "id": "physical:regeneration-resource",
+      "name": "Heated purge availability",
+      "description": "Capability signal derived from declared heated purge resources. Numeric heat/flow accounting requires explicit feasibility rows.",
+      "quantity": "regeneration resource",
+      "layer": "information"
+    },
+    {
+      "id": "physical:product-mole-fraction",
+      "name": "Bed product mole fraction",
+      "description": "Selected component fraction leaving a cyclic adsorbent bed, distinct from membrane permeate fraction.",
+      "quantity": "product mole fraction",
+      "layer": "material",
+      "si": "1"
+    },
+    {
+      "id": "physical:adsorbent-loading",
+      "name": "Adsorbent loading",
+      "description": "Internal accumulated adsorbate in a finite-capacity bed. Finite loading labels require a calibrated abstraction.",
+      "quantity": "adsorbent loading",
+      "layer": "material",
+      "si": "mol"
+    }
   ],
   "_meta": {
     "title": "Effects starter database",
@@ -1004,11 +1182,11 @@
     {"id": 13, "name": "Electrostatic attraction", "category": "physical", "function": "create mechanical force from voltage between plates", "statement": "Opposite charges on facing surfaces pull together with force growing with the square of the field.", "hints": ["electrostatic clamping", "MEMS actuators", "drop-on-demand printing"], "input_parameter": "physical:voltage", "output_parameter": "physical:force", "input": {"quantity": "voltage", "si": "kg*m^2*s^-3*A^-1"}, "output": {"quantity": "force", "si": "kg*m*s^-2"}, "field": "electric", "conditions": ["specified electrodes, gap and dielectric", "operation below breakdown"], "typed_from": "statement", "source": "effects.json#13: selected statement/function clause with explicit quantity vocabulary; remaining resources and operating conditions are hypotheses ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "kind": "response"},
     {"id": 14, "name": "Hall effect", "category": "physical", "function": "sense magnetic field as a transverse voltage", "statement": "Current in a conductor within a magnetic field develops a voltage across it proportional to the field.", "hints": ["position and proximity sensing", "isolated current sensing", "brushless motor commutation"], "input_parameter": "physical:magnetic-flux-density", "output_parameter": "physical:voltage", "input": {"quantity": "magnetic flux density", "si": "kg*s^-2*A^-1"}, "output": {"quantity": "voltage", "si": "kg*m^2*s^-3*A^-1"}, "field": "magnetic", "conditions": ["Hall-active material", "supplied bias current", "specified sensing geometry"], "typed_from": "statement", "source": "effects.json#14: selected statement/function clause with explicit quantity vocabulary; remaining resources and operating conditions are hypotheses ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "kind": "response"},
     {"id": 15, "name": "Photoelectric emission", "category": "physical", "function": "emit electrons from a surface with light and collect a photocurrent", "statement": "Photons above a material-dependent emission threshold can eject electrons from a surface; a suitable collection circuit can measure a photocurrent.", "hints": ["vacuum phototubes", "photoemission measurements", "photocathode detectors"], "conditions": ["above a threshold frequency", "photoemissive surface", "electron collection circuit"], "source": "https://openstax.org/books/university-physics-volume-3/pages/6-2-photoelectric-effect ; surface emission with collected photocurrent ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "typed_from": "source", "limitations": ["External photoemission is distinct from photovoltaic conversion and reverse-biased semiconductor photodetection."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/6-2-photoelectric-effect", "license": "MIT (repository-authored summary; external reference text is not reproduced)"}, "kind": "specialization", "family": "physical:optical-electrical-response", "signature": "current"},
-    {"id": 16, "name": "Photoluminescence and phosphorescence", "category": "physical", "function": "absorb light energy and release it later or shifted in color", "statement": "Phosphors store absorbed energy and re-emit it as visible light, immediately or with delay.", "hints": ["safety signage", "glow markers", "LED color conversion"], "conditions": ["specified emitting material and excitation spectrum", "specified emission band, observation geometry and time protocol", "stored excitation and decay history declared when delayed emission is modeled"], "source": "https://goldbook.iupac.org/terms/view/P04623 ; repository-selected clause: Optical excitation to emitted optical excitation in a selected luminescent material.", "typed_from": "source", "provenance": {"citation": "https://goldbook.iupac.org/terms/view/P04623 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Opaque light ports omit wavelength, power and lifetime. This generator is not an identity; delayed emission requires explicit state/initial/transition declarations."], "kind": "specialization", "family": "physical:optical-signal-response", "signature": "light-transfer", "model_assessment": {"decision": "split-models", "selected_clause": "Light input to light output; no lifetime, spectrum or state law is declared.", "rationale": "Retain photoluminescence as the search umbrella. Fluorescence and phosphorescence need separate temporal/spectral implementations; a shared light-to-light signature cannot supply either lifetime model.", "facets": [{"name": "Fluorescence temporal and spectral model"}, {"name": "Phosphorescence temporal and spectral model"}], "source": {"citation": "https://www.nist.gov/glossary-term/47276 ; https://goldbook.iupac.org/terms/view/F02453", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 16, "name": "Photoluminescence and phosphorescence", "category": "physical", "function": "absorb light energy and release it later or shifted in color", "statement": "Phosphors store absorbed energy and re-emit it as visible light, immediately or with delay.", "hints": ["safety signage", "glow markers", "LED color conversion"], "conditions": ["specified emitting material and excitation spectrum", "specified emission band, observation geometry and time protocol", "stored excitation and decay history declared when delayed emission is modeled"], "source": "https://goldbook.iupac.org/terms/view/P04623 ; repository-selected clause: Optical excitation to emitted optical excitation in a selected luminescent material.", "typed_from": "source", "provenance": {"citation": "https://goldbook.iupac.org/terms/view/P04623 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Opaque light ports omit wavelength, power and lifetime. This generator is not an identity; delayed emission requires explicit state/initial/transition declarations."], "kind": "specialization", "family": "physical:optical-signal-response", "signature": "light-transfer", "model_assessment": {"decision": "split-models", "selected_clause": "Light input to light output; no lifetime, spectrum or state law is declared.", "rationale": "Retain photoluminescence as the search umbrella. Fluorescence and phosphorescence need separate temporal/spectral implementations; a shared light-to-light signature cannot supply either lifetime model.", "facets": [{"name": "Fluorescence temporal and spectral model", "models": ["physical:prompt-fluorescence"]}, {"name": "Phosphorescence temporal and spectral model", "models": ["physical:phosphorescent-emission"]}, {"name": "Separated-charge storage and recombination emission", "models": ["physical:charge-recombination-emission"]}], "source": {"citation": "https://www.nist.gov/glossary-term/47276 ; https://goldbook.iupac.org/terms/view/F02453", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 17, "name": "Total internal reflection", "category": "physical", "function": "guide light inside a medium and detect surface contact", "statement": "Light stays trapped by reflection at a boundary until the boundary condition changes.", "hints": ["fiber-optic transport", "fingerprint and touch sensing", "liquid level detection"], "conditions": ["incident medium has greater refractive index than the transmitted medium", "incidence angle exceeds the critical angle for the chosen wavelength", "specified boundary geometry, collection path and surface condition"], "source": "https://openstax.org/books/university-physics-volume-3/pages/1-4-total-internal-reflection ; repository-selected clause: Incident light to internally reflected light at a selected dielectric boundary.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-4-total-internal-reflection ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The selected reflection clause is not an identity or a guarantee of lossless end-to-end guidance; finite values must describe the intended optical abstraction."], "kind": "specialization", "family": "physical:optical-signal-response", "signature": "light-transfer"},
     {"id": 18, "name": "Interference", "category": "physical", "function": "measure nanometer-scale differences by superposing waves", "statement": "Overlapping coherent waves create fringes that encode tiny path differences.", "hints": ["interferometric metrology", "thin-film thickness measurement", "active noise cancellation"], "input": {"quantity": "optical path difference", "si": "m"}, "input_parameter": "physical:optical-path-difference", "output": {"quantity": "irradiance", "si": "kg*s^-3"}, "output_parameter": "physical:irradiance", "field": "optical", "conditions": ["mutually coherent beams with specified wavelength and polarization", "fixed beam irradiances and observation geometry", "declared phase reference and averaging interval"], "source": "https://openstax.org/books/university-physics-volume-3/pages/3-1-youngs-double-slit-interference ; repository-selected clause: Optical path difference to irradiance at a selected two-beam interference observation point.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/3-1-youngs-double-slit-interference ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Only a selected intensity response is typed; recovering a unique path difference needs additional phase/fringe information."], "kind": "response"},
     {"id": 19, "name": "Diffraction", "category": "physical", "function": "spread waves by geometry and encode structure in the pattern", "statement": "Waves bend around features comparable to their wavelength; the resulting pattern reveals the feature.", "hints": ["spectroscopy", "particle sizing", "crystal structure analysis"], "input": {"quantity": "grating spacing", "si": "m"}, "input_parameter": "physical:grating-spacing", "output": {"quantity": "diffraction angle", "si": "1"}, "output_parameter": "physical:diffraction-angle", "field": "optical", "conditions": ["specified grating, wavelength and incidence angle", "selected order exists in the propagating range", "declared angular reference and observation geometry"], "source": "https://openstax.org/books/university-physics-volume-3/pages/4-4-diffraction-gratings ; repository-selected clause: Grating period to the angle of a selected propagating diffraction order.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/4-4-diffraction-gratings ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["This grating clause does not model arbitrary diffraction patterns, diffracted power or unique feature reconstruction."], "kind": "response"},
-    {"id": 20, "name": "Polarization", "category": "physical", "function": "filter light by orientation and reveal stress fields", "statement": "Polarizers select components of light polarization; in suitable transparent materials, stress-induced birefringence changes relative optical phase and reveals stress patterns.", "hints": ["glare reduction", "photoelastic stress analysis", "polarization filtering"], "limitations": ["Stress analysis requires a suitable material and calibrated optical arrangement; polarization is not simply rotated by all transparent materials.", "Only the analyzer transmission clause is typed; stress-induced birefringence and photoelastic inference require additional quantities and a material model."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "polarizer angle", "si": "1"}, "input_parameter": "physical:polarizer-angle", "output": {"quantity": "irradiance", "si": "kg*s^-3"}, "output_parameter": "physical:irradiance", "field": "optical", "conditions": ["linearly polarized incident beam with specified irradiance", "specified analyzer, wavelength and extinction assumptions", "relative angle measured between incident polarization and analyzer axis"], "source": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-selected clause: Relative analyzer angle to transmitted irradiance for a selected linear-polarization measurement.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Analyzer angle to transmitted irradiance for the declared incident beam.", "rationale": "Analyzer transmission and stress-induced optical retardance have different inputs and outputs. Keep the current analyzer clause; give photoelasticity its own sourced model before composing a stress sensor.", "facets": [{"name": "Polarizer/analyzer transmission", "effect": 20}, {"name": "Stress-induced birefringence or optical retardance"}], "source": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; https://arxiv.org/abs/2208.00769", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 20, "name": "Polarization", "category": "physical", "function": "filter light by orientation and reveal stress fields", "statement": "Polarizers select components of light polarization; in suitable transparent materials, stress-induced birefringence changes relative optical phase and reveals stress patterns.", "hints": ["glare reduction", "photoelastic stress analysis", "polarization filtering"], "limitations": ["Stress analysis requires a suitable material and calibrated optical arrangement; polarization is not simply rotated by all transparent materials.", "Only the analyzer transmission clause is typed; stress-induced birefringence and photoelastic inference require additional quantities and a material model."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "polarizer angle", "si": "1"}, "input_parameter": "physical:polarizer-angle", "output": {"quantity": "irradiance", "si": "kg*s^-3"}, "output_parameter": "physical:irradiance", "field": "optical", "conditions": ["linearly polarized incident beam with specified irradiance", "specified analyzer, wavelength and extinction assumptions", "relative angle measured between incident polarization and analyzer axis"], "source": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; repository-selected clause: Relative analyzer angle to transmitted irradiance for a selected linear-polarization measurement.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Analyzer angle to transmitted irradiance for the declared incident beam.", "rationale": "Analyzer transmission and stress-induced optical retardance have different inputs and outputs. Keep the current analyzer clause; give photoelasticity its own sourced model before composing a stress sensor.", "facets": [{"name": "Polarizer/analyzer transmission", "effect": 20, "models": ["physical:retardance-analyzer"]}, {"name": "Stress-induced birefringence or optical retardance", "models": ["physical:photoelastic-retardance"]}], "source": {"citation": "https://openstax.org/books/university-physics-volume-3/pages/1-7-polarization ; https://arxiv.org/abs/2208.00769", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 21, "name": "Doppler effect", "category": "physical", "function": "detect relative velocity from a frequency shift", "statement": "Relative motion between a wave source, reflector and receiver can shift the observed frequency; the shift depends on line-of-sight motion and wave propagation.", "hints": ["radar speed sensing", "ultrasonic flow metering", "stellar radial-velocity measurement"], "limitations": ["Simple proportional formulas have a limited velocity range; cosmological redshift is not a simple source-motion Doppler shift."], "provenance": {"citation": "https://science.nasa.gov/mission/webb/science-overview/science-explainers/spectroscopy-101-beyond-temperature-and-composition/", "license": "MIT (repository-authored summary; external reference text is not reproduced)"}, "input_parameter": "physical:velocity", "output_parameter": "physical:frequency-shift", "input": {"quantity": "velocity", "si": "m*s^-1"}, "output": {"quantity": "frequency shift", "si": "s^-1"}, "field": "acoustic", "conditions": ["specified source frequency and propagation speed", "specified line-of-sight reflection geometry", "velocity range appropriate to the declared Doppler model"], "typed_from": "statement", "source": "effects.json#21: selected statement/function clause with explicit quantity vocabulary; remaining resources and operating conditions are hypotheses ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "kind": "response"},
     {"id": 22, "name": "Coriolis effect", "category": "physical", "function": "measure mass flow or rotation rate from a rotating-frame force", "statement": "Fluid in a vibrating tube twists it in proportion to mass flow; the same apparent force senses rotation rate.", "hints": ["true mass flowmeter", "gyroscopic rate sensing", "vibratory gyroscopes"], "input": {"quantity": "angular velocity", "si": "s^-1"}, "input_parameter": "physical:angular-velocity", "output": {"quantity": "force", "si": "kg*m*s^-2"}, "output_parameter": "physical:force", "field": "mechanical", "conditions": ["specified moving mass and velocity relative to the rotating frame", "specified rotation axis and force projection", "declared frame and sign convention"], "source": "https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/6fe39e8d5ce4ce746ca256dfea665eda_MIT8_09F14_Chapter_2.pdf ; repository-selected clause: Frame rotation rate to the selected Coriolis force component on a moving mass.", "typed_from": "source", "provenance": {"citation": "https://ocw.mit.edu/courses/8-09-classical-mechanics-iii-fall-2014/6fe39e8d5ce4ce746ca256dfea665eda_MIT8_09F14_Chapter_2.pdf ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["This rotation-rate sensing clause is not a complete vibrating-tube mass-flow model or an inertial force available without moving mass."], "kind": "response"},
     {"id": 23, "name": "Gyroscopic effect", "category": "physical", "function": "resist reorientation of a spinning mass", "statement": "A spinning rotor carries angular momentum; an applied torque changes that momentum and can cause the spin axis to precess.", "hints": ["stabilization", "orientation sensing", "inertial navigation"], "limitations": ["A gyroscope is not immune to external torque; constraints, spin rate and applied loading determine its response."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-1/pages/11-4-precession-of-a-gyroscope", "license": "MIT (repository-authored summary; external reference text is not reproduced)"}, "input_parameter": "physical:torque", "output_parameter": "physical:angular-velocity", "input": {"quantity": "torque", "si": "kg*m^2*s^-2"}, "output": {"quantity": "angular velocity", "si": "s^-1"}, "field": "mechanical", "conditions": ["spinning rotor with specified angular momentum", "selected precession regime"], "typed_from": "statement", "source": "effects.json#23: selected statement/function clause with explicit quantity vocabulary; remaining resources and operating conditions are hypotheses ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "kind": "response"},
@@ -1021,9 +1199,9 @@
     {"id": 30, "name": "Acoustic levitation", "category": "physical", "function": "hold matter in standing waves without contact", "statement": "Sound pressure nodes can trap small particles or droplets in mid-air.", "hints": ["containerless processing", "micro-assembly", "contactless handling"], "input": {"quantity": "acoustic pressure amplitude", "si": "kg*m^-1*s^-2"}, "input_parameter": "physical:acoustic-pressure-amplitude", "output": {"quantity": "force", "si": "kg*m*s^-2"}, "output_parameter": "physical:force", "field": "acoustic", "conditions": ["specified acoustic field, particle size, position and acoustic contrast", "specified medium, frequency and standing-wave geometry", "applicable particle and field regime established"], "source": "https://doi.org/10.1121/10.0036148 ; repository-selected clause: Standing-wave pressure amplitude to acoustic radiation force on a selected particle.", "typed_from": "source", "provenance": {"citation": "https://doi.org/10.1121/10.0036148 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Radiation force alone does not establish stable levitation; gravity, trapping stability and disturbances need a separate implementation model."], "kind": "response", "model_assessment": {"decision": "retain-compound", "selected_clause": "Acoustic pressure amplitude to force at the specified field/particle configuration.", "rationale": "Keep acoustic levitation as a discoverable mechanism. Its force clause alone establishes neither force balance with gravity nor spatial trap stability.", "facets": [{"name": "Acoustic radiation-force response", "effect": 30}, {"name": "Weight and other force balances"}, {"name": "Field geometry and trap stability"}], "source": {"citation": "https://doi.org/10.1121/10.0036148 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 31, "name": "Cavitation", "category": "physical", "function": "concentrate energy locally by bubble collapse", "statement": "Vapor bubbles formed in low-pressure zones collapse violently where pressure recovers.", "hints": ["intensive cleaning", "emulsification", "erosion to be designed against"], "input": {"quantity": "pressure difference", "si": "kg*m^-1*s^-2"}, "input_parameter": "physical:pressure-difference", "output": {"quantity": "pressure pulse amplitude", "si": "kg*m^-1*s^-2"}, "output_parameter": "physical:pressure-pulse-amplitude", "field": "mechanical", "conditions": ["specified pre-existing vapor bubble and initial size", "specified pressure recovery protocol, vapor pressure and liquid properties", "specified collapse geometry and pulse observation point"], "source": "https://arxiv.org/abs/1210.4748 ; repository-selected clause: Collapse-driving pressure difference to a selected cavitation-collapse pressure pulse.", "typed_from": "source", "provenance": {"citation": "https://arxiv.org/abs/1210.4748 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The collapse/shock clause does not create a bubble or guarantee useful cleaning. Bubble history and delayed collapse require explicit state when modeled in time."], "kind": "response", "model_assessment": {"decision": "retain-response", "selected_clause": "Pressure recovery to a collapse-pressure pulse for a specified pre-existing vapor bubble.", "rationale": "Keep the bounded bubble-collapse response as a coupled dynamic model. Inception, growth and collapse are phases of that model, not automatically composable unary generators.", "facets": [{"name": "Bubble inception and growth model"}, {"name": "Selected pre-existing-bubble collapse clause", "effect": 31}], "source": {"citation": "https://arxiv.org/abs/1210.4748 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 32, "name": "Adsorption", "category": "physical", "function": "capture molecules on a high-area surface", "statement": "High-area surfaces bind target molecules from a gas or liquid.", "hints": ["respirator cartridges", "purification", "humidity buffering"], "input": {"quantity": "adsorbate partial pressure", "si": "kg*m^-1*s^-2"}, "input_parameter": "physical:adsorbate-partial-pressure", "output": {"quantity": "adsorbed amount", "si": "mol"}, "output_parameter": "physical:adsorbed-amount", "field": "chemical", "conditions": ["specified adsorbate, sorbent quantity and temperature", "specified equilibrium isotherm branch and adsorption convention", "pressure range and gas composition within the selected isotherm regime"], "source": "https://adsorption.nist.gov/isodb/content/media/userguide.pdf ; repository-selected clause: Gas partial pressure to amount adsorbed on a selected sorbent along a specified isotherm.", "typed_from": "source", "provenance": {"citation": "https://adsorption.nist.gov/isodb/content/media/userguide.pdf ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Only gas-phase equilibrium adsorption is selected. Hysteresis, uptake rate, liquid adsorption and competitive adsorption need additional declarations."], "kind": "response"},
-    {"id": 33, "name": "Corona discharge and ionic wind", "category": "physical", "function": "move air or particles with an electric field", "statement": "A sharp high-voltage point ionizes air; the ions drag air along and charge particles for collection.", "hints": ["electrostatic precipitators", "solid-state cooling fans", "accelerated drying"], "input": {"quantity": "voltage", "si": "kg*m^2*s^-3*A^-1"}, "input_parameter": "physical:voltage", "output": {"quantity": "fluid velocity", "si": "m*s^-1"}, "output_parameter": "physical:fluid-velocity", "field": "electric", "conditions": ["specified electrodes, gas, spacing and observation location", "corona ionization and charge transport established in the operating regime", "electrical supply, current and discharge limits accounted for separately"], "source": "https://www.nature.com/articles/s41586-018-0707-9 ; repository-selected clause: Applied electrode voltage to ionic-wind velocity in a specified electroaerodynamic arrangement.", "typed_from": "source", "provenance": {"citation": "https://www.nature.com/articles/s41586-018-0707-9 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The selected wind clause does not type particle collection, infer a safe voltage range or establish thrust or efficiency."], "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Applied voltage to gas velocity with corona and charge transport supplied as conditions.", "rationale": "Separate the electrical-discharge clause from the ionic-wind mechanism. Ion generation, drift, momentum transfer and gas flow are coupled; the existing velocity clause does not model ionization current.", "facets": [{"name": "Corona ionization and discharge current"}, {"name": "Ionic-wind gas-flow response", "effect": 33}], "source": {"citation": "https://doi.org/10.1103/PhysRevFluids.3.063701 ; https://www.nature.com/articles/s41586-018-0707-9", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 33, "name": "Corona discharge and ionic wind", "category": "physical", "function": "move air or particles with an electric field", "statement": "A sharp high-voltage point ionizes air; the ions drag air along and charge particles for collection.", "hints": ["electrostatic precipitators", "solid-state cooling fans", "accelerated drying"], "input": {"quantity": "voltage", "si": "kg*m^2*s^-3*A^-1"}, "input_parameter": "physical:voltage", "output": {"quantity": "fluid velocity", "si": "m*s^-1"}, "output_parameter": "physical:fluid-velocity", "field": "electric", "conditions": ["specified electrodes, gas, spacing and observation location", "corona ionization and charge transport established in the operating regime", "electrical supply, current and discharge limits accounted for separately"], "source": "https://www.nature.com/articles/s41586-018-0707-9 ; repository-selected clause: Applied electrode voltage to ionic-wind velocity in a specified electroaerodynamic arrangement.", "typed_from": "source", "provenance": {"citation": "https://www.nature.com/articles/s41586-018-0707-9 ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The selected wind clause does not type particle collection, infer a safe voltage range or establish thrust or efficiency."], "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Applied voltage to gas velocity with corona and charge transport supplied as conditions.", "rationale": "Separate the electrical-discharge clause from the ionic-wind mechanism. Ion generation, drift, momentum transfer and gas flow are coupled; the existing velocity clause does not model ionization current.", "facets": [{"name": "Corona ionization and discharge current", "models": ["physical:corona-ionization"]}, {"name": "Ionic-wind gas-flow response", "effect": 33, "models": ["physical:ion-neutral-force", "physical:gas-flow-response"]}, {"name": "Alternative electron-beam or photoelectron gas charge generation", "models": ["physical:electron-beam-ionization", "physical:photoelectron-gas-charging"]}, {"name": "Coupled particle detachment and flow transport", "models": ["physical:particle-electric-force", "physical:force-flow-particle-release"]}], "source": {"citation": "https://doi.org/10.1103/PhysRevFluids.3.063701 ; https://www.nature.com/articles/s41586-018-0707-9", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 34, "name": "Eddy currents", "category": "physical", "function": "induce braking, heating, or detection with changing magnetic fields", "statement": "Time-varying magnetic fields drive circulating currents that oppose motion and dissipate energy.", "hints": ["contactless braking", "induction heating", "flaw detection"], "input": {"quantity": "changing magnetic field"}, "input_parameter": "physical:changing-magnetic-field", "output": {"quantity": "current", "si": "A"}, "output_parameter": "physical:current", "field": "magnetic", "conditions": [], "source": "effects.json#34: statement, normalized vocabulary: time-varying magnetic fields and currents (repository MIT license) ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "typed_from": "source", "related_effects": [{"id": 3, "relation": "specializes"}], "kind": "response", "model_assessment": {"decision": "retain-response", "selected_clause": "Changing magnetic excitation to circulating current.", "rationale": "Keep current generation as the selected response. Heating can use the current-to-heat-rate clause; braking additionally requires force, motion and energy feedback, not merely a current output.", "facets": [{"name": "Selected eddy-current generation", "effect": 34}, {"name": "Joule heat-rate response", "effect": 64}, {"name": "Magnetic force response requiring motion/circuit coupling", "effect": 65}], "source": {"citation": "effects.json#34: statement, normalized vocabulary: time-varying magnetic fields and currents (repository MIT license) ; explicit SI declarations: https://www.nist.gov/pml/special-publication-811/nist-guide-si-chapter-4-two-classes-si-units-and-si-prefixes", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
-    {"id": 35, "name": "Superconductivity", "category": "physical", "function": "carry direct current with zero electrical resistance within a superconducting operating range", "statement": "Suitable materials have zero DC electrical resistance below material-dependent critical limits and exhibit superconducting magnetic behavior.", "hints": ["persistent magnets", "SQUID magnetic sensing", "grid-scale storage"], "conditions": ["specified superconducting material and circuit path", "temperature, magnetic field and current remain within critical limits", "cooling and terminal conditions supplied separately"], "limitations": ["Zero DC resistance does not mean a lossless complete system; cooling and time-varying operation can incur losses.", "A transmission generator is not the categorical identity. DC zero resistance does not establish zero system energy, zero AC loss or feasibility without cooling."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "current", "si": "A"}, "input_parameter": "physical:current", "output": {"quantity": "current", "si": "A"}, "output_parameter": "physical:current", "field": "electric", "source": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; repository-selected clause: Input current to transmitted current through a selected superconducting DC path.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "DC current transmission inside the declared superconducting envelope.", "rationale": "Transport and magnetic response are different observable contracts of a shared material phase. Keep their common state model; zero DC resistance alone does not provide a Meissner or levitation contract.", "facets": [{"name": "Superconducting DC transport", "effect": 35}, {"name": "Meissner/magnetic response with geometry and field history"}], "source": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 35, "name": "Superconductivity", "category": "physical", "function": "carry direct current with zero electrical resistance within a superconducting operating range", "statement": "Suitable materials have zero DC electrical resistance below material-dependent critical limits and exhibit superconducting magnetic behavior.", "hints": ["persistent magnets", "SQUID magnetic sensing", "grid-scale storage"], "conditions": ["specified superconducting material and circuit path", "temperature, magnetic field and current remain within critical limits", "cooling and terminal conditions supplied separately"], "limitations": ["Zero DC resistance does not mean a lossless complete system; cooling and time-varying operation can incur losses.", "A transmission generator is not the categorical identity. DC zero resistance does not establish zero system energy, zero AC loss or feasibility without cooling."], "provenance": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "current", "si": "A"}, "input_parameter": "physical:current", "output": {"quantity": "current", "si": "A"}, "output_parameter": "physical:current", "field": "electric", "source": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; repository-selected clause: Input current to transmitted current through a selected superconducting DC path.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "DC current transmission inside the declared superconducting envelope.", "rationale": "Transport and magnetic response are different observable contracts of a shared material phase. Keep their common state model; zero DC resistance alone does not provide a Meissner or levitation contract.", "facets": [{"name": "Superconducting DC transport", "effect": 35, "models": ["physical:superconducting-phase", "physical:phase-qualified-dc-transport"]}, {"name": "Meissner/magnetic response with geometry and field history", "models": ["physical:meissner-screening"]}], "source": {"citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 36, "name": "Catalysis", "category": "chemical", "function": "accelerate a reaction without being consumed", "statement": "A catalyst lowers activation energy and emerges unchanged.", "hints": ["exhaust cleanup", "synthesis at lower temperature", "selective sensors"], "input": {"quantity": "reactant concentration", "si": "mol*m^-3"}, "input_parameter": "physical:reactant-concentration", "output": {"quantity": "reaction extent rate", "si": "mol*s^-1"}, "output_parameter": "physical:reaction-extent-rate", "field": "chemical", "conditions": ["specified reaction stoichiometry, catalyst identity and quantity", "specified volume, temperature and concentrations of other species", "declared kinetic law, activity and transport regime"], "source": "https://openstax.org/books/chemistry-2e/pages/12-7-catalysis ; repository-selected clause: Selected reactant concentration to catalyzed reaction extent rate in a specified kinetic model.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/12-7-catalysis ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["No universal catalytic rate law or guaranteed rate improvement is inferred; catalyst deactivation and poisoning require additional state or conditions."], "kind": "response"},
     {"id": 37, "name": "Exothermic reaction", "category": "chemical", "function": "release heat on demand", "statement": "Certain reactions release large heat once triggered.", "hints": ["single-use heaters", "thermal batteries", "exothermic welding"], "conditions": ["specified reaction, stoichiometry and initial reactant inventory", "specified negative reaction enthalpy and reference temperature", "constant-pressure enthalpy balance or an explicitly supplied alternative process balance"], "source": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-selected clause: Extent of a specified exothermic reaction to heat released over the declared process.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The released-heat clause does not establish reaction initiation, rate, complete conversion or useful delivered heat."], "kind": "specialization", "family": "physical:reaction-enthalpy", "signature": "release"},
     {"id": 38, "name": "Endothermic reaction", "category": "chemical", "function": "absorb heat on demand", "statement": "Dissolving or reacting certain species pulls heat from the surroundings.", "hints": ["instant cold packs", "chemical heat sinks", "fire suppression additives"], "conditions": ["specified endothermic reaction and initial reactant inventory", "specified positive reaction enthalpy and reference temperature", "constant-pressure enthalpy balance or an explicitly supplied alternative process balance"], "source": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-selected clause: Extent of a specified endothermic reaction to heat absorbed from a declared thermal reservoir.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The selected reaction clause does not model every endothermic dissolution. Absorbed heat is distinct from released heat and does not supply an energy source."], "kind": "specialization", "family": "physical:reaction-enthalpy", "signature": "uptake"},
@@ -1034,8 +1212,8 @@
     {"id": 43, "name": "Hygroscopy", "category": "chemical", "function": "absorb moisture from the environment", "statement": "Certain materials take up water vapor, changing mass and mechanical properties as they do.", "hints": ["desiccants", "humidity buffering", "moisture-actuated switching"], "input": {"quantity": "relative humidity", "si": "1"}, "input_parameter": "physical:relative-humidity", "output": {"quantity": "absorbed water mass", "si": "kg"}, "output_parameter": "physical:absorbed-water-mass", "field": "chemical", "conditions": ["specified material, dry mass, temperature and sorption isotherm", "specified adsorption or desorption branch and prior conditioning", "equilibration criterion and humidity range declared"], "source": "https://www.canada.ca/en/conservation-institute/services/conservation-preservation-publications/technical-bulletins/silica-gel-relative-humidity.html ; repository-selected clause: Relative humidity to equilibrium water uptake of a specified hygroscopic specimen.", "typed_from": "source", "provenance": {"citation": "https://www.canada.ca/en/conservation-institute/services/conservation-preservation-publications/technical-bulletins/silica-gel-relative-humidity.html ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Only equilibrium water uptake is selected. Hysteresis, uptake kinetics and mechanical-property changes require additional declarations."], "kind": "response"},
     {"id": 44, "name": "Electroplating", "category": "chemical", "function": "deposit metal from solution using current", "statement": "Electric current reduces metal ions onto a conductive surface, building thickness layer by layer.", "hints": ["repair builds", "corrosion barriers", "additive features on existing parts"], "input": {"quantity": "current", "si": "A"}, "input_parameter": "physical:current", "output": {"quantity": "deposited metal mass rate", "si": "kg*s^-1"}, "output_parameter": "physical:deposited-metal-mass-rate", "field": "electric", "conditions": ["specified metal ion, valence and electrochemical equivalent", "specified electrolyte, electrode and current efficiency", "competing reactions and transport limits accounted for"], "source": "https://openstax.org/books/chemistry-2e/pages/17-7-electrolysis ; repository-selected clause: Cathodic current to metal deposition mass rate for a selected plating reaction.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/17-7-electrolysis ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["No accumulated mass or thickness is inferred from a rate without an explicit time, area and density model."], "kind": "response"},
     {"id": 45, "name": "Photopolymerization", "category": "chemical", "function": "solidify resin only where light shines", "statement": "Light cures a liquid resin locally and rapidly.", "hints": ["3D printing", "maskless patterning", "optical adhesives"], "related_effects": [{"id": 39, "relation": "specializes"}], "input": {"quantity": "light"}, "input_parameter": "physical:light", "output": {"quantity": "polymer conversion", "si": "1"}, "output_parameter": "physical:polymer-conversion", "field": "optical", "conditions": ["specified monomer, photoinitiator and matched excitation spectrum", "specified dose/exposure protocol, temperature and initial inventory", "oxygen inhibition, penetration and reaction history accounted for"], "source": "https://publications.iupac.org/pac/80/10/2163/index.html ; repository-selected clause: Optical excitation to monomer or functional-group conversion in a selected light-initiated resin.", "typed_from": "source", "provenance": {"citation": "https://publications.iupac.org/pac/80/10/2163/index.html ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The selected conversion clause does not guarantee solidification, cure depth or rapid response. Exposure history requires explicit state when temporal behavior is claimed."], "kind": "response", "model_assessment": {"decision": "retain-response", "selected_clause": "Declared light excitation to polymer conversion for the specified formulation and exposure history.", "rationale": "Retain the coupled photochemical response until initiation, radical-state and propagation models have sourced interfaces and calibration. Polymerization 39 alone does not supply a light-controlled curing model.", "facets": [{"name": "Photoinitiation and radical-population model"}, {"name": "Polymerization extent/conversion response", "effect": 39}, {"name": "Selected light-to-conversion clause", "effect": 45}], "source": {"citation": "https://publications.iupac.org/pac/80/10/2163/index.html ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
-    {"id": 46, "name": "Sublimation and deposition", "category": "physical", "function": "pass from solid directly to gas or deposit from gas to solid", "statement": "At suitable temperature and pressure, a substance can pass directly between solid and vapor without an intervening liquid phase.", "hints": ["freeze drying", "vapor-phase coating", "gradual release of solids"], "limitations": ["This is a physical phase change; decomposition or reaction into a gas is a different mechanism.", "Only forward sublimation is typed; reverse deposition needs a separately declared direction and heat balance."], "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "heat", "si": "kg*m^2*s^-2"}, "input_parameter": "physical:heat", "output": {"quantity": "sublimated mass", "si": "kg"}, "output_parameter": "physical:sublimated-mass", "field": "thermal", "conditions": ["specified material, sublimation enthalpy and initial solid inventory", "temperature and pressure support sublimation without decomposition", "sensible heat and other losses accounted for separately"], "source": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions ; repository-selected clause: Heat supplied to mass transferred from a selected solid directly to vapor.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Transferred heat to sublimated mass under the declared material and process assumptions.", "rationale": "Solid-to-vapor and vapor-to-solid paths require different inventories, boundaries and heat-transfer conditions. Preserve sublimation; deposition needs a separately declared condensation/mass-transfer model.", "facets": [{"name": "Sublimation heat/mass response", "effect": 46}, {"name": "Vapor deposition mass transfer and heat rejection"}], "source": {"citation": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
-    {"id": 47, "name": "Molecular sieve separation", "category": "physical", "function": "separate mixtures by molecular size and affinity", "statement": "Microporous materials separate species through differences in pore access, transport rate and adsorption affinity.", "hints": ["gas separation", "solvent drying", "pressure-swing purification"], "limitations": ["Selectivity depends on molecular shape, affinity and operating conditions as well as nominal pore size.", "This membrane-composition clause is not universal complete separation or an adsorption-bed regeneration model. Feed and permeate quantities require explicit reconnection between stages."], "provenance": {"citation": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "feed mole fraction", "si": "1"}, "input_parameter": "physical:feed-mole-fraction", "output": {"quantity": "permeate mole fraction", "si": "1"}, "output_parameter": "physical:permeate-mole-fraction", "field": "chemical", "conditions": ["specified species, mixture, membrane and pore/affinity selectivity", "specified temperature, pressures, flow arrangement and transport regime", "selected permeate stream and recovery conditions declared"], "source": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; repository-selected clause: Feed composition to permeate composition of a selected molecular-sieving membrane.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Feed composition to selected membrane permeate composition.", "rationale": "Membrane permeation and cyclic adsorbent-bed separation need different boundaries and state. Preserve the selected membrane clause; bed uptake, breakthrough and regeneration need their own implementation.", "facets": [{"name": "Selective membrane permeation", "effect": 47}, {"name": "Adsorbent-bed uptake, breakthrough and regeneration"}], "source": {"citation": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; https://www.energy.gov/sites/default/files/2022-10/CCUS-Chap_5-030521.pdf", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 46, "name": "Sublimation and deposition", "category": "physical", "function": "pass from solid directly to gas or deposit from gas to solid", "statement": "At suitable temperature and pressure, a substance can pass directly between solid and vapor without an intervening liquid phase.", "hints": ["freeze drying", "vapor-phase coating", "gradual release of solids"], "limitations": ["This is a physical phase change; decomposition or reaction into a gas is a different mechanism.", "Only forward sublimation is typed; reverse deposition needs a separately declared direction and heat balance."], "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "heat", "si": "kg*m^2*s^-2"}, "input_parameter": "physical:heat", "output": {"quantity": "sublimated mass", "si": "kg"}, "output_parameter": "physical:sublimated-mass", "field": "thermal", "conditions": ["specified material, sublimation enthalpy and initial solid inventory", "temperature and pressure support sublimation without decomposition", "sensible heat and other losses accounted for separately"], "source": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions ; repository-selected clause: Heat supplied to mass transferred from a selected solid directly to vapor.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Transferred heat to sublimated mass under the declared material and process assumptions.", "rationale": "Solid-to-vapor and vapor-to-solid paths require different inventories, boundaries and heat-transfer conditions. Preserve sublimation; deposition needs a separately declared condensation/mass-transfer model.", "facets": [{"name": "Sublimation heat/mass response", "effect": 46}, {"name": "Vapor deposition mass transfer and heat rejection", "models": ["physical:vapor-deposition"]}], "source": {"citation": "https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
+    {"id": 47, "name": "Molecular sieve separation", "category": "physical", "function": "separate mixtures by molecular size and affinity", "statement": "Microporous materials separate species through differences in pore access, transport rate and adsorption affinity.", "hints": ["gas separation", "solvent drying", "pressure-swing purification"], "limitations": ["Selectivity depends on molecular shape, affinity and operating conditions as well as nominal pore size.", "This membrane-composition clause is not universal complete separation or an adsorption-bed regeneration model. Feed and permeate quantities require explicit reconnection between stages."], "provenance": {"citation": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "input": {"quantity": "feed mole fraction", "si": "1"}, "input_parameter": "physical:feed-mole-fraction", "output": {"quantity": "permeate mole fraction", "si": "1"}, "output_parameter": "physical:permeate-mole-fraction", "field": "chemical", "conditions": ["specified species, mixture, membrane and pore/affinity selectivity", "specified temperature, pressures, flow arrangement and transport regime", "selected permeate stream and recovery conditions declared"], "source": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; repository-selected clause: Feed composition to permeate composition of a selected molecular-sieving membrane.", "typed_from": "source", "kind": "response", "model_assessment": {"decision": "split-models", "selected_clause": "Feed composition to selected membrane permeate composition.", "rationale": "Membrane permeation and cyclic adsorbent-bed separation need different boundaries and state. Preserve the selected membrane clause; bed uptake, breakthrough and regeneration need their own implementation.", "facets": [{"name": "Selective membrane permeation", "effect": 47}, {"name": "Adsorbent-bed uptake, breakthrough and regeneration", "models": ["physical:cyclic-adsorbent-bed", "physical:heated-purge-regeneration"]}], "source": {"citation": "https://www.energy.gov/science/bes/articles/traffic-cop-molecules ; https://www.energy.gov/sites/default/files/2022-10/CCUS-Chap_5-030521.pdf", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 48, "name": "Combustion", "category": "chemical", "function": "release energy rapidly by oxidation", "statement": "An exothermic fuel-oxidizer reaction releases chemical energy; useful heat and pressure generation depend on the reaction products and operating arrangement.", "hints": ["combustion heating", "gas-producing propulsion", "controlled pyrotechnic actuation"], "limitations": ["Combustion does not universally imply net gas production or a particular pressure rise.", "No guaranteed gas expansion, pressure gain, reaction rate or useful heat delivery is inferred."], "provenance": {"citation": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "conditions": ["specified fuel, oxidizer, stoichiometry and initial inventory", "specified reaction enthalpy, products and conversion convention", "declared process heat balance and reference conditions"], "source": "https://openstax.org/books/chemistry-2e/pages/5-3-enthalpy ; repository-selected clause: Extent of a specified exothermic fuel-oxidizer reaction to heat released.", "typed_from": "source", "related_effects": [{"id": 37, "relation": "specializes"}], "kind": "specialization", "family": "physical:reaction-enthalpy", "signature": "release"},
     {"id": 49, "name": "Wedge and inclined plane", "category": "geometric", "function": "trade distance for force along a slope", "statement": "A slope converts a small force over long travel into a large force over short travel.", "hints": ["splitting and piercing", "self-reinforcing clamps", "constant-force closure"], "conditions": ["specified slope, contact geometry and force directions", "declared friction and quasistatic operating regime", "input and output displacements and work balance accounted for"], "source": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-selected clause: Applied force to a selected output force component of a wedge or inclined plane.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["The force-transforming endomorphism is not an identity or free force amplification; motion, friction and work limits remain separate obligations."], "kind": "specialization", "family": "physical:geometric-transmission", "signature": "force-transfer", "model_assessment": {"decision": "retain-compound", "selected_clause": "Force to force for the specified wedge or inclined plane.", "rationale": "Retain the named geometric mechanism. Geometry and boundary/material conditions are part of the implementation; shared interface declarations do not make distinct structures physically equivalent.", "facets": [{"name": "Slope/contact geometry", "effect": 49}, {"name": "Friction, support and work balance"}], "source": {"citation": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 50, "name": "Lever", "category": "geometric", "function": "trade force for displacement about a pivot", "statement": "Torque balance multiplies force by the ratio of lever arms.", "hints": ["hand tools", "load scaling mechanisms", "safety interlocks"], "conditions": ["specified pivot, lever arms and force directions", "quasistatic torque balance with support and friction assumptions declared", "input and load displacements accounted for"], "source": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-selected clause: Effort force to load force for a selected lever arrangement.", "typed_from": "source", "provenance": {"citation": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "limitations": ["Only the effort-to-load force clause is typed. This endomorphism does not assert unit gain or remove the displacement/work tradeoff."], "kind": "specialization", "family": "physical:geometric-transmission", "signature": "force-transfer", "model_assessment": {"decision": "retain-compound", "selected_clause": "Input force to output force for the specified lever.", "rationale": "Retain the named geometric mechanism. Geometry and boundary/material conditions are part of the implementation; shared interface declarations do not make distinct structures physically equivalent.", "facets": [{"name": "Moment-arm and pivot geometry", "effect": 50}, {"name": "Loads, support reactions and losses"}], "source": {"citation": "https://openstax.org/books/college-physics-2e/pages/9-5-simple-machines ; repository-authored selected clause and quantity declarations", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
@@ -1067,5 +1245,727 @@
     {"id": 76, "name": "Magnetocaloric temperature change", "category": "physical", "function": "change a suitable material temperature by changing its applied magnetic field", "statement": "A specified magnetic-field change can produce an adiabatic temperature change in a suitable magnetocaloric material, with response set by its thermodynamic state and material properties.", "hints": ["magnetic refrigeration", "active magnetic regeneration", "solid-state thermal cycling"], "provenance": {"citation": "https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.1931.pdf ; https://patents.google.com/patent/US20260029171A1/en", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "review": {"status": "curated", "note": "Selected clause checked against the cited primary/reference sources; no independent expert review or device performance validation."}, "conditions": ["specified magnetocaloric material and initial temperature and field", "specified applied flux-density endpoints and thermodynamic branch", "approximately adiabatic field-change interval"], "limitations": ["Sign and magnitude are material- and state-dependent. A temperature response alone establishes neither net cooling nor a regenerative cycle."], "source": "effects.json#76: repository-authored selected clause from https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.1931.pdf ; https://patents.google.com/patent/US20260029171A1/en", "typed_from": "source", "kind": "specialization", "family": "physical:field-caloric-response", "signature": "magnetic", "model_assessment": {"decision": "retain-response", "selected_clause": "Magnetic flux-density change to approximately adiabatic temperature change.", "rationale": "Retain the material-calibrated caloric response under its initial-state and field-endpoint assumptions. General thermodynamics does not supply a particular material law or cooling cycle.", "source": {"citation": "https://nvlpubs.nist.gov/nistpubs/TechnicalNotes/NIST.TN.1931.pdf ; https://patents.google.com/patent/US20260029171A1/en", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 77, "name": "Electrocaloric temperature change", "category": "physical", "function": "change a suitable dielectric temperature by changing its applied electric field", "statement": "A specified electric-field change can produce an adiabatic temperature change in an electrocaloric material through its coupled polarization and thermal response.", "hints": ["electrocaloric cooling", "multilayer caloric elements", "solid-state thermal cycling"], "provenance": {"citation": "https://patents.google.com/patent/WO2026087545A1/en ; https://doi.org/10.1038/s41586-026-10492-w", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "review": {"status": "curated", "note": "Selected clause checked against the cited primary/reference sources; no independent expert review or device performance validation."}, "conditions": ["specified electrocaloric material and initial temperature and field", "specified electric-field endpoints and polarization branch", "approximately adiabatic field-change interval below electrical breakdown"], "limitations": ["Hysteresis, leakage heating, fatigue and thermal exchange affect operation. The clause does not establish net refrigeration or identify electric field with terminal voltage."], "source": "effects.json#77: repository-authored selected clause from https://patents.google.com/patent/WO2026087545A1/en ; https://doi.org/10.1038/s41586-026-10492-w", "typed_from": "source", "kind": "specialization", "family": "physical:field-caloric-response", "signature": "electric", "model_assessment": {"decision": "retain-response", "selected_clause": "Electric-field change to approximately adiabatic temperature change.", "rationale": "Retain the material-calibrated caloric response and its polarization branch. Shared caloric structure does not identify electric and magnetic excitations or remove leakage and fatigue limits.", "source": {"citation": "https://patents.google.com/patent/WO2026087545A1/en ; https://doi.org/10.1038/s41586-026-10492-w", "license": "MIT (repository-authored assessment; external reference text is not reproduced)"}, "status": "assessment-only"}},
     {"id": 78, "name": "Electroosmotic flow", "category": "physical", "function": "drive liquid motion with an electric field acting on an interfacial electrical double layer", "statement": "A tangential electric field can drive electrolyte flow along a charged interface; the selected liquid velocity depends on interfacial potential, fluid properties and pressure loading.", "hints": ["electroosmotic pumps", "microfluidic flow control", "porous electrokinetic transport"], "provenance": {"citation": "https://web.mit.edu/bazant/www/papers/pdf/Bazant_2004_J_Fluid_Mech_ICE2.pdf ; https://patents.google.com/patent/EP3842087B1/en", "license": "MIT (repository-authored declaration; external reference text is not reproduced)"}, "review": {"status": "curated", "note": "Selected clause checked against the cited primary/reference sources; no independent expert review or device performance validation."}, "conditions": ["specified electrolyte, charged interface and tangential electric field", "specified interfacial potential, viscosity, permittivity, geometry and pressure loading", "selected electrokinetic operating regime with electrode reactions accounted for"], "limitations": ["The simple slip law has a limited regime. Gas-phase ionic wind, osmosis and dielectrophoretic particle motion are different responses, even when some port dimensions agree."], "source": "effects.json#78: repository-authored selected clause from https://web.mit.edu/bazant/www/papers/pdf/Bazant_2004_J_Fluid_Mech_ICE2.pdf ; https://patents.google.com/patent/EP3842087B1/en", "typed_from": "source", "kind": "response", "input_parameter": "physical:electric-field", "output_parameter": "physical:fluid-velocity", "input": {"quantity": "electric field", "si": "kg*m*s^-3*A^-1"}, "output": {"quantity": "fluid velocity", "si": "m*s^-1"}, "field": "electric"}
+  ],
+  "models": [
+    {
+      "id": "physical:photoelastic-retardance",
+      "name": "Stress-induced optical retardance",
+      "description": "Stress-optic response along a specified path; optical-path difference is a modulation parameter, not optical power.",
+      "parents": [
+        20
+      ],
+      "inputs": [
+        {
+          "id": "stress",
+          "parameter": "physical:principal-stress-difference"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "retardance",
+          "parameter": "physical:optical-path-difference"
+        }
+      ],
+      "conditions": [
+        "Declared transparent material stress-optic coefficient, path thickness and wavelength",
+        "Resolved principal axes and stress distribution along the optical path"
+      ],
+      "provenance": {
+        "citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "No stress inference or optical intensity is supplied; retardance can be ambiguous modulo wavelength."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:retardance-analyzer",
+      "name": "Retardance optical readout",
+      "description": "A specified polarizer/retarder/analyzer arrangement converts path retardance and incident light into transmitted irradiance.",
+      "parents": [
+        20
+      ],
+      "inputs": [
+        {
+          "id": "retardance",
+          "parameter": "physical:optical-path-difference"
+        },
+        {
+          "id": "illumination",
+          "parameter": "physical:incident-irradiance"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "transmitted",
+          "parameter": "physical:irradiance"
+        }
+      ],
+      "conditions": [
+        "Declared wavelength, polarizer/analyzer orientation and optical losses",
+        "Declared retardance branch and detector response"
+      ],
+      "provenance": {
+        "citation": "https://arxiv.org/abs/2208.00769 ; https://patents.google.com/patent/US20260220288A1/en (photoelastic polariscope, Figs. 17A–17D)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Does not invert a periodic intensity response to unique stress."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:vapor-deposition",
+      "name": "Cold-surface vapor-to-solid capture",
+      "description": "Net capture of condensable vapor as solid with available cooling capacity, under fixed surface conditions.",
+      "parents": [
+        46
+      ],
+      "inputs": [
+        {
+          "id": "vapor",
+          "parameter": "physical:vapor-mass-rate"
+        },
+        {
+          "id": "cooling",
+          "parameter": "physical:heat-rejection-capacity"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "deposit",
+          "parameter": "physical:deposited-solid-mass-rate"
+        }
+      ],
+      "conditions": [
+        "Specified species and surface temperature/pressure support vapor-to-solid deposition",
+        "Capture coefficient, latent heat, sensible heat and parasitic heat loads are declared",
+        "Cooling removes the declared deposition heat load"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/US20240369052A1/en (Fig. 1 condensed layer 90, ice mass on cryopanel 41); https://openstax.org/books/chemistry-2e/pages/10-3-phase-transitions",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Not the inverse of heat-to-sublimated-mass; excludes hydrogen cryosorption and sputter target/plasma generation."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:prompt-fluorescence",
+      "name": "Prompt fluorescence",
+      "description": "Memoryless light excitation to emission approximation at a declared coarse time step.",
+      "parents": [
+        16
+      ],
+      "inputs": [
+        {
+          "id": "excitation",
+          "parameter": "physical:light"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "emission",
+          "parameter": "physical:emitted-light"
+        }
+      ],
+      "conditions": [
+        "Declared emitter, excitation/emission spectra and quantum yield",
+        "Observation step is long compared with the fluorescence lifetime"
+      ],
+      "provenance": {
+        "citation": "https://goldbook.iupac.org/terms/view/F02453",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "No afterglow or stored energy is implied."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:phosphorescent-emission",
+      "name": "Phosphorescent emission",
+      "description": "Stateful triplet-mediated emission; lifetime and transition probabilities remain declared.",
+      "parents": [
+        16
+      ],
+      "inputs": [
+        {
+          "id": "excitation",
+          "parameter": "physical:light"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "emission",
+          "parameter": "physical:emitted-light"
+        }
+      ],
+      "conditions": [
+        "Declared triplet-state material, quenching, lifetime and observation step"
+      ],
+      "provenance": {
+        "citation": "https://goldbook.iupac.org/terms/view/P04569",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Persistent luminescence is not necessarily phosphorescence; no universal decay law is supplied."
+      ],
+      "state_parameter": "physical:triplet-excitation-state",
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:charge-recombination-emission",
+      "name": "Separated-charge recombination emission",
+      "description": "Light creates separated donor/acceptor charges whose later recombination can emit after excitation stops.",
+      "parents": [
+        16
+      ],
+      "inputs": [
+        {
+          "id": "excitation",
+          "parameter": "physical:light"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "emission",
+          "parameter": "physical:emitted-light"
+        }
+      ],
+      "conditions": [
+        "Declared donor/acceptor material, charge storage/recombination kinetics and observation step"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/US12590245B2/en (donor/acceptor transfer and carrier recombination description)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "The finite state abstraction is implementation-specific; no triplet lifetime or patent efficiency is inferred."
+      ],
+      "state_parameter": "physical:separated-charge-state",
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:superconducting-phase",
+      "name": "Superconducting phase/branch response",
+      "description": "One shared phase signal conditions electrical transport and magnetic readout of the same material.",
+      "parents": [
+        35
+      ],
+      "inputs": [
+        {
+          "id": "temperature",
+          "parameter": "physical:temperature"
+        },
+        {
+          "id": "field",
+          "parameter": "physical:magnetic-flux-density"
+        },
+        {
+          "id": "drive",
+          "parameter": "physical:current"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "phase",
+          "parameter": "physical:superconducting-phase"
+        }
+      ],
+      "conditions": [
+        "Declared material, geometry and critical temperature/field/current surface",
+        "Declared phase history, hysteresis branch and observation step"
+      ],
+      "provenance": {
+        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "A three-regime finite abstraction does not model vortex dynamics, full transition curves or cooling power."
+      ],
+      "state_parameter": "physical:superconducting-phase",
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:meissner-screening",
+      "name": "Phase-qualified magnetic screening",
+      "description": "Maps shared material phase and external field to a specified local field.",
+      "parents": [
+        35
+      ],
+      "inputs": [
+        {
+          "id": "phase",
+          "parameter": "physical:superconducting-phase"
+        },
+        {
+          "id": "field",
+          "parameter": "physical:magnetic-flux-density"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "local-field",
+          "parameter": "physical:local-magnetic-flux-density"
+        }
+      ],
+      "conditions": [
+        "Declared material, geometry, pickup location and calibrated screening by phase",
+        "Type-II mixed-state penetration and critical limits are explicitly bounded where applicable"
+      ],
+      "provenance": {
+        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Zero DC resistance alone does not establish Meissner screening; excludes a complete pickup/SQUID circuit."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:phase-qualified-dc-transport",
+      "name": "Phase-qualified DC transport",
+      "description": "Electrical transport uses the same material phase signal as magnetic response.",
+      "parents": [
+        35
+      ],
+      "inputs": [
+        {
+          "id": "phase",
+          "parameter": "physical:superconducting-phase"
+        },
+        {
+          "id": "drive",
+          "parameter": "physical:current"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "transmitted",
+          "parameter": "physical:transmitted-dc-current"
+        }
+      ],
+      "conditions": [
+        "Declared circuit, contacts, material dimensions and critical current",
+        "Declared phase-specific current/voltage relation and losses"
+      ],
+      "provenance": {
+        "citation": "https://openstax.org/books/university-physics-volume-2/pages/9-6-superconductors ; https://patents.google.com/patent/US12352634B1/en (Figs. 1A–1D, normal/transition/Meissner regimes)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "No zero AC loss, magnetic levitation or inverse response is asserted."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:corona-ionization",
+      "name": "Corona gas charge generation",
+      "description": "A bounded corona regime supplies gas ions; drift and neutral flow are separate models.",
+      "parents": [
+        33
+      ],
+      "inputs": [
+        {
+          "id": "voltage",
+          "parameter": "physical:voltage"
+        },
+        {
+          "id": "pressure",
+          "parameter": "physical:gas-pressure"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "ions",
+          "parameter": "physical:ion-current"
+        }
+      ],
+      "conditions": [
+        "Declared gas, electrode geometry/polarity, humidity and calibrated corona inception/breakdown limits"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "No ions outside the declared corona regime; not interchangeable with electron-beam or photoelectron generation."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:electron-beam-ionization",
+      "name": "Electron-beam gas charge generation",
+      "description": "Incident beam ionizes/attaches in gas; reuses the same downstream ion-force and flow boundaries.",
+      "parents": [
+        33
+      ],
+      "inputs": [
+        {
+          "id": "beam",
+          "parameter": "physical:electron-beam-current"
+        },
+        {
+          "id": "voltage",
+          "parameter": "physical:voltage"
+        },
+        {
+          "id": "pressure",
+          "parameter": "physical:gas-pressure"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "ions",
+          "parameter": "physical:ion-current"
+        }
+      ],
+      "conditions": [
+        "Declared beam energy/current, exit window, gas species, pressure and charge yield"
+      ],
+      "provenance": {
+        "citation": "https://patents.justia.com/patent/20260237975 (abstract and electron beam exit-window/ion-accelerating electrode description)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Vacuum source and window engineering are external; circuit current is not automatically beam current."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:photoelectron-gas-charging",
+      "name": "Photoelectron gas charge generation",
+      "description": "Emitted electrons attach/ionize in a declared gas region; the surface photoelectric effect remains a separate source.",
+      "parents": [
+        33,
+        15
+      ],
+      "inputs": [
+        {
+          "id": "electrons",
+          "parameter": "physical:current"
+        },
+        {
+          "id": "pressure",
+          "parameter": "physical:gas-pressure"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "ions",
+          "parameter": "physical:ion-current"
+        }
+      ],
+      "conditions": [
+        "Input current is declared photoelectron emission, with specified energy, gas species, attachment/ionization and collection efficiency"
+      ],
+      "provenance": {
+        "citation": "https://patents.justia.com/patent/20260002524 (photoelectric emitter and atmospheric ion transport description)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "A generic circuit current does not establish gas ionization; no discharge threshold or photoemission yield is inferred."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:ion-neutral-force",
+      "name": "Ion-neutral momentum transfer",
+      "description": "Gas ion transport under an electric field transfers momentum to neutral gas in a specified drift region.",
+      "parents": [
+        33
+      ],
+      "inputs": [
+        {
+          "id": "ions",
+          "parameter": "physical:ion-current"
+        },
+        {
+          "id": "field",
+          "parameter": "physical:electric-field"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "force",
+          "parameter": "physical:gas-body-force"
+        }
+      ],
+      "conditions": [
+        "Declared gas mobility/collision regime, drift length, field distribution and charge transport"
+      ],
+      "provenance": {
+        "citation": "https://doi.org/10.1103/PhysRevFluids.3.063701 ; https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "An integrated gas force is not a particle force or a predicted thrust efficiency."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:gas-flow-response",
+      "name": "Forced gas flow response",
+      "description": "Gas body force produces a bounded velocity response under fixed flow geometry and resistance.",
+      "parents": [
+        33
+      ],
+      "inputs": [
+        {
+          "id": "force",
+          "parameter": "physical:gas-body-force"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "flow",
+          "parameter": "physical:fluid-velocity"
+        }
+      ],
+      "conditions": [
+        "Declared gas density/viscosity, geometry, pressure boundary and force-to-flow calibration"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "No universal force-to-speed law; momentum/energy and load must be checked for each implementation."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:particle-electric-force",
+      "name": "Charged-particle electric force",
+      "description": "Electric field acts on a specified charged particle population; charging is an input.",
+      "parents": [
+        33,
+        59
+      ],
+      "inputs": [
+        {
+          "id": "charge",
+          "parameter": "physical:particle-charge"
+        },
+        {
+          "id": "field",
+          "parameter": "physical:electric-field"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "force",
+          "parameter": "physical:particle-electric-force"
+        }
+      ],
+      "conditions": [
+        "Declared particle charge distribution and electric field at particle positions"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Not gas momentum transfer or dielectrophoresis on neutral polarizable particles."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:force-flow-particle-release",
+      "name": "Combined force/flow particle release",
+      "description": "Particle force assists detachment while gas flow transports released material over a declared interval.",
+      "parents": [
+        33,
+        59
+      ],
+      "inputs": [
+        {
+          "id": "flow",
+          "parameter": "physical:fluid-velocity"
+        },
+        {
+          "id": "force",
+          "parameter": "physical:particle-electric-force"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "released",
+          "parameter": "physical:released-mass"
+        }
+      ],
+      "conditions": [
+        "Declared adhesion/cohesion, particle sizes/charges, drag, panel orientation and collection boundary",
+        "Declared release observation interval and available dust mass"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/WO2026017232A1/en (ionizing/ground electrodes and separate static particle electrode)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "A coupled cleaning response is retained; no serial recipe or moving-wave electrodynamic-shield equivalence is claimed."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:heated-purge-regeneration",
+      "name": "Heated purge resource preparation",
+      "description": "A declared purge stream at a specified temperature provides regeneration capability.",
+      "parents": [
+        47
+      ],
+      "inputs": [
+        {
+          "id": "purge",
+          "parameter": "physical:purge-molar-flow"
+        },
+        {
+          "id": "temperature",
+          "parameter": "physical:temperature"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "resource",
+          "parameter": "physical:regeneration-resource"
+        }
+      ],
+      "conditions": [
+        "Declared purge species/composition, temperature, pressure, heat source and usable flow"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Capability is not a conserved physical flow; declare feasibility rows for heat and purge budgets. No vacuum regeneration is implied."
+      ],
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    },
+    {
+      "id": "physical:cyclic-adsorbent-bed",
+      "name": "Finite-capacity cyclic adsorbent bed",
+      "description": "Selective adsorption, loading/breakthrough and commanded heated-purge regeneration share one bed state.",
+      "parents": [
+        47,
+        32
+      ],
+      "inputs": [
+        {
+          "id": "feed",
+          "parameter": "physical:feed-mole-fraction"
+        },
+        {
+          "id": "flow",
+          "parameter": "physical:feed-molar-flow"
+        },
+        {
+          "id": "command",
+          "parameter": "physical:regeneration-command"
+        },
+        {
+          "id": "regeneration",
+          "parameter": "physical:regeneration-resource"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "product",
+          "parameter": "physical:product-mole-fraction"
+        },
+        {
+          "id": "loading",
+          "parameter": "physical:adsorbed-amount"
+        }
+      ],
+      "conditions": [
+        "Declared adsorbent, feed species/composition, capacity, temperature/pressure and mass transfer",
+        "Declared adsorption/purge schedule, feed interruption, regeneration completeness and observation step"
+      ],
+      "provenance": {
+        "citation": "https://patents.google.com/patent/US12528043B2/en (Fig. 3 cleaning/heating purge stages and interruption of feed)",
+        "license": "MIT for repository-authored boundary abstraction; cited sources retain their own terms"
+      },
+      "limitations": [
+        "Not the membrane-permeate typing of effect 47; a single bed cannot promise continuous product during regeneration. Split-feed/multiple-bed cooling and cycle efficiency are outside this template."
+      ],
+      "state_parameter": "physical:adsorbent-loading",
+      "review": {
+        "status": "draft",
+        "note": "Source-backed engineering boundary templates; finite behavior, calibration and state transitions must be declared for each implementation. No physical equivalence or expert review is claimed.",
+        "reviewers": []
+      }
+    }
   ]
 }

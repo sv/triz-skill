@@ -24,7 +24,7 @@ New domain quantities should use qualified tokens when an unqualified word would
 Reuse an existing parameter id for a shared meaning. Equal SI dimensions alone do not make
 two quantities interchangeable. No aliases, unit conversions or semantic mappings are inferred.
 
-The physical pack has 65 quantity declarations and 78 searchable typed entries: 69 selected
+The physical pack has 88 quantity declarations (65 original and 23 model-boundary/state types) and 78 searchable typed entries: 69 selected
 responses and nine mechanisms. These modeling roles do not count independent physical laws.
 `triz_knowledge.taxonomy` reports roles separately from field groups and links each field to its
 entry ids. Counts and taxonomy have the documented all-installed-packs scope, including when
@@ -46,7 +46,58 @@ For compound-versus-split decisions, see [effects decomposition](effects-decompo
 `triz_effects` accepts `assessment: "retain-response" | "retain-compound" | "split-models"`;
 `triz_knowledge.taxonomy.model_assessments` groups the reviewed and unassessed ids. Optional
 `model_assessment` metadata reviews the whole named function and explicitly scopes the current
-typing. Its facets are advisory references, not inferred generators or executable recipes.
+typing. Its facets may reference unary `effect` clauses and multiport `models`; neither is
+an inferred generator, executable recipe or physical equivalence proof.
+
+## Multiport and stateful configurations
+
+`KnowledgePack.models` is optional and defaults to empty. Each sourced template declares `id`,
+`name`, `description`, `parents`, named `inputs`/`outputs` referencing registered parameters,
+`conditions`, `provenance`, `limitations`, optional `review`, and optional `state_parameter`.
+The compiler checks namespaces, unique ids/ports and every parameter, parent and assessment
+reference. These 18 templates are separate from the 78 unary lookups and 70 independently
+declared unary interfaces; do not add them together as a count of physical laws.
+`triz_knowledge.models` exposes templates; `model_count` has all-installed-packs scope.
+Pack metadata also reports its own model count.
+
+Get a portable catalogue:
+
+```json
+{"source":"knowledge","parent":20}
+```
+
+Call `triz_component_catalogue` with that request. Omit `parent` to use all registered models.
+Optional `models`/`query` narrow selection. For mechanism-specific discovery, `state_parameters`
+is an allowlist of internal state meanings; stateless candidates remain. For example,
+`["physical:separated-charge-state"]` permits the stored-charge emitter while excluding triplet
+phosphorescence. State meaning comes from decomposition of the evidence, never the device name.
+
+`bindings[parameter_id]` supplies finite `values`, `levels`, `layer` or intensive/extensive
+allocation. Quantity tokens and SI cannot be overridden. `declarations[model_id]` supplies
+behavior, state/initial/transition, feasibility and cost rows using the template's named ports.
+A configured stateful model requires **state, initial and transition**; a memoryless behavior
+relation cannot stand in for history. Templates without `state_parameter` reject internal state.
+Without rows the catalogue remains available for typed discovery and behavior stays undecided.
+
+Pass the returned `catalogue` object as `triz_component_search.catalogues[0].catalogue`.
+Supply a retained model with resource outputs and target inputs and set `require_all_resources`
+when all listed resources must participate. Search imports intermediate carriers and constructs
+component choices and wiring; it supports simultaneous inputs and shared outputs. Bind existing
+carrier ids explicitly if several compatible declarations exist. Finite values must agree too.
+The existing search bounds still apply: at most eight components, 100 entries, and capped work.
+
+`models[].unmetConditions` reports assumptions not supplied by the caller. The portable entries
+retain all conditions and limitations in discovered `catalogueOrigin` records. Supplying a
+condition string is an assertion, not evidence. Inspect these before interpreting any candidate.
+Use `triz_dynamics` for observation-step protocols and `triz_behavior`/`triz_feasibility` for
+finite relations and budgets. Typing and Lean certificates cover the declared finite model;
+they do not establish continuous physics, empirical performance or a whole patent's claims.
+
+For patent validation, first extract resources, output quantities, state/history, operating
+regime and topology from the disclosure. Emerging terminology is not a reason to register a new
+primitive. Compare the same resource-complete query with and without the proposed models, retain
+old lookups, and test missing resources, regimes and temporal alternatives. The executable
+[eight-patent comparison](../../../docs/effects-configurations.md) demonstrates this workflow.
 
 ## Set up a categorical model
 

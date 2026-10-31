@@ -448,6 +448,193 @@
         "additionalProperties": false
       }
     },
+    "models": {
+      "default": [],
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "parents": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                },
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                }
+              ]
+            }
+          },
+          "inputs": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": [
+                "id",
+                "parameter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "outputs": {
+            "minItems": 1,
+            "maxItems": 16,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                },
+                "parameter": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                }
+              },
+              "required": [
+                "id",
+                "parameter"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "state_parameter": {
+            "description": "Meaning of internal history; configured implementations must declare state, initial and transition",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+          },
+          "conditions": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "provenance": {
+            "type": "object",
+            "properties": {
+              "citation": {
+                "type": "string",
+                "minLength": 1
+              },
+              "license": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "citation",
+              "license"
+            ],
+            "additionalProperties": false
+          },
+          "review": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "curated",
+                  "expert-reviewed"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewers": {
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "expertise": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "expertise"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "reviewed_on": {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+              }
+            },
+            "required": [
+              "status",
+              "note",
+              "reviewers"
+            ],
+            "additionalProperties": false
+          },
+          "limitations": {
+            "minItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "parents",
+          "inputs",
+          "outputs",
+          "conditions",
+          "provenance",
+          "limitations"
+        ],
+        "additionalProperties": false
+      }
+    },
     "effects": {
       "maxItems": 10000,
       "type": "array",
@@ -599,7 +786,7 @@
                           "minLength": 1
                         },
                         "effect": {
-                          "description": "An existing registered clause only; omission means this facet has no registered typing",
+                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
                           "anyOf": [
                             {
                               "type": "string",
@@ -611,6 +798,16 @@
                               "maximum": 9007199254740991
                             }
                           ]
+                        },
+                        "models": {
+                          "description": "Related multiport model templates; not a realization or equivalence proof",
+                          "minItems": 1,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                          }
                         }
                       },
                       "required": [
@@ -1017,7 +1214,7 @@
                           "minLength": 1
                         },
                         "effect": {
-                          "description": "An existing registered clause only; omission means this facet has no registered typing",
+                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
                           "anyOf": [
                             {
                               "type": "string",
@@ -1029,6 +1226,16 @@
                               "maximum": 9007199254740991
                             }
                           ]
+                        },
+                        "models": {
+                          "description": "Related multiport model templates; not a realization or equivalence proof",
+                          "minItems": 1,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                          }
                         }
                       },
                       "required": [
@@ -1297,7 +1504,7 @@
                           "minLength": 1
                         },
                         "effect": {
-                          "description": "An existing registered clause only; omission means this facet has no registered typing",
+                          "description": "An existing unary effect clause; neither a substitution nor an equivalence proof",
                           "anyOf": [
                             {
                               "type": "string",
@@ -1309,6 +1516,16 @@
                               "maximum": 9007199254740991
                             }
                           ]
+                        },
+                        "models": {
+                          "description": "Related multiport model templates; not a realization or equivalence proof",
+                          "minItems": 1,
+                          "maxItems": 20,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^[a-z][a-z0-9-]*:[a-z][a-z0-9-]*$"
+                          }
                         }
                       },
                       "required": [
@@ -1455,6 +1672,7 @@
     "limitations",
     "parameters",
     "families",
+    "models",
     "effects"
   ],
   "additionalProperties": false,

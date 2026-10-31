@@ -1,0 +1,190 @@
+{
+  "publication_window": [
+    "2024-11-01",
+    "2026-10-31"
+  ],
+  "method": "Hand-decompose disclosed subconfigurations into resources, targets and state meanings; run the same bounded search on old unary interfaces and on those interfaces plus registered multiport models. Blind component identifiers and names; no title query or expected path supplied to search. Conditions and calibrated finite dynamics remain separate checks.",
+  "cases": [
+    {
+      "id": "embedded-stress-readout",
+      "patent": "US20260220288A1",
+      "published_on": "2026-07-30",
+      "priority_on": "2023-01-12",
+      "url": "https://patents.google.com/patent/US20260220288A1/en",
+      "locator": "Description: photoelastic polariscope, Figs. 17A\u201317D",
+      "scope": "Stress-induced optical modulation and intensity readout only; excludes load transfer, calibration inversion, MCU and wireless power.",
+      "resources": [
+        "physical:principal-stress-difference",
+        "physical:incident-irradiance"
+      ],
+      "targets": [
+        "physical:irradiance"
+      ],
+      "expected": [
+        "physical:photoelastic-retardance",
+        "physical:retardance-analyzer"
+      ]
+    },
+    {
+      "id": "cryopanel-solid-capture",
+      "patent": "US20240369052A1",
+      "published_on": "2024-11-07",
+      "priority_on": "2022-01-26",
+      "url": "https://patents.google.com/patent/US20240369052A1/en",
+      "locator": "Fig. 1: ice mass / condensed layer 90 on top cryopanel 41; cooling stage 24",
+      "scope": "Selected condensable vapor-to-solid capture; excludes cryosorption of hydrogen, complete shielding geometry and cooler performance.",
+      "resources": [
+        "physical:vapor-mass-rate",
+        "physical:heat-rejection-capacity"
+      ],
+      "targets": [
+        "physical:deposited-solid-mass-rate"
+      ],
+      "expected": [
+        "physical:vapor-deposition"
+      ]
+    },
+    {
+      "id": "persistent-charge-emitter",
+      "patent": "US12590245B2",
+      "published_on": "2026-03-31",
+      "priority_on": "2021-08-30",
+      "url": "https://patents.google.com/patent/US12590245B2/en",
+      "locator": "Description: repeated donor/acceptor transfer, separated charges and carrier recombination after irradiation stops",
+      "scope": "Stored-charge emission abstraction; not triplet phosphorescence, a calibrated decay law or polymer design validation.",
+      "resources": [
+        "physical:light"
+      ],
+      "targets": [
+        "physical:emitted-light"
+      ],
+      "expected": [
+        "physical:charge-recombination-emission"
+      ],
+      "state_parameters": [
+        "physical:separated-charge-state"
+      ]
+    },
+    {
+      "id": "transition-magnetic-readout",
+      "patent": "US12352634B1",
+      "published_on": "2025-07-08",
+      "priority_on": "2021-12-23",
+      "url": "https://patents.google.com/patent/US12352634B1/en",
+      "locator": "Figs. 1A\u20131D: normal/transition/Meissner regimes and partial field expulsion",
+      "scope": "Temperature/field/current-qualified material phase to local magnetic response; excludes radiation absorption, integrated pickup flux, SQUID readout and energy resolution.",
+      "resources": [
+        "physical:temperature",
+        "physical:magnetic-flux-density",
+        "physical:current"
+      ],
+      "targets": [
+        "physical:local-magnetic-flux-density"
+      ],
+      "expected": [
+        "physical:superconducting-phase",
+        "physical:meissner-screening"
+      ],
+      "state_parameters": [
+        "physical:superconducting-phase"
+      ]
+    },
+    {
+      "id": "hybrid-panel-cleaning",
+      "patent": "WO2026017232A1",
+      "published_on": "2026-01-22",
+      "priority_on": "2024-07-17",
+      "url": "https://patents.google.com/patent/WO2026017232A1/en",
+      "locator": "Description: ionizing/ground electrode pair plus third static particle-detachment electrode",
+      "scope": "Corona-generated flow plus charged-particle force and coupled release; charge distribution, adhesion and geometry are declared. Not a traveling-wave EDS.",
+      "resources": [
+        "physical:voltage",
+        "physical:gas-pressure",
+        "physical:electric-field",
+        "physical:particle-charge"
+      ],
+      "targets": [
+        "physical:released-mass"
+      ],
+      "expected": [
+        "physical:corona-ionization",
+        "physical:ion-neutral-force",
+        "physical:gas-flow-response",
+        "physical:particle-electric-force",
+        "physical:force-flow-particle-release"
+      ]
+    },
+    {
+      "id": "beam-generated-wind",
+      "patent": "US20260237975A1",
+      "published_on": "2026-08-13",
+      "priority_on": "2023-02-10",
+      "url": "https://patents.justia.com/patent/20260237975",
+      "locator": "Abstract and description: electron source, beam exit window and separate ion accelerating electrode",
+      "scope": "Beam-to-gas charge generation and downstream flow; excludes vacuum source/window manufacture and thrust/efficiency.",
+      "resources": [
+        "physical:electron-beam-current",
+        "physical:voltage",
+        "physical:gas-pressure",
+        "physical:electric-field"
+      ],
+      "targets": [
+        "physical:fluid-velocity"
+      ],
+      "expected": [
+        "physical:electron-beam-ionization",
+        "physical:ion-neutral-force",
+        "physical:gas-flow-response"
+      ]
+    },
+    {
+      "id": "photoelectron-generated-wind",
+      "patent": "US20260002524A1",
+      "published_on": "2026-01-01",
+      "url": "https://patents.justia.com/patent/20260002524",
+      "locator": "Description: light on low-work-function emitter; gas ions accelerate and collide with neutrals",
+      "scope": "Existing surface photoelectric clause plus gas charging, momentum transfer and flow; beam and corona source models cannot consume the light resource.",
+      "resources": [
+        "physical:light",
+        "physical:gas-pressure",
+        "physical:electric-field"
+      ],
+      "targets": [
+        "physical:fluid-velocity"
+      ],
+      "expected": [
+        15,
+        "physical:photoelectron-gas-charging",
+        "physical:ion-neutral-force",
+        "physical:gas-flow-response"
+      ],
+      "filed_on": "2024-04-27"
+    },
+    {
+      "id": "cyclic-purge-bed",
+      "patent": "US12528043B2",
+      "published_on": "2026-01-20",
+      "priority_on": "2020-08-12",
+      "url": "https://patents.google.com/patent/US12528043B2/en",
+      "locator": "Fig. 3 cleaning/heating purge stages 330/335; feed interruption and bed transition steps",
+      "scope": "One capacity-limited bed with externally scheduled heated purge. Excludes split-feed multiple beds, cooling stages and continuous-product claims.",
+      "resources": [
+        "physical:feed-mole-fraction",
+        "physical:feed-molar-flow",
+        "physical:regeneration-command",
+        "physical:purge-molar-flow",
+        "physical:temperature"
+      ],
+      "targets": [
+        "physical:product-mole-fraction"
+      ],
+      "expected": [
+        "physical:heated-purge-regeneration",
+        "physical:cyclic-adsorbent-bed"
+      ],
+      "state_parameters": [
+        "physical:adsorbent-loading"
+      ]
+    }
+  ]
+}

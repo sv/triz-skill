@@ -35,7 +35,7 @@ const json = async (name, args) => {
 };
 
 const knowledge = await json("triz_knowledge", {});
-if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 68) fail("knowledge packs or quantity definitions missing");
+if (knowledge.packs.length !== 2 || knowledge.parameters.length !== 91 || knowledge.model_count !== 18) fail("knowledge packs, quantity definitions or model templates missing");
 if (!knowledge.parameters.some(p => p.id === "universal:duration")) fail("universal quantity definitions missing");
 if (knowledge.families.length !== 8 || knowledge.counts.independent_contracts !== 70 || knowledge.counts.searchable !== 78) fail("shared interface separation/counts missing");
 if (knowledge.taxonomy.roles.response !== 69 || knowledge.taxonomy.roles.mechanism !== 9) fail("response/mechanism taxonomy missing");
@@ -47,6 +47,18 @@ if (JSON.stringify(splitModels.effects.map(e => e.id)) !== JSON.stringify([16, 2
 if (splitModels.effects.some(e => e.model_assessment.status !== "assessment-only")) fail("advisory assessments claimed stronger verification");
 const unregisteredFacet = await json("triz_effects", { output: "optical retardance" });
 if (unregisteredFacet.matched !== 0) fail("an unregistered assessment facet became an effect");
+const multiport = await json("triz_component_catalogue", { source: "knowledge", parent: 20 });
+if (!multiport.ok || multiport.catalogue.entries.length !== 2 || multiport.models.some(m => m.configured || !m.unmetConditions.length)) fail("multiport catalogue lost its boundaries or assumptions");
+const sourceTypes = ["physical:principal-stress-difference", "physical:incident-irradiance"];
+const assembly = await json("triz_component_search", {
+  model: { domain: "physical", carriers: multiport.catalogue.carriers, boxes: [
+    { id: "source", name: "Resources", role: "environment", outputs: sourceTypes.map((carrier, i) => ({ id: `r${i}`, carrier })) },
+    { id: "target", name: "Readout", role: "product", inputs: [{ id: "in", carrier: "physical:irradiance" }] },
+  ], wires: [] },
+  resources: sourceTypes.map((_, i) => ({ box: "source", port: `r${i}` })), targets: [{ box: "target", port: "in" }],
+  catalogues: [{ catalogue: multiport.catalogue }], max_components: 2, require_all_resources: true, certificate: true,
+});
+if (assembly.verdict !== "candidates" || assembly.candidates[0]?.components.length !== 2 || !assembly.certificates?.typing || assembly.candidates[0].components.some(c => !c.catalogueOrigin?.conditions?.length)) fail("registered model catalogue did not enter typed configuration search/certification");
 const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
 const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
