@@ -17,6 +17,7 @@
     "example:effects": "node --import tsx examples/assurance/effects-flow.mjs",
     "example:effects-compare": "node --import tsx examples/assurance/effects-comparison.mjs",
     "example:effects-products": "node --import tsx examples/assurance/effects-products.mjs",
+    "example:effects-reduction": "node --import tsx examples/assurance/effects-reduction.mjs",
     "example:effects-configurations": "node --import tsx examples/assurance/effects-configurations.mjs",
     "example:effects-recent-patents": "node --import tsx examples/assurance/effects-recent-patents.mjs",
     "typecheck": "tsc --noEmit",

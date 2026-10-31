@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 import { knowledge } from "../src/data.js";
 import { compileKnowledge, typedKnowledgeEffects } from "../src/knowledge.js";
@@ -26,7 +27,12 @@ const models = () => packs().find(pack => pack.id === "physical")!;
 test("multiport models preserve the 78 unary interfaces and validate all cross-references", () => {
   const old = packs();
   for (const pack of old) { pack.models = []; for (const e of pack.effects) for (const f of e.model_assessment?.facets ?? []) delete f.models; }
-  assert.deepEqual(typedKnowledgeEffects(k.effects), typedKnowledgeEffects(compileKnowledge(old).effects));
+  const before = JSON.parse(fs.readFileSync(new URL("./fixtures/effect-before-configuration.json", import.meta.url), "utf8"));
+  const physical = old.find(p => p.id === "physical")!;
+  physical.effects = physical.effects.map(e => e.id === 33 ? before.effect : e);
+  for (const f of before.effect.model_assessment.facets) delete f.models;
+  const selected = (effects: ReturnType<typeof typedKnowledgeEffects>) => effects.map(({ realization, realization_conditions, ...e }) => e);
+  assert.deepEqual(selected(typedKnowledgeEffects(k.effects)), selected(typedKnowledgeEffects(compileKnowledge(old).effects)));
   assert.equal(k.models.length, 18);
   assert.equal(k.parameters.length, 91);
   const edits = [

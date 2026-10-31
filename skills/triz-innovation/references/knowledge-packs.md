@@ -31,8 +31,8 @@ entry ids. Counts and taxonomy have the documented all-installed-packs scope, in
 the parameter list is filtered. A field such as `magnetic` classifies responses; it does not
 supply a current-to-force contract or replace induction, Hall sensing or magnetostriction.
 The pack stores
-56 direct declarations and 22 named specializations of eight families with 14 signatures: 70
-independently declared interfaces in total. This reduces duplicate interface declarations;
+55 direct declarations and 22 named specializations of eight families with 14 signatures: 69
+independently declared unary interfaces, plus one derived named configuration (33). This reduces duplicate interface declarations;
 independent physical evidence and constitutive laws remain on each named case.
 SI declarations distinguish energy from power and temperature change from a spatial temperature
 difference. Optical and nonuniform-field excitation tokens intentionally remain opaque where a
@@ -55,8 +55,8 @@ an inferred generator, executable recipe or physical equivalence proof.
 `name`, `description`, `parents`, named `inputs`/`outputs` referencing registered parameters,
 `conditions`, `provenance`, `limitations`, optional `review`, and optional `state_parameter`.
 The compiler checks namespaces, unique ids/ports and every parameter, parent and assessment
-reference. These 18 templates are separate from the 78 unary lookups and 70 independently
-declared unary interfaces; do not add them together as a count of physical laws.
+reference. These 18 templates are separate from the 78 selected-clause lookups and 69 independently
+declared unary interfaces plus one derived named configuration; do not add them together as a count of physical laws.
 `triz_knowledge.models` exposes templates; `model_count` has all-installed-packs scope.
 Pack metadata also reports its own model count.
 
@@ -67,7 +67,9 @@ Get a portable catalogue:
 ```
 
 Call `triz_component_catalogue` with that request. Omit `parent` to use all registered models.
-Optional `models`/`query` narrow selection. For mechanism-specific discovery, `state_parameters`
+Optional `models`/`query` narrow selection. `effects: [33]` selects a named configuration
+and returns its constituent catalogue entries plus `named_configurations` wiring metadata;
+it never inserts an additional opaque component into the catalogue. For mechanism-specific discovery, `state_parameters`
 is an allowlist of internal state meanings; stateless candidates remain. For example,
 `["physical:separated-charge-state"]` permits the stored-charge emitter while excluding triplet
 phosphorescence. State meaning comes from decomposition of the evidence, never the device name.
@@ -98,6 +100,54 @@ regime and topology from the disclosure. Emerging terminology is not a reason to
 primitive. Compare the same resource-complete query with and without the proposed models, retain
 old lookups, and test missing resources, regimes and temporal alternatives. The executable
 [eight-patent comparison](../../../docs/effects-configurations.md) demonstrates this workflow.
+
+## Named compositions instead of redundant effect generators
+
+Entry **33** is stored as `kind: "configuration"`, with `role: "response"` retaining its selected
+modeling role. `configuration` declares named `nodes` referencing models, exact typed `wires`,
+external `inputs` with one or more `targets`, and `outputs` with a `from` endpoint. Exactly one
+input and output are `primary`; the compiler derives the selected unary discovery signature from
+them. Every node input must have exactly one supplier. Unknown ports/models, duplicate supplies,
+unused nodes and same-SI quantity casts are rejected. Nodes reference model templates, not effects,
+so this does not introduce recursive recipe aliases.
+
+Ionic wind composes corona charge generation → ion-neutral force → gas flow. Voltage is primary;
+gas pressure and drift electric field are explicit context inputs. All 78 names, ids, hints,
+selected parameter pairs and historical evidence remain available. `triz_effects` can filter
+`form: "configuration"`; counts distinguish the 69 independent unary declarations from the view.
+
+`triz_effect_chains` keeps this conditional discovery summary, marks `requiresExpansion`, and
+includes constituent model assumptions in unmet conditions. `triz_effect_insert` rejects it as an
+opaque generator, including a client copy with the summary marker removed. Use:
+
+```json
+{"chain":[33],"domain":"physical","certificate":true}
+```
+
+`triz_effect_setup` creates three constituent boxes and exposes pressure/field on the resource
+boundary. They are required hypotheses, not assertions of available pressure or an established
+field. No physical state, behavior or budgets are inferred. `setup.context_inputs` names them;
+`setup.model_sources` retains constituent sources, review status, conditions and limitations.
+
+Use `node_declarations["0/ionize"]`, `["0/momentum"]`, `["0/flow"]` for implementation rows.
+The number is the zero-based expanded effect step, including steps inside serial recipes.
+`bindings` covers all constituent quantities. An ordinary `declarations[0]` cannot replace the
+composition with a hidden scalar relation. With finite `boundary`, also declare
+`context_values: {"0/pressure":[...], "0/field":[...]}`; otherwise setup refuses to assume context
+availability. Context values must belong to their explicitly bound finite carrier domains.
+Serial recipes can contain a named configuration, retain integration hypotheses/provenance,
+and expand to at most 12 actual model/effect boxes.
+
+Only entry 33 is converted with the current model set. Retardance does not replace analyzer-angle
+transmission, deposition does not replace sublimation, a bed does not replace a membrane, and
+the refined emitted-light/current/particle-force tokens do not automatically cast to old coarse
+boundaries. Additional reductions need exact boundary realizations or explicitly justified
+abstraction maps. Do not add a scalar adapter just to improve a reduction count.
+
+`pnpm example:effects-reduction` compares ranked lookups, typed chains, all eight patent candidate
+sets and a declared finite boundary relation. It emits typing and behavior certificates with
+`--cert-dir DIR`. The [validation report](../../../docs/effects-configurations.md#named-composition-reduction)
+records what this establishes and what remains unproved.
 
 ## Set up a categorical model
 

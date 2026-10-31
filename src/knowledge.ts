@@ -3,6 +3,7 @@ import { z } from "zod";
 import { EffectField, EffectPort } from "./act-effects.js";
 import { sameDimension, SI } from "./act-dimensions.js";
 import { Layer } from "./act.js";
+import { ModelConfiguration, resolveConfiguration, type ResolvedConfiguration } from "./knowledge-configurations.js";
 
 const Text = z.string().trim().min(1);
 const Slug = z.string().regex(/^[a-z][a-z0-9-]*$/);
@@ -111,7 +112,17 @@ const KnowledgeComposite = z.strictObject({
   conditions: z.array(Text).default([]).describe("Additional assumptions; constituent assumptions are always retained"),
   source: Text,
 });
-export const KnowledgeEntry = z.union([KnowledgeEffect, KnowledgeSpecialization, KnowledgeComposite]);
+const KnowledgeConfiguration = z.strictObject({
+  ...Description,
+  kind: z.literal("configuration"),
+  role: z.enum(["response", "mechanism"]),
+  configuration: ModelConfiguration,
+  field: EffectField,
+  conditions: z.array(Text),
+  source: Text,
+  typed_from: z.enum(["source", "statement"]),
+});
+export const KnowledgeEntry = z.union([KnowledgeEffect, KnowledgeSpecialization, KnowledgeComposite, KnowledgeConfiguration]);
 const ModelPort = z.strictObject({ id: Slug, parameter: QualifiedId });
 /** Multiport boundaries are separate from the backwards-compatible unary effect library. */
 export const KnowledgeModel = z.strictObject({
@@ -156,7 +167,7 @@ export const KnowledgeManifest = z.strictObject({
 export type KnowledgePack = z.infer<typeof KnowledgePack>;
 export type RegisteredParameter = z.infer<typeof KnowledgeParameter> & { pack: string; domain: string; provenance: z.infer<typeof KnowledgeSource>; review: z.infer<typeof KnowledgeReview> };
 export type RegisteredModel = z.infer<typeof KnowledgeModel> & { pack: string; domain: string; review: z.infer<typeof KnowledgeReview> };
-export type EffectDefinition = { form: "direct" } | { form: "specialization"; family: string; signature: string } | { form: "composite"; steps: Array<string | number> };
+export type EffectDefinition = { form: "direct" } | { form: "specialization"; family: string; signature: string } | { form: "composite"; steps: Array<string | number> } | { form: "configuration"; configuration: ResolvedConfiguration };
 export type RegisteredEffect = Omit<z.infer<typeof KnowledgeEffect>, "kind"> & {
   kind?: "response" | "mechanism" | "composite";
   definition: EffectDefinition;
@@ -185,10 +196,10 @@ export function effectTaxonomy(effects: readonly RegisteredEffect[]) {
   };
 }
 
-/** Project only complete declarations onto the existing typed-effect kernel schema. */
+/** Conditional discovery index: named configurations are marked summaries, never insertion generators. */
 export function typedKnowledgeEffects(effects: RegisteredEffect[]): import("./act-effects.js").TypedEffect[] {
   return effects.filter(e => e.kind !== "composite" && e.input && e.output && e.field && e.conditions && e.source && e.typed_from)
-    .map(({ id, name, input, output, field, conditions, source, typed_from }) => ({ id, name, input: input!, output: output!, field: field!, conditions: conditions!, source: source!, typed_from: typed_from! }));
+    .map(({ id, name, input, output, field, conditions, source, typed_from, definition }) => ({ id, name, input: input!, output: output!, field: field!, conditions: conditions!, source: source!, typed_from: typed_from!, ...(definition.form === "configuration" ? { realization: "named-configuration" as const, realization_conditions: definition.configuration.conditions } : {}) }));
 }
 
 /** Resolve the complete union before filtering: no pack may silently shadow another. */
@@ -237,6 +248,19 @@ export function compileKnowledge(raw: unknown[]) {
     effectIds.add(e.id);
     records.set(e.id, { pack, entry: e });
   }
+  const modelIds = new Map<string, RegisteredModel>();
+  for (const pack of packs) for (const m of pack.models) {
+    if (!m.id.startsWith(`${pack.id}:`)) throw new Error(`Model ${m.id} must use pack namespace ${pack.id}`);
+    if (modelIds.has(m.id)) throw new Error(`Duplicate knowledge model id: ${m.id}`);
+    for (const ref of [...m.inputs, ...m.outputs].map(p => p.parameter).concat(m.state_parameter ? [m.state_parameter] : []))
+      if (!parameterIds.has(ref)) throw new Error(`Model ${m.id} references unknown parameter ${ref}`);
+    for (const ref of m.parents)
+      if (!effectIds.has(ref)) throw new Error(`Model ${m.id} references unknown parent effect ${ref}`);
+    const registered = { ...m, pack: pack.id, domain: pack.domain, review: m.review ?? pack.review,
+      limitations: [...pack.limitations, ...m.limitations] };
+    models.push(registered);
+    modelIds.set(m.id, registered);
+  }
   const resolved = new Map<string | number, RegisteredEffect>(), visiting = new Set<string | number>(), heights = new Map<string | number, number>();
   const port = (id: string) => {
     const p = parameterIds.get(id)!;
@@ -267,6 +291,14 @@ export function compileKnowledge(raw: unknown[]) {
       e = { ...description, ...metadata, kind: family.kind, input: port(s.input_parameter), output: port(s.output_parameter),
         input_parameter: s.input_parameter, output_parameter: s.output_parameter, field: s.field,
         definition: { form: "specialization", family: family.id, signature: s.id } };
+    } else if (entry.kind === "configuration") {
+      const configuration = resolveConfiguration(entry.configuration, modelIds);
+      const input = configuration.inputs.find(p => p.primary)!.parameter;
+      const output = configuration.outputs.find(p => p.primary)!.parameter;
+      const { kind, role, configuration: _, ...description } = entry;
+      e = { ...description, ...metadata, kind: role, input: port(input), output: port(output),
+        input_parameter: input, output_parameter: output,
+        definition: { form: "configuration", configuration } };
     } else if (entry.kind === "composite") {
       const parts = entry.steps.map(step => resolve(step, depth + 1));
       height = 1 + Math.max(...parts.map(p => heights.get(p.id)!));
@@ -297,19 +329,6 @@ export function compileKnowledge(raw: unknown[]) {
     return e;
   };
   for (const id of records.keys()) effects.push(resolve(id));
-  const modelIds = new Map<string, RegisteredModel>();
-  for (const pack of packs) for (const m of pack.models) {
-    if (!m.id.startsWith(`${pack.id}:`)) throw new Error(`Model ${m.id} must use pack namespace ${pack.id}`);
-    if (modelIds.has(m.id)) throw new Error(`Duplicate knowledge model id: ${m.id}`);
-    for (const ref of [...m.inputs, ...m.outputs].map(p => p.parameter).concat(m.state_parameter ? [m.state_parameter] : []))
-      if (!parameterIds.has(ref)) throw new Error(`Model ${m.id} references unknown parameter ${ref}`);
-    for (const ref of m.parents)
-      if (!effectIds.has(ref)) throw new Error(`Model ${m.id} references unknown parent effect ${ref}`);
-    const registered = { ...m, pack: pack.id, domain: pack.domain, review: m.review ?? pack.review,
-      limitations: [...pack.limitations, ...m.limitations] };
-    models.push(registered);
-    modelIds.set(m.id, registered);
-  }
   for (const e of effects) for (const ref of e.related_effects ?? []) {
     if (!effectIds.has(ref.id) || ref.id === e.id)
       throw new Error(`Effect ${e.id} has an unknown or self-referential related effect: ${ref.id}`);
@@ -328,8 +347,9 @@ export function compileKnowledge(raw: unknown[]) {
   }
   const specializations = effects.filter(e => e.definition.form === "specialization").length;
   const composites = effects.filter(e => e.definition.form === "composite").length;
-  const direct = effects.length - specializations - composites;
-  return { packs, parameters, effects, families, models, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites,
+  const configurations = effects.filter(e => e.definition.form === "configuration").length;
+  const direct = effects.length - specializations - composites - configurations;
+  return { packs, parameters, effects, families, models, taxonomy: effectTaxonomy(effects), counts: { direct, signatures: families.reduce((n, f) => n + f.signatures.length, 0), specializations, composites, configurations,
     independent_contracts: effects.filter(e => e.definition.form === "direct" && e.input && e.output).length + families.reduce((n, f) => n + f.signatures.length, 0), searchable: effects.length } };
 }
 

@@ -4,6 +4,8 @@ import { Carrier, FunctionModel, type FunctionModel as Model } from "./act.js";
 import { EffectInsertRequest, insertEffectChain } from "./act-effect-insert.js";
 import { fail, issue } from "./act-issues.js";
 import { compileKnowledge, typedKnowledgeEffects } from "./knowledge.js";
+import { ModelImplementation } from "./knowledge-models.js";
+import { setupConfigurationChain } from "./knowledge-configuration-setup.js";
 
 const Text = z.string().min(1);
 export const EffectSetupRequest = z.strictObject({
@@ -15,6 +17,8 @@ export const EffectSetupRequest = z.strictObject({
   boundary: z.strictObject({ source_values: z.array(Text).min(1), accepted_values: z.array(Text).min(1) }).optional()
     .describe("Explicit finite source availability and product acceptance; requires corresponding binding values"),
   declarations: EffectInsertRequest.shape.declarations.describe("One implementation declaration per expanded constituent effect, in order; recipes never hide implementation rows"),
+  node_declarations: z.record(Text, ModelImplementation).default({}).describe("Expanded step/node id to implementation declaration for named configurations; no opaque replacement rows"),
+  context_values: z.record(Text, z.array(Text).min(1)).default({}).describe("Expanded step/context id to explicit finite availability; required alongside boundary for configuration context inputs"),
   conditions: z.array(Text).default([]),
   certificate: z.boolean().optional(),
 });
@@ -40,6 +44,9 @@ export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowle
     if (entries[i - 1].output_parameter !== entries[i].input_parameter)
       return reject(`$.chain[${origins[i]}]`, "Adjacent effects reference different quantity parameters", "Use triz_effect_chains to discover a compatible chain; equal SI dimensions alone do not establish compatibility.");
   }
+  if (entries.some(e => e.definition.form === "configuration")) return setupConfigurationChain(a, knowledge, entries, requested.map(e => e!));
+  if (Object.keys(a.node_declarations).length || Object.keys(a.context_values).length)
+    return reject("$.node_declarations", "Configuration options supplied without a named configuration", "Use ordinary declarations for direct effects.");
   const path = [entries[0].input_parameter!, ...entries.map(e => e.output_parameter!)];
   const parameters = [...new Set(path)].map(id => knowledge.parameters.find(p => p.id === id)!);
   for (const id of Object.keys(a.bindings)) {

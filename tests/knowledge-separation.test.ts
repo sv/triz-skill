@@ -49,11 +49,11 @@ test("all 74 previous interfaces, text, assumptions, attribution and lookup orde
     const hash = createHash("sha256").update(JSON.stringify(canonical(projection))).digest("hex");
     assert.equal(hash, snapshot.effects.find((s: any) => s.id === e.id).sha256, `Changed legacy contract/evidence ${e.id}`);
   }
-  assert.deepEqual(knowledge.counts, { direct: 56, signatures: 14, specializations: 22, composites: 0, independent_contracts: 70, searchable: 78 });
+  assert.deepEqual(knowledge.counts, { direct: 55, signatures: 14, specializations: 22, composites: 0, configurations: 1, independent_contracts: 69, searchable: 78 });
   assert.equal(typedKnowledgeEffects(knowledge.effects).length, 78);
-  assert.equal(read("effects.json").effects.filter((e: any) => e.input).length, 56);
+  assert.equal(read("effects.json").effects.filter((e: any) => e.input).length, 55);
   assert.equal(data.effects(undefined, undefined, { form: "specialization" }).matched, 22);
-  assert.equal(data.effects(undefined, undefined, { form: "direct" }).matched, 56);
+  assert.equal(data.effects(undefined, undefined, { form: "direct" }).matched, 55);
   assert.equal(data.effects(undefined, undefined, { kind: "mechanism" }).matched, 9);
   assert.equal(data.knowledgeCatalog().families.length, 8);
 });

@@ -333,3 +333,7 @@ The six split groups now have 18 separate model templates and 23 additional boun
 quantities. The 78 unary lookups remain intact. See the [eight-patent before/after comparison](effects-configurations.md)
 for name-blind configuration discovery, reused ion-force/flow components, temporal controls,
 source locators and formalization limits.
+
+The subsequent [named-composition reduction](effects-configurations.md#named-composition-reduction)
+converts entry 33 to an expanded model network, reducing the above historical count of 70
+independent unary declarations to 69 while preserving all 78 discovery names.

@@ -142,6 +142,9 @@ jobs:
           node --import tsx examples/assurance/effects-configurations.mjs --cert-dir "$RUNNER_TEMP/effects-configurations"
           node scripts/certify.mjs --local --tamper "$RUNNER_TEMP/effects-configurations/"*.lean
 
+          node --import tsx examples/assurance/effects-reduction.mjs --cert-dir "$RUNNER_TEMP/effects-reduction"
+          node scripts/certify.mjs --local --tamper "$RUNNER_TEMP/effects-reduction/"*.lean
+
       # Only the test files with Lean tests (`leanTest(`); the CI workflow runs every other test.
       # TRIZ_REQUIRE_LEAN=1 runs the Lean tests and makes a missing build fail instead of skip.
       # TRIZ_LEAN_JOBS=3 runs three at a time, each one `lake env lean` process (about 1.5 GB);

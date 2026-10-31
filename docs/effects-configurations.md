@@ -1,7 +1,8 @@
 # Decomposed patent configurations
 
 The six split groups now expose 18 separate multiport/stateful model templates. The 78 named
-effects and their 70 unary interfaces remain unchanged; the 15 assessed compound mechanisms
+effect lookups retain their selected boundaries; 69 unary interfaces remain independent and
+entry 33 is now a derived named composition; the 15 assessed compound mechanisms
 remain discovery targets. These additions provide explicit connections and state boundaries,
 not 18 new physical laws or a minimal basis. The physical pack has 88 quantity declarations;
 with three universal quantities the registry has 91.
@@ -21,7 +22,7 @@ component list is supplied. State-specific cases restrict permitted internal sta
 while stateless alternatives remain candidates. Expected components are checked only afterwards.
 
 Both runs use the current bounded configuration engine, the same vocabulary (including newly
-declared quantities), all 78 unary effects, five components maximum, one instance per template,
+declared quantities), the unary implementation entries (77 after removal of the opaque entry 33), five components maximum, one instance per template,
 all listed resources required, a million work units and up to 100 results. The extended run
 also has the registered models. No search hit is a proof that the complete device works.
 
@@ -82,3 +83,50 @@ For an expert contribution, add or split a model when a disclosed boundary/state
 missing. Retain a compound when its function requires simultaneous interactions or geometry.
 Before removal, run the old compatibility snapshots, the original product/patent examples and
 this configuration suite. Equal units or a shared field classification alone never justify a merge.
+
+## Named-composition reduction
+
+`pnpm example:effects-reduction` compares the catalogue immediately before this reduction
+(commit `d73b26887ce99d589a830d3dc062e4f918c7f0fd`) with the current version. The prior entry 33 is
+frozen as a reconstruction fixture; other pack contents are identical on both sides.
+
+**Entry 33, corona discharge and ionic wind, is converted from an independently declared unary
+implementation to a named composition:** corona ionization → ion-neutral momentum transfer → gas
+flow. The compiler derives voltage → fluid velocity from primary ports. Pressure and drift field
+are exposed context resources, and constituent assumptions/provenance remain visible. No new
+models or quantity definitions are added for this reduction. Named effect count stays **78**;
+direct unary definitions fall **56 → 55**, and independent unary interfaces **70 → 69**.
+
+The name remains a conditional summary for text and effect-chain discovery. Setup expands all
+three boxes; opaque insertion is rejected. No component-search catalogue contains a one-box
+entry 33 after the reduction. This is removal of an independent implementation, not removal of
+the named discovery target or a claim of physical equivalence without conditions.
+
+Validation compares:
+
+- **386 ranked text queries**, covering every effect name, function and hint: identical ordered ids.
+- **78 typed queries**, one/two-step chains at each old selected boundary: identical ordered paths.
+- **Eight modern-patent subsystems**, with the same bounds and component names blinded:
+  identical complete candidate wiring sets, **54 candidates before and 54 after**. The fixture
+  checks no truncation and compares canonical component/port connections, not just totals or one
+  expected path. Beam and photoelectron ion sources keep their shared downstream configurations.
+- A selected finite voltage-to-velocity relation with explicitly fixed pressure/field: composition
+  preserves the declared reference relation. Altering the force-to-flow relation is detected;
+  missing context availability is rejected. Two Lean certificates cover expanded typing and this
+  finite equivalence, with tampered copies rejected. These rows are example declarations, not
+  measured patent performance or a proof of continuous electrohydrodynamics.
+
+Further old clauses are retained because the installed models do not exactly realize them:
+
+| Old clause | Why retained |
+|---|---|
+| 16, light → light | Temporal models emit the refined emitted-light type; alternatives also require mechanism/state selection. An automatic coarse projection would hide that choice. |
+| 20, analyzer angle → irradiance | Retardance readout varies a different optical input; it does not supply the analyzer-angle clause. |
+| 35, current → current | The new transport output is explicitly transmitted DC current and depends on shared phase. No unverified coarse-type projection or phase omission is introduced. |
+| 46, heat → sublimated mass | Cold-surface deposition has a different direction, rate boundary and heat-rejection resource. |
+| 47, feed → membrane permeate composition | A cyclic bed has different output, loading, feed interruption and regeneration requirements. |
+| 59, field → force | Charged-particle force has a refined parameter and explicit charge input. Equal newtons do not authorize retagging it as an arbitrary force. |
+
+The [setup contract](../skills/triz-innovation/references/knowledge-packs.md#named-compositions-instead-of-redundant-effect-generators)
+explains how experts can contribute further exact realizations. Passing these regressions
+establishes bounded preservation on this chosen suite, not universal discovery quality.

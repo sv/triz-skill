@@ -496,7 +496,7 @@ construction.
   default. Expert contributions add versioned JSON packs with attributed review status;
   `pnpm knowledge` validates their union and updates hosted imports. Canonical matrix parameters
   remain the original 39.
-- Eight shared interface families factor 22 named cases into 14 signatures, giving 70 independently
+- Eight shared interface families factor 22 named cases into 14 signatures, with 55 direct definitions giving 69 independently
   declared interfaces while retaining all 78 searchable entries and their case-specific evidence.
   Serial recipes expand into checked constituent models through `triz_effect_setup`; they need
   no new opaque generator. Raw pack consumers should use `compileKnowledge` to resolve contracts.

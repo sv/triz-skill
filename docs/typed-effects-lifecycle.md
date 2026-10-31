@@ -51,7 +51,7 @@ Typed entries add `input`, `output` (each quantity and optional SI), `field`, `c
 `source`, and `typed_from`. `triz_effects` keeps its text query/category filters and adds exact
 `input`, `output`, `field`, and output `si` filters. The nine field values are mechanical,
 acoustic, thermal, chemical, electric, magnetic, optical, gravitational, and information.
-All 78 entries have explicit conditional unary typings identified in `source`, using the original
+All 78 entries have explicit conditional selected-clause typings identified in `source`, using the original
 65 physical quantities. An additional 23 quantity/state types support 18 separate multiport models. The original six quantity tokens are preserved, with explicit SI where the quantity
 has a precise interpretation; photoelectric emission requires a collection circuit. Field-change
 and current tokens use shared vocabulary; the induction typing covers the changing-field clause
@@ -67,8 +67,11 @@ universal and domain quantity parameters, provenance, review status and effect r
 discovery by default. Optional domain filtering includes universal entries. Canonical matrix
 parameters remain separate. The [catalogue audit](../skills/triz-innovation/references/effects-audit.md)
 records the 78-entry physical starter set and remaining evidence gaps. Eight shared families
-supply 14 signatures for 22 named specializations, alongside 56 direct definitions: 70
-independently declared interfaces. All 74 previous contracts and their case-specific
+supply 14 signatures for 22 named specializations, alongside 55 direct definitions: 69
+independently declared unary interfaces. Entry 33 is a derived named configuration, expanding
+three registered models with explicit pressure/field context instead of a separate unary
+implementation. [Reduction validation](effects-configurations.md#named-composition-reduction)
+checks discovery, patent topologies and selected finite behavior. All 74 previous contracts and their case-specific
 assumptions/evidence are preserved; four new sourced clauses fill recent-patent coverage gaps. Kind
 and definition form distinguish responses, mechanisms, shared interfaces and serial recipes.
 

@@ -45,6 +45,8 @@ jobs:
 
       - run: pnpm example:effects-products
 
+      - run: pnpm example:effects-reduction
+
       - run: pnpm example:effects-configurations
 
       - run: pnpm example:effects-recent-patents

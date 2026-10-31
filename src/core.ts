@@ -249,7 +249,7 @@ export function resolve(improving: number, worsening: number) {
   };
 }
 
-export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite";assessment?: EffectAssessmentDecision} = {}) {
+export function effects(query?: string, category?: TrizEffect["category"], typed: {input?: string;output?: string;field?: TypedEffect["field"];si?: SI;domain?: string;pack?: string;kind?: "response"|"mechanism"|"composite";form?: "direct"|"specialization"|"composite"|"configuration";assessment?: EffectAssessmentDecision} = {}) {
   const all = effectsAll();
   let list = category ? all.filter((e) => e.category === category) : all;
   list = list.filter(e => (!typed.domain || e.domain === "universal" || e.domain === typed.domain) && (!typed.pack || e.pack === typed.pack));

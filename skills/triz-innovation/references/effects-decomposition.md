@@ -38,7 +38,8 @@ temperature change to mismatch stress; its name also refers to detachment, a com
 The six groups now have separate templates in `effects.json.models`. These are engineering
 boundaries, not new independent physical primitives. Their source-backed conditions remain
 hypotheses until an implementation supplies calibration, state transitions and resource rows.
-The existing unary clauses remain usable. Fifteen assessed compounds remain named mechanisms.
+The selected clauses remain discoverable. Entry 33 now expands into a registered named composition;
+its old independent unary implementation is removed. Fifteen assessed compounds remain named mechanisms.
 
 Use `triz_component_catalogue` with `source: "knowledge"`, then pass the returned catalogue to
 `triz_component_search`. This supports multi-input wiring, shared material state and explicit
@@ -62,8 +63,9 @@ formal models and evidence.
 
 Do not replace these entries with generic names such as "conversion" or "force". That would
 move their geometry and constitutive assumptions into hidden parameters and lose useful
-discovery targets. A future checked realization can replace a generator while preserving its
-name as a view, once its boundary behavior, state and conditions are justified.
+discovery targets. Entry 33 demonstrates replacing an opaque generator while preserving its name as a view.
+Further replacements need exact boundaries, explicit context/state, preserved discovery and
+justified implementation behavior.
 
 ## Coupled responses to retain at this resolution
 
@@ -106,5 +108,6 @@ Every assessment has `status: "assessment-only"`; no stronger verification statu
 
 Tests ensure that removing all assessments yields the same typed library and setup results,
 that assessment metadata never becomes a unary generator, and that the legacy compatibility snapshot still
-passes. This audit leaves all 78 named cases and 70 interface declarations intact. The separate model registry adds explicit boundaries and setup; it proves no physical
+passes. All 78 named cases remain, with 69 independently declared unary interfaces and entry 33
+derived from its named composition. The separate model registry adds explicit boundaries and setup; it proves no physical
 equivalence or minimal-basis claim.
