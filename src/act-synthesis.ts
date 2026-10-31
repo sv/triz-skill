@@ -5,6 +5,7 @@ import { FiniteContract, ImplementationMetadata, EngineeringBudget, engineeringC
 import { fail, issue, type Failure } from "./act-issues.js";
 import { BehaviorEvaluationCache } from "./act-behavior.js";
 import { SynthesisPruner, choiceMask, choiceIndices, combinationCount, pruningStats, type ChoiceConstraints } from "./act-synthesis-pruning.js";
+import type { RelationOptions } from "./act-relations.js";
 import { SymbolicPruner, symbolicStats } from "./act-synthesis-symbolic.js";
 
 const Id = z.string().min(1);
@@ -27,7 +28,7 @@ export const SynthesisRequest = z.strictObject({
   max_symbolic_work: z.number().int().min(0).max(1_000_000).default(100_000),
   max_symbolic_cells: z.number().int().min(0).max(1_000_000).default(200_000).describe("Maximum retained symbolic certificate, mask and residual-cache characters; exhaustion discards compilation or skips cache insertion"),
   include_symbolic_certificate: z.boolean().optional().describe("Attempt checked compilation even for small requests and return its DAG for independent local Lean checking"),
-  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), memoize_symbolic: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
+  optimizations: z.strictObject({ backward_residual: z.boolean().optional(), choice_propagation: z.boolean().optional(), memoize_boundaries: z.boolean().optional(), memoize_symbolic: z.boolean().optional(), indexed_relations: z.boolean().optional(), connected_factors: z.boolean().optional(), separator_elimination: z.boolean().optional() }).optional().describe("Disable individual optimizations for differential checks and benchmarks"),
   max_pruning_work: z.number().int().min(0).max(1_000_000).default(100_000).describe("Per compilation/propagation allowance within max_work, reserving at least three quarters of remaining work for validation; exhaustion falls back without speculative pruning"),
 });
 
@@ -60,7 +61,10 @@ export function synthesizeFinite(input: unknown) {
   const checkedTarget = checkModel(s.contract.target, "$.contract.target");
   if (!checkedTarget.ok) return fail(checkedTarget.issues);
   const optimized = s.strategy !== "exhaustive";
-  const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false);
+  const relationOptions: RelationOptions = { indexed: optimized && s.optimizations?.indexed_relations !== false,
+    decompose: optimized && s.optimizations?.connected_factors !== false, smallFirst: optimized,
+    elimination: optimized && s.optimizations?.separator_elimination !== false ? "auto" : "off" };
+  const cache = new BehaviorEvaluationCache(optimized && s.optimizations?.memoize_boundaries !== false, 200_000, relationOptions);
   const pruning = pruningStats();
   const holeIds = new Set(ids);
   // These checks precede behavior in evaluateImplementation. Preserve its unknown/error
@@ -77,9 +81,9 @@ export function synthesizeFinite(input: unknown) {
   // certificate requests still attempt compilation, including on small audit/test inputs.
   const smallContext = sizeExact <= 32n && inputWork <= 512 && !s.include_symbolic_certificate;
   const symbolicPruner = s.strategy === "symbolic" && !smallContext && canPrune && (residual || propagation)
-    ? SymbolicPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, symbolic, s.max_symbolic_work, s.max_symbolic_cells, residual, propagation, s.max_pruning_work, s.optimizations?.memoize_symbolic !== false) : undefined;
+    ? SymbolicPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, symbolic, s.max_symbolic_work, s.max_symbolic_cells, residual, propagation, s.max_pruning_work, s.optimizations?.memoize_symbolic !== false, relationOptions) : undefined;
   const pruner = !symbolicPruner && optimized && canPrune && (residual || propagation)
-    ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation) : undefined;
+    ? SynthesisPruner.compile(s.model, s.contract.target, s.holes, budget, pruning, s.max_pruning_work, residual, propagation, relationOptions) : undefined;
   if (optimized && !canPrune) { pruning.status = "fallback"; pruning.reason = "pre-behavior-validation"; }
   if (s.strategy === "symbolic" && !canPrune) { symbolic.status = "fallback"; symbolic.reason = "pre-behavior-validation"; }
   else if (s.strategy === "symbolic" && !residual && !propagation) { symbolic.reason = "pruning-disabled"; }

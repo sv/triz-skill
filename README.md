@@ -198,8 +198,9 @@ The eight-workstream assurance extension adds whole-model behavior, operational 
 input-bound Lean certificates, semantic isomorphism/refinement, joint implementation and finite
 synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
 and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
-[Future work and acceptance criteria](docs/categorical-future-plan.md) and
-[literature references](theory/REFERENCES.md) are kept in separate files; these bounded capabilities do not close every research exclusion.
+[Acceptance criteria](docs/assurance-requirements.md) and
+[literature references](theory/REFERENCES.md) are kept separately. The
+[documentation index](docs/README.md) maps guides, guarantees and planned work.
 
 
 `triz_function_model`, `triz_trim`, and `triz_separate` run deterministic checks over a function
@@ -532,11 +533,11 @@ construction.
 
 ## Roadmap
 
-The ranked backlog of the categorical-model work — certificates for the verdicts that have
-none, properties to promote from tested to proved, and the larger categorical closures — lives
-in [docs/FUTURE-PLANS.md](docs/FUTURE-PLANS.md), with what each item closes in the theory map's
-"What is not claimed". The acceptance criteria of the assurance
-workstreams are in [docs/categorical-future-plan.md](docs/categorical-future-plan.md).
+The [engine roadmap](docs/FUTURE-PLANS.md) owns priorities and workstream status.
+[Assurance requirements](docs/assurance-requirements.md) owns acceptance cases; the
+[joint engineering synthesis design](docs/engineering-synthesis.md) develops architecture,
+sizing and maintenance optimization. See the [documentation index](docs/README.md) for
+current tool guides and research notes.
 
 ## Publishing and distribution
 

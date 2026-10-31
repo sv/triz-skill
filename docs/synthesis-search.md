@@ -3,11 +3,14 @@
 `triz_synthesize` defaults to `strategy: "optimized"`. It compiles the declared fixed wiring
 and finite component libraries into coupled constraints, then checks surviving complete
 implementations with the existing behavior, adequacy, harm and resource validator.
-`strategy: "exhaustive"` retains the Cartesian reference search.
-`strategy: "symbolic"` first compiles checked serial joint-map DAGs and reuses equivalent
-virtual residual domains, reducing union traces before this residual compiler runs; see
-[Checked symbolic synthesis](symbolic-synthesis.md). Component/topology discovery and
-lifecycle policy search do not use this optimization yet.
+`strategy: "exhaustive"` retains the Cartesian reference search. Component/topology discovery
+and lifecycle policy search do not use this optimization yet.
+
+Behavior evaluation, residual compilation and global separation now share a
+[finite relation layer](shared-relations.md). Indexed joins reduce row scanning; connected-factor
+behavior evaluation avoids expanding independent internal products. The residual compiler still
+needs complete traces for coupled choice supports. The optional `strategy: "symbolic"` front end checks and composes serial finite maps before
+this shared residual evaluator runs; see [scope and proof boundary](symbolic-synthesis.md).
 
 ## What is computed
 
@@ -64,6 +67,9 @@ tree-decomposition or hierarchical subsystem solver.
 {
   "strategy": "optimized",
   "optimizations": {
+    "indexed_relations": true,
+    "connected_factors": true,
+    "separator_elimination": true,
     "backward_residual": true,
     "choice_propagation": true,
     "memoize_boundaries": true
@@ -75,6 +81,11 @@ tree-decomposition or hierarchical subsystem solver.
 These fields supplement the existing model, contract, libraries and work/state limits.
 Individual switches support ablation and debugging. `max_pruning_work: 0` disables compilation
 through the normal fallback while allowing boundary memoization.
+
+`separator_elimination` controls the shared [separator evaluator](separator-elimination.md).
+It counts hidden states and preserves joint boundary behavior; it never merges resource modes
+or changes the satisfying-design count. Its separately bounded preprocessing work is reported
+in the behavior result's `relationStats.elimination`.
 
 - `candidateSpace.size` is the original Cartesian space (`sizeExact` is its integer string).
 - `enumerated` counts complete implementations passed to the engineering validator.
@@ -102,9 +113,9 @@ pruning can hide an invalid row or mode.
 
 Union behavior can itself be large, and tightly coupled choice constraints can make
 preprocessing more expensive than direct enumeration. These bounds are part of the design;
-types alone do not guarantee a small problem. This original optimized path has no new Lean certificate for its compiler or cache.
-The optional symbolic preprocessing path has separate checked finite-map certificates; see
-[Checked symbolic synthesis](symbolic-synthesis.md) for its precise proof coverage and trust boundary.
+types alone do not guarantee a small problem. No new Lean certificate for the compiler or
+cache is claimed for that underlying solver. The symbolic front end has separate checked
+finite-map certificates; it is not a verified TypeScript implementation.
 
 ## Verification and benchmarks
 
@@ -125,13 +136,12 @@ node --import tsx scripts/benchmark-synthesis.mjs
 ```
 
 The benchmark runs exhaustive, memoization-only, residual-only, propagation-only, pruning
-without memoization, fully optimized, and symbolic variants with residual caching enabled
-and disabled. All must finish under identical limits and match exhaustive verdicts,
-satisfying counts and first witnesses. Timings include
+without memoization, index-only, factor-only, separator-only, fully optimized and symbolic variants. All must finish under identical limits
+and match exhaustive verdicts, satisfying counts and first witnesses. Timings include
 preprocessing and request-local cache construction, with one warmup and seven rotated samples
 per variant. No timing threshold is used as a correctness test.
 
-See [the before/after and ablation summary](../benchmarks/synthesis/latest.md).
-The benchmark command generates full raw samples, counters and source hashes locally in
-`benchmarks/synthesis/latest.json` (git-ignored).
+See [the compact before/after and ablation report](../benchmarks/synthesis/latest.md).
+Full raw samples, counters and source hashes are generated locally into git-ignored
+`benchmarks/synthesis/latest.json`.
 The fixtures are synthetic algorithm exercises; motor/cyclone case-study data is not included.

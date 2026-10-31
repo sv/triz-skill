@@ -160,6 +160,20 @@ test("invalid alternatives cannot disappear behind a residual rejection", () => 
   for (const strategy of ["optimized", "exhaustive"] as const) assert.equal(synthesizeFinite({ ...input, strategy }).ok, false);
 });
 
+test("indexed, factor and separator ablations preserve exhaustive synthesis results", () => {
+  for (const kind of ["safety", "coverage", "coupled", "memoization"] as const) {
+    const input = synthesisFixture(kind, 2), reference = solved({ ...input, strategy: "exhaustive" });
+    for (const strategy of ["optimized", "symbolic"] as const) for (const indexed_relations of [false, true]) for (const connected_factors of [false, true]) for (const separator_elimination of [false, true]) {
+      const result = solved({ ...input, strategy, include_symbolic_certificate: true, optimizations: { indexed_relations, connected_factors, separator_elimination } });
+      assert.equal(result.verdict, reference.verdict);
+      assert.equal(result.satisfyingCount, reference.satisfyingCount);
+      assert.deepEqual(result.witness?.choices, reference.witness?.choices);
+      assert.deepEqual(satisfying(result), satisfying(reference));
+      assert.equal(result.candidateSpace.accountedFor, result.candidateSpace.size);
+    }
+  }
+});
+
 test("unknown resources and mismatched boundary interfaces use the ordinary validator", () => {
   const missing = synthesisFixture("safety", 2);
   delete missing.model.boxes.find(b => b.id === "source")!.feasibility;

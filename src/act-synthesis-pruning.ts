@@ -4,7 +4,9 @@
  * No individual behavior row is deleted from an implementation. Compilation is bounded and
  * discarded on exhaustion; ordinary whole-model validation remains authoritative. */
 import type { FunctionModel } from "./act.js";
-import { bindRow, deliverablePorts, portVariables, type Binding, type Box } from "./act-behavior.js";
+import { deliverablePorts, type Box } from "./act-behavior.js";
+import { modelRelations } from "./act-relation-model.js";
+import { RelationPlan, type RelationOptions } from "./act-relations.js";
 import type { EngineeringBudget } from "./act-contract.js";
 
 export type ChoiceLibrary = { box: string; alternatives: Array<{ id: string; behavior: NonNullable<Box["behavior"]> }> };
@@ -75,51 +77,18 @@ function coalesce(rectangles: Rectangle[], width: number, work: Work): Rectangle
 
 /** Enumerate relational traces, not the Cartesian product of component alternatives.
  * Every row scan/binding is charged, including failed joins and duplicate projections. */
-function network(model: FunctionModel, work: Work) {
+function network(model: FunctionModel, work: Work, options: RelationOptions) {
   if (model.boxes.some(b => !b.behavior)) throw new Unsupported("missing-behavior");
-  work.spend(1 + model.wires.length + model.boxes.reduce((n, b) => n + 1 + (b.inputs?.length ?? 0) + (b.outputs?.length ?? 0), 0));
-  const ports = portVariables(model, model.boxes);
-  const sets = model.boxes.map(b => {
-    const rows = new Map<string, Binding>();
-    for (const row of b.behavior!) {
-      work.spend(1 + (b.inputs?.length ?? 0) + (b.outputs?.length ?? 0));
-      const binding = bindRow(b, row, ports.at);
-      rows.set(JSON.stringify(binding), binding);
-    }
-    return { vars: [...new Set([
-      ...(b.inputs ?? []).map(p => ports.at(b.id, "in", p.id)),
-      ...(b.outputs ?? []).map(p => ports.at(b.id, "out", p.id)),
-    ])], rows: [...rows.values()] };
-  });
-  const inputs = ports.boundary.map(i => ports.variables[i]);
-  const pending = [...sets], ordered: typeof sets = [], bound = new Set<number>();
-  while (pending.length) {
-    let best = 0, score = -1;
-    pending.forEach((set, i) => {
-      work.spend(1 + set.vars.length);
-      const shared = set.vars.filter(v => bound.has(v)).length;
-      if (shared > score || (shared === score && set.rows.length < pending[best].rows.length)) { best = i; score = shared; }
-    });
-    const [next] = pending.splice(best, 1); ordered.push(next); next.vars.forEach(v => bound.add(v));
-  }
-  return { ports, inputs, enumerate: (emit: (assignment: string[]) => void) => {
-    const assignment: Array<string | undefined> = new Array(ports.variables.length);
-    const join = (depth: number) => {
-      work.spend();
-      if (depth === ordered.length) { emit(assignment as string[]); return; }
-      for (const row of ordered[depth].rows) {
-        work.spend(1 + row.length);
-        const touched: number[] = [];
-        let consistent = true;
-        for (const [v, x] of row) {
-          if (assignment[v] === undefined) { assignment[v] = x; touched.push(v); }
-          else if (assignment[v] !== x) { consistent = false; break; }
-        }
-        if (consistent) join(depth + 1);
-        touched.forEach(v => { assignment[v] = undefined; });
-      }
-    };
-    join(0);
+  work.spend(1 + model.wires.length + model.boxes.reduce((n, b) => n + 1 + (b.inputs?.length ?? 0) + (b.outputs?.length ?? 0)
+    + b.behavior!.reduce((k, r) => k + 1 + Object.keys(r.in).length + Object.keys(r.out).length, 0), 0));
+  const { ports, sets } = modelRelations(model, model.boxes);
+  // Residual support observes all hole rows, so it needs complete traces rather than an
+  // independently projected factor product. Share indexing without building unused factors.
+  const relations = new RelationPlan(sets, { ...options, decompose: false }, n => work.spend(n));
+  return { ports, inputs: ports.boundary.map(i => ports.variables[i]), enumerate: (emit: (assignment: string[]) => void) => {
+    const assignment: Array<string | undefined> = Array(ports.variables.length).fill(undefined);
+    relations.enumerate(assignment, () => emit(assignment as string[]),
+      { explored: 0, max: Number.POSITIVE_INFINITY, spend: n => work.spend(n) });
   } };
 }
 
@@ -129,7 +98,7 @@ export class SynthesisPruner {
     readonly residual: boolean, readonly propagateChoices: boolean) {}
 
   static compile(model: FunctionModel, target: FunctionModel, holes: ChoiceLibrary[], budget: EngineeringBudget,
-    stats: SynthesisPruningStats, maxWork: number, residual: boolean, propagateChoices: boolean): SynthesisPruner | undefined {
+    stats: SynthesisPruningStats, maxWork: number, residual: boolean, propagateChoices: boolean, options: RelationOptions = {}): SynthesisPruner | undefined {
     const work = new Work(Math.min(maxWork, Math.floor(budget.remaining / 4)), budget, stats);
     try {
       const byBox = new Map(holes.map(h => [h.box, h]));
@@ -147,7 +116,7 @@ export class SynthesisPruner {
         const { producible: _producible, ...rest } = b;
         return { ...rest, behavior: [...rows.values()] };
       }) };
-      const reference = network(target, work), context = network(union, work);
+      const reference = network(target, work, options), context = network(union, work, options);
       const observed = deliverablePorts(target), offered = new Set(deliverablePorts(union).map(endpointKey));
       if (!observed.length || observed.some(p => !offered.has(endpointKey(p)))) throw new Unsupported("different-deliverables");
       if (reference.inputs.length !== context.inputs.length || reference.inputs.some(p => {

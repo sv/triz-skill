@@ -1,5 +1,6 @@
 /** Checked finite-map compilation BEFORE union trace enumeration. All objects are request-local. */
 import type { FunctionModel } from "./act.js";
+import type { RelationOptions } from "./act-relations.js";
 import type { EngineeringBudget } from "./act-contract.js";
 import { SynthesisPruner, type ChoiceLibrary, type SynthesisPruningStats } from "./act-synthesis-pruning.js";
 import { checkRegionDeclarations, checkBoundarySubstitution, countSummarySupports, type FiniteMap, type PrimitiveCertificate, type RegionCertificate, type SummaryStage } from "./act-symbolic-certificate.js";
@@ -117,7 +118,7 @@ export class SymbolicPruner {
   }
 
   static compile(model: FunctionModel, target: FunctionModel, holes: ChoiceLibrary[], budget: EngineeringBudget, pruning: SynthesisPruningStats,
-    stats: SymbolicStats, maxWork: number, maxCells: number, residual: boolean, propagation: boolean, maxPruningWork = maxWork, memoize = true): SymbolicPruner | undefined {
+    stats: SymbolicStats, maxWork: number, maxCells: number, residual: boolean, propagation: boolean, maxPruningWork = maxWork, memoize = true, relationOptions: RelationOptions = {}): SymbolicPruner | undefined {
     let used = 0;
     const started = performance.now();
     const limit = Math.min(maxWork, Math.floor(budget.remaining / 4));
@@ -221,7 +222,7 @@ export class SymbolicPruner {
         stats.certificateWork += used - beforeCheck;
         stats.substitutionCheckMs += performance.now() - checkStarted;
       }
-      const compiled = SynthesisPruner.compile(reduced, target, libraries, budget, pruning, maxPruningWork, residual, propagation);
+      const compiled = SynthesisPruner.compile(reduced, target, libraries, budget, pruning, maxPruningWork, residual, propagation, relationOptions);
       if (!compiled) throw new Stop(`residual-${pruning.reason}`);
       stats.status = "ready"; stats.regions = regions.length;
       stats.prefixWidths = regions.map(r => r.certificate.layers.map(l => l.length));

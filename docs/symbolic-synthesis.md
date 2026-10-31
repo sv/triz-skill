@@ -1,9 +1,8 @@
 # Checked symbolic synthesis
 
-This implements the bounded serial slice of [roadmap S6](FUTURE-PLANS.md#s6-checked-symbolic-summaries).
-The [broader design proposal in #52](https://github.com/sv/triz-skill/blob/8560e2508f0f7484d3ba9f56077682c2c6705ffc/docs/symbolic-summary-design.md)
-also covers extensions that remain open; integration with its shared relation kernel is pending
-that PR's landing.
+This implements the bounded serial slice of [roadmap S6](FUTURE-PLANS.md#scaling-to-large-models).
+The [broader design](symbolic-summary-design.md) records remaining extensions. Reduced-context
+filtering and concrete validation both use the shared relation kernel from merged #52.
 
 `triz_synthesize` accepts `strategy: "symbolic"` alongside `"optimized"` (the default)
 and `"exhaustive"` (the reference). Symbolic compilation composes finite maps **before**
@@ -120,7 +119,7 @@ allow only `propext`, `Classical.choice`, `Quot.sound`; no `sorry`, additional a
 
 **This does not verify TypeScript.** Lean proves properties of supplied normalized encodings;
 it does not independently parse FunctionModel topology or verify the runtime checker, compiler,
-substitution, residual bridge, cache/budget accounting, DAG traversal, JavaScript runtime,
+substitution, residual bridge, shared relation evaluation, cache/budget accounting, DAG traversal, JavaScript runtime,
 engineering arithmetic or empirical premises. The offline encoder also remains trusted.
 Raw-declaration binding and independent oracle/differential tests check that gap operationally.
 Ordinary requests get runtime checks; only requests whose encodings are checked locally get
@@ -141,7 +140,9 @@ the residual cache also has a 128-entry cap. The existing evaluation cache has 1
 transitions, prefix widths, support counts, primitive compositions and cache counters.
 `searchStats.unchangedDomainPasses` counts inherited passes skipped by search.
 `pruning.contextStates` counts emitted union traces, including discarded attempts; `targetStates`
-and `boundarySummaries.behaviorTraces` count target and validation traces. Failed scans/joins
+and `boundarySummaries.behaviorTraces` count target traces and complete validation valuations
+actually emitted or reconstructed, including failed attempts. Factor/separator logical counts
+are not enumeration: their intermediate work is reported in `relationStats`. Failed scans/joins
 consume work even when no trace is emitted.
 
 Run `pnpm typecheck`, `pnpm test`, `pnpm check:symbolic`, `pnpm bench:synthesis`.

@@ -64,6 +64,20 @@ test("explicitly disabled symbolic pruning reports its reason on small and large
   }
 });
 
+test("symbolic search forwards shared separator controls without merging resource modes", () => {
+  const input = synthesisFixture("separators", 9), reference = solve(input, "exhaustive");
+  for (const separator_elimination of [false, true]) {
+    const r = solve({ ...input, optimizations: { ...input.optimizations, separator_elimination } });
+    assert.equal(r.satisfyingCount, 2);
+    assert.deepEqual(successes(r), successes(reference));
+    assert.deepEqual(r.witness?.choices, reference.witness?.choices);
+    const result = r.results[0].result;
+    assert.ok("behavior" in result && result.behavior?.ok && "concept" in result.behavior);
+    assert.equal(result.behavior.concept.relationStats.elimination.applied, separator_elimination);
+    assert.ok(r.searchStats.boundarySummaries.behaviorTraces > 0);
+  }
+});
+
 test("small requests reuse optimized search, including the unchanged shipped synthesis example", () => {
   const cases = JSON.parse(fs.readFileSync(new URL("../examples/assurance/requests.json", import.meta.url), "utf8"));
   const input = cases.find((c: { tool: string }) => c.tool === "triz_synthesize").args;
