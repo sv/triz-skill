@@ -13,8 +13,6 @@ import {
   metadata,
 } from "./support/component-search.js";
 import { costModel, lifecycleModel } from "./support/lifecycle.js";
-import { lifecycleCertificate } from "../src/act-cert.js";
-import { bindRequest } from "../scripts/certify.mjs";
 
 function circular(): FunctionModel {
   return {
@@ -259,28 +257,6 @@ test("holding costs alone define dimensions and also enter the nondeterministic 
   assert.match(JSON.stringify(range.range), /"max":4/);
 });
 
-test("holding-cost certificates bind the declared state charges into the exact request", () => {
-  const m = holdingModel();
-  m.lifecycle!.holding_cost = { blocked: { resource: 5 } };
-  const c = lifecycleCertificate({ model: m }, 0);
-  assert.ok(c.ok, JSON.stringify(c));
-  assert.deepEqual(
-    bindRequest(c.content, {
-      kind: "lifecycle",
-      args: { model: m },
-      objective: 0,
-    }),
-    [],
-  );
-  m.lifecycle!.holding_cost.blocked.resource = 6;
-  assert.ok(
-    bindRequest(c.content, {
-      kind: "lifecycle",
-      args: { model: m },
-      objective: 0,
-    }).length,
-  );
-});
 test("holding costs validate their state names and box-local selection does not inherit global charges", () => {
   const m = holdingModel();
   m.lifecycle!.holding_cost = { unknown: { resource: 1 } };

@@ -153,11 +153,6 @@ export const ISSUE_CODES = {
   "ambiguous-port-name": "Collapsing gives two kept ports the same name",
   "no-earlier-snapshot": "A transition starts from a time with no snapshot",
   "snapshot-not-reached": "A transition's result differs from the snapshot it must reach",
-  // Certificates
-  "invalid-namespace": "The certificate namespace is not a usable Lean identifier",
-  "certificate-needs-unsafe": "A dynamics certificate was asked for without an unsafe or safe target",
-  "certificate-input-sequence": "A dynamics certificate was asked for runs under an input sequence, which it does not encode",
-  "not-certifiable": "The requested verdict or scope is unsupported by the finite certificate generator",
   // Lints (warnings channel)
   "defect-on-loss-carrier": "Lint: a loss-like flow (pressure drop, friction, leakage, …) is rated excessive or insufficient",
   "trim-level-functions": "Lint: the trim removes excessive or insufficient functions, listed under levelProblems",

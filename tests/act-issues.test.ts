@@ -19,7 +19,6 @@ import { ISSUE_CODES, type Issue, type IssueCode } from "../src/act-issues.js";
 import { analysisBasis, trimBasis } from "../src/act-basis.js";
 import { matchRule, TREND_RULES, type Rule } from "../src/act-rule.js";
 import { nineWindows } from "../src/act-windows.js";
-import { modelCertificate } from "../src/act-cert.js";
 import { globalSeparation } from "../src/act-global.js";
 import { toolSpecs } from "../src/tools.js";
 import { supportConcepts, SUPPORT_ACCEPTABLE } from "./support/concepts.js";
@@ -347,21 +346,13 @@ const cases: Case[] = [
   { code: "unknown-carrier", tool: "triz_abstraction", args: { detailed: bh(), coarse: bh(), map: { boxes: { shaft: "shaft" }, carriers: { lava: "heat" } } }, path: "$.map.carriers.lava" },
   { code: "empty-set", tool: "triz_abstraction", args: { detailed: bh(), coarse: bh(), map: { boxes: {} } }, path: "$.map.boxes" },
   { code: "carrier-mismatch", tool: "triz_abstraction", args: { detailed: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }), coarse: bh(), map: { boxes: { motor: "motor" } } }, path: "$.detailed.wires[0].carrier" },
-  // triz_export and certificates
-  { code: "carrier-mismatch", tool: "triz_export", args: { format: "lean", model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) }, path: "$.model.wires[0].carrier" },
+  // triz_export
+  { code: "carrier-mismatch", tool: "triz_export", args: { format: "dot", model: edit("bearing-heat", (m) => { m.wires[0].carrier = "heat"; }) }, path: "$.model.wires[0].carrier" },
   // The shared specs carry no layout engine, as on the hosted server.
   { code: "format-unavailable", tool: "triz_export", args: { format: "svg", model: bh() }, path: "$.format", hint: /format 'dot' .*'mermaid'/ },
-  { code: "invalid-namespace", kernel: () => modelCertificate(bh(), { namespace: "end x" }), input: { model: bh(), namespace: "end x" }, path: "$.namespace" },
-  // producible rows and dynamics and weakness certificates
+  // producible rows
   { code: "producible-with-rows", tool: "triz_function_model", args: { model: edit("bearing-heat-behavior", (m) => { box(m, "housing").producible = box(m, "housing").behavior; }) },
     path: `$.model.boxes[${example("bearing-heat-behavior").boxes.findIndex((b) => b.id === "housing")}].producible` },
-  { code: "certificate-needs-unsafe", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), certificate: true }, pick: (r) => r.certificate, path: "$.unsafe" },
-  { code: "certificate-input-sequence", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], inputs: [[], [], []], certificate: true },
-    pick: (r) => r.certificate, path: "$.inputs" },
-  // Past the cap beyond the horizon, only the bounded verdict holds.
-  { code: "not-certifiable", tool: "triz_dynamics", args: { model: example("bearing-heat-dynamics"), unsafe: [{ box: "shaft", state: ["hot"] }], horizon: 1, max_states: 12, certificate: true },
-    pick: (r) => r.certificate, path: "$.horizon", hint: /Raise max_states so the search past the horizon decides/ },
-  { code: "not-certifiable", tool: "triz_behavior", args: { model: example("bearing-heat-behavior"), certificate: true }, pick: (r) => r.certificate, path: "$.certificate", hint: /compare_to/ },
   // rule negative application conditions and weakness priors
   { code: "forbid-violated", tool: "triz_rule_apply", args: {
     model: {

@@ -601,7 +601,7 @@ export function boundedDynamics(model: FunctionModel, spec: DynamicsSpec = {}) {
 /**
  * Every global state a run from the initial states reaches, blocked ones included, explored
  * without a horizon up to the cap, with the step boundedDynamics takes. The set is closed under
- * steps, so an unreachable escalation's certificate (src/act-cert.ts) states it as the invariant.
+ * steps, so an unreachable escalation holds by induction on it as the invariant.
  * Undefined under an input sequence, on missing behaviour or a failed compile, and past the cap.
  */
 export function reachedStates(model: FunctionModel, spec: DynamicsSpec): string[][] | undefined {

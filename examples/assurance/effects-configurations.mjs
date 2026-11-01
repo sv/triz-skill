@@ -9,7 +9,6 @@ import { reductionBaseline } from "./reduction-baseline.mjs";
 import { knowledgeModelCatalogue } from "../../src/knowledge-models.ts";
 import { searchComponents } from "../../src/act-component-search.ts";
 import { checkModel } from "../../src/act.ts";
-import { modelCertificate } from "../../src/act-cert.ts";
 
 export const fixture = JSON.parse(fs.readFileSync(new URL("./fixtures/decomposed-patent-cases.json", import.meta.url), "utf8"));
 const k = knowledge();
@@ -73,7 +72,7 @@ export function validateReduction() {
     }) };
 }
 export function validateConfigurations() {
-  const certificates = {}, results = [];
+  const results = [];
   for (const c of fixture.cases) {
     assert.ok(c.published_on >= fixture.publication_window[0] && c.published_on <= fixture.publication_window[1]);
     assert.ok((c.priority_on ?? c.filed_on) <= c.published_on);
@@ -85,19 +84,13 @@ export function validateConfigurations() {
     assert.ok(index >= 0, `${c.id}: missing intended configuration: ${JSON.stringify(after.components)}`);
     const candidate = after.result.candidates[index];
     assert.ok(checkModel(candidate.model).ok);
-    certificates[c.id.replaceAll("-", "_")] = modelCertificate(candidate.model);
     results.push({ ...c, before: before.result.verdict, after: after.result.verdict, components: after.components[index],
       candidates: after.result.satisfyingCount, work: after.result.work, conditions: [...new Set(candidate.components.flatMap(b => b.catalogueOrigin.conditions ?? []))],
       verification: "typing-only; implementation dynamics checked separately on explicit finite abstractions" });
   }
-  return { results, certificates };
+  return { results };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { results, certificates } = validateConfigurations();
-  const i = process.argv.indexOf("--cert-dir");
-  if (i >= 0) {
-    assert.ok(process.argv[i + 1]); fs.mkdirSync(process.argv[i + 1], { recursive: true });
-    for (const [name, c] of Object.entries(certificates)) { assert.ok(c.ok, JSON.stringify(c)); fs.writeFileSync(path.join(process.argv[i + 1], `${name}.lean`), c.content); }
-  }
+  const { results } = validateConfigurations();
   console.log(JSON.stringify({ cases: results.length, before_found: 0, after_found: results.length, reduction: validateReduction(), results }, null, 2));
 }

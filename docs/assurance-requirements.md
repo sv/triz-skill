@@ -10,6 +10,13 @@ These criteria originated in the eight-workstream review in #35 and were extende
 system evolution. They are retained here independently of release history. A roadmap entry
 is not an implemented guarantee, and a method citation does not establish its hypotheses.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## 1. Claims, request binding and trust
 
 **Required scope:** formalize the JSON/finite-table encoder correspondence, or use an extracted/verified

@@ -2,14 +2,12 @@
 /** Recent disclosures expose missing clauses, repeated interfaces and modeling limits. */
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import path from "node:path";
 import * as data from "../../src/data.ts";
 import { compileKnowledge, typedKnowledgeEffects } from "../../src/knowledge.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { externalBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics, checkRun } from "../../src/act-dynamics.ts";
-import { modelCertificate, dynamicsCertificate } from "../../src/act-cert.ts";
 import { rational, ONE, sub, cmp, show } from "../../src/act-rational.ts";
 import { speculativeSampling } from "./speculative-sampling.mjs";
 
@@ -25,8 +23,6 @@ for (const p of baselinePacks) {
 const before = compileKnowledge(baselinePacks);
 const libraries = [before, knowledge].map(k => typedKnowledgeEffects(k.effects));
 const find = id => knowledge.effects.find(e => e.id === id);
-const certificates = {};
-const certificate = (name, result) => { assert.ok(result.ok, JSON.stringify(result)); certificates[name] = result; };
 const discover = (chain, library) => {
   const result = effectChains({ resources: [find(chain[0]).input], output: find(chain.at(-1)).output,
     k: chain.length, min_length: chain.length, limit: 100 }, library);
@@ -51,7 +47,6 @@ const cases = fixture.cases.map(c => {
     } else assert.equal(setupEffectModel({ chain, domain: "physical" }, before).ok, false);
     const behavior = externalBehavior(after.model, { scope: "whole" });
     assert.ok(behavior.ok && !behavior.decided);
-    certificate(`${c.id.replaceAll("-", "_")}_${chain.join("_")}`, modelCertificate(after.model));
     return { chain, found_before: found[0], found_after: found[1], hypotheses: after.unmetConditions };
   });
   for (const chain of c.reject_paths) {
@@ -81,7 +76,6 @@ const newCompositions = [[7, 75], [76, 1], [77, 1]].map(chain => {
   assert.equal(discover(chain, libraries[0]), false);
   const setup = setupEffectModel({ chain, domain: "physical" }, knowledge);
   assert.ok(setup.ok, JSON.stringify(setup));
-  certificate(`NewComposition_${chain.join("_")}`, modelCertificate(setup.model));
   return { chain, hypotheses: setup.unmetConditions };
 });
 
@@ -127,7 +121,6 @@ fixedBox.behavior = [{ in: { in: "1" }, out: { out: "1" } }, { in: { in: "2" }, 
 const fixedSpec = { horizon: 3, unsafe: spec.unsafe.slice(1) };
 const fixedResult = boundedDynamics(fixed, fixedSpec);
 assert.ok(fixedResult.ok && fixedResult.escalation.verdict === "unreachable", JSON.stringify(fixedResult));
-certificate("ProgrammedConductanceDynamics", dynamicsCertificate(programmed.model, spec));
 assert.equal(data.knowledge().effects.length, 78, "temporary finite examples never become installed primitives");
 
 // Selected gate metric: 1 - total variation for a binary alphabet. The patent does not prescribe it.
@@ -144,11 +137,6 @@ for (let p = 0; p <= 4; p++) for (let q = 0; q <= 4; q++) {
 }
 assert.ok(enabled > 0 && disabled > 0);
 
-const certIndex = process.argv.indexOf("--cert-dir");
-if (certIndex >= 0) {
-  assert.ok(process.argv[certIndex + 1]); const dir = path.resolve(process.argv[certIndex + 1]); fs.mkdirSync(dir, { recursive: true });
-  for (const [name, c] of Object.entries(certificates)) fs.writeFileSync(path.join(dir, `${name}.lean`), c.content);
-}
 console.log(JSON.stringify({ scope: fixture.scope, window: fixture.publication_window, baseline: fixture.baseline,
   cases, selected_clauses: { before: beforeFound, after: afterFound, rejected_serial_substitutions: rejected },
   additional_conditional_compositions: newCompositions,
@@ -158,5 +146,4 @@ console.log(JSON.stringify({ scope: fixture.scope, window: fixture.publication_w
     scope: "Synthetic read/write/read state counterexample, not an empirical memristor or trained crossbar model." },
   selective_sampling: { finite_binary_cases: probabilisticCases, gate_enabled: enabled, gate_disabled: disabled,
     scope: "Chosen finite gate and exact correction kernel; no arbitrary probability theorem, patent-wide equivalence or measured inference speedup." },
-  certificate_count: Object.keys(certificates).length,
 }, null, 2));

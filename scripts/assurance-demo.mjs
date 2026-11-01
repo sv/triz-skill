@@ -13,4 +13,4 @@ for(const example of examples){
   for(const [k,v]of Object.entries(example.expect))if(out[k]!==v)throw new Error(`${example.tool}.${k}: expected ${JSON.stringify(v)}, got ${JSON.stringify(out[k])}`);
   console.log(`${example.tool}: ${JSON.stringify(example.expect)}`);
 }
-console.log(`All ${examples.length} finite assurance examples passed. Certificates generated here must still be checked with Lean.`);
+console.log(`All ${examples.length} finite assurance examples passed.`);

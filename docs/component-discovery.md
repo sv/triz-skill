@@ -5,6 +5,13 @@ catalogue. It finds single components, chains, multi-input assemblies and shared
 The caller supplies the desired interface and properties, without supplying component order or
 internal connections. This is discovery within a declared catalogue.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 Effect insertion verifies known curated effect ids against the installed catalogue's typing,
 conditions and provenance before citing them. Other entries are marked `caller-declared`;
 their supplied source text is an assertion. A replacement that changes a declared flow path

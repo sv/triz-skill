@@ -11,7 +11,6 @@ test("source-backed product/patent cases preserve discovery, reject invalid deco
   assert.equal(report.cases.flatMap((c: any) => c.paths).length, 9);
   assert.equal(report.cases.flatMap((c: any) => c.rejected_paths).length, 6);
   assert.equal(report.voice_coil.finite_composition, "preserved");
-  assert.equal(report.certificate_count, 10);
 });
 
 test("recent publications expose missing clauses, safe sharing and state/probability limits", () => {
@@ -27,5 +26,4 @@ test("recent publications expose missing clauses, safe sharing and state/probabi
   assert.equal(report.programmed_conductance.fixed_resistance, "unreachable");
   assert.equal(report.selective_sampling.finite_binary_cases, 25);
   assert.equal(report.additional_conditional_compositions.length, 3);
-  assert.equal(report.certificate_count, 13);
 });

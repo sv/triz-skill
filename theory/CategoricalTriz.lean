@@ -1853,6 +1853,24 @@ theorem codesign_lfp [Finite P] (h : P → P → Prop) :
       exact ⟨s, UpperSet.mem_Ici_iff.mpr le_rfl, x, hx, (sup_le hxs le_rfl).trans hu⟩
     exact UpperSet.coe_subset_coe.mpr hlfp (UpperSet.mem_Ici_iff.mpr hst)
 
+/-- Which budgets admit a feasible configuration: exactly those above a minimal feasible one
+(`budget_feasible_iff`, on any well-founded partial order of configurations). Raising a budget
+componentwise to a minimal feasible configuration is therefore a relaxation, and the nondominated
+such raises are a complete set: whenever any raise of the budget admits a configuration, one of
+these does. The kernel's `relaxation` block lists them. -/
+theorem budget_feasible_iff {Q : Type*} [PartialOrder Q] [WellFoundedLT Q] (h : Q → Q → Prop) (b : Q) :
+    (∃ s, (∃ x, h s x ∧ x ≤ s) ∧ s ≤ b) ↔
+      ∃ m, (∃ x, h m x ∧ x ≤ m) ∧ (∀ s, (∃ x, h s x ∧ x ≤ s) → s ≤ m → s = m) ∧ m ≤ b := by
+  constructor
+  · -- A minimal feasible configuration below the feasible one under the budget.
+    rintro ⟨s, hs, hsb⟩
+    obtain ⟨m, hms, hmin⟩ := exists_minimal_le_of_wellFoundedLT
+      (fun t => ∃ x, h t x ∧ x ≤ t) s hs
+    exact ⟨m, hmin.prop, fun t ht htm => le_antisymm htm (hmin.2 ht htm),
+      hms.trans hsb⟩
+  · rintro ⟨m, hm, _, hmb⟩
+    exact ⟨m, hm, hmb⟩
+
 end CoDesign
 
 /-! ## Levels: numeric amounts read as qualitative values (`levels` in `src/act-levels.ts`)

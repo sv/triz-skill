@@ -1,7 +1,7 @@
 # Engine roadmap
 
 This is the single prioritized backlog. Status was reconciled against reference main
-`9bd2942` on 2026-11-01; PR #55 effects changes remain under review.
+`0e53a9f` on 2026-11-01, including the merged PR #55 effects changes.
 [Assurance requirements](assurance-requirements.md) owns acceptance and proof obligations,
 [delivered assurance](categorical-assurance.md) owns current guarantees, and the
 [theory map](theory-map.md#what-is-not-claimed) records their limits. See the
@@ -9,6 +9,11 @@ This is the single prioritized backlog. Status was reconciled against reference 
 
 Workstream identifiers are retained so bibliography and issue references remain meaningful.
 “Implemented” always means the stated finite scope, not every extension of that workstream.
+
+Per-instance verdict and typing Lean certificates are removed in this change. The theory
+continues to build with `lake build --wfail`; verdicts retain `basis` citations. Feasibility
+relaxation uses `budget_feasible_iff`, and `triz_pareto` ranks declared metric vectors.
+Checked symbolic map composition and its separate local law/encoding audit remain available.
 
 ## Next priorities
 
@@ -29,7 +34,7 @@ Workstream identifiers are retained so bibliography and issue references remain 
 4. **E4 → E3 → E5: evolving systems.** Declare context transitions and clocks; verify finite
    safety regions with explicit policy/environment quantifiers. Validate supplied migration paths
    before bounded path optimization, including intermediate configurations and state transfer.
-5. **Trust, transport and model acquisition.** Extend certificates and semantic transport to
+5. **Trust, transport and model acquisition.** Extend semantic transport to
    remaining verdicts; improve reviewed imports and hierarchy comparisons. General categorical
    completion and graded concepts remain conditional on a concrete consumer.
 
@@ -60,9 +65,9 @@ not claim a fresh reproduction of every report on this checkout.
 
 | ID | Status | Remaining work |
 |---|---|---|
-| 1 | Implemented in #39 | Unreachability/invariance certificates within their declared scopes; broader temporal claims below |
-| 2 | Implemented in #39 | Preserved-behavior certificates and changed-behavior counterexamples; richer interfaces below |
-| 3 | Implemented in #35 | Equality and incomparability witnesses; broader certificate families below |
+| 1 | Implemented in #39 | Historical unreachability/invariance certificates, now removed; bounded temporal checks remain |
+| 2 | Implemented in #39 | Historical preserved-behavior certificates, now removed; behavior comparisons and counterexamples remain |
+| 3 | Implemented in #35 | Equality and incomparability witnesses; their per-instance Lean certificates are removed |
 | 4 | Partial, #43 | Declaration-order witness selection and renamed twins exist; permutation/symmetry semantics need explicit treatment |
 | 5 | Partial | Index/value/hole-coordinate, weakness and adequacy transport proved; remaining resource, count and dynamic verdicts open |
 | 6 | Lean foundation implemented, #32 | One/two-hole union laws proved; optimized TypeScript evaluator correspondence remains open |
@@ -80,7 +85,7 @@ covariant category of elements gives an opfibration; the opposite construction s
 fibration orientation. N-ary concepts and a universal Kan characterization remain open.
 
 The cross-cutting trust backlog is a verified/independently checked source encoder, broader
-request-bound certificates, uncertainty/evidence contracts, and normalization/critical-pair
+uncertainty/evidence contracts, and normalization/critical-pair
 coverage. Its detailed adversarial cases live only in
 [assurance requirements](assurance-requirements.md).
 
@@ -88,7 +93,7 @@ coverage. Its detailed adversarial cases live only in
 
 | ID | Status | Next slice and boundary |
 |---|---|---|
-| C1 | Implemented, #42 | Wire-equivalence quotient for finite certificates |
+| C1 | Implemented, #42 | Historical wire-equivalence quotient for finite certificates, now removed |
 | C2 | Carrier quantity kinds implemented, #42 | Cost aggregation across ideality, feasibility, windows, refinement and isomorphism; conversion/conservation adapters |
 | C3 | Open | Declared value orders, port-level signed SCCs and conditional lattice steady-state results |
 | C4 | Implemented in merged #52 | Connected factors, exact boundaries/state counts and bounded sample reconstruction |
@@ -175,7 +180,7 @@ those extensions and links the current proof and benchmark evidence.
 | ID | Status | Deliverable |
 |---|---|---|
 | E1 | Open | Executable finite envelopes, controlled/external variables and observation/interface scope |
-| E2 | Open | Hard predicates plus ordered properties over one architecture/mode/size/policy witness |
+| E2 | Comparison implemented | `triz_pareto` ranks declared metric vectors with dominance witnesses and trade-offs; automated metric collection and joint assembly/policy search remain open |
 | E3 | Open | Finite safety/viability regions under explicit run or causal-policy quantifiers |
 | E4 | Open | Versioned finite context/requirement transitions, schedules and reconciled clocks |
 | E5 | Open | Supplied migration-path checking, then bounded path/policy optimization |
@@ -230,7 +235,7 @@ The [#55](https://github.com/sv/triz-skill/pull/55) effects follow-up remains bo
   independent expert validation to material, geometry, regime, temporal resolution, uncertainty
   and operating envelopes. See [the validation scope](effects-configurations.md).
 
-Finite rows, typing/behavior certificates and bounded patent regressions establish their
+Finite rows, checked typing/behavior and bounded patent regressions establish their
 selected declared claims; they do not establish calibrated performance, continuous-law or
 whole-patent equivalence, or correctness of unassessed entries.
 

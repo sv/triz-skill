@@ -3,7 +3,6 @@
 import assert from "node:assert/strict";
 import { speculativeSampling } from "./speculative-sampling.mjs";
 import fs from "node:fs";
-import path from "node:path";
 import * as data from "../../src/data.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
@@ -12,7 +11,6 @@ import { checkModel } from "../../src/act.ts";
 import { externalBehavior, compareBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics, checkRun } from "../../src/act-dynamics.ts";
 import { instantiateCatalogues } from "../../src/act-component-catalogue.ts";
-import { behaviorCertificate, dynamicsCertificate, modelCertificate } from "../../src/act-cert.ts";
 import { rational, Z, ONE, add, sub, mul, div, cmp, sum, show } from "../../src/act-rational.ts";
 
 const snapshot = JSON.parse(fs.readFileSync(new URL("./fixtures/effects-before-pr53.json", import.meta.url), "utf8"));
@@ -208,23 +206,7 @@ assert.notDeepEqual(naiveFallback.map(show), target.map(show));
 // Equal nonzero support would hide this bias in an unweighted relation.
 assert.ok([...target, ...naiveFallback].every(p => cmp(p, Z) > 0));
 
-const certificates = {
-  RecipeTyping: modelCertificate(recipeSetup.model),
-  RecipeBehavior: behaviorCertificate(finite.model, recipeSetup.model, { scope: "whole" }),
-  RedundancyTyping: modelCertificate(coded),
-  RedundancyBehavior: behaviorCertificate(reference, coded, { scope: "whole" }),
-  HysteresisTyping: modelCertificate(deadband),
-  HysteresisInvariant: dynamicsCertificate(deadband, invariantSpec),
-};
-for (const [name, c] of Object.entries(certificates)) assert.ok(c.ok, `${name}: ${JSON.stringify(c)}`);
 for (const model of [bare.model, finite.model, deadband, coded, reference, uncoded]) assert.ok(checkModel(model).ok);
-const dirIndex = process.argv.indexOf("--cert-dir");
-if (dirIndex >= 0) {
-  assert.ok(process.argv[dirIndex + 1], "--cert-dir needs a directory");
-  const dir = path.resolve(process.argv[dirIndex + 1]);
-  fs.mkdirSync(dir, { recursive: true });
-  for (const [name, c] of Object.entries(certificates)) fs.writeFileSync(path.join(dir, `${name}.lean`), c.content);
-}
 console.log(JSON.stringify({
   method: "Selected finite examples; fixed current engine, catalogue sizes 6/37/78; no measured device data, no general benchmark accuracy or runtime claim.",
   snapshots: { before: snapshot.source_commit, first_pr: snapshot.first_pr_commit },
@@ -242,6 +224,5 @@ console.log(JSON.stringify({
     boundary: "The model permits at most one bit flip per three-bit block; correlated two-bit faults can defeat it. No fault probabilities or actual reliability gains are inferred." },
   speculative_sampling: { target: target.map(show), unverified_draft: draft.map(show), corrected: speculative.output.map(show),
     naive_target_fallback: naiveFallback.map(show), rejection_probability: show(speculative.rejected), exact_grid_cases: probabilityCases,
-    scope: "Exact rational enumeration of a two-token one-step sampler. No GPU speedup or arbitrary-distribution theorem is established; existing unweighted relation certificates cannot certify distribution equality." },
-  certificates: Object.fromEntries(Object.entries(certificates).map(([k, c]) => [k, c.certifies])),
+    scope: "Exact rational enumeration of a two-token one-step sampler. No GPU speedup or arbitrary-distribution theorem is established; existing unweighted relations cannot certify distribution equality." },
 }, null, 2));

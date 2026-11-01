@@ -102,11 +102,10 @@ explicitly fixed-phase SC relation use finite projection; the full stateful SC m
 to static summarization. No discovery entry is replaced. `pnpm check:symbolic` also audits these
 two fixed effect certificates and ten corrupted encodings of each, alongside its synthesis cases.
 
-`--cert-dir DIR` emits eight patent typing certificates from the configuration runner and nine
-from the reduction runner (four typings, four selected finite equivalences, one stateful current
-trace). CI checks Lean acceptance and tamper rejection. Focused tests also check two typings,
-a charge trace, a shared-phase invariant and a regenerated-bed trace. The no-heat bed invariant
-exceeds the certificate valuation cap: bounded JavaScript rejects recovery; only typing is certified.
+The configuration and reduction runners validate typing, selected finite equivalences and
+retained-state behavior directly. Per-instance verdict/typing Lean certificate generation is
+removed; the no-heat bed control remains a bounded JavaScript check of recovery rejection.
+The independent symbolic map audit above continues to check its encodings locally.
 
 These checks establish declared finite claims, not measured patent performance, continuous laws,
 whole-device equivalence or calibration. No Physlib dependency is added. Photoluminescence still

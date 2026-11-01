@@ -7,7 +7,6 @@ import { effectChains } from "../src/act-effects.js";
 import { bundledKnowledge } from "../src/knowledge-bundle.js";
 import { toolSpecs } from "../src/tools.js";
 import { checkModel, type FunctionModel } from "../src/act.js";
-import { bindRequest, checkAll, ensureBuilt, lint, localLeanAvailable, tamperVariants } from "../scripts/certify.mjs";
 
 const data = new URL("../skills/triz-innovation/data/", import.meta.url);
 const read = (file: string) => JSON.parse(fs.readFileSync(new URL(file, data), "utf8"));
@@ -166,13 +165,12 @@ async function categoricalExample() {
       model, from: { box: "source", port: "out" }, to: { box: "product", port: "in" },
       chain: found.chains[0].effects, intermediate_carriers: ["fraction"],
     };
-    const bare = await call("triz_effect_insert", { ...insertion, certificate: true });
+    const bare = await call("triz_effect_insert", insertion);
     assert.equal(bare.verdict, "inserted");
     assert.ok(checkModel(bare.model).ok);
     assert.deepEqual(bare.basis, ["typed_delete", "typed_glue"]);
     assert.ok(bare.effects.every((e: { provenance: string }) => e.provenance === "catalogue-verified"));
     assert.deepEqual(bare.unmetConditions, ["synthetic fixture"]);
-    assert.equal(bare.certificate.format, "lean");
     assert.ok(bare.model.boxes.slice(2).every((b: { behavior?: unknown; feasibility?: unknown }) => !b.behavior && !b.feasibility));
     const unknown = await call("triz_behavior", { model: bare.model, scope: "whole" });
     assert.equal(unknown.decided, false, "a typed effect alone must not establish behavior");
@@ -187,36 +185,11 @@ async function categoricalExample() {
       { id: "start", from: { box: "source", port: "out" }, to: { box: "reference", port: "in" }, carrier: "duration", polarity: "useful" },
       { id: "finish", from: { box: "reference", port: "out" }, to: { box: "product", port: "in" }, carrier: "signal", polarity: "useful" },
     );
-    const compared = await call("triz_behavior", { model: declared.model, compare_to: baseline, scope: "whole", certificate: true });
+    const compared = await call("triz_behavior", { model: declared.model, compare_to: baseline, scope: "whole" });
     assert.equal(compared.verdict, "preserved");
-    assert.equal(compared.certificate.format, "lean");
-    assert.deepEqual(lint(bare.certificate.content), []);
-    assert.deepEqual(lint(compared.certificate.content), []);
-    assert.deepEqual(bindRequest(bare.certificate.content, { kind: "model", model: bare.model }), []);
-    assert.deepEqual(bindRequest(compared.certificate.content, { kind: "behavior", baseline, concept: declared.model, scope: "whole" }), []);
-    return [bare.certificate.content, compared.certificate.content] as string[];
   } finally {
     core.useProvider(file => file in bundledKnowledge ? bundledKnowledge[file] : read(file));
   }
 }
 
 test("installed knowledge feeds theorem-backed rewriting and explicitly declared compositional behavior", async () => { await categoricalExample(); });
-
-// The Lean CI discovers files containing leanTest( and requires a built theory.
-function leanTest(name: string, fn: () => Promise<void>) {
-  const available = localLeanAvailable();
-  const skip = !process.env.TRIZ_REQUIRE_LEAN && (process.env.TRIZ_SKIP_LEAN ? "TRIZ_SKIP_LEAN is set" : !available && "theory/ is not built");
-  test(name, { skip }, async () => {
-    assert.ok(available, "TRIZ_REQUIRE_LEAN is set, but theory/ is not built");
-    await ensureBuilt();
-    await fn();
-  });
-}
-
-leanTest("Lean accepts cross-pack typing and behavior certificates and rejects tampering", async () => {
-  const texts = await categoricalExample();
-  const variants = texts.flatMap(tamperVariants);
-  const results = await checkAll({ certificates: texts, tampered: variants }, { mode: "local" });
-  for (const result of results.certificates) assert.ok(result.ok, result.problems.join("\n"));
-  for (const result of results.tampered) assert.ok(result.ok, result.problems.join("\n"));
-});

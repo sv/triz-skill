@@ -15,6 +15,7 @@ import { feasibility, trimFeasibility, MAX_ANTICHAIN, MAX_ITERATIONS } from "../
 import { lintModel } from "../src/act-lint.js";
 import { segment } from "../src/act-rewrite.js";
 import { toolSpecs } from "../src/tools.js";
+import { renamedTwin } from "./support/twin.js";
 import { rng, int, genModel } from "./support/gen.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -137,6 +138,115 @@ test("unprovidable: no housing row carries the shaft's load, whatever the budget
   assert.ok(r.ok && r.verdict === "infeasible" && r.reason === "unprovidable");
   assert.deepEqual(r.unprovidable, { box: "housing", demanded: [{ port: "bore", level: 2500 }], ports: [{ port: "bore", demanded: 2500, provided: 2000 }] });
   assert.match(r.absorbers[0].addedUnavailable!, /trimmed model has no minimal resource vector/);
+});
+
+/**
+ * One way to supply the field needs money, the other needs time: two minimal resource vectors
+ * over budget on different dimensions, so no dimension binds and the relaxation is the two
+ * nondominated raises.
+ */
+function splitBudget(): FunctionModel {
+  return {
+    domain: "physical",
+    carriers: [{ id: "power", layer: "energy", dimension: "W" }, { id: "flow", layer: "material", dimension: "L/min" }],
+    boxes: [
+      { id: "grid", name: "Grid", role: "environment", outputs: [{ id: "power-out", carrier: "power" }],
+        feasibility: [{ provides: { "power-out": 8 } }] },
+      { id: "source", name: "Source", role: "tool", inputs: [{ id: "power-in", carrier: "power" }], outputs: [{ id: "out", carrier: "flow" }],
+        feasibility: [
+          { provides: { out: 10 }, requires: { "power-in": 3 }, cost: { usd: 5 } },
+          { provides: { out: 20 }, requires: { "power-in": 6 }, cost: { hours: 3 } },
+        ] },
+      { id: "field", name: "Field", role: "product", inputs: [{ id: "water", carrier: "flow" }],
+        feasibility: [{ requires: { water: 10 } }] },
+    ],
+    wires: [
+      { id: "w-power", from: { box: "grid", port: "power-out" }, to: { box: "source", port: "power-in" }, carrier: "power", polarity: "useful" },
+      { id: "w-water", from: { box: "source", port: "out" }, to: { box: "field", port: "water" }, carrier: "flow", polarity: "useful" },
+    ],
+    budget: { usd: 3, hours: 1 },
+  };
+}
+
+test("over-budget relaxation: the nondominated minimal raises, each with its witness rows, and the cheapest single-dimension asks", () => {
+  const r = feasibility(splitBudget());
+  assert.ok(r.ok && r.verdict === "infeasible" && r.reason === "over-budget");
+  assert.deepEqual(r.binding, [], "each minimal vector fails on a different dimension");
+  assert.ok(r.relaxation && r.relaxation.kind === "budget");
+  assert.deepEqual(r.relaxation.basis, ["codesign_lfp", "budget_feasible_iff"]);
+  assert.deepEqual(r.relaxation.raises.map((x: { raise: unknown; rows: unknown }) => [x.raise, x.rows]), [
+    [{ hours: 0, usd: 2 }, [{ box: "grid", row: 0 }, { box: "source", row: 0 }, { box: "field", row: 0 }]],
+    [{ hours: 2, usd: 0 }, [{ box: "grid", row: 0 }, { box: "source", row: 1 }, { box: "field", row: 0 }]],
+  ]);
+  assert.deepEqual(r.relaxation.raises.map((x: { resources: unknown }) => x.resources), [
+    { hours: 0, usd: 5 }, { hours: 3, usd: 0 },
+  ]);
+  assert.deepEqual(r.relaxation.perDimension, [{ dimension: "hours", raise: 2 }, { dimension: "usd", raise: 2 }]);
+  assert.match(r.relaxation.note, /budget_feasible_iff/);
+
+  // One binding dimension: only that dimension is raised, and only it has a single-dimension ask.
+  const tight = bearing();
+  tight.budget = { usd_unit: 170, service_h_year: 4 };
+  const one = feasibility(tight);
+  assert.ok(one.ok && one.verdict === "infeasible" && one.reason === "over-budget");
+  assert.ok(one.relaxation && one.relaxation.kind === "budget");
+  assert.deepEqual(one.relaxation.raises, [{
+    raise: { service_h_year: 0, usd_unit: 8 }, resources: { service_h_year: 2, usd_unit: 178 },
+    rows: [{ box: "motor", row: 0 }, { box: "shaft", row: 0 }, { box: "bearing", row: 0 }, { box: "housing", row: 0 }],
+  }]);
+  assert.deepEqual(one.relaxation.perDimension, [{ dimension: "service_h_year", raise: null }, { dimension: "usd_unit", raise: 8 }]);
+
+  // Feasible and no-budget results advise nothing.
+  const fits = splitBudget();
+  fits.budget = { usd: 5, hours: 3 };
+  assert.ok(feasibility(fits).ok && !("relaxation" in feasibility(fits)));
+  const unbudgeted = splitBudget();
+  unbudgeted.budget = undefined;
+  const none = feasibility(unbudgeted);
+  assert.ok(none.ok && none.verdict === "undecided" && none.reason === "no-budget" && !("relaxation" in none));
+});
+
+test("unprovidable relaxation names the smallest capability raises", () => {
+  const weak = {
+    domain: "software" as const,
+    carriers: [{ id: "c", layer: "information" as const, dimension: "unit" }],
+    boxes: [
+      { id: "A", name: "A", role: "tool" as const, outputs: [{ id: "x", carrier: "c" }], feasibility: [{ provides: { x: 1 } }] },
+      { id: "P", name: "P", role: "product" as const, inputs: [{ id: "a", carrier: "c" }], feasibility: [{ requires: { a: 2 } }] },
+    ],
+    wires: [{ id: "w", from: { box: "A", port: "x" }, to: { box: "P", port: "a" }, carrier: "c", polarity: "useful" as const }],
+    budget: {},
+  };
+  const r = feasibility(weak);
+  assert.ok(r.ok && r.verdict === "infeasible" && r.reason === "unprovidable");
+  assert.deepEqual(r.unprovidable, { box: "A", demanded: [{ port: "x", level: 2 }], ports: [{ port: "x", demanded: 2, provided: 1 }] });
+  assert.deepEqual(r.relaxation, { kind: "capability", box: "A",
+    ports: [{ port: "x", demanded: 2, provided: 1, raise: 1 }],
+    note: r.relaxation.note });
+  assert.match(r.relaxation.note, /smallest raise/);
+
+  const joint = suppliers({ A: (): FeasibilityRow[] => [{ provides: { x: 1 } }, { provides: { y: 1 } }] }, {}, ["x", "y"]);
+  const j = feasibility(joint);
+  assert.ok(j.ok && j.verdict === "infeasible" && j.reason === "unprovidable");
+  assert.deepEqual(j.relaxation, { kind: "capability", box: "A", demanded: [{ port: "x", level: 1 }, { port: "y", level: 1 }],
+    note: j.relaxation.note });
+  assert.match(j.relaxation.note, /no single row provides them together/);
+});
+
+test("the budget relaxation is invariant under renaming boxes, ports and carriers", () => {
+  const twin = renamedTwin(splitBudget());
+  const a = feasibility(splitBudget()), b = feasibility(twin.model);
+  assert.ok(a.ok && b.ok && a.verdict === "infeasible" && b.verdict === "infeasible" && a.reason === "over-budget" && b.reason === "over-budget");
+  assert.ok(a.relaxation && b.relaxation && a.relaxation.kind === "budget" && b.relaxation.kind === "budget");
+  const rename = (rows: Array<{ box: string }>) => rows.map((x) => ({ ...x, box: twin.box(x.box) }));
+  const renameRaise = (raise: Record<string, number>) => Object.fromEntries(Object.entries(raise).map(([d, v]) => [twin.dim(d), v]));
+  assert.deepEqual(b.relaxation.kind, a.relaxation.kind);
+  assert.deepEqual(b.relaxation.basis, a.relaxation.basis);
+  assert.deepEqual(b.relaxation.raises.map((x: { raise: Record<string, number>; rows: unknown }) => [x.raise, x.rows]),
+    a.relaxation.raises.map((x: { raise: Record<string, number>; rows: Array<{ box: string }> }) => [renameRaise(x.raise), rename(x.rows)]));
+  assert.ok(a.relaxation.perDimension && b.relaxation.perDimension);
+  assert.deepEqual(b.relaxation.perDimension,
+    a.relaxation.perDimension.map((p: { dimension: string }) => ({ ...p, dimension: twin.dim(p.dimension) })));
 });
 
 /** One supplier box per entry, each with rows `rows(output)`, feeding product P one input each. */

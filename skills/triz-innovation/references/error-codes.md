@@ -80,7 +80,7 @@ Set arguments, argument pairs a tool refuses, caps, and failures of the kernel i
 | `empty-set` | `trimCandidates`, nine-windows views, `triz_abstraction` map, mpv_weights | A set argument names nothing |
 | `too-few-members` | `triz_transform` segment and merge, `triz_dynamics` separation | A construction needs at least two parts, boxes, or demands |
 | `unknown-cost-dimension` | `triz_transform` segment and take_out, `triz_function_model` mpv_weights | A cost dimension is not one the box declares |
-| `cap-exceeded` | `triz_separate`, `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, certificates | A search or encoding passed its cap |
+| `cap-exceeded` | `triz_separate`, `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility` | A search or encoding passed its cap |
 | `internal-error` | any tool | An invariant of the kernel failed; the input is not at fault |
 | `format-unavailable` | `triz_export` format `svg` | The export format needs a layout engine this server does not have |
 | `box-map-without-compare-to` | `triz_function_model`, `triz_behavior` | box_map was passed without compare_to |
@@ -149,9 +149,9 @@ applied.
 | `distinct-carriers` | `triz_rule_apply` | Carrier variables the rule declares distinct bind the same carrier |
 | `forbid-violated` | `triz_rule_apply` | A rule's `forbid` condition holds: the match extends to an occurrence of it, or the check could not be decided within its budget |
 
-## Behaviour, weakness, feasibility, dynamics, and certificates
+## Behaviour, weakness, feasibility, and dynamics
 
-The verdict tools that read declared rows, and the certificates they return.
+The verdict tools that read declared rows.
 
 | Code | Raised by | Meaning |
 |---|---|---|
@@ -181,10 +181,6 @@ The verdict tools that read declared rows, and the certificates they return.
 | `no-product` | `triz_feasibility` | The model has no product box |
 | `unsupplied-requirement` | `triz_feasibility` | A feasibility row requires a level at an input no non-harmful function feeds |
 | `extensive-fan-in` | `triz_feasibility` | An input port of an extensive carrier is fed by several non-harmful functions, so how the amount divides among them is undeclared; model a merge box |
-| `invalid-namespace` | certificates (library) | The certificate namespace is not a usable Lean identifier |
-| `certificate-needs-unsafe` | `triz_dynamics` `certificate` | A dynamics certificate was asked for without an unsafe or safe target |
-| `certificate-input-sequence` | `triz_dynamics` `certificate` | A dynamics certificate was asked for runs under an input sequence, which it does not encode |
-| `not-certifiable` | `triz_dynamics`, `triz_weakness` `certificate` | The verdict has no certificate: an escalation that is not reachable or blocks, an undecided ranking, or no strictly ordered pair |
 
 ## Separation, abstraction, and 9 windows
 
@@ -228,7 +224,6 @@ that type-checks, with a `severity`. A lint never changes a verdict. Only
 | `algebraic-loop` | bond graph findings | Direct constitutive dependencies form a cycle requiring a simultaneous solve |
 
 `invalid-weight` also covers lifecycle objectives. `prior-malformed` covers lifecycle situation
-maps and derived-prior coverage. `not-certifiable` covers unsupported mean-cost/lifecycle
-witnesses. Semantic isomorphism uses `hierarchy-substitution` when model-level lifecycle state
+maps and derived-prior coverage. Semantic isomorphism uses `hierarchy-substitution` when model-level lifecycle state
 mappings are unavailable. Lifecycle uncertainty also includes `tied-optimal-policies` and
 `probabilities-undeclared`; these are analysis reasons, not input-error codes.

@@ -126,7 +126,11 @@ function feasibilitySummary(m: Model) {
     // Compare the complete grounded set after independently checking the actual trace.
     return { ...witness, activationOrder: [...active] };
   });
-  return { ...r, minimal, sourceSupport: { ...r.sourceSupport, witnesses }, steadyState:{...r.steadyState,withinBudget:r.steadyState.withinBudget.map(i=>r.minimal[i].resources)}, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}) };
+  return { ...r, minimal, sourceSupport: { ...r.sourceSupport, witnesses }, steadyState:{...r.steadyState,withinBudget:r.steadyState.withinBudget.map(i=>r.minimal[i].resources)}, ...("withinBudget" in r ? { withinBudget: r.withinBudget!.map((i) => r.minimal[i].resources) } : {}),
+    // Relaxation witnesses tie exactly like minimal's row choices; keep the numbers, count the rows.
+    ...("relaxation" in r && r.relaxation && r.relaxation.kind === "budget"
+      ? { relaxation: { ...r.relaxation, raises: r.relaxation.raises.map((x) => ({ raise: x.raise, resources: x.resources, rows: x.rows.length })) } }
+      : {}) };
 }
 
 function flowFixture(): Model {

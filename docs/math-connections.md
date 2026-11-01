@@ -4,6 +4,13 @@ Checked against live repositories and TheoremSearch on 2026-10-30. Search sugges
 leads, not proof dependencies; locally elaborated Lean statements and finite certificates
 remain the acceptance criteria.
 
+> Status note (0.6.0): the per-instance Lean certificate machinery this document describes
+> (generated certificate files, `scripts/certify.mjs`, tamper checks, certificate CI) was
+> removed. The analysis tools, verdicts and limits described here stand unchanged; where the
+> text says a result "is certified", read "is decided, with the theorem it rests on cited in
+> `basis`". See the CHANGELOG and the theory map's removal note.
+
+
 ## Validation and search
 
 AXLE checked the complete new `MeanCost` and `Lifecycle` sources on Lean 4.32.2 before the

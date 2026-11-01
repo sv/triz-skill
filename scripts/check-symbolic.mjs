@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** LOCAL ONLY. Compile reusable laws, check generated certificates, audit all theorem axioms,
- * and require tampered encodings to fail. Never uses certify.mjs's remote service. */
+ * and require tampered encodings to fail. Never uses a remote service. */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";

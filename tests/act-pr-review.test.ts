@@ -10,7 +10,6 @@ import { lifecyclePriorRanking } from "../src/act-lifecycle-prior.js";
 import { searchComponents } from "../src/act-component-search.js";
 import { renamedTwin } from "./support/twin.js";
 import { bondModel } from "./support/lifecycle.js";
-import { CERTIFICATE_SCHEMA_FILES } from "../src/act-cert.js";
 
 const effect = (id:string,input:string,output:string): TypedEffect => ({id,name:id,input:{quantity:input},output:{quantity:output},field:"information",conditions:["given"],source:"synthetic declaration",typed_from:"source"});
 function interfaceModel(): FunctionModel {
@@ -62,7 +61,6 @@ test("entry-derived typings identify their source fields and normalize shared qu
   assert.equal(magnetostriction.typed_from,"source");assert.match(magnetostriction.source,/function-field output/);
   assert.equal(induction.input.quantity,eddy.input.quantity);assert.equal(eddy.output.quantity,peltier.input.quantity);
   const r=effectChains({resources:[eddy.input],output:peltier.output},es);assert.ok(r.ok);assert.ok(r.chains.some(c=>JSON.stringify(c.effects.map(e=>e.id))==="[34,8]"));
-  assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-provenance.ts"));assert.ok(CERTIFICATE_SCHEMA_FILES.includes("src/act-rational.ts"));
 });
 test("reversing a bond reference direction preserves causality findings", () => {
   const m=bondModel(), c=m.carriers[0].id;

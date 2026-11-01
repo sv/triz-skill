@@ -137,12 +137,6 @@ export function meanCosts(
         minCycle: min.cycle,
         maxCycle: max.cycle,
         potentials: { min: min.potential, max: max.potential },
-        certificateData: {
-          states: states.length,
-          edges,
-          minimum: min.edgeIndices,
-          maximum: max.edgeIndices,
-        },
         basis: [
           "MeanCost.Bounds.walk_mean",
           "MeanCost.cycle_lower",

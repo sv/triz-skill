@@ -59,8 +59,10 @@ test("lookup retains a conditional summary but setup expands it; opaque insertio
   for (const options of invalid) assert.equal(setupEffectModel({ chain: [33], domain: "physical", ...options }, k).ok, false);
   assert.equal(setupEffectModel({ chain: [74], domain: "physical", node_declarations: { "0/flow": {} } }, k).ok, false);
   const tool = toolSpecs().find(t => t.name === "triz_effect_setup")!;
-  const result: any = await tool.handler({ chain: [33], domain: "physical", certificate: true });
-  assert.equal(JSON.parse(result.content[0].text).certificate.format, "lean");
+  const result: any = await tool.handler({ chain: [33], domain: "physical" });
+  const response = JSON.parse(result.content[0].text);
+  assert.equal(response.ok, true);
+  assert.equal(response.setup.context_inputs.length, 2);
   const catalogue = knowledgeModelCatalogue({ source: "knowledge", effects: [33] }, k);
   assert.ok(catalogue.ok && "named_configurations" in catalogue);
   assert.equal(catalogue.catalogue.entries.length, 3);
@@ -157,7 +159,7 @@ test("reduction preserves every ranked lookup and all eight patent candidate top
   assert.equal(r.finite_boundary_behavior, "preserved");
   assert.equal(r.patent_comparison.cases.length, 8);
   assert.ok(r.patent_comparison.cases.every((c: any) => c.fully_expressed_topologies_preserved && c.before_candidates === c.after_candidates + c.removed_opaque_shortcuts));
-  assert.equal(r.certificate_count, 9);
+  assert.equal(r.boundary_validation.finite_relations.length, 3);
   assert.equal(r.boundary_validation.patent_cases.length, 3);
   assert.ok(r.boundary_validation.finite_relations.every((r: any) => r.verdict === "preserved"));
 });

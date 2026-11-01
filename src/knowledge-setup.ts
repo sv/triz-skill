@@ -19,7 +19,6 @@ export const EffectSetupRequest = z.strictObject({
   node_declarations: z.record(Text, ModelImplementation).default({}).describe("Expanded step/node id to implementation declaration for named configurations; no opaque replacement rows"),
   context_values: z.record(Text, z.array(Text).min(1)).default({}).describe("Expanded step/context id to explicit finite availability; required alongside boundary for configuration context inputs"),
   conditions: z.array(Text).default([]),
-  certificate: z.boolean().optional(),
 });
 
 export function setupEffectModel(raw: z.input<typeof EffectSetupRequest>, knowledge: ReturnType<typeof compileKnowledge>) {

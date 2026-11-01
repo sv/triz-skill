@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /** Remove an opaque implementation only after preserving retrieval and complete bounded patent topologies. */
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as data from "../../src/data.ts";
@@ -9,7 +8,6 @@ import { typedKnowledgeEffects } from "../../src/knowledge.ts";
 import { effectChains } from "../../src/act-effects.ts";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { compareBehavior } from "../../src/act-behavior.ts";
-import { modelCertificate, behaviorCertificate } from "../../src/act-cert.ts";
 import { validateReduction } from "./effects-configurations.mjs";
 import { reductionBaseline } from "./reduction-baseline.mjs";
 import { validateBoundaryModels } from "./effects-boundaries.mjs";
@@ -69,27 +67,19 @@ export function validateNamedReduction() {
   assert.ok(mismatch.ok && mismatch.verdict !== "preserved", "a broken force-to-flow calibration must change the relation");
   const missing = structuredClone(options); delete missing.context_values["0/field"];
   assert.equal(setupEffectModel(missing, current).ok, false);
-  const certificates = { IonicWindConfiguration: modelCertificate(model), IonicWindBoundaryBehavior: behaviorCertificate(reference, model, { scope: "whole" }) };
-  for (const c of Object.values(certificates)) assert.ok(c.ok, JSON.stringify(c));
   const topology = validateReduction();
   const boundaries = validateBoundaryModels(current);
   const symbolicCertificates = [compact.symbolicCertificate, ...boundaries.symbolicCertificates];
   assert.equal(symbolicCertificates.length, 2, "ionic momentum/flow and the qualified particle-force observation supply fixed total serial maps");
-  Object.assign(certificates, boundaries.certificates);
   return { report: { independent_unary_interfaces: { before: 70, previous: 69, after: 66 }, named_effects: current.effects.length, model_templates: current.models.length, boundary_mapping_count: current.boundary_mappings.length,
     implementation_declarations: { previous: 69 + 18, after: 66 + 19 },
     converted_ids: [20, 33, 35, 59], removed_discovery_names: [], ranked_text_queries: queries.length, typed_chain_queries: signatures.length,
     finite_boundary_behavior: compared.verdict, invalid_calibration_rejected: true, missing_context_rejected: true,
-    patent_comparison: topology, boundary_validation: boundaries.report, certificate_count: Object.keys(certificates).length,
+    patent_comparison: topology, boundary_validation: boundaries.report,
     symbolic_summaries: [{ name: "IonicWindMomentumFlow", method: compact.method, components_before: compactRequest.boxes.length, components_after: 1 }, ...boundaries.summaries],
-    scope: "Selected conditional boundary behavior at explicitly declared finite points; not continuous physics or measured patent performance." }, certificates, symbolicCertificates };
+    scope: "Selected conditional boundary behavior at explicitly declared finite points; not continuous physics or measured patent performance." }, symbolicCertificates };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { report, certificates } = validateNamedReduction();
-  const i = process.argv.indexOf("--cert-dir");
-  if (i >= 0) {
-    assert.ok(process.argv[i + 1]); fs.mkdirSync(process.argv[i + 1], { recursive: true });
-    for (const [name, c] of Object.entries(certificates)) fs.writeFileSync(path.join(process.argv[i + 1], `${name}.lean`), c.content);
-  }
+  const { report } = validateNamedReduction();
   console.log(JSON.stringify(report, null, 2));
 }

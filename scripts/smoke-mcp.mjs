@@ -56,13 +56,13 @@ const assembly = await json("triz_component_search", {
     { id: "target", name: "Readout", role: "product", inputs: [{ id: "in", carrier: "physical:irradiance" }] },
   ], wires: [] },
   resources: sourceTypes.map((_, i) => ({ box: "source", port: `r${i}` })), targets: [{ box: "target", port: "in" }],
-  catalogues: [{ catalogue: multiport.catalogue }], max_components: 2, require_all_resources: true, certificate: true,
+  catalogues: [{ catalogue: multiport.catalogue }], max_components: 2, require_all_resources: true,
 });
-if (assembly.verdict !== "candidates" || assembly.candidates[0]?.components.length !== 2 || !assembly.certificates?.typing || assembly.candidates[0].components.some(c => !c.catalogueOrigin?.conditions?.length)) fail("registered model catalogue did not enter typed configuration search/certification");
+if (assembly.verdict !== "candidates" || assembly.candidates[0]?.components.length !== 2 || assembly.candidates[0].components.some(c => !c.catalogueOrigin?.conditions?.length)) fail("registered model catalogue did not enter typed configuration search");
 const specialized = await json("triz_effects", { form: "specialization" });
 if (specialized.matched !== 22 || specialized.effects.some(e => !e.input || !e.output || e.definition.form !== "specialization")) fail("named specializations lost their resolved typing");
-const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical", certificate: true });
-if (!familySetup.ok || familySetup.certificate?.format !== "lean" || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
+const familySetup = await json("triz_effect_setup", { chain: [37, 73, 1], domain: "physical" });
+if (!familySetup.ok || familySetup.setup.expanded_effect_ids.join() !== "37,73,1") fail("shared family interfaces did not enter checked setup");
 const finiteFlow = await json("triz_effect_setup", { chain: [66, 74], domain: "physical",
   bindings: Object.fromEntries(["light", "voltage", "current"].map(p => [`physical:${p}`, { values: ["0", "1"] }])),
   declarations: [0, 1].map(() => ({ behavior: ["0", "1"].map(v => ({ in: { in: v }, out: { out: v } })) })),
@@ -71,15 +71,15 @@ const compactFlow = await json("triz_subsystem_summary", { model: finiteFlow.mod
 if (!compactFlow.ok || compactFlow.method !== "symbolic" || compactFlow.symbolicCertificate?.stages.length !== 2 || compactFlow.relation.length !== 2) fail("declared effects flow did not reuse checked symbolic summary composition");
 const windCatalogue = await json("triz_component_catalogue", { source: "knowledge", effects: [33] });
 if (!windCatalogue.ok || windCatalogue.catalogue.entries.length !== 3 || windCatalogue.named_configurations?.length !== 1) fail("named configuration became an opaque catalogue generator");
-const wind = await json("triz_effect_setup", { chain: [33], domain: "physical", certificate: true });
-if (!wind.ok || wind.model.boxes.length !== 5 || wind.setup.context_inputs.length !== 2 || wind.certificate?.format !== "lean") fail("named configuration did not expand with explicit context and a typing certificate");
+const wind = await json("triz_effect_setup", { chain: [33], domain: "physical" });
+if (!wind.ok || wind.model.boxes.length !== 5 || wind.setup.context_inputs.length !== 2) fail("named configuration did not expand with explicit context");
 if (wind.model.boxes.some(b => b.behavior || b.transition || b.feasibility)) fail("named configuration invented an implementation");
 const forceObservation = await json("triz_component_catalogue", { source: "knowledge", effects: [59] });
 if (!forceObservation.ok || forceObservation.catalogue.entries.length !== 2 || forceObservation.boundary_mappings?.length !== 1 || !forceObservation.named_configurations[0]?.catalogue_complete) fail("directed force observation did not enter the named catalogue");
-const observedForce = await json("triz_effect_setup", { chain: [59], domain: "physical", certificate: true });
-if (!observedForce.ok || observedForce.model.boxes.length !== 4 || observedForce.setup.boundary_mappings?.length !== 1 || observedForce.certificate?.format !== "lean") fail("named force view did not materialize its sourced output observation");
-const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical", certificate: true });
-if (!setup.ok || setup.certificate?.format !== "lean" || setup.effects.length !== 3) fail("registered effect setup/certificate failed");
+const observedForce = await json("triz_effect_setup", { chain: [59], domain: "physical" });
+if (!observedForce.ok || observedForce.model.boxes.length !== 4 || observedForce.setup.boundary_mappings?.length !== 1) fail("named force view did not materialize its sourced output observation");
+const setup = await json("triz_effect_setup", { chain: [66, 74, 64], domain: "physical" });
+if (!setup.ok || setup.effects.length !== 3) fail("registered effect setup failed");
 if (setup.model.boxes.some(b => b.behavior || b.feasibility)) fail("effect setup invented implementation rows");
 const typed = await json("triz_effects", {});
 if (typed.matched !== 78 || typed.effects.some(e => !e.input || !e.output || !e.field)) fail("incomplete shipped effect typing coverage");
@@ -95,8 +95,8 @@ const memory = await json("triz_effect_setup", {
   ] }],
 });
 if (!memory.ok) fail("stateful catalogue setup failed");
-const memoryRun = await json("triz_dynamics", { model: memory.model, horizon: 2, unsafe: [{ box: memory.effects[0].box, state: ["charged"] }], certificate: true });
-if (memoryRun.escalation?.time !== 1 || memoryRun.certificate?.format !== "lean") fail("declared effect memory did not enter dynamics/certificate checks");
+const memoryRun = await json("triz_dynamics", { model: memory.model, horizon: 2, unsafe: [{ box: memory.effects[0].box, state: ["charged"] }] });
+if (memoryRun.escalation?.time !== 1) fail("declared effect memory did not enter dynamics checks");
 console.log("78 typed effects -> nonempty optical discovery -> explicit memory/dynamics passed");
 
 // Source import stays a draft through the actual stdio schema/handler boundary.
@@ -189,9 +189,6 @@ console.log(`triz_export svg -> ${svg.ok ? `${svg.content.length} bytes` : svg.i
 if (!svg.ok || !svg.content.startsWith("<svg ")) fail("SVG export wrong (elkjs is an optional dependency: is it installed?)");
 const badExport = await json("triz_export", { model: { ...model, wires: [{ ...model.wires[0], carrier: "heat" }] }, format: "dot" });
 if (badExport.ok !== false) fail("mistyped export did not fail closed");
-const cert = await json("triz_export", { model, format: "lean" });
-console.log(`triz_export lean -> ${cert.certifies?.map((c) => c.theorem.split(".").at(-1)).join(", ")}`);
-if (!cert.ok || !cert.content.startsWith("import CategoricalTriz\n") || cert.certifies[0]?.theorem !== "TrizCertificate.typed") fail("lean certificate wrong");
 
 const trimmed = await json("triz_transform", { model, transformation: { op: "trim", trim: ["bearing"] } });
 console.log(`triz_transform trim bearing -> ${trimmed.model?.boxes.map((b) => b.id)}`);

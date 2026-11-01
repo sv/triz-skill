@@ -8,20 +8,11 @@ import { knowledgeModelCatalogue } from "../src/knowledge-models.js";
 import { searchComponents } from "../src/act-component-search.js";
 import { externalBehavior } from "../src/act-behavior.js";
 import { boundedDynamics, checkRun } from "../src/act-dynamics.js";
-import { dynamicsCertificate, modelCertificate } from "../src/act-cert.js";
 import { toolSpecs } from "../src/tools.js";
 import type { FunctionModel } from "../src/act.js";
-import { bindRequest, checkAll, ensureBuilt, localLeanAvailable, tamperVariants } from "../scripts/certify.mjs";
 
 const p = (s: string) => `physical:${s}`;
 const k = knowledge();
-const certificates: string[] = [];
-const certify = (model: FunctionModel, spec?: any) => {
-  const c = spec ? dynamicsCertificate(model, spec) : modelCertificate(model);
-  assert.ok(c.ok, JSON.stringify(c));
-  assert.deepEqual(bindRequest(c.content, spec ? { kind: "dynamics", model, spec } : { kind: "model", model }), []);
-  certificates.push(c.content);
-};
 const packs = () => structuredClone(k.packs);
 const models = () => packs().find(pack => pack.id === "physical")!;
 test("multiport models preserve the 78 discovery signatures and validate all cross-references", () => {
@@ -143,7 +134,7 @@ test("persistent emission requires stored charge: prompt response fails after so
     if (persistent && result.escalation?.verdict === "reachable") {
       assert.equal(result.escalation.time, 1);
       assert.deepEqual(checkRun(n.model, spec, result.escalation.trace), { ok: true, errors: [] });
-      certify(n.model, spec);
+
       const noPerpetualGlow = boundedDynamics(n.model, { horizon: 4, unsafe: [...spec.unsafe, { box: "source", state: ["dark"] }, { box, state: ["empty"] }] });
       assert.ok(noPerpetualGlow.ok && "escalation" in noPerpetualGlow);
       assert.equal(noPerpetualGlow.escalation?.verdict, "unreachable");
@@ -172,8 +163,6 @@ test("photoelastic modulation composes with illumination and cannot invert one i
   assert.equal(relation.relation.length, 3);
   assert.deepEqual(relation.relation[0].outputs, relation.relation[2].outputs, "two stress values produce the same intensity");
   assert.notDeepEqual(relation.relation[0].outputs, relation.relation[1].outputs);
-  assert.ok(modelCertificate(n.model).ok);
-  certify(n.model);
 });
 
 test("magnetic and DC responses share one phase producer and normal phase does not screen field", () => {
@@ -195,7 +184,6 @@ test("magnetic and DC responses share one phase producer and normal phase does n
   const result = boundedDynamics(n.model, spec);
   assert.ok(result.ok && "escalation" in result, JSON.stringify(result));
   assert.equal(result.escalation?.verdict, "unreachable");
-  certify(n.model, spec);
 });
 
 test("a finite adsorbent bed breaks through and recovers only after scheduled regeneration with purge resources", () => {
@@ -229,10 +217,6 @@ test("a finite adsorbent bed breaks through and recovers only after scheduled re
   const failure = boundedDynamics(noHeat, spec);
   assert.ok(failure.ok && "escalation" in failure);
   assert.equal(failure.escalation?.verdict, "unreachable");
-  certify(n.model, spec);
-  const capped = dynamicsCertificate(noHeat, spec);
-  assert.equal(capped.ok, false, "the full unreachable invariant exceeds the certificate valuation cap");
-  certify(noHeat); // Certify typing; the no-heat dynamics assertion above is the bounded JS check.
 });
 
 test("candidate provenance keeps physical assumptions, and missing resources or same-SI substitutions cannot close a network", () => {
@@ -254,16 +238,4 @@ test("candidate provenance keeps physical assumptions, and missing resources or 
   wrong.boxes[0].outputs![1].carrier = heat.id; // W supplied as heat is not W available for rejection.
   const mismatch = searchComponents({ ...request, model: wrong });
   assert.ok(mismatch.ok && mismatch.verdict === "impossible-in-library");
-});
-
-// The Lean workflow discovers files containing leanTest( and requires a built theory.
-function leanTest(name: string, fn: () => Promise<void>) {
-  const available = localLeanAvailable();
-  const skip = !process.env.TRIZ_REQUIRE_LEAN && (process.env.TRIZ_SKIP_LEAN ? "TRIZ_SKIP_LEAN is set" : !available && "theory/ is not built");
-  test(name, { skip }, async () => { assert.ok(available, "Lean theory must be built"); await ensureBuilt(); await fn(); });
-}
-leanTest("Lean accepts configured multiport typing and finite dynamics, and rejects tampering", async () => {
-  assert.equal(certificates.length, 5);
-  const result = await checkAll({ certificates, tampered: certificates.flatMap(tamperVariants) }, { mode: "local" });
-  for (const c of [...result.certificates, ...result.tampered]) assert.ok(c.ok, c.problems.join("\n"));
 });

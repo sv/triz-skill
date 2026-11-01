@@ -99,7 +99,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | Check | `triz_function_model`, `triz_trim`, `triz_separate`, `triz_flow`, `triz_global_separation`, `triz_queue`, `triz_conservation` | Type errors, harm loops, ideality; trim candidates; whether a contradiction separates; flow bottlenecks |
 | Transform | `triz_transform`, `triz_rule_apply`, `triz_trim_rewrite`, `triz_rewrite_pair`, `triz_rule_set` | Apply one typed move or a rewrite rule; the result type-checks or the call fails closed |
 | Decide | `triz_behavior`, `triz_weakness`, `triz_dynamics`, `triz_feasibility`, `triz_adequacy`, `triz_implementations`, `triz_absorber_assignments`, `triz_synthesize` | From declared rows: is behaviour preserved, which concept is weakest, does it escalate, does it fit the budget |
-| Certify | `triz_export` format `lean`; `certificate: true` on `triz_separate`, `triz_behavior`, `triz_dynamics`, `triz_weakness` | A Lean file stating the verdicts, checked locally by `scripts/certify.mjs` |
+| Relax & rank | `triz_feasibility` `relaxation`, `triz_pareto` | When the budget says no, the minimal raises that say yes; candidate designs compared jointly, with trade-offs instead of a hidden scalarization |
 | Local | `triz_import_source`, `triz_review_import` | Draft models from local sources, then record explicit analyst confirmation |
 | Optional | `triz_graph`, `triz_purpose` | A project's own network of problems (stdio server only; see below) |
 
@@ -115,7 +115,7 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_resolve` | Retrieve a cell and expand its parameters and principles |
 | `triz_tool_catalog` | List the routed TRIZ tool catalog, optionally by stage; entries name the MCP tools (`mcp_tools`) that carry out their method |
 | `triz_effects` | Search all installed effects packs by function, category or typed quantity; optional domain/pack filters |
-| `triz_effect_setup` | Build a typed model from registered effect ids and explicit finite/resource declarations; optionally generate a Lean typing certificate |
+| `triz_effect_setup` | Build a typed model from registered effect ids and explicit finite/resource declarations |
 | `triz_route` | Select candidate tools by stage and observed problem signals |
 | `triz_evals` | Return the neutral lookup and reasoning evaluation suites |
 | `triz_build_model` | Build a typed model from explicitly rated component interactions, with stable ids, lints, and a bounded completeness report |
@@ -129,11 +129,12 @@ them, and exactly what is and is not claimed, is in [docs/theory-map.md](docs/th
 | `triz_transform` | Apply one typed move — a construction for one of 13 principles, an applied trim, or a rewrite; fails closed |
 | `triz_rule_apply` | Double-pushout rewriting with rules as data: list a rule's matches, apply one; built-in evolution-line rules (mono → bi, self-adjusting feedback, changing the working field) and the uneven-development detector (the lagging subsystem) |
 | `triz_nine_windows` | System-operator views: subsystem restriction, system, supersystem collapse, per time; transitions between times as checked `triz_transform` sequences; with declared rows, behaviour, weakness, and feasibility verdict changes between times, and flow candidates when flows are declared; returns the models transitions derive |
-| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, an open hypergraph, or a Lean certificate of its verdicts |
+| `triz_export` | Export a model that type-checks as Graphviz DOT, a Mermaid flowchart, a self-contained SVG picture, or an open hypergraph |
 | `triz_behavior` | Compose declared box behaviour into the input→deliverable relation (steady states, relational trace); with `compare_to` (and `box_map`), decide whether a concept such as a transform result preserves it; `trim` is shorthand; `joint_boxes` computes a coupled multi-box residual with projection-safety checks; one-hole `weakest_spec` can price missing producible rows using explicit `row_costs` |
 | `triz_weakness` | Rank modelled concepts by the situations they admit, by inclusion, with incomparable pairs; counts second; acceptable values listed or derived from a threshold through the carrier's levels |
+| `triz_pareto` | Rank candidate designs jointly over declared metric vectors (feasibility resources, lifecycle figures, component counts, costs): the nondominated frontier, dominance witnesses, and trade-offs between incomparable candidates; weights order the listing only |
 | `triz_dynamics` | Bounded runs of boxes with declared state (nondeterministic Mealy machines): escalation into an unsafe set with a shortest trace, invariance of a safe set, separation in time along one run; loops classified as bistable, trapped (inside the unsafe set), recurrent (meets it but can recover), or oscillating |
-| `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources; with carrier `levels`, the rows that disagree with declared behaviour |
+| `triz_feasibility` | Monotone co-design (Censi 2015): minimal resource vectors from declared box feasibility, by Kleene's ascent to the least fixpoint; an `infeasible` verdict also returns `relaxation`, the nondominated minimal budget raises (each with its row-selection witness) or the smallest per-port capability raises; with `trim`, decide whether the remaining boxes provide what the trim leaves them within budget, and the absorber's added resources; with carrier `levels`, the rows that disagree with declared behaviour |
 | `triz_abstraction` | Check that a coarse model is an abstraction of a detailed one under a map of boxes, ports, and carriers: total, typed, every coarse function and harm loop the image of a detailed one; forgotten and hidden harms listed |
 | `triz_flow` | Flow analysis over declared flow paths (boxes in series): per flow, bottleneck, accumulation, and leak candidates, and loops |
 | `triz_graph` | Optional: analyse a project's OTSM Network of Problems (see below) |
@@ -195,7 +196,7 @@ JSON on stderr); `--pretty` indents the output. Without a global install, run
 ## Function models as typed data
 
 The eight-workstream assurance extension adds whole-model behavior, operational adequacy,
-input-bound Lean certificates, semantic isomorphism/refinement, joint implementation and finite
+semantic isomorphism/refinement, joint implementation and finite
 synthesis contracts, global overlapping-constraint checks, finite queue/conservation adapters,
 and restricted rewrite analysis. See [implemented scope and tools](docs/categorical-assurance.md).
 [Acceptance criteria](docs/assurance-requirements.md) and
@@ -320,16 +321,18 @@ published, and a first layout costs more CPU than a Free-plan request allows (se
 ![The same model drawn by triz_export format svg](docs/img/function-model-svg.svg)
  Given `compare_to`, `triz_function_model` also reports whether the two
 models share a wiring shape. Each verdict names in `basis` the theorem in `theory/` it relies
-on; a test checks that every cited name is a theorem there. Typing, harm-loop witness, and
-separation verdicts can also be certified per instance: `triz_export` format `lean` (or
-`triz_separate` with `certificate: true`) writes a Lean file that states them about the model
-and proves them, and `node scripts/certify.mjs` checks it with local Lean. Only explicit
-`--remote` sends the certificate and its model data to the AXLE service. `triz_behavior`, `triz_dynamics` and `triz_weakness` with `certificate: true` cover
-supported finite behavior comparisons, reachable escalation/state-only inductive safety, and
-strict, equal or incomparable concept pairs. Manifests bind the source request and scope;
-`node scripts/certify.mjs --local --tamper --request request.json result.lean` checks source/table
-correspondence and the listed proofs. Unsupported cases and caps return an explicit reason.
-Nothing is extracted from Lean. The structured verdicts of the
+on; a test checks that every cited name is a theorem there. Nothing is extracted from Lean:
+the theorems prove the abstract facts the algorithms rest on, tests check the TypeScript
+against them, and the pairing is enforced in CI (`lake build --wfail`, so no `sorry` ships).
+The theorems also act as design machinery, not just citations: when `triz_feasibility` says
+`infeasible`, `budget_feasible_iff` (a budget admits a configuration iff it lies above one of
+the minimal resource vectors) is what the returned `relaxation` block computes — the
+nondominated minimal budget raises, each with the row selection that then fits; when candidates
+must be compared across resources, lifecycle figures and component counts at once,
+`triz_pareto` returns the joint nondominated frontier with dominance witnesses, and reports
+incomparable candidates as trade-offs instead of resolving them (`pareto_not_total`: the
+componentwise order is not total, so a single ranking needs weights the caller chooses).
+The structured verdicts of the
 checks are label-blind: renaming ids or
 changing the domain does not change them. Property tests check this, with the exclusions listed
 in the theory map. That shows the kernel reads only the wiring shape, not that solutions
@@ -404,10 +407,7 @@ trimming as a Kan extension; the theory map says why.
 ```bash
 pnpm schema                       # regenerate the JSON Schema from src/act.ts
 pnpm lean:setup                   # theory/.lake/packages: cloned from another checkout, or fetched
-(cd theory && lake build --wfail)
-node scripts/certify.mjs --local --tamper theory/Certificates/*.lean   # tampered copies must fail
-TRIZ_SKIP_LEAN=1 pnpm test        # skip the Lean-backed tests even where theory/ is built
-TRIZ_REQUIRE_LEAN=1 TRIZ_LEAN_JOBS=3 node --import tsx --test tests/act-cert.test.ts   # as Lean CI runs them
+(cd theory && lake build --wfail) # the same check Lean CI runs: no `sorry` ships
 ```
 
 `pnpm lean:setup` (`scripts/lean-setup.mjs`) sets up `theory/.lake/packages`: Mathlib and the
@@ -419,16 +419,9 @@ byte-identical, and clones its packages copy-on-write (`cp -cpR` on macOS APFS, 
 Without one, or when an imported module still has no olean, it runs `lake exe cache get` with the
 theory's Mathlib imports, the same list as Lean CI (`node scripts/lean-setup.mjs
 --print-imports`). That command is its only network access. It prints what it did; then build.
-
-Once `theory/` is built, `pnpm test` also runs the Lean-backed certificate tests. Each Lean process
-they start loads the theory's whole import closure (about 2.5 GiB of Lean and Mathlib, about
-1.5 GB resident). The tests run one at a time, and a test starts its processes one after another;
-`TRIZ_LEAN_JOBS=N` runs N tests at once. The theory is built once before them (`lake build
-CategoricalTriz`), and the tests only run `lake env lean`, so no two builds contend for Lake's
-lock. `TRIZ_SKIP_LEAN=1` skips them.
-Lean CI runs only the test files that declare a `leanTest`, with `TRIZ_REQUIRE_LEAN=1`, which fails
-when Lean is missing, whatever `TRIZ_SKIP_LEAN` says, and `TRIZ_LEAN_JOBS=3`; the CI workflow runs
-every other test. `certify.mjs` checks all its files and their tampered copies in one Lean process.
+The TypeScript test suite never runs Lean: it checks the kernel against the theorems by name
+(`basis`) and by property tests, and Lean CI builds `theory/` separately with `lake build
+--wfail`.
 
 ## Optional: your own network of problems
 

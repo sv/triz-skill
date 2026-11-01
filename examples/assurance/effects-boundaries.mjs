@@ -4,7 +4,6 @@ import fs from "node:fs";
 import { setupEffectModel } from "../../src/knowledge-setup.ts";
 import { BehaviorEvaluationCache, compareBehavior, externalBehavior } from "../../src/act-behavior.ts";
 import { boundedDynamics } from "../../src/act-dynamics.ts";
-import { modelCertificate, behaviorCertificate, dynamicsCertificate } from "../../src/act-cert.ts";
 import { summarizeSubsystem } from "../../src/act-refinement.ts";
 import { discovery } from "./effects-configurations.mjs";
 import { reductionBaseline } from "./reduction-baseline.mjs";
@@ -30,9 +29,8 @@ function reference(model, effect, rows, primaryValues) {
   return baseline;
 }
 export function validateBoundaryModels(k) {
-  const certificates = {}, relations = [], symbolicCertificates = [], summaries = [];
+  const relations = [], symbolicCertificates = [], summaries = [];
   const options = { scope: "whole", evaluationCache: new BehaviorEvaluationCache() };
-  const store = (name, cert) => { assert.ok(cert.ok, JSON.stringify(cert)); certificates[name] = cert; };
   const check = (name, baseline, model) => {
     const result = compareBehavior(baseline, model, options);
     assert.ok(result.ok && result.verdict === "preserved", JSON.stringify(result));
@@ -45,8 +43,8 @@ export function validateBoundaryModels(k) {
     assert.deepEqual(rows(compact), rows(finite)); assert.deepEqual(compact.inputMap, finite.inputMap); assert.deepEqual(compact.outputMap, finite.outputMap);
     if (compact.symbolicCertificate) symbolicCertificates.push(compact.symbolicCertificate);
     summaries.push({ name, method: compact.method, components_before: request.boxes.length, components_after: 1 });
-    store(`${name}Typing`, modelCertificate(model));
-    store(`${name}Behavior`, behaviorCertificate(baseline, model, { scope: "whole" }));
+
+
     relations.push({ name, verdict: result.verdict });
   };
   // Exact selected Malus points with incident irradiance fixed at 2 W/m².
@@ -100,7 +98,7 @@ export function validateBoundaryModels(k) {
   const protocol = { horizon: 2, unsafe: [field("resource", "out", ["1A"]), field("required", "in", ["1A"])] };
   const run = boundedDynamics(sc.model, protocol);
   assert.ok(run.ok && run.escalation?.verdict === "reachable", JSON.stringify(run));
-  store("DCObservationStatefulTrace", dynamicsCertificate(sc.model, protocol));
+
   const outside = structuredClone(snapshot);
   for (const row of outside.boxes.find(b => b.id === "resource").behavior) row.out["context-0-temperature"] = "hot";
   const unsupported = externalBehavior(outside, options);
@@ -118,5 +116,5 @@ export function validateBoundaryModels(k) {
   });
   assert.ok(options.evaluationCache.stats.hits > 0, "shared summaries should reuse unchanged finite boundaries while rejecting changed models");
   return { report: { finite_relations: relations, zero_illumination_checked: true, force_sign_corruption_rejected: true,
-    phase_state_retained: true, out_of_envelope_unsupported: true, patent_cases: patentCases }, certificates, symbolicCertificates, summaries };
+    phase_state_retained: true, out_of_envelope_unsupported: true, patent_cases: patentCases }, symbolicCertificates, summaries };
 }

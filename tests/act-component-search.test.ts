@@ -6,8 +6,6 @@ import { effectChains } from "../src/act-effects.js";
 import { insertEffectChain } from "../src/act-effect-insert.js";
 import { searchComponents } from "../src/act-component-search.js";
 import { rewrite } from "../src/act-rewrite.js";
-import { behaviorCertificate, modelCertificate } from "../src/act-cert.js";
-import { bindRequest, lint } from "../scripts/certify.mjs";
 import { renamedTwin } from "./support/twin.js";
 import {
   componentRequest,
@@ -369,34 +367,6 @@ test("search and insertion verdicts are invariant under systematic id and label 
   assert.equal(inserted.verdict, "inserted");
 });
 
-test("generated networks reuse request-bound typing and behavior certificates", () => {
-  const r = searchComponents({
-    ...componentRequest(),
-    contract: contract(),
-    implementation: metadata,
-    max_work: 1000000,
-  });
-  assert.ok(r.ok && "candidates" in r && r.candidates.length);
-  const model = r.candidates[0].model,
-    typed = modelCertificate(model),
-    behavior = behaviorCertificate(contract().target, model, {
-      scope: "whole",
-    });
-  assert.ok(typed.ok && behavior.ok);
-  assert.deepEqual(lint(typed.content), []);
-  assert.deepEqual(lint(behavior.content), []);
-  assert.deepEqual(bindRequest(typed.content, { kind: "model", model }), []);
-  assert.deepEqual(
-    bindRequest(behavior.content, {
-      kind: "behavior",
-      baseline: contract().target,
-      concept: model,
-      scope: "whole",
-    }),
-    [],
-  );
-});
-
 test("property-checked discovery is invariant under carrier, value, component and budget renaming", () => {
   const a = componentRequest(),
     combined = targetModel();
@@ -504,19 +474,4 @@ test("the MCP exposes component discovery and direct effect-chain insertion", as
     ).content[0].text,
   );
   assert.equal(added.verdict, "inserted");
-  const certified = JSON.parse(
-    (
-      await specs.triz_component_search.handler({
-        ...componentRequest(),
-        contract: contract(),
-        implementation: metadata,
-        max_work: 1000000,
-        certificate: true,
-      })
-    ).content[0].text,
-  );
-  assert.equal(certified.certificates.typing.format, "lean");
-  assert.equal(certified.certificates.behavior.format, "lean");
-  assert.deepEqual(lint(certified.certificates.typing.content), []);
-  assert.deepEqual(lint(certified.certificates.behavior.content), []);
 });
